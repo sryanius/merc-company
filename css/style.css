@@ -1,0 +1,372 @@
+/* ===== 용병단 — 다크 판타지 UI 테마 ===== */
+:root {
+  --bg-0: #0d0b12;
+  --bg-1: #14111c;
+  --bg-2: #1c1826;
+  --bg-3: #262032;
+  --bg-4: #322a42;
+  --line: #3a3148;
+  --line-soft: #2a2436;
+  --ink: #e8e2d8;
+  --ink-dim: #a79db0;
+  --ink-faint: #6f6680;
+  --gold: #e0b44a;
+  --gold-dim: #a8842a;
+  --blood: #a83a4a;
+  --steel: #7f97b8;
+  --leaf: #6fae7a;
+  --arcane: #a86fd6;
+  --ember: #d1642c;
+  --ok: #6fae7a;
+  --bad: #cf5a5a;
+  --radius: 6px;
+  --shadow: 0 6px 20px rgba(0, 0, 0, .55);
+  --font: "Pretendard", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, "D2Coding", monospace;
+
+  /* --- 반응형 공용 변수 (화면 모듈도 쓴다) ---
+     --navh   : 하단 고정 탭 바 높이. PC 에서는 내비가 상단이라 0.
+     --safe-* : 노치/홈 인디케이터 여백. index.html 의 viewport-fit=cover 와 짝이다. */
+  --navh: 0px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #241d33 0%, transparent 60%),
+    var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+img, canvas { image-rendering: pixelated; }
+img { max-width: 100%; }
+
+#app {
+  max-width: 1360px;
+  margin: 0 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  display: flex; align-items: center; gap: 18px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 40;
+}
+.hud-brand {
+  font-weight: 800; letter-spacing: .06em; color: var(--gold);
+  font-size: 15px; white-space: nowrap;
+}
+.hud-brand small { display: block; font-size: 10px; color: var(--ink-faint); letter-spacing: .18em; font-weight: 400; }
+/* 긴 용병단 이름이 HUD 를 밀어내지 않게 말줄임 (예전에는 app.js 인라인 스타일이었다 —
+   모바일에서 폭 제한을 풀어야 해서 클래스로 옮겼다. PC 계산값은 그대로 240px). */
+.hud-brand .hud-name { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+/* 모바일 전용 요소. PC 에서는 없는 것처럼 보여야 한다. */
+.hud-toggle { display: none; }
+.hud-stats { display: flex; gap: 16px; flex: 1; flex-wrap: wrap; }
+.hud-stat { display: flex; align-items: baseline; gap: 6px; }
+.hud-stat .k { font-size: 11px; color: var(--ink-faint); }
+.hud-stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud-stat.gold .v { color: var(--gold); }
+.hud-actions { display: flex; gap: 8px; }
+
+/* ---------- 네비 ---------- */
+#nav { display: flex; gap: 2px; padding: 0 12px; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+#nav button {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 10px 16px; color: var(--ink-dim); cursor: pointer; font-weight: 600;
+}
+#nav button:hover { color: var(--ink); background: rgba(255,255,255,.03); }
+#nav button.active { color: var(--gold); border-bottom-color: var(--gold); }
+#nav button:disabled { opacity: .3; cursor: not-allowed; }
+/* 아이콘과 축약 이름은 하단 탭 바(모바일)에서만 쓴다. PC 는 전체 이름(.nav-lb)만 보인다. */
+#nav .nav-ico, #nav .nav-sh { display: none; }
+
+#screen { flex: 1; padding: 18px; }
+
+/* ---------- 공용 컴포넌트 ---------- */
+.panel {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.panel > h3, .panel-title {
+  margin: -2px 0 12px; font-size: 13px; letter-spacing: .1em;
+  color: var(--ink-faint); text-transform: uppercase; font-weight: 700;
+}
+.row { display: flex; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.grid { display: grid; gap: 12px; }
+.wrap { flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.center { align-items: center; }
+.muted { color: var(--ink-dim); }
+.faint { color: var(--ink-faint); }
+.tiny { font-size: 11px; }
+.num { font-variant-numeric: tabular-nums; }
+.sep { height: 1px; background: var(--line-soft); margin: 10px 0; }
+
+.btn {
+  background: linear-gradient(180deg, var(--bg-4), var(--bg-3));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 14px; cursor: pointer; font-weight: 600;
+  transition: background .12s, border-color .12s, transform .06s;
+}
+.btn:hover:not(:disabled) { background: linear-gradient(180deg, #3d3450, var(--bg-4)); border-color: #4d4260; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.primary { background: linear-gradient(180deg, #6e5520, #4a3714); border-color: var(--gold-dim); color: #f2dfa8; }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #866729, #5c451a); }
+.btn.danger { border-color: #6e2b34; color: #eba9a9; }
+.btn.ghost { background: none; }
+.btn.sm { padding: 4px 9px; font-size: 12px; }
+.btn.lg { padding: 11px 22px; font-size: 15px; }
+
+.tag {
+  display: inline-block; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; border: 1px solid currentColor; line-height: 1.6;
+}
+.bar { height: 6px; border-radius: 3px; background: var(--bg-3); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--leaf); transition: width .25s; }
+.bar.exp > i { background: var(--arcane); }
+.bar.hp > i { background: linear-gradient(90deg, #b8443f, #d96a5c); }
+
+/* 카드 그리드 */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.card {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px; cursor: pointer; transition: border-color .12s, transform .08s;
+}
+.card:hover { border-color: #5a4c72; transform: translateY(-1px); }
+.card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }
+.card.empty { border-style: dashed; opacity: .55; }
+
+/* 넓은 표/블록 전용 가로 스크롤 래퍼.
+   ★ 규약: 화면이 넓어질 수 있는 표는 `el('div',{class:'table-wrap'}, table)` 로 감싼다.
+   페이지가 가로로 밀리는 대신 이 래퍼 안에서만 스크롤된다. PC 에서는 내용이 들어가므로 무동작. */
+.table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-wrap > table { min-width: 100%; }
+
+table.data { width: 100%; border-collapse: collapse; }
+table.data th, table.data td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line-soft); }
+table.data th { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; }
+table.data tbody tr:hover { background: rgba(255,255,255,.025); }
+
+/* ---------- 토스트 ---------- */
+#toast-layer { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.toast {
+  background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  padding: 10px 16px; border-radius: var(--radius); box-shadow: var(--shadow);
+  animation: toastIn .18s ease-out; max-width: 340px;
+  transition: opacity .3s, transform .3s;
+}
+.toast.good { border-left-color: var(--ok); }
+.toast.bad { border-left-color: var(--bad); }
+/* 사라질 때. 예전에는 app.js 가 인라인으로 넣었는데, 모바일에서는 가로로 밀면
+   화면 밖으로 나가므로 방향을 바꿔야 해서 클래스로 옮겼다. */
+.toast.out { opacity: 0; transform: translateX(20px); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } }
+@keyframes toastInUp { from { opacity: 0; transform: translateY(12px); } }
+
+/* ---------- 모달 ---------- */
+#modal-layer:empty { display: none; }
+#modal-layer {
+  position: fixed; inset: 0; background: rgba(6,4,10,.72);
+  display: flex; align-items: center; justify-content: center; z-index: 90; padding: 24px;
+  backdrop-filter: blur(2px);
+}
+.modal {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow);
+  min-width: 340px; max-width: min(820px, 94vw); max-height: 88vh; overflow: auto;
+}
+/* modal({wide:true}). 예전에는 app.js 가 인라인 min-width:760px 를 박았는데,
+   인라인은 미디어쿼리로 못 덮어서 폰에서 가로 스크롤을 만들었다 — 클래스로 옮겼다.
+   ★ min() 로 감싼 이유: 768px(태블릿 세로)에서는 #modal-layer 의 좌우 패딩 24px 을 빼면
+   쓸 수 있는 폭이 710px 뿐이라, 760px 고정이면 모달이 화면 양옆으로 1px 씩 잘려 나갔다(실측).
+   PC(1280px)에서는 100% 가 1232px 이라 min() 이 760px 을 고르므로 계산값이 그대로다. */
+.modal.wide { min-width: min(760px, 100%); }
+.modal header { padding: 14px 18px; border-bottom: 1px solid var(--line); font-weight: 700; color: var(--gold); }
+.modal .body { padding: 18px; }
+.modal footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ---------- 전투 ---------- */
+.battle-stage { position: relative; background: #07060b; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.battle-stage canvas { display: block; width: 100%; height: auto; }
+.battle-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.battle-log {
+  height: 118px; overflow: auto; padding: 8px 12px; font-size: 12px;
+  background: var(--bg-0); border-top: 1px solid var(--line); font-family: var(--mono); color: var(--ink-dim);
+}
+.battle-log div { padding: 1px 0; }
+
+/* 스프라이트 미리보기 */
+.sprite-box { display: inline-flex; align-items: flex-end; justify-content: center; background: radial-gradient(circle at 50% 80%, #221c2e, #100d17); border-radius: var(--radius); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 5px; border: 2px solid var(--bg-1); }
+::-webkit-scrollbar-thumb:hover { background: #453a5c; }
+
+/* ===================================================================
+   태블릿 세로 (768~1024px)
+   ------------------------------------------------------------------
+   · 폰 규칙(≤767px)이 안 걸리는 구간인데 여기도 손가락으로 누른다.
+     실측(768x1024): `.btn.sm` 이 44x26 이라 40px 하한에 못 미쳤다.
+   · **레이아웃은 손대지 않는다.** 터치 타겟 높이/여백만 키운다.
+     PC 기준(1280px)에는 min-width/max-width 어느 쪽으로도 걸리지 않는다.
+   =================================================================== */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .btn { min-height: 40px; touch-action: manipulation; }
+  .btn.sm { min-height: 40px; padding: 6px 12px; }
+  .btn.lg { min-height: 48px; }
+  select, input:not([type="checkbox"]):not([type="radio"]), textarea { min-height: 40px; }
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; }
+}
+
+/* ===================================================================
+   모바일 (≤767px)
+   ------------------------------------------------------------------
+   · 여기 아래의 모든 규칙은 미디어쿼리 안에만 있다. 768px 이상(태블릿 세로·PC)은
+     위쪽 규칙만 적용되므로 기존 레이아웃과 픽셀 단위로 동일하다.
+   · 여기는 "공용 토대"만 다룬다 — 화면별 2단 그리드 접기 같은 건 각 화면 모듈이
+     자기 <style> 안에서 처리한다.
+   · 가로 스크롤 금지(document.body.scrollWidth ≤ innerWidth)를 위해 고정폭을 만들지 않는다.
+   =================================================================== */
+@media (max-width: 767px) {
+  /* 하단 탭 바 높이. 화면 모듈이 고정 요소를 깔 때 calc(var(--navh) + var(--safe-b)) 를 쓰면 된다. */
+  :root { --navh: 58px; }
+
+  /* ---- HUD: 스티키 해제 + 핵심 3개(골드·날짜·단원)만 노출 ---- */
+  /* sticky 는 세로 800px 화면에서 순수 손해다. 대신 내비가 하단에 상주한다. */
+  #hud {
+    position: static;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 8px max(10px, var(--safe-r)) 8px max(10px, var(--safe-l));
+  }
+  .hud-brand { order: 1; flex: 1 1 auto; min-width: 0; font-size: 14px; }
+  .hud-brand .hud-name { max-width: none; }   /* 한 줄 + 말줄임은 유지, 폭 제한만 해제 */
+  .hud-brand small { display: none; }         /* 부제까지 넣으면 두 줄이 된다 */
+  .hud-toggle { display: inline-flex; order: 2; flex: 0 0 auto; align-items: center; }
+  .hud-stats { order: 3; flex: 1 0 100%; gap: 4px 14px; }
+  .hud-stat .k { font-size: 12px; }
+  .hud-stat .v { font-size: 14px; }
+  /* .x = 접히는 보조 스탯(명성·일일 임금·현재 위치). 탭하면 펼쳐진다 — hover 정보가 아니다. */
+  .hud-stat.x { display: none; }
+  #hud.open .hud-stat.x { display: flex; }
+  .hud-actions { order: 4; flex: 1 0 100%; display: none; flex-wrap: wrap; gap: 6px; }
+  #hud.open .hud-actions { display: flex; }
+  #hud.open .hud-actions .btn { flex: 1 1 auto; }
+
+  /* ---- 내비: 하단 고정 탭 바 ---- */
+  #nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
+    padding: 4px max(4px, var(--safe-r)) calc(4px + var(--safe-b)) max(4px, var(--safe-l));
+    background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+    border-top: 1px solid var(--line); border-bottom: 0;
+    box-shadow: 0 -8px 20px rgba(0, 0, 0, .5);
+  }
+  #nav button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 48px; padding: 5px 2px;
+    border-bottom: 0; border-radius: 8px; line-height: 1.15;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  #nav button:hover { background: none; color: var(--ink-dim); }  /* 폰에는 hover 가 없다 — 잔상 방지 */
+  #nav button:active:not(:disabled) { background: rgba(255, 255, 255, .07); }
+  /* 현재 화면은 밑줄이 아니라 칩으로 — 탭 바에서는 밑줄이 잘 안 보인다 */
+  #nav button.active,
+  #nav button.active:hover {
+    color: var(--gold);
+    background: rgba(224, 180, 74, .13);
+    box-shadow: inset 0 0 0 1px rgba(224, 180, 74, .38);
+  }
+  #nav button:disabled { opacity: .32; }      /* 전투 중 비활성 유지 */
+  #nav .nav-ico { display: block; font-size: 17px; line-height: 1; }
+  #nav .nav-sh { display: block; font-size: 12px; letter-spacing: -.02em; white-space: nowrap; }
+  #nav .nav-lb { display: none; }
+
+  /* ---- 본문: 하단 탭 바에 가리지 않게 여백 ---- */
+  #screen {
+    padding: 12px max(10px, var(--safe-r))
+             calc(var(--navh) + var(--safe-b) + 14px)
+             max(10px, var(--safe-l));
+    overflow-wrap: break-word;
+  }
+
+  /* ---- 터치 타겟 ---- */
+  .btn { min-height: 40px; padding: 9px 16px; touch-action: manipulation; }
+  .btn.sm { min-height: 36px; padding: 7px 13px; font-size: 12px; }
+  .btn.lg { min-height: 48px; padding: 12px 22px; }
+  /* 16px 미만이면 iOS 사파리가 포커스 때 화면을 확대해 버린다 */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    min-height: 40px; font-size: 16px;
+  }
+  input, select, textarea { max-width: 100%; }
+  input[type="checkbox"], input[type="radio"] {
+    width: 22px; height: 22px; min-height: 0; accent-color: var(--gold);
+  }
+  label { touch-action: manipulation; }
+
+  /* ---- 레이아웃 ---- */
+  .cards { grid-template-columns: 1fr; gap: 10px; }
+  .panel { padding: 10px; }
+  .panel > h3, .panel-title { margin-bottom: 8px; }
+  .row { flex-wrap: wrap; }              /* 가로로 밀리느니 접는다 */
+  .card { padding: 10px; }
+  .card:hover { border-color: var(--line); transform: none; }  /* hover 없음 */
+
+  /* ---- 글자 하한 12px ---- */
+  .tiny { font-size: 12px; }
+  .tag { font-size: 12px; padding: 2px 8px; }
+  table.data th { font-size: 12px; }
+  table.data th, table.data td { padding: 6px 8px; }
+  .battle-log { font-size: 12px; }
+  .battle-bar { flex-wrap: wrap; padding: 6px 8px; }
+
+  /* ---- 모달: 거의 전체 화면 ---- */
+  #modal-layer { padding: 8px; }
+  .modal, .modal.wide {
+    min-width: 0;
+    width: calc(100vw - 16px);
+    max-width: 100%;              /* 100vw 가 스크롤바를 포함하는 경우의 안전핀 */
+    max-height: 92vh;
+  }
+  .modal header { padding: 12px 14px; }
+  .modal .body { padding: 14px; }
+  .modal footer { padding: 10px 14px; flex-wrap: wrap; }
+  .modal footer .btn { flex: 1 1 auto; }
+
+  /* ---- 토스트: 하단 탭 바 위로 ---- */
+  #toast-layer {
+    left: max(8px, var(--safe-l)); right: max(8px, var(--safe-r));
+    bottom: calc(var(--navh) + var(--safe-b) + 10px);
+    align-items: stretch;
+  }
+  .toast { max-width: none; animation-name: toastInUp; }
+  .toast.out { transform: translateY(12px); }   /* 가로로 밀면 화면 밖으로 나간다 */
+
+  /* 캔버스가 뷰포트를 넘지 않게 (모듈이 따로 크기를 지정하면 그쪽이 이긴다) */
+  canvas { max-width: 100%; }
+}

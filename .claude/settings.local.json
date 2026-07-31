@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(ls C:\\\\claude\\\\game -Force | Select-Object Name, Length; echo \"---node---\"; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; echo \"---python---\"; \\(Get-Command python -ErrorAction SilentlyContinue\\).Source)"
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<!-- viewport-fit=cover: 노치 기기에서 화면 끝까지 그리고, 여백은 CSS 의 env(safe-area-inset-*) 로 준다.
+     이게 없으면 env(safe-area-inset-*) 이 항상 0 이라 하단 탭 바가 홈 인디케이터에 깔린다. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#14111c" />
+<title>용병단 — Mercenary Company</title>
+<link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="hud"></header>
+    <nav id="nav"></nav>
+    <main id="screen"></main>
+    <div id="toast-layer"></div>
+    <div id="modal-layer"></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

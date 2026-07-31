@@ -1,0 +1,1143 @@
+// 전투 화면 — 웨이브 진행 / 캔버스 스테이지 / 전투 로그 / 결과 정산.
+// params: { questId, squadId }  또는  { battleCfg, ... } (랜덤 인카운터용)
+import { el, num, clamp } from '../core/util.js';
+import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
+import { getSkill } from '../data/skills.js';
+import { getClass } from '../data/classes.js';
+import { createBattle, setSkillResolver } from '../battle/engine.js';
+import { state, addGold, addLog, save, getMerc, itemsById } from '../game/state.js';
+import { questBattleDefs, applyQuestResult } from '../game/quest.js';
+import { canPromote, gainExp, mercStats, mercPower, promoteOptionsFor } from '../game/merc.js';
+import { autoEquipAll, SLOT_NAME } from '../game/gear.js';
+import { go, toast, confirmDlg } from './app.js';
+
+export const meta = { id: 'battle', title: '전투' };
+
+const STAGE_W = 960;
+const STAGE_H = 576;
+/** 웨이브 사이 회복량 (최대 체력 비율) */
+const WAVE_HEAL = 0.15;
+const SPRITE_SCALE = 3;
+const LOG_MAX = 90;
+/** 이 폭 이하를 "폰"으로 본다. 아래 @media 와 반드시 같은 값이어야 한다 (레이아웃/JS 분기 일치).
+ *  ★ 700 → 767 로 맞췄다(10차). css/style.css 는 **767px 이하**에서 내비를 하단 고정으로 깐다.
+ *  700 으로 두면 701~767px 구간에서 셸은 하단 고정 내비인데 전투 화면은 PC 모드라
+ *  결과 화면의 `.bt-actions`(sticky bottom:0, z-index 6)가 내비(z-index 60) **뒤로 숨는다**.
+ *  실측 740x900: 버튼 바 798~900px vs 내비 상단 843px → 57px 가 가려졌다. */
+const NARROW_PX = 767;
+
+/** 폰처럼 좁은 화면인가. CSS @media 와 같은 기준을 쓴다. */
+function isNarrow() {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window.matchMedia) return window.matchMedia(`(max-width: ${NARROW_PX}px)`).matches;
+  } catch (e) { /* 아래 폴백 */ }
+  return (window.innerWidth || 1280) <= NARROW_PX;
+}
+
+/**
+ * 전투 캔버스의 **논리** 크기.
+ *
+ * 캔버스는 CSS(`width:100%`)로 화면 폭에 맞춰 줄어든다. PC 기본값(1280x560)은 가로가 2.3배로
+ * 납작해서, 폰 세로에서는 높이가 150px 남짓한 띠가 되어 관전이 불가능하다.
+ * 폰에서만 더 정사각형에 가까운 크기를 쓴다 — 유닛 간격은 조금 좁아지지만
+ * 화면에 보이는 스프라이트가 커지고, 세로 공간을 실제로 쓰게 된다.
+ * **PC 값(1280x560)은 렌더러 기본값 그대로다 — 1280px 에서 예전과 완전히 같다.**
+ */
+function stageSpec() {
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 1280;
+  if (vw <= 620) return { w: 760, h: 520 };
+  return { w: 1280, h: 560 };
+}
+
+/** biome -> [하늘 위, 하늘 아래, 지면] */
+const BIOME_BG = {
+  plains: ['#33405c', '#556b52', '#6d7d52'],
+  forest: ['#1f2d2c', '#2f4636', '#3d5a3a'],
+  mountain: ['#2d3142', '#4a5064', '#5d6270'],
+  desert: ['#4d3d2b', '#7d6742', '#9d8352'],
+  swamp: ['#232c27', '#374030', '#464e39'],
+  coast: ['#23394d', '#3d5d73', '#7c7c63'],
+  tundra: ['#2f3b4b', '#5c6c7a', '#8c99a4'],
+  cave: ['#15111a', '#241d2a', '#302838'],
+};
+
+/** 진행 중인 전투 세션. dispose()에서 반드시 비운다. */
+let S = null;
+let sessionToken = 0;
+
+/* ─────────────────────────── 수명 관리 ─────────────────────────── */
+
+export function dispose() {
+  sessionToken++;
+  if (!S) return;
+  stopLoop();
+  detachInput();
+  destroyRenderer();
+  S.battle = null;
+  S = null;
+}
+
+/** 캔버스 클릭 / 키보드 리스너 해제. 안 하면 화면을 나가도 입력이 살아 있다. */
+function detachInput() {
+  if (!S) return;
+  if (S.offStageClick) { try { S.offStageClick(); } catch (e) { /* 이미 제거됨 */ } S.offStageClick = null; }
+  if (S.offKey) { try { S.offKey(); } catch (e) { /* 이미 제거됨 */ } S.offKey = null; }
+  if (S.offResize) { try { S.offResize(); } catch (e) { /* 이미 제거됨 */ } S.offResize = null; }
+}
+
+function stopLoop() {
+  if (S && S.raf) { cancelAnimationFrame(S.raf); S.raf = 0; }
+}
+
+function destroyRenderer() {
+  if (!S || !S.renderer) return;
+  const r = S.renderer;
+  S.renderer = null;
+  for (const fn of ['dispose', 'destroy', 'stop']) {
+    if (typeof r[fn] === 'function') { try { r[fn](); } catch (e) { console.warn('[battle] 렌더러 정리 실패', e); } break; }
+  }
+}
+
+/* ─────────────────────────── 스타일 ─────────────────────────── */
+
+function injectStyle() {
+  if (document.getElementById('battle-style')) return;
+  document.head.appendChild(el('style', {
+    id: 'battle-style',
+    text: `
+.bt-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:6px;
+  background:rgba(6,4,10,.6);text-align:center;pointer-events:none;z-index:5}
+.bt-overlay.on{display:flex}
+.bt-overlay b{font-size:24px;letter-spacing:.06em;color:var(--gold)}
+/* 진행 대기 상태 — 전장을 그대로 둔 채 플레이어가 직접 눌러 넘긴다 */
+.bt-overlay.act{pointer-events:auto;cursor:pointer;background:rgba(6,4,10,.5)}
+.bt-go{margin-top:14px;padding:14px 34px;font-size:18px;font-weight:800;letter-spacing:.06em;
+  box-shadow:0 0 0 0 rgba(224,180,74,.45);animation:bt-breathe 1.8s ease-in-out infinite}
+@keyframes bt-breathe{
+  0%,100%{box-shadow:0 0 0 0 rgba(224,180,74,.42)}
+  50%{box-shadow:0 0 0 10px rgba(224,180,74,0)}
+}
+@media (prefers-reduced-motion:reduce){ .bt-go{animation:none} }
+.bt-hint{margin-top:8px;font-size:12px;color:var(--ink-dim,#9a93a8);letter-spacing:.03em}
+/* 결과 화면 하단 고정 버튼 — 결과창도 자동으로 닫히지 않는다. 플레이어가 직접 나간다 */
+.bt-actions{position:sticky;bottom:0;z-index:6;margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;
+  align-items:center;justify-content:center;padding:12px;
+  background:linear-gradient(180deg,rgba(13,11,18,.55),var(--bg-1));
+  border:1px solid var(--line);border-top-color:var(--gold-dim);border-radius:var(--radius)}
+.bt-actions .btn.lg{min-width:180px}
+.bt-log-ally{color:var(--ink)}
+.bt-log-enemy{color:#d09090}
+.bt-log-sys{color:var(--gold)}
+.bt-log-heal{color:var(--ok)}
+.bt-res-head{text-align:center;padding:18px 12px}
+.bt-res-head .verdict{font-size:34px;font-weight:900;letter-spacing:.14em}
+.bt-mvp{color:var(--gold);font-weight:700}
+.bt-item{border:1px solid var(--line);border-radius:var(--radius);padding:10px;background:var(--bg-2)}
+.bt-item .nm{font-weight:700}
+.bt-note{border-left:3px solid var(--gold);padding:6px 10px;background:rgba(224,180,74,.07);border-radius:0 4px 4px 0}
+/* 전과 표는 **자기 안에서** 가로 스크롤한다. 페이지가 옆으로 밀리면 안 된다 */
+.bt-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* 로그 접기 토글 — 폰에서만 보인다 (PC는 예전처럼 로그가 항상 펼쳐져 있다) */
+.bt-logtoggle{display:none;width:100%;min-height:40px;align-items:center;justify-content:space-between;
+  gap:8px;padding:8px 12px;border:0;border-top:1px solid var(--line);background:var(--bg-2);
+  color:var(--ink-dim);font-family:inherit;font-weight:700;font-size:12px;cursor:pointer}
+.bt-logtoggle .cv{color:var(--ink-faint);font-weight:400}
+/* 폰 전용 하단 진행 바 — 엄지로 닿는 자리에 다음 웨이브/결과 버튼을 둔다 */
+.bt-gobar{display:none}
+
+/* ───────── 모바일 (폰 세로 기준 360x800) ───────── */
+@media (max-width:${NARROW_PX}px){
+  /* 전투 바: 한 줄에 다 못 들어간다 — 접어서 전부 누를 수 있게 한다 */
+  .battle-bar.bt-bar{flex-wrap:wrap;gap:6px;padding:8px 10px}
+  .battle-bar.bt-bar .bt-spacer{display:none}
+  .battle-bar.bt-bar .bt-title{flex:1 1 100%;font-size:14px}
+  .battle-bar.bt-bar .bt-speedlab{margin-left:auto}
+  /* 터치 타겟 40px 하한 */
+  .battle-bar.bt-bar .btn.sm{min-height:40px;padding:8px 12px;font-size:13px}
+  .bt-logtoggle{display:flex}
+  .bt-logwrap.bt-off .battle-log{display:none}
+  .battle-log.bt-log{height:96px;font-size:12px}
+  .bt-overlay b{font-size:20px}
+  .bt-overlay .bt-hint{font-size:12px}
+  /* bottom 은 placeGoBar() 가 하단 고정 내비 높이만큼 인라인으로 올려 준다 */
+  .bt-gobar.on{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;
+    gap:8px;align-items:center;justify-content:center;padding:10px 12px;
+    background:linear-gradient(180deg,rgba(13,11,18,.72),var(--bg-1));border-top:1px solid var(--gold-dim)}
+  .bt-gobar .bt-go{margin-top:0;width:100%;max-width:420px;padding:14px 18px;font-size:17px}
+  .bt-tablewrap table.data{min-width:460px}
+  .bt-res-head{padding:12px 8px}
+  .bt-res-head .verdict{font-size:26px}
+  /* 결과 버튼은 sticky 를 푼다 — 폰에서는 화면을 잡아먹는 데다, 하단 고정 내비 뒤로 숨는다.
+     맨 아래 요소라 조금만 내리면 바로 닿는다 (#screen 에 하단 여백이 잡혀 있다). */
+  .bt-actions{position:static;margin-top:10px;padding:10px;gap:8px}
+  .bt-actions .btn.lg{flex:1 1 100%;min-width:0;padding:13px 18px}
+}
+`,
+  }));
+}
+
+/* ─────────────────────────── 진입 ─────────────────────────── */
+
+function findQuestById(id) {
+  for (const cityId of Object.keys(state.quests || {})) {
+    const entry = state.quests[cityId];
+    const q = ((entry && entry.list) || []).find((x) => x.id === id);
+    if (q) return q;
+  }
+  return null;
+}
+
+export function render(root, params = {}) {
+  injectStyle();
+  dispose();
+  const token = ++sessionToken;
+  try { setSkillResolver(getSkill); } catch (e) { console.warn('[battle] 스킬 해석기 등록 실패', e); }
+
+  const quest = params.questId ? findQuestById(params.questId) : null;
+  const cfgBase = params.battleCfg || null;
+  if (!quest && !cfgBase) {
+    errorPanel(root, '전투 정보를 찾을 수 없습니다. 의뢰가 만료되었을 수 있습니다.');
+    return;
+  }
+
+  const squadId = params.squadId || (quest ? ((state.squads || [])[0] || {}).id : null);
+  S = {
+    token,
+    root,
+    mode: quest ? 'quest' : 'encounter',
+    quest,
+    squadId,
+    cfgBase,
+    title: quest ? quest.name : (params.title || '조우전'),
+    rank: quest ? quest.rank : (params.rank || null),
+    waveCount: quest ? Math.max(1, (quest.waves || []).length) : 1,
+    waveIndex: 0,
+    biome: quest ? quest.biome : (params.biome || (cfgBase && cfgBase.biome) || 'plains'),
+    returnTo: params.returnTo || 'city',
+    reward: params.reward || null,
+    days: quest ? (quest.days || 1) : (params.days || 0),
+    battle: null,
+    renderer: null,
+    raf: 0, last: 0,
+    speed: 1,
+    quiet: false,
+    closing: false, ended: false, daysDone: false,
+    // awaiting = 진행 버튼을 띄우고 플레이어 입력을 기다리는 중 (자동 진행은 없다)
+    awaiting: false, skipSettle: false, recorded: false, sinceFinish: 0,
+    offStageClick: null, offKey: null, offResize: null,
+    // 캔버스 논리 크기 (모바일에서 화면 비율에 맞춰 바뀐다)
+    stageW: 0, stageH: 0, logOpen: true,
+    rendererSteps: false, externalLog: false,
+    carry: {}, finalHp: {}, results: [], totalTime: 0,
+    dealt: {}, taken: {}, kills: {}, healed: {}, info: {},
+    lines: [],
+    applied: null,
+  };
+
+  buildUI(root);
+
+  if (!startWave(0)) {
+    finishAll(false);
+    return;
+  }
+  attachRenderer(S.canvas, token);
+  startLoop();
+}
+
+function errorPanel(root, msg) {
+  root.appendChild(el('div', { class: 'panel' },
+    el('h3', { text: '전투' }),
+    el('div', { class: 'muted', text: msg }),
+    el('button', { class: 'btn', style: { marginTop: '12px' }, onClick: () => go('city') }, '도시로 돌아가기')));
+}
+
+/* ─────────────────────────── UI 구성 ─────────────────────────── */
+
+function buildUI(root) {
+  const waveLabel = el('span', { class: 'tiny muted' });
+  const speedBtns = [1, 2, 4].map((sp) => el('button', { class: 'btn sm', onClick: () => setSpeed(sp) }, `${sp}x`));
+
+  const bar = el('div', { class: 'battle-bar bt-bar' },
+    el('span', { class: 'bt-title', style: { fontWeight: '700' }, text: S.title }),
+    S.rank ? el('span', { class: 'tag', style: { color: GRADE_COLOR[S.rank] || '#999' }, text: `${S.rank}랭크` }) : null,
+    waveLabel,
+    // 폰에서는 이 여백이 줄바꿈을 망가뜨린다 — @media 로 접는다
+    el('span', { class: 'bt-spacer', style: { flex: '1' } }),
+    el('span', { class: 'tiny faint bt-speedlab', text: '속도' }),
+    speedBtns,
+    el('button', { class: 'btn sm', onClick: fastForward }, '결과만 보기'),
+    el('button', { class: 'btn sm danger', onClick: askRetreat }, '후퇴'));
+
+  const canvas = el('canvas', { width: STAGE_W, height: STAGE_H });
+  const overlay = el('div', { class: 'bt-overlay' });
+  const stage = el('div', { class: 'battle-stage' }, canvas, overlay);
+
+  // 로그는 폰에서 세로 공간을 많이 먹는다 — 접을 수 있게 한다 (PC는 토글이 숨겨져 늘 펼쳐진 상태)
+  const log = el('div', { class: 'battle-log bt-log' });
+  const logCv = el('span', { class: 'cv' });
+  const logToggle = el('button', { class: 'bt-logtoggle', type: 'button', onClick: toggleLog },
+    el('span', { text: '전투 로그' }), logCv);
+  const logWrap = el('div', { class: 'bt-logwrap' }, logToggle, log);
+
+  // 폰 전용 하단 진행 바. 패널 밖에 둔다 (패널이 overflow:hidden 이라 안에 두면 헷갈린다)
+  const goBar = el('div', { class: 'bt-gobar' });
+
+  root.appendChild(el('div', { class: 'panel', style: { padding: '0', overflow: 'hidden' } }, bar, stage, logWrap));
+  root.appendChild(goBar);
+
+  S.waveLabel = waveLabel;
+  S.speedBtns = speedBtns;
+  S.canvas = canvas;
+  S.overlay = overlay;
+  S.logNode = log;
+  S.logWrap = logWrap;
+  S.logCv = logCv;
+  S.goBar = goBar;
+  S.logOpen = !isNarrow();          // 폰에서는 접힌 채로 시작한다
+  applyLogState();
+  attachInput(stage);
+  attachResize();
+  setSpeed(1);
+  updateBar();
+}
+
+/** 로그 접힘 상태를 DOM 에 반영한다 */
+function applyLogState() {
+  if (!S || !S.logWrap) return;
+  S.logWrap.classList.toggle('bt-off', !S.logOpen);
+  if (S.logCv) S.logCv.textContent = S.logOpen ? '접기 ▲' : '펼치기 ▼';
+}
+
+function toggleLog() {
+  if (!S) return;
+  S.logOpen = !S.logOpen;
+  applyLogState();
+  if (S.logOpen && S.logNode) S.logNode.scrollTop = S.logNode.scrollHeight;
+}
+
+/**
+ * 화면 회전·창 크기 변경에 캔버스 논리 크기를 맞춘다.
+ * 리사이즈는 배경을 다시 굽는 비싼 작업이라, **크기 구간이 실제로 바뀔 때만** 부른다.
+ */
+function attachResize() {
+  const token = S.token;
+  let timer = 0;
+  const onResize = () => {
+    if (!S || S.token !== token) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!S || S.token !== token || S.ended) return;
+      placeGoBar();          // 내비 높이가 회전으로 달라질 수 있다
+      const sp = stageSpec();
+      if (sp.w === S.stageW && sp.h === S.stageH) return;
+      S.stageW = sp.w;
+      S.stageH = sp.h;
+      if (S.renderer && typeof S.renderer.resize === 'function') {
+        try { S.renderer.resize(sp.w, sp.h); } catch (e) { console.warn('[battle] 캔버스 리사이즈 실패', e); }
+      }
+    }, 180);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  S.offResize = () => {
+    clearTimeout(timer);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+  };
+}
+
+/**
+ * 전장 클릭 / 키보드 입력을 건다.
+ * - 진행 버튼이 떠 있으면(awaiting) → 다음 웨이브 또는 결과로 진행
+ * - 마무리 연출 중이면 → 연출만 즉시 끝내고 버튼을 띄운다 (결과로 바로 가지 않는다)
+ * - 전투 중이면 → 아무 일도 일어나지 않는다
+ */
+function attachInput(stage) {
+  const token = S.token;
+  const onClick = (ev) => {
+    if (!S || S.token !== token || S.ended) return;
+    ev.preventDefault();
+    pokeStage();
+  };
+  const onKey = (ev) => {
+    if (!S || S.token !== token || S.ended) return;
+    if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+    // 입력창/버튼에 포커스가 있으면 그쪽 동작을 방해하지 않는다
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    if (!S.awaiting && !(S.battle && S.battle.finished)) return;
+    ev.preventDefault();
+    pokeStage();
+  };
+  stage.addEventListener('click', onClick);
+  window.addEventListener('keydown', onKey);
+  S.offStageClick = () => stage.removeEventListener('click', onClick);
+  S.offKey = () => window.removeEventListener('keydown', onKey);
+}
+
+/** 클릭·키 입력 한 번의 의미를 상황에 맞게 해석한다 */
+function pokeStage() {
+  if (!S || S.ended) return;
+  if (S.awaiting) { advanceAfterWave(); return; }
+  const b = S.battle;
+  // 연출 중 클릭 = 연출 건너뛰기. 결과까지 넘어가지는 않는다 (버튼을 한 번 더 눌러야 한다)
+  if (b && b.finished && !S.closing) S.skipSettle = true;
+}
+
+function setSpeed(sp) {
+  if (!S) return;
+  S.speed = sp;
+  S.speedBtns.forEach((b, i) => { b.className = `btn sm ${[1, 2, 4][i] === sp ? 'primary' : ''}`; });
+}
+
+function updateBar() {
+  if (!S || !S.waveLabel) return;
+  S.waveLabel.textContent = S.waveCount > 1 ? `웨이브 ${S.waveIndex + 1} / ${S.waveCount}` : '단일 전투';
+}
+
+function hideOverlay() {
+  if (!S) return;
+  if (S.overlay) {
+    S.overlay.classList.remove('on', 'act');
+    S.overlay.innerHTML = '';
+  }
+  if (S.goBar) {
+    S.goBar.classList.remove('on');
+    S.goBar.innerHTML = '';
+  }
+}
+
+/**
+ * 진행 대기 오버레이 — **자동으로 넘어가지 않는다.**
+ * 전장은 그대로 살아 있고(대기 모션·잔여 파티클), 플레이어가 눌러야 다음으로 간다.
+ */
+function showContinue(title, sub, label) {
+  if (!S || !S.overlay) return;
+  const btn = el('button', { class: 'btn primary lg bt-go', onClick: (ev) => { ev.stopPropagation(); advanceAfterWave(); } }, label);
+  // 폰에서는 전장 한가운데 버튼이 엄지에서 멀다 — 화면 아래 고정 바로 내린다.
+  // (전장을 탭해도 넘어가는 것은 그대로다)
+  const narrow = isNarrow();
+  S.overlay.innerHTML = '';
+  // ★ `append` 는 null 을 **"null" 문자열**로 넣어 버린다. 조건부 자식은 배열로 걸러서 붙인다.
+  const kids = [
+    el('b', { text: title }),
+    sub ? el('span', { class: 'muted', text: sub }) : el('span'),
+  ];
+  if (!narrow) kids.push(btn);
+  kids.push(el('div', { class: 'bt-hint', text: narrow ? '전장을 탭하거나 아래 버튼' : '화면 아무 곳이나 클릭 · Enter / Space' }));
+  S.overlay.append(...kids);
+  S.overlay.classList.add('on', 'act');
+  if (S.goBar) {
+    S.goBar.innerHTML = '';
+    if (narrow) { S.goBar.appendChild(btn); S.goBar.classList.add('on'); placeGoBar(); }
+    else S.goBar.classList.remove('on');
+  }
+  try { btn.focus({ preventScroll: true }); } catch (e) { /* 포커스 실패는 무시 */ }
+}
+
+/**
+ * 하단 진행 바를 화면 맨 아래 **고정 내비 위**에 올린다.
+ *
+ * 좁은 화면에서 `#nav` 는 `position:fixed; bottom:0` 인 하단 탭 바다(css/style.css 담당).
+ * 그냥 `bottom:0` 으로 두면 진행 버튼이 내비 뒤로 숨는다. 내비 높이는 CSS 쪽에서 언제든
+ * 바뀔 수 있으므로 상수로 박지 않고 **그때그때 재서** 올린다. 내비가 고정이 아니면 0이다.
+ */
+function placeGoBar() {
+  if (!S || !S.goBar) return;
+  let off = 0;
+  try {
+    const nav = document.getElementById('nav');
+    if (nav) {
+      const cs = getComputedStyle(nav);
+      if (cs.position === 'fixed') off = Math.max(0, Math.round(window.innerHeight - nav.getBoundingClientRect().top));
+    }
+  } catch (e) { off = 0; }
+  S.goBar.style.bottom = off > 0 ? `${off}px` : '';
+}
+
+/* ─────────────────────────── 로그 ─────────────────────────── */
+
+const nameOf = (uid) => (S && S.info[uid] ? S.info[uid].name : '???');
+const sideOf = (uid) => (S && S.info[uid] ? S.info[uid].side : 'sys');
+
+function pushLog(text, kind = 'sys') {
+  if (!S) return;
+  S.lines.push({ text, kind });
+  if (S.lines.length > 400) S.lines.splice(0, S.lines.length - 400);
+  if (S.quiet || !S.logNode) return;
+  S.logNode.appendChild(el('div', { class: `bt-log-${kind}`, text }));
+  while (S.logNode.childElementCount > LOG_MAX) S.logNode.removeChild(S.logNode.firstChild);
+  S.logNode.scrollTop = S.logNode.scrollHeight;
+}
+
+/* ─────────────────────────── 웨이브 ─────────────────────────── */
+
+function buildCfg(i) {
+  let cfg;
+  if (S.mode === 'quest') cfg = questBattleDefs(S.quest, i, state, S.squadId);
+  else cfg = { ...S.cfgBase };
+  cfg.getSkill = getSkill;
+  if (!cfg.seed) cfg.seed = ((Date.now() >>> 0) ^ (i * 2654435761)) >>> 0;
+
+  const carried = Object.keys(S.carry).length > 0;
+  if (carried) {
+    cfg.allies = (cfg.allies || []).map((d) => {
+      const c = S.carry[d.uid];
+      if (!c) return d;
+      if (c.hp <= 0) return null;
+      return { ...d, hp: clamp(Math.round(c.hp + c.maxHp * WAVE_HEAL), 1, c.maxHp) };
+    }).filter(Boolean);
+  }
+  return cfg;
+}
+
+function startWave(i) {
+  let cfg = null;
+  try {
+    cfg = buildCfg(i);
+  } catch (e) {
+    console.error('[battle] 전투 구성 실패', e);
+    pushLog('전투를 구성하지 못했다.', 'sys');
+    return false;
+  }
+  if (!cfg || !(cfg.allies || []).length) { pushLog('싸울 수 있는 단원이 남지 않았다.', 'sys'); return false; }
+  if (!(cfg.enemies || []).length) { pushLog('적을 찾지 못했다.', 'sys'); return false; }
+
+  const b = createBattle(cfg);
+  b.biome = cfg.biome || S.biome;
+  hookEvents(b);
+
+  for (const u of b.units) {
+    S.info[u.uid] = {
+      name: u.name, side: u.side, classId: u.classId || null, enemyId: u.enemyId || null,
+      level: u.level || 1, grade: u.grade || 'F', boss: !!u.boss, maxHp: u.maxHp,
+    };
+  }
+
+  S.battle = b;
+  S.waveIndex = i;
+  S.closing = false;
+  S.awaiting = false;
+  S.skipSettle = false;
+  S.recorded = false;
+  S.sinceFinish = 0;
+  updateBar();
+  if (S.renderer && typeof S.renderer.setBattle === 'function') {
+    try { S.renderer.setBattle(b); } catch (e) { console.warn('[battle] setBattle 실패', e); }
+  }
+  const foes = b.units.filter((u) => u.side === 'enemy').length;
+  pushLog(`── ${i + 1}웨이브 개시 · 적 ${foes}기 ──`, 'sys');
+  return true;
+}
+
+/** drainEvents 를 가로채 로그·통계를 함께 모은다 (렌더러가 소비해도 놓치지 않도록) */
+function hookEvents(b) {
+  const real = b.drainEvents;
+  b.drainEvents = () => {
+    const evs = real();
+    if (evs && evs.length) consumeEvents(evs);
+    return evs;
+  };
+}
+
+function consumeEvents(evs) {
+  for (const e of evs) {
+    switch (e.type) {
+      case 'damage': {
+        const amt = Math.round(e.amount || 0);
+        S.dealt[e.uid] = (S.dealt[e.uid] || 0) + amt;
+        S.taken[e.targetUid] = (S.taken[e.targetUid] || 0) + amt;
+        if (e.killed) S.kills[e.uid] = (S.kills[e.uid] || 0) + 1;
+        if (!S.externalLog) pushLog(`${nameOf(e.uid)} → ${nameOf(e.targetUid)} ${num(amt)}${e.crit ? ' 치명타!' : ''}${e.killed ? ' · 쓰러뜨렸다' : ''}`, sideOf(e.uid));
+        break;
+      }
+      case 'heal': {
+        const amt = Math.round(e.amount || 0);
+        S.healed[e.uid] = (S.healed[e.uid] || 0) + amt;
+        if (!S.externalLog) pushLog(`${nameOf(e.uid)} → ${nameOf(e.targetUid)} +${num(amt)} 회복`, 'heal');
+        break;
+      }
+      case 'miss':
+        if (!S.externalLog) pushLog(`${nameOf(e.targetUid)}이(가) 공격을 흘려냈다.`, 'sys');
+        break;
+      case 'death':
+        if (!S.externalLog) pushLog(`${nameOf(e.targetUid)} 전투 불능.`, 'sys');
+        break;
+      case 'end':
+        if (!S.externalLog) pushLog(e.winner === 'ally' ? '적을 모두 쓰러뜨렸다.' : e.winner === 'enemy' ? '부대가 무너졌다...' : '양측 모두 물러섰다.', 'sys');
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+function recordWave(b) {
+  if (S.recorded) return;   // 웨이브당 정확히 한 번만 집계한다 (대기 중 '결과만 보기' 로 중복 호출될 수 있다)
+  S.recorded = true;
+  for (const u of b.units) {
+    if (u.side !== 'ally') continue;
+    const hp = u.alive ? Math.max(1, Math.round(u.hp)) : 0;
+    S.carry[u.uid] = { hp, maxHp: u.maxHp };
+    S.finalHp[u.uid] = hp;
+  }
+  S.totalTime += (b.result && b.result.time) || b.time || 0;
+  S.results.push({ ...b.result, finalHp: { ...S.finalHp }, squadId: S.squadId });
+}
+
+/**
+ * 웨이브가 끝나고 마무리 연출까지 끝났을 때 호출된다.
+ * **여기서 자동으로 넘어가지 않는다.** 전장을 그대로 둔 채 진행 버튼만 띄우고,
+ * 다음 행동은 전적으로 플레이어가 정한다 (`advanceAfterWave`).
+ */
+function settleWave() {
+  const b = S.battle;
+  S.closing = true;
+  S.awaiting = true;
+  b.drainEvents();
+  recordWave(b);
+  // 캔버스에도 승패 연출이 떠 있다. 우리 오버레이와 같은 자리라 글자가 겹치므로
+  // 넘겨받는다고 알려서 캔버스 쪽을 먼저 걷어낸다 (없는 렌더러여도 무시된다).
+  if (S.renderer && typeof S.renderer.skipEnding === 'function') {
+    try { S.renderer.skipEnding(); } catch (e) { console.warn('[battle] skipEnding 실패', e); }
+  }
+
+  const win = b.winner === 'ally';
+  const next = S.waveIndex + 1;
+  if (win && next < S.waveCount) {
+    const healed = Math.round(WAVE_HEAL * 100);
+    showContinue(`${S.waveIndex + 1}웨이브 격퇴`,
+      `숨을 고른다 · 체력 ${healed}% 회복 — 준비되면 다음 적을 맞이한다`,
+      `다음 웨이브 (${next + 1}/${S.waveCount})`);
+    pushLog(`웨이브 정리. 붕대를 감고 자세를 고쳐 잡는다. (체력 ${healed}% 회복)`, 'heal');
+  } else {
+    showContinue(win ? '승 리' : '패 배',
+      win ? '전장을 정리했다.' : '부대가 물러섰다.',
+      '결과 보기');
+  }
+}
+
+/** 진행 버튼(또는 캔버스 클릭·Enter/Space)이 눌렸을 때만 다음 단계로 넘어간다 */
+function advanceAfterWave() {
+  if (!S || S.ended || !S.awaiting) return;
+  S.awaiting = false;
+  hideOverlay();
+
+  const b = S.battle;
+  const win = !!b && b.winner === 'ally';
+  const next = S.waveIndex + 1;
+  if (win && next < S.waveCount) {
+    if (!startWave(next)) finishAll(false);
+    return;
+  }
+  stopLoop();
+  finishAll(win);
+}
+
+/* ─────────────────────────── 루프 ─────────────────────────── */
+
+function startLoop() {
+  if (!S) return;
+  S.last = 0;
+  const frame = (now) => {
+    if (!S) return;
+    S.raf = requestAnimationFrame(frame);
+    if (!S.last) S.last = now;
+    const dt = Math.min(0.05, (now - S.last) / 1000);
+    S.last = now;
+    const b = S.battle;
+    if (!b) return;
+
+    if (S.renderer) {
+      try { S.renderer.speed = S.speed; } catch (e) { /* 속도 프로퍼티가 없어도 진행 */ }
+      const t0 = b.time;
+      try { S.renderer.update(dt); } catch (e) { console.warn('[battle] renderer.update 실패', e); }
+      // 렌더러가 스스로 battle.step 을 돌리는 구현이면 이중 진행을 막는다 (한 번 확인하면 계속 신뢰)
+      if (b.time > t0 + 1e-9) S.rendererSteps = true;
+      if (!S.rendererSteps && !b.finished) b.step(dt * S.speed);
+      b.drainEvents();
+      try { S.renderer.draw(); } catch (e) { console.warn('[battle] renderer.draw 실패', e); }
+    } else {
+      if (!b.finished) b.step(dt * S.speed);
+      b.drainEvents();
+    }
+
+    // 승패가 갈려도 화면에서는 아직 마지막 타격·사망 연출·승리 텍스트가 재생 중이다.
+    // 렌더러가 마무리까지 끝냈다고 할 때(또는 플레이어가 클릭으로 건너뛸 때)까지 기다린 뒤
+    // **진행 버튼만** 띄운다. 시간이 지났다고 저절로 넘어가는 경로는 없다.
+    if (b.finished && !S.closing && !S.awaiting) {
+      S.sinceFinish += dt;
+      const r = S.renderer;
+      const settled = !r || typeof r.isSettled !== 'function' ? true : r.isSettled();
+      // 마지막 항(5초)은 자동 진행이 **아니다** — 렌더러가 오류 등으로 영영 안 끝날 때
+      // 버튼만 대신 띄워 주는 안전장치다. 넘어가려면 여전히 플레이어가 눌러야 한다.
+      if (settled || S.skipSettle || S.sinceFinish > 5) settleWave();
+    }
+    // 대기 중에도 rAF는 계속 돈다 — 전장을 그대로 볼 수 있어야 하고,
+    // 대기 모션과 남은 파티클이 살아 있어야 한다. 엔진(`b.step`)만 멈춘 상태다.
+  };
+  S.raf = requestAnimationFrame(frame);
+}
+
+/** 남은 웨이브를 즉시 시뮬레이션해 결과로 넘어간다 */
+function fastForward() {
+  if (!S || S.ended) return;
+  stopLoop();
+  S.awaiting = false;
+  S.quiet = true;
+  hideOverlay();
+
+  for (let guard = 0; guard < 12; guard++) {
+    const b = S.battle;
+    if (!b) break;
+    let steps = 0;
+    while (!b.finished && steps++ < 400) { b.step(1); b.drainEvents(); }
+    b.drainEvents();
+    if (!b.finished) break;
+    S.closing = true;
+    recordWave(b);
+    const win = b.winner === 'ally';
+    const next = S.waveIndex + 1;
+    if (win && next < S.waveCount) {
+      if (startWave(next)) continue;
+      finishAll(false);
+      return;
+    }
+    finishAll(win);
+    return;
+  }
+  finishAll(false);
+}
+
+function askRetreat() {
+  if (!S || S.ended) return;
+  confirmDlg('후퇴', '지금 물러나면 의뢰는 실패로 처리된다. 정말 후퇴할까?', () => {
+    if (!S || S.ended) return;
+    stopLoop();
+    S.awaiting = false;
+    const b = S.battle;
+    if (b && !b.finished) {
+      b.drainEvents();
+      for (const u of b.units) {
+        if (u.side !== 'ally') continue;
+        const hp = u.alive ? Math.max(1, Math.round(u.hp)) : 0;
+        S.carry[u.uid] = { hp, maxHp: u.maxHp };
+        S.finalHp[u.uid] = hp;
+      }
+      S.totalTime += b.time;
+      S.results.push({
+        ...b.result,
+        winner: 'enemy',
+        time: Math.round(b.time * 100) / 100,
+        survivors: b.units.filter((u) => u.alive).map((u) => u.uid),
+        finalHp: { ...S.finalHp },
+        squadId: S.squadId,
+      });
+    } else if (S.waveIndex + 1 < S.waveCount) {
+      // 웨이브를 이겨 놓고 진행 버튼을 누르지 않은 채 물러난 경우.
+      // 남은 웨이브를 패배로 남겨 두지 않으면 `applyQuestResult` 가
+      // "기록된 웨이브를 전부 이겼다"고 보고 의뢰를 성공으로 처리해 버린다.
+      S.results.push({
+        winner: 'enemy', time: 0, survivors: [], damageDealt: {}, kills: {},
+        finalHp: { ...S.finalHp }, squadId: S.squadId,
+      });
+    }
+    pushLog('부대가 전열을 버리고 물러났다.', 'sys');
+    finishAll(false);
+  }, '후퇴한다');
+}
+
+/* ─────────────────────────── 결과 ─────────────────────────── */
+
+function finishAll(win) {
+  if (!S || S.ended) return;
+  S.ended = true;
+  S.awaiting = false;
+  stopLoop();
+  detachInput();          // 결과 화면에서는 캔버스 클릭·Enter/Space가 살아 있으면 안 된다
+  destroyRenderer();
+  hideOverlay();
+
+  if (S.mode === 'quest') {
+    try {
+      S.applied = applyQuestResult(S.quest, { results: S.results, squadId: S.squadId });
+    } catch (e) {
+      console.error('[battle] 결과 정산 실패', e);
+      S.applied = { win, gold: 0, exp: 0, renown: 0, items: [], levelUps: [], wounded: [], promotions: [] };
+    }
+  } else {
+    S.applied = applyEncounterResult(win);
+  }
+  try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
+  renderResult(S.applied.win != null ? S.applied.win : win);
+}
+
+/** 인카운터(의뢰 아님) 정산 — HP/부상/경험치만 반영한다 */
+function applyEncounterResult(win) {
+  const out = { win, gold: 0, exp: 0, renown: 0, items: [], levelUps: [], wounded: [], promotions: [] };
+  const idx = itemsById(state.items);
+  const rew = S.reward || {};
+  const baseExp = Math.round((rew.exp || 0) * (win ? 1 : 0.25));
+
+  for (const [uid, hp] of Object.entries(S.finalHp)) {
+    const m = getMerc(uid);
+    if (!m) continue;
+    let maxHp = m.maxHp || 1;
+    try { maxHp = Math.max(1, Math.round(mercStats(m, { items: idx }).hp)); } catch (e) { /* 기존 값 유지 */ }
+    m.maxHp = maxHp;
+    if (hp <= 0) {
+      m.status = 'wounded';
+      m.woundUntil = state.day + 3;
+      m.hp = 1;
+      out.wounded.push({ uid, name: m.name, until: m.woundUntil });
+    } else {
+      m.status = 'ready';
+      m.hp = clamp(Math.round(hp), 1, maxHp);
+    }
+    if (baseExp > 0) {
+      const before = m.level;
+      gainExp(m, hp <= 0 ? Math.round(baseExp * 0.6) : baseExp);
+      if (m.level > before) out.levelUps.push({ uid, name: m.name, from: before, to: m.level });
+    }
+    m.battles = (m.battles || 0) + 1;
+    m.kills = (m.kills || 0) + (S.kills[uid] || 0);
+    let ok = false;
+    try { ok = !!canPromote(m); } catch (e) { ok = false; }
+    if (ok) out.promotions.push({ uid, name: m.name, level: m.level, classId: m.classId, options: promoteOptionsFor(m) });
+  }
+
+  if (win && rew.gold) { addGold(rew.gold); out.gold = rew.gold; }
+  if (win && rew.renown) { state.renown = Math.max(0, state.renown + rew.renown); out.renown = rew.renown; }
+  out.exp = baseExp;
+  addLog(win ? `${S.title} — 습격을 물리쳤다.` : `${S.title} — 밀려나 후퇴했다.`);
+  return out;
+}
+
+function mvpUid(rows) {
+  let best = null, score = -1;
+  for (const r of rows) {
+    const s = r.dealt + r.healed * 1.2 + r.kills * 60;
+    if (s > score) { score = s; best = r.uid; }
+  }
+  return best;
+}
+
+function renderResult(win) {
+  const root = S.root;
+  const a = S.applied || {};
+  root.innerHTML = '';
+
+  const rows = Object.keys(S.info)
+    .filter((uid) => S.info[uid].side === 'ally')
+    .map((uid) => ({
+      uid,
+      info: S.info[uid],
+      dealt: S.dealt[uid] || 0,
+      taken: S.taken[uid] || 0,
+      healed: S.healed[uid] || 0,
+      kills: S.kills[uid] || 0,
+      down: (S.finalHp[uid] != null ? S.finalHp[uid] : 1) <= 0,
+    }))
+    .sort((x, y) => y.dealt - x.dealt);
+  const mvp = mvpUid(rows);
+
+  const verdictColor = win ? 'var(--gold)' : 'var(--bad)';
+  root.appendChild(el('div', { class: 'panel bt-res-head' },
+    el('div', { class: 'verdict', style: { color: verdictColor }, text: win ? '승 리' : '패 배' }),
+    el('div', { class: 'muted', text: S.title }),
+    el('div', { class: 'tiny faint', text: `${S.waveCount}웨이브 중 ${S.results.length}웨이브 진행 · 교전 시간 ${Math.round(S.totalTime)}초` })));
+
+  // 전과 표
+  const table = el('table', { class: 'data' },
+    el('thead', {}, el('tr', {},
+      el('th', { text: '단원' }), el('th', { text: '준 피해' }), el('th', { text: '받은 피해' }),
+      el('th', { text: '회복' }), el('th', { text: '처치' }), el('th', { text: '상태' }))),
+    el('tbody', {}, rows.map((r) => {
+      const cls = getClass(r.info.classId);
+      return el('tr', {},
+        el('td', {},
+          el('span', { class: r.uid === mvp ? 'bt-mvp' : '', text: r.info.name }),
+          r.uid === mvp ? el('span', { class: 'tag', style: { color: 'var(--gold)', marginLeft: '6px' }, text: 'MVP' }) : null,
+          el('div', { class: 'tiny faint' },
+            `${cls ? cls.name : '용병'} Lv${r.info.level} · `,
+            el('span', { style: { color: GRADE_COLOR[r.info.grade] || '#999' }, text: `${r.info.grade}등급` }))),
+        el('td', { class: 'num', text: num(r.dealt) }),
+        el('td', { class: 'num muted', text: num(r.taken) }),
+        el('td', { class: 'num muted', text: r.healed ? num(r.healed) : '—' }),
+        el('td', { class: 'num', text: String(r.kills) }),
+        el('td', { style: { color: r.down ? 'var(--bad)' : 'var(--ok)' }, text: r.down ? '전투 불능' : '생존' }));
+    })));
+  // 표는 좁은 화면에서 6열이 안 들어간다 — 페이지가 아니라 **표가** 옆으로 스크롤되게 감싼다
+  root.appendChild(el('div', { class: 'panel', style: { marginTop: '12px' } },
+    el('h3', { text: '전과' }),
+    el('div', { class: 'bt-tablewrap' }, table)));
+
+  // 보상
+  const reward = el('div', { class: 'panel', style: { marginTop: '12px' } }, el('h3', { text: '보상' }));
+  reward.appendChild(el('div', { class: 'row wrap', style: { gap: '22px' } },
+    rewardStat('획득 골드', `${num(a.gold || 0)}G`, 'var(--gold)'),
+    rewardStat('경험치', num(a.exp || 0), 'var(--arcane)'),
+    rewardStat('명성', `+${a.renown || 0}`, 'var(--steel)')));
+
+  const items = (a.items || []).filter(Boolean);
+  reward.appendChild(el('div', { class: 'sep' }));
+  if (items.length) {
+    reward.appendChild(el('div', { class: 'cards' }, items.map(itemCard)));
+    reward.appendChild(lootAutoEquipBlock(items));
+  } else {
+    reward.appendChild(el('div', { class: 'tiny faint', text: win ? '쓸 만한 전리품은 없었다.' : '전리품은 없다.' }));
+  }
+  root.appendChild(reward);
+
+  // 성장 / 알림
+  const notes = [];
+  for (const l of a.levelUps || []) notes.push(`${l.name} — Lv${l.from} → Lv${l.to} 레벨 업!`);
+  for (const w of a.wounded || []) notes.push(`${w.name} — 부상. ${w.until}일차에 복귀한다.`);
+  for (const p of a.promotions || []) {
+    const opt = (p.options || []).map((o) => (typeof o === 'string' ? o : o.name)).join(' / ');
+    notes.push(`${p.name} (Lv${p.level}) — 전직 가능! ${opt ? `후보: ${opt}` : ''}`);
+  }
+  if (notes.length) {
+    root.appendChild(el('div', { class: 'panel col', style: { marginTop: '12px', gap: '6px' } },
+      el('h3', { text: '단원 소식' }),
+      notes.map((t) => el('div', { class: 'bt-note tiny', text: t }))));
+  }
+
+  // 결과 화면은 자동으로 닫히지 않는다. 아래 버튼을 눌러야 나간다 (하단 고정이라 항상 보인다)
+  root.appendChild(el('div', { class: 'bt-actions' },
+    el('button', { class: 'btn primary lg', onClick: leaveBattle }, '도시로 돌아가기'),
+    (a.promotions || []).length
+      ? el('button', { class: 'btn lg', onClick: () => { finalizeDays(); go('company'); } }, '전직하러 가기')
+      : null,
+    el('span', { class: 'tiny faint', text: '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다.' })));
+}
+
+/* ─────────────────────────── 전리품 자동 착용 ─────────────────────────── */
+
+/** 결과창 전리품 아래에 붙는 자동 착용 버튼 + 결과 표시 영역 */
+function lootAutoEquipBlock(items) {
+  const box = el('div', { class: 'col', style: { gap: '4px' } });
+  const btn = el('button', { class: 'btn primary' }, '획득 장비 자동 착용');
+  btn.onclick = () => runLootAutoEquip(items, btn, box);
+  return el('div', { class: 'col', style: { gap: '8px', marginTop: '12px' } },
+    el('div', { class: 'row wrap center', style: { gap: '10px' } },
+      btn,
+      el('span', { class: 'tiny faint', text: '이번 전투에서 얻은 장비만 배분한다. 전 단원 중 전투력이 높은 쪽이 먼저 고른다.' })),
+    box);
+}
+
+function runLootAutoEquip(items, btn, box) {
+  box.innerHTML = '';
+  if (!(state.roster || []).length) {
+    box.appendChild(el('div', { class: 'bt-note tiny', text: '장비를 맡길 단원이 없다.' }));
+    return;
+  }
+  let res = null;
+  try {
+    res = autoEquipAll(state, { pool: items.map((it) => it.uid), powerOf: (m) => mercPower(m, state) });
+  } catch (e) {
+    console.error('[battle] 전리품 자동 착용 실패', e);
+    toast('자동 착용에 실패했다.', 'bad');
+    return;
+  }
+
+  if (!res.total) {
+    box.appendChild(el('div', { class: 'bt-note tiny', text: '더 좋은 장비가 없다 — 지금 낀 것이 낫다. 전리품은 창고에 넣어 뒀다.' }));
+    btn.disabled = true;
+    return;
+  }
+
+  for (const row of res.perMerc) {
+    if (!row.changed.length) continue;
+    const line = el('div', { class: 'bt-note tiny row wrap center', style: { gap: '6px' } },
+      el('b', { style: { color: GRADE_COLOR[row.merc.grade] || 'var(--ink)' }, text: row.name }));
+    for (const ch of row.changed) {
+      line.append(
+        el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: SLOT_NAME[ch.slot] || ch.slot }),
+        el('span', { style: { color: RARITY_COLOR[ch.to.rarity || 0], fontWeight: '700' }, text: ch.to.name }),
+        el('span', { class: 'faint', text: ch.from ? `← ${ch.from.name} 해제` : '← 빈 슬롯' }));
+    }
+    box.appendChild(line);
+  }
+  box.appendChild(el('div', { class: 'tiny faint', text: `${res.total}칸 착용. 나머지 전리품은 창고에 있다.` }));
+
+  addLog(`전리품을 곧바로 나눠 끼웠다 (${res.total}칸).`);
+  try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
+  toast(`${res.total}칸을 자동으로 착용시켰습니다.`, 'good');
+  btn.disabled = true;
+  btn.textContent = '착용 완료';
+}
+
+const rewardStat = (k, v, color) => el('div', { class: 'col', style: { gap: '2px' } },
+  el('span', { class: 'tiny faint', text: k }),
+  el('span', { class: 'num', style: { fontSize: '20px', fontWeight: '800', color } , text: v }));
+
+function itemCard(it) {
+  const color = RARITY_COLOR[it.rarity || 0];
+  const statLine = Object.entries(it.stats || {}).map(([k, v]) => `${STAT_LABEL[k] || k} +${v}`).join(', ');
+  return el('div', { class: 'bt-item' },
+    el('div', { class: 'nm', style: { color }, text: it.name }),
+    el('div', { class: 'tiny faint', text: `${RARITY_NAME[it.rarity || 0]} · 아이템 레벨 ${it.ilvl || 1}` }),
+    el('div', { class: 'tiny muted', style: { marginTop: '4px' }, text: statLine || '옵션 없음' }));
+}
+
+const STAT_LABEL = { hp: '체력', atk: '공격', def: '방어', res: '저항', spd: '속도', crit: '치명', critDmg: '치명피해', eva: '회피' };
+
+/**
+ * 결과창을 떠나기 전 마무리. **날짜는 넘기지 않는다** —
+ * 이제 일수 경과는 플레이어가 도시에서 직접 처리한다 (전투가 임의로 날짜를 먹지 않는다).
+ */
+function finalizeDays() {
+  if (!S || S.daysDone) return;
+  S.daysDone = true;
+  try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
+}
+
+function leaveBattle() {
+  const target = S && S.mode === 'quest' ? 'city' : (S && S.returnTo) || 'city';
+  finalizeDays();
+  go(target);
+}
+
+/* ─────────────────────────── 렌더러 연결 ─────────────────────────── */
+
+async function attachRenderer(canvas, token) {
+  let create = null;
+  try {
+    const mod = await import('../battle/renderer.js');
+    create = mod.createRenderer || mod.default || null;
+  } catch (e) {
+    console.warn('[battle] renderer.js 를 불러오지 못했습니다. 간이 렌더러로 진행합니다.', e);
+  }
+  if (!S || S.token !== token || S.ended) return;
+
+  if (typeof create === 'function') {
+    try {
+      // 논리 크기를 화면에 맞춰 넘긴다. PC 구간은 렌더러 기본값(1280x560)과 같은 값이다.
+      const sp = stageSpec();
+      S.stageW = sp.w;
+      S.stageH = sp.h;
+      const r = create(canvas, { biome: S.biome, width: sp.w, height: sp.h });
+      if (r && typeof r.update === 'function' && typeof r.draw === 'function') S.renderer = r;
+    } catch (e) {
+      console.warn('[battle] 렌더러 생성 실패 — 간이 렌더러로 대체합니다.', e);
+    }
+  }
+  if (!S.renderer) S.renderer = createSimpleRenderer(canvas, S.biome);
+  S.renderer.speed = S.speed;
+  if (typeof S.renderer.setBattle === 'function') {
+    try { S.renderer.setBattle(S.battle, { biome: S.biome }); } catch (e) { console.warn('[battle] setBattle 실패', e); }
+  }
+  // 렌더러가 더 풍부한 로그 문구를 만들어 주면 그쪽을 쓴다 (중복 방지)
+  if (typeof S.renderer.onLog === 'function') {
+    S.externalLog = true;
+    try {
+      S.renderer.onLog((text) => { if (S && S.token === token) pushLog(text, 'ally'); });
+    } catch (e) {
+      S.externalLog = false;
+      console.warn('[battle] 로그 구독 실패', e);
+    }
+  }
+}
+
+/**
+ * 최소 기능 렌더러 (battle/renderer.js 가 없거나 실패했을 때만 쓰인다).
+ * 배경 + 스프라이트 + HP/게이지 바 + 피해 숫자만 그린다.
+ */
+function createSimpleRenderer(canvas, biome) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const HORIZON = Math.round(H * 0.42);
+  const pal = BIOME_BG[biome] || BIOME_BG.plains;
+  const px = (fx) => (fx / 100) * W;
+  const py = (fy) => HORIZON + (fy / 60) * (H - 40 - HORIZON);
+  let battle = null;
+  const pops = [];
+  const flash = new Map();
+  const sprites = new Map();
+
+  const spriteOf = (u) => {
+    if (sprites.has(u.uid)) return sprites.get(u.uid);
+    let s = null;
+    try { s = getSprite(u.recipe || {}); } catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
+    sprites.set(u.uid, s);
+    return s;
+  };
+
+  return {
+    speed: 1,
+    setBattle(b) { battle = b; pops.length = 0; flash.clear(); sprites.clear(); },
+    update(dt) {
+      if (!battle) return;
+      for (const e of battle.drainEvents()) {
+        if (e.type === 'damage') {
+          const u = battle.unitOf(e.targetUid);
+          if (u) pops.push({ x: px(u.x), y: py(u.y) - 86, t: 0, text: String(Math.round(e.amount)), crit: !!e.crit });
+          flash.set(e.targetUid, 0.14);
+        } else if (e.type === 'heal') {
+          const u = battle.unitOf(e.targetUid);
+          if (u) pops.push({ x: px(u.x), y: py(u.y) - 86, t: 0, text: `+${Math.round(e.amount)}`, heal: true });
+        }
+      }
+      for (let i = pops.length - 1; i >= 0; i--) { pops[i].t += dt; if (pops[i].t > 0.85) pops.splice(i, 1); }
+      for (const key of [...flash.keys()]) {
+        const v = flash.get(key) - dt;
+        if (v <= 0) flash.delete(key); else flash.set(key, v);
+      }
+    },
+    draw() {
+      const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
+      g.addColorStop(0, pal[0]); g.addColorStop(1, pal[1]);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, HORIZON);
+      const g2 = ctx.createLinearGradient(0, HORIZON, 0, H);
+      g2.addColorStop(0, pal[2]); g2.addColorStop(1, '#12101a');
+      ctx.fillStyle = g2; ctx.fillRect(0, HORIZON, W, H - HORIZON);
+      if (!battle) return;
+
+      const order = battle.units.slice().sort((a, b) => a.y - b.y);
+      for (const u of order) {
+        const x = px(u.x), y = py(u.y);
+        ctx.save();
+        ctx.globalAlpha = u.alive ? 0.32 : 0.16;
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(x, y, 22, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        const sp = spriteOf(u);
+        const frame = !u.alive ? 'die3' : (flash.has(u.uid) ? 'hit0' : 'idle0');
+        if (sp) {
+          drawSpriteFrame(ctx, sp, frame, x, y, {
+            scale: SPRITE_SCALE, flip: u.side === 'enemy',
+            alpha: u.alive ? 1 : 0.45, flash: flash.has(u.uid) ? 0.7 : 0,
+          });
+        }
+        if (!u.alive) continue;
+
+        const bw = 52, bx = x - bw / 2, by = y - 128;
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 8);
+        ctx.fillStyle = u.side === 'ally' ? '#c8563f' : '#8a4a6a';
+        ctx.fillRect(bx, by, bw * clamp(u.hp / u.maxHp, 0, 1), 5);
+        ctx.fillStyle = '#e0b44a';
+        ctx.fillRect(bx, by + 6, bw * clamp(u.gauge / 100, 0, 1), 2);
+
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = u.boss ? '#f0d24a' : (GRADE_COLOR[u.grade] || '#ddd');
+        ctx.fillText(`${u.boss ? '◆ ' : ''}${u.name} Lv${u.level}`, x, by - 5);
+      }
+
+      ctx.textAlign = 'center';
+      for (const p of pops) {
+        const k = p.t / 0.85;
+        ctx.globalAlpha = 1 - k * k;
+        ctx.font = `${p.crit ? 'bold 26px' : '18px'} sans-serif`;
+        ctx.fillStyle = p.heal ? '#8fe0a0' : (p.crit ? '#ffd75a' : '#ff9c86');
+        ctx.fillText(p.text, p.x, p.y - k * 34);
+      }
+      ctx.globalAlpha = 1;
+    },
+    dispose() { battle = null; pops.length = 0; flash.clear(); sprites.clear(); },
+  };
+}
