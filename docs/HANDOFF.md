@@ -1528,3 +1528,80 @@ node tools/pwa.mjs                  → ✅ 56건 통과
 - **전투 프레임 성능은 여전히 미측정**(§9.5). 세로 캔버스는 백킹이 672x1008 = 677k 픽셀로
   PC(1280x560 = 717k)와 비슷하니 예산은 같은 수준일 것으로 **추정**할 뿐, 재지 않았다.
 - §13.7 / §14.7 의 남은 항목(가로 화면, 실기기 터치, 768~1024 밴드, 지도 확대)은 그대로다.
+
+---
+
+## 16. 11차 세션 (이어서) — 안드로이드 앱(TWA)으로 감싸기
+
+플레이어 요구: **"홈화면에 빼둔거 삼성 게이밍허브에는 못넣나?"**
+
+### 16.1 왜 PWA 로는 안 되나
+
+삼성 게이밍 허브는 두 가지만 인식한다.
+
+1. 앱 스토어에 **'게임' 카테고리로 등록된 앱** → 자동 추가
+2. **설치된 앱** → 수동 추가 (내 게임 → ⋮ → 게임 추가)
+
+홈 화면 PWA 바로가기는 **둘 다 아니다.** 플레이어도 "앱만 인식하는것같아" 로 확인해 줬다.
+매니페스트의 `"categories": ["games"]` 는 **웹 앱 스토어 분류용**이라 안드로이드가 게임 판정에
+쓰는 `android:appCategory` 와 무관하다 — 크롬이 둘을 이어 준다는 근거는 못 찾았다.
+
+그래서 같은 사이트를 감싼 **TWA(Trusted Web Activity) APK** 를 만들었다.
+프로젝트는 `C:\claude\merc-twa` — **웹 저장소 밖**이다.
+`C:\claude\game` 루트는 Pages 가 그대로 공개하므로 키스토어·APK 가 그 안에 있으면 인터넷에 노출된다
+(`.gitignore` 에 `*.keystore`/`*.apk`/`*.aab` 를 넣어 이중으로 막았다).
+
+### 16.2 assetlinks.json 은 **오리진 루트에만** 놓을 수 있다 (여기서 한 번 틀렸다)
+
+```
+O  https://sryanius.github.io/.well-known/assetlinks.json
+X  https://sryanius.github.io/merc-company/.well-known/assetlinks.json
+```
+
+게임은 프로젝트 페이지(`/merc-company/`) 아래에 있다. 처음에 거기 넣었는데 안드로이드는
+**오리진 루트만** 본다. 검증 실패 = 앱 상단에 주소창이 남는다.
+그래서 저장소를 하나 더 만들었다 — **`sryanius/sryanius.github.io`** (루트 페이지 + 검증 파일).
+
+두 번째 함정: **GitHub Pages 는 Jekyll 이 기본이고, Jekyll 은 `.` 로 시작하는 디렉터리를 뺀다.**
+`.nojekyll` 이 없으면 `.well-known` 이 404 다. 사용자 페이지 저장소에 넣어 해결했다.
+참고로 **프로젝트 페이지(merc-company)에서는 `.nojekyll` 을 넣어도 닷폴더가 안 나갔다**(404 유지) —
+어차피 안 쓰는 경로라 그 사본은 지웠다.
+
+검증 확인은 눈이 아니라 구글 API 로 한다:
+```bash
+curl -s "https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://sryanius.github.io&relation=delegate_permission/common.handle_all_urls"
+```
+`statements` 에 우리 패키지명·지문이 나오면 통과. **통과 확인함.**
+
+### 16.3 최종 상태 (전부 실측)
+
+| 항목 | 값 |
+|---|---|
+| 패키지 | `io.github.sryanius.merc` |
+| 버전 | 1.0.0 (versionCode 1) |
+| 런처 이름 | 용병단 |
+| 여는 주소 | `https://sryanius.github.io/merc-company/` |
+| 게임 분류 | `appCategory=0` = `ApplicationInfo.CATEGORY_GAME` |
+| 서명 지문 | `33:DE:EF:A4:…:7A:05` (배포된 assetlinks 와 **일치 확인**) |
+| 크기 | 1.22 MB |
+
+### 16.4 툴체인 함정 (다음 사람이 반드시 다시 만난다)
+
+- `bubblewrap init` / `bubblewrap build` 는 **대화형**이라 비대화형 셸에서 멈춘다.
+  → `twa-manifest.json` 을 직접 쓰고 `bubblewrap update` 로 프로젝트를 생성했다.
+- `bubblewrap build` 는 `gradlew.bat` 을 상대 경로로 실행해 `'gradlew.bat' is not recognized`
+  로 죽는다. → `.\gradlew.bat assembleRelease` 를 직접 부른다.
+- Bubblewrap 은 SDK 루트에 `tools/` 나 `bin/` 이 있어야 유효하다고 본다(`AndroidSdkTools.validatePath`).
+  요즘 `cmdline-tools` 레이아웃엔 없다. → `android-sdk\bin` → `cmdline-tools\latest\bin` **정션** 생성.
+- Bubblewrap 이 요구하는 build-tools 버전이 코드에 박혀 있다(현재 `36.1.0`). 다른 버전만 깔면 서명이 깨진다.
+- **`bubblewrap update` 는 `AndroidManifest.xml` 을 덮어쓴다** → `android:appCategory="game"` 이 날아간다.
+  재생성할 때마다 다시 넣어야 한다.
+
+### 16.5 앞으로
+
+- **게임 내용만 바뀌면 APK 재빌드 불필요.** 앱이 웹을 그대로 불러오므로 웹 저장소 푸시가 곧 앱 갱신이다.
+  아이콘·앱 이름·버전을 바꿀 때만 다시 빌드한다. 절차는 `C:\claude\merc-twa\README.md`.
+- **서명 키를 잃으면 같은 앱으로 업데이트할 수 없다**(지우고 재설치해야 한다).
+  키를 바꾸면 `sryanius.github.io` 저장소의 assetlinks 지문도 같이 고쳐야 한다.
+- **실기기 확인 못 함**: 설치, 게이밍 허브 등록, 검증된 전체화면(주소창 없음), 세로 고정은
+  플레이어가 폰에서 확인해야 한다. 여기서는 APK 내용물과 서버 응답까지만 실측했다.
