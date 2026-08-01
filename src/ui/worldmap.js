@@ -826,8 +826,8 @@ function drawDungeons() {
     // 잠김 표시 — 자물쇠
     if (!open) drawLock(x, y, r * 0.5);
 
-    // 라벨: 아래가 잘릴 위치면 위로 붙인다
     // 라벨 3줄: 던전 이름 / 세트 이름 · 개방 주차 / 최고 도달 웨이브.
+    // 어디에 붙일지(아래/위/좌우)는 placeLabel 이 정한다 — 화면 밖과 겹침을 같이 피한다.
     // 잠긴 던전도 최고 기록은 보여 준다 — "다음 주에 어디까지 이어서 밀지"를 지도에서 바로 재도록.
     // 좁은 화면에서는 3줄 x 4곳이면 지도를 덮는다 — 열린 곳/고른 곳만 이름 한 줄로 줄인다
     // (나머지 정보는 눌렀을 때 툴팁과 옆 던전 목록에 전부 있다).
@@ -934,16 +934,25 @@ function placeLabel(x, y, nodeR, w, h, force) {
   ];
   const boxAt = (p) => ({ x: p.x - w / 2 - 4 * scale, y: p.y - 1, w: w + 8 * scale, h: h + 3 });
 
+  // 캔버스 밖으로 나가면 잘려서 안 보인다 — 겹침만큼이나 나쁘다.
+  // (예전에는 던전 라벨만 `d.y < MAP_H*0.88` 로 아래/위를 뒤집어 이걸 피하고 있었다.
+  //  이제는 도시·던전 모두 여기서 한꺼번에 거른다.)
+  const canvasH = MAP_H * scale;
+  const inView = (b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= viewW && b.y + b.h <= canvasH;
+
   // 빈자리를 먼저 찾는다 — force 라벨도 마찬가지다.
   // (force 가 자리 검사를 통째로 건너뛰면 "현재 위치"와 "고른 곳"이 서로 겹칠 수 있다.)
   for (const p of cands) {
-    if (labelFits(boxAt(p))) { placedLabels.push(boxAt(p)); return p; }
+    const b = boxAt(p);
+    if (inView(b) && labelFits(b)) { placedLabels.push(b); return p; }
   }
   if (!force) return null;
 
-  // 반드시 보여야 하는 라벨은 자리가 없어도 그린다 — 안 보이는 것보다 겹치는 게 낫다
-  placedLabels.push(boxAt(cands[0]));
-  return cands[0];
+  // 반드시 보여야 하는 라벨은 겹쳐서라도 그린다 — 안 보이는 것보다 낫다.
+  // 다만 화면 밖은 그려도 안 보이므로, 그나마 화면 안에 들어오는 후보를 고른다.
+  const p = cands.find((q) => inView(boxAt(q))) || cands[0];
+  placedLabels.push(boxAt(p));
+  return p;
 }
 
 /** 라벨 뒤에 어두운 판을 깔아 배경과 겹쳐도 읽히게 한다 */

@@ -119,12 +119,14 @@ function layoutLabels(viewW, here, opt) {
       { x: q.x, y: q.y - gap - q.h * 2 - 5 },
     ];
     const boxAt = (p) => ({ x: p.x - q.w / 2 - 4 * scale, y: p.y - 1, w: q.w + 8 * scale, h: q.h + 3 });
+    const canvasH = MAP_H * scale;
+    const inView = (b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= viewW && b.y + b.h <= canvasH;
     let pos = null;
     if (!opt.place) {
       pos = cands[0];   // 수정 전 재현: 자리 경쟁 없이 무조건 노드 아래
     } else {
-      for (const cand of cands) if (fits(boxAt(cand))) { pos = cand; break; }
-      if (!pos && q.force) pos = cands[0];   // 반드시 보여야 하는 라벨
+      for (const cand of cands) if (inView(boxAt(cand)) && fits(boxAt(cand))) { pos = cand; break; }
+      if (!pos && q.force) pos = cands.find((c) => inView(boxAt(c))) || cands[0];
     }
     if (!pos) continue;
     placed.push(boxAt(pos));
@@ -191,7 +193,12 @@ for (const [label, viewW] of WIDTHS) {
   console.log(`\n══ ${label} (캔버스 ${viewW}px, 축척 ${(viewW / MAP_W).toFixed(2)}) ══`);
 
   // 한 자리만 보면 운 좋게 통과할 수 있다 — 현재 도시 x 선택 도시를 전수로 돈다.
-  let before = 0, after = 0, worstCase = null, minLabels = 1e9;
+  const canvasH = MAP_H * (viewW / MAP_W);
+  /** 캔버스 밖으로 삐져나간 라벨 — 잘려서 안 보이므로 겹침만큼 나쁘다 */
+  const clipped = (rects) => rects.filter((r) =>
+    r.kind === 'city' && (r.x < -0.5 || r.y < -0.5 || r.x + r.w > viewW + 0.5 || r.y + r.h > canvasH + 0.5));
+
+  let before = 0, after = 0, cut = 0, worstCase = null, worstCut = null, minLabels = 1e9;
   let cases = 0;
   for (const h of CITIES) {
     for (const s of [null, ...neighborsOf(h.id)]) {
@@ -199,6 +206,9 @@ for (const [label, viewW] of WIDTHS) {
       before += measure(viewW, h.id, s, false).hits.length;
       const r = measure(viewW, h.id, s, true);
       after += r.hits.length;
+      const cl = clipped(r.rects);
+      cut += cl.length;
+      if (cl.length && !worstCut) worstCut = { here: h.name, t: cl[0].t };
       minLabels = Math.min(minLabels, r.rects.length);
       if (r.hits.length && (!worstCase || r.hits.length > worstCase.n)) {
         worstCase = { n: r.hits.length, here: h.name, sel: s, ex: r.hits[0] };
@@ -207,11 +217,12 @@ for (const [label, viewW] of WIDTHS) {
   }
   console.log(`  상황 ${cases}가지 (현재 도시 × 선택 도시 전수)`);
   console.log(`  수정 전  겹침 합계 ${before}쌍`);
-  console.log(`  수정 후  겹침 합계 ${after}쌍 · 최소 표시 라벨 ${minLabels}개`);
+  console.log(`  수정 후  겹침 합계 ${after}쌍 · 화면밖 ${cut}개 · 최소 표시 라벨 ${minLabels}개`);
   if (worstCase) {
     console.log(`      ↳ 최악: ${worstCase.here}에서 ${worstCase.n}쌍 — "${worstCase.ex.a.t}" ✕ "${worstCase.ex.b.t}"`);
   }
-  const ok = after === 0;
+  if (worstCut) console.log(`      ↳ 잘림: ${worstCut.here}에서 "${worstCut.t}"`);
+  const ok = after === 0 && cut === 0;
   if (!ok) fail++;
   console.log(`  → ${ok ? 'PASS' : 'FAIL'}`);
 }
