@@ -31,8 +31,10 @@
  *   즉 이 목록은 "첫 오프라인 실행을 보장하는 부팅 목록"이지 정답표가 아니다.
  */
 
-/* ★ 배포할 때마다 올려라. */
-const CACHE = 'merc-v1';
+/* ★ 배포할 때마다 올려라.
+ * v2 — 월드맵 라벨 겹침 수정(worldmap.js). v1 로 배포된 뒤에 worldmap.js 만 바뀌어서
+ *      그 사이에 설치한 기기에는 옛 지도가 캐시돼 있다. 버전을 올려 확실히 갈아 끼운다. */
+const CACHE = 'merc-v2';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */

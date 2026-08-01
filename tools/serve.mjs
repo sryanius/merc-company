@@ -17,6 +17,9 @@ const MIME = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  // GitHub Pages 가 쓰는 것과 같은 MIME. 없으면 octet-stream 으로 나가서
+  // 개발 중에만 매니페스트가 무시되고 "폰에서만 PWA 가 안 잡힌다"로 오해하게 된다.
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
