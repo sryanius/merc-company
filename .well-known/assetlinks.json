@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.sryanius.merc",
+      "sha256_cert_fingerprints": [
+        "33:DE:EF:A4:7D:9E:6D:F2:24:79:63:2E:BA:A0:9A:4F:A5:56:46:81:83:55:73:83:BB:6C:03:5D:37:D4:7A:05"
+      ]
+    }
+  }
+]

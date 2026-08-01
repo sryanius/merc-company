@@ -14,3 +14,10 @@ Thumbs.db
 # 혹시라도 생길 경우 (지금은 쓰지 않는다)
 node_modules/
 *.log
+
+# 서명 키·APK 는 절대 커밋 금지 (이 저장소 루트가 그대로 공개된다)
+*.keystore
+*.jks
+*.apk
+*.aab
+
