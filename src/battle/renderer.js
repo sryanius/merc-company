@@ -16,6 +16,30 @@ import { getSkill } from '../data/skills.js';
 export const SPRITE_SCALE = 3;
 const FIELD_W = 100;
 const FIELD_H = 60;
+
+/* ── 세로 배치(폰 세로) 화면 매핑 ─────────────────────────────────────
+   **엔진의 필드 좌표계(가로 100 x 세로 60)는 절대 건드리지 않는다.** 전투 결과가 바뀐다.
+   바꾸는 것은 "필드 -> 화면" 매핑뿐이다.
+
+   가로로 납작한 캔버스(PC 1280x560)를 폰 폭에 맞춰 줄이면 세로 공간이 통째로 남고
+   스프라이트가 화면상 42px 밖에 안 돼 관전이 불가능했다. 그래서 폰에서는 **세로로 긴**
+   캔버스를 쓰고, 이 매핑이 그 캔버스를 실제로 채운다:
+
+   · 가로: 두 진영 사이의 빈 공간(필드 x 44~56)을 고정 간격으로 눌러 담고,
+     남은 폭을 전부 각 진영의 띠(아군 8~44 / 적 56~92)에 준다. 조각별 선형이라
+     단조 증가는 유지된다(투사체·돌진은 전부 화면 좌표로 계산하므로 영향 없음).
+   · 세로: 실제로 유닛이 서는 구간(필드 y 8~52)이 캔버스 세로를 거의 다 쓰도록 늘린다.
+
+   PC(가로 납작) 캔버스는 이 분기를 **절대 타지 않는다** — 1280x560 의 H/W 는 0.4375 다. */
+
+/** H/W 가 이 값 이상이면 세로 배치로 본다. PC 기본값(1280x560 = 0.4375)과 여유가 크다. */
+const PORTRAIT_ASPECT = 0.72;
+/** 세로 배치: 바깥 여백 / 진영 사이 간격의 절반 (캔버스 논리 폭 대비) */
+const P_EDGE = 0.06;
+const P_GAPH = 0.095;
+/** 세로 배치: 최후열(필드 y=8) / 최전열(필드 y=52) 유닛의 발 높이 (캔버스 논리 높이 대비) */
+const P_FEET0 = 0.38;
+const P_FEET1 = 0.955;
 const FONT = '"Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-serif';
 
 /**
@@ -574,12 +598,15 @@ function bakeBackdrop(W, H, dpr, biome, horizonY, gy0) {
   groundDetail(g, R, biome, th, W, H, gy0);
 
   // 진영 구분: 아주 옅은 중앙 띠
-  const mid = g.createLinearGradient(W * 0.5 - 90, 0, W * 0.5 + 90, 0);
+  // 폭은 90px 고정이었는데, 세로(폰) 캔버스는 논리 폭이 460px 남짓이라 화면의 40% 를 덮어 버린다.
+  // 넓은 캔버스(PC 1280)에서는 0.28W = 358 > 90 이므로 **예전 값 그대로** 90 이 선택된다.
+  const midHalf = Math.min(90, W * 0.14);
+  const mid = g.createLinearGradient(W * 0.5 - midHalf, 0, W * 0.5 + midHalf, 0);
   mid.addColorStop(0, 'rgba(0,0,0,0)');
   mid.addColorStop(0.5, 'rgba(0,0,0,.10)');
   mid.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = mid;
-  g.fillRect(W * 0.5 - 90, horizonY + 18, 180, H - horizonY - 18);
+  g.fillRect(W * 0.5 - midHalf, horizonY + 18, midHalf * 2, H - horizonY - 18);
 
   return c;
 }
@@ -598,6 +625,12 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   let W = width, H = height;
   let dpr = 1;
   let horizonY = 0, GY0 = 0, GY1 = 0, GX0 = 0, GX1 = 0;
+  /** 세로 배치인가 (폰 세로). false 면 예전 가로 매핑과 완전히 같다. */
+  let portrait = false;
+  /** 세로 배치 전용: 진영 사이 간격의 절반(px) / 필드 x 1단위당 px */
+  let PGAP = 0, PK = 0;
+  /** 근접 돌진이 목표 앞에서 멈추는 거리(px). 진영 간격에 맞춰야 돌진이 눈에 보인다. */
+  let meleeStand = 62;
   let backdrop = null;
   let vignette = null;          // 구워진 비네트 (오프스크린 캔버스)
   const edgeSprites = new Map(); // 가장자리 펄스 색 -> 구워진 오버레이 (알파 1 기준)
@@ -710,12 +743,19 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   let lastClientW = -1;
   /** 배율 상한. 더 키우면 바·글자가 유닛 간격을 넘어 서로 가린다 */
   const UI_MAX = 2.2;
+  /**
+   * 목표 배율 계수. 화면상 글자 크기 = 기준 크기 × 이 값이 된다.
+   * 가로(PC)는 0.95 그대로 — 1280 캔버스가 거의 등배로 보이므로 배율은 항상 1 로 clamp 된다.
+   * 세로(폰)는 1.22 — 가장 작은 글자(Lv 10px)까지 화면상 12px 이상으로 올리기 위한 값이다.
+   */
+  const UI_AIM_WIDE = 0.95;
+  const UI_AIM_TALL = 1.22;
 
   /** 표시 폭 기준 자동 배율. 논리 1px 이 화면에서 0.5 CSS px 면 글자를 2배로 키운다. */
   function autoUiScale() {
     const cw = (canvas && canvas.clientWidth) || 0;
     if (!(cw > 0) || !(W > 0)) return uiScale;
-    return clamp(0.95 / (cw / W), 1, UI_MAX);
+    return clamp((portrait ? UI_AIM_TALL : UI_AIM_WIDE) / (cw / W), 1, UI_MAX);
   }
 
   function applyUiScale(n) {
@@ -753,15 +793,39 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     canvas.style.width = '100%';
     canvas.style.height = 'auto';
     canvas.style.imageRendering = 'pixelated';
-    horizonY = Math.round(H * 0.36);
-    GY0 = Math.round(H * 0.44);   // 필드 y=0 (가장 뒤)
-    GY1 = Math.round(H * 0.985);  // 필드 y=60 (가장 앞)
-    GX0 = Math.round(Math.min(90, W * 0.06));
-    GX1 = W - GX0;
+    portrait = H >= W * PORTRAIT_ASPECT;
+    if (portrait) {
+      // 세로: 유닛이 실제로 서는 구간(필드 y 8~52)을 캔버스 세로에 펼친다.
+      const slope = ((P_FEET1 - P_FEET0) * H) / 44;
+      GY0 = Math.round(P_FEET0 * H - 8 * slope);
+      GY1 = Math.round(GY0 + 60 * slope);
+      // 지평선은 "가장 뒤 유닛의 머리 위"에 둔다 — 안 그러면 뒷줄이 하늘에 떠 보인다.
+      const topFeet = GY0 + 10 * slope;
+      horizonY = Math.round(clamp(topFeet - FOOT_Y * SPRITE_SCALE - 14, H * 0.08, H * 0.30));
+      // 가로: 진영 사이를 눌러 담고 남는 폭을 진영 띠에 전부 준다.
+      const edge = Math.round(W * P_EDGE);
+      PGAP = Math.round(W * P_GAPH);
+      PK = (W / 2 - edge - PGAP) / 36;
+      GX0 = edge;                 // 하위 호환 값 (세로에서는 f2x 가 조각별 매핑을 쓴다)
+      GX1 = W - edge;
+      meleeStand = Math.max(26, Math.round(PGAP * 0.8));
+    } else {
+      horizonY = Math.round(H * 0.36);
+      GY0 = Math.round(H * 0.44);   // 필드 y=0 (가장 뒤)
+      GY1 = Math.round(H * 0.985);  // 필드 y=60 (가장 앞)
+      GX0 = Math.round(Math.min(90, W * 0.06));
+      GX1 = W - GX0;
+      PGAP = 0; PK = 0;
+      meleeStand = 62;
+    }
     backdrop = bakeBackdrop(W, H, dpr, curBiome, horizonY, GY0);
     // 비네트는 모양이 변하지 않는다 — 한 번 굽고 매 프레임 blit 한다 (위 bakeOverlay 주석 참조)
+    // 반지름은 가로 캔버스에서 **짧은 변이 H** 라는 전제로 짜여 있었다. 세로 캔버스는 짧은 변이 W 라
+    // 같은 식을 쓰면 안쪽 반지름이 화면 폭보다 커져 좌우 가장자리가 전혀 어두워지지 않는다.
+    const vgIn = (portrait ? Math.min(W, H) : H) * 0.34;
+    const vgOut = portrait ? Math.max(W, H) * 0.85 : H * 0.95;
     vignette = bakeOverlay(W, H, dpr, (g) => {
-      const vg = g.createRadialGradient(W * 0.5, H * 0.48, H * 0.34, W * 0.5, H * 0.5, H * 0.95);
+      const vg = g.createRadialGradient(W * 0.5, H * 0.48, vgIn, W * 0.5, H * 0.5, vgOut);
       vg.addColorStop(0, 'rgba(0,0,0,0)');
       vg.addColorStop(1, 'rgba(0,0,0,.55)');
       g.fillStyle = vg;
@@ -783,7 +847,19 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     seedAmbient();
   }
 
-  const f2x = (fx0) => GX0 + (fx0 / FIELD_W) * (GX1 - GX0);
+  /**
+   * 필드 x -> 화면 x.
+   * 가로 캔버스는 예전 그대로 단순 선형이다. 세로 캔버스는 **조각별 선형**으로,
+   * 진영 사이(필드 44~56)를 고정 간격 `PGAP*2` 로 눌러 담고 남은 폭을 진영 띠에 준다.
+   * 단조 증가와 좌우 대칭은 그대로 유지된다.
+   */
+  function f2x(fx0) {
+    if (!portrait) return GX0 + (fx0 / FIELD_W) * (GX1 - GX0);
+    const c = W / 2;
+    const d = fx0 - 50;
+    if (d >= -6 && d <= 6) return c + (d / 6) * PGAP;
+    return c + (d < 0 ? -1 : 1) * (PGAP + (Math.abs(d) - 6) * PK);
+  }
   const f2y = (fy0) => GY0 + (fy0 / FIELD_H) * (GY1 - GY0);
 
   /* ── 환경 파티클 ───────────────────────────────────── */
@@ -998,7 +1074,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (!v || !t || v.dieT >= 0) return;
     v.meleeWait = 0;
     const d = facing(v.u);
-    const tx = homeX(t.u) - d * 62;
+    const tx = homeX(t.u) - d * meleeStand;
     const ty = homeY(t.u);
     v.lunge = { t: 0, out: 0.25, hold: 0.13, back: 0.32, dx: tx - homeX(v.u), dy: ty - homeY(v.u) };
     v.clip = null;
@@ -1486,7 +1562,10 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const x = Math.round(posX(v));
     // 바 **폭**은 글자만큼 키우지 않는다 — 폰에서는 유닛 간격보다 넓어져 옆 유닛의 바를 가린다.
     // 두께와 글자는 그대로 키운다 (읽히는 게 목적이다).
-    const bw = Math.round(58 * Math.min(us, 1.45));
+    // 세로 배치에서는 아예 **진영 띠의 유닛 간격(PK)** 에 맞춰 잘라 둔다.
+    const bw = portrait
+      ? Math.round(clamp(PK * 12, 40, 66))
+      : Math.round(58 * Math.min(us, 1.45));
     const bh = Math.max(6, Math.round(6 * us * 0.8));
     const by = Math.round(posY(v)) - 132 - Math.round((us - 1) * 8);
     const gy = by + bh + 2;
@@ -1652,8 +1731,10 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     }
     if (!n) return;
     const us = uiScale;
-    // 배율이 커져도 양쪽 배너가 화면 폭을 넘지 않게 상한을 둔다
-    const w = Math.min(Math.round(210 * us), Math.round(W * 0.42));
+    // 배율이 커져도 양쪽 배너가 화면 폭을 넘지 않게 상한을 둔다.
+    // 세로 배치에서는 가운데에 시간·배속 글자가 들어가야 하므로 더 좁게 잡는다.
+    // (가로 캔버스는 210*us 쪽이 항상 작아 예전 값이 그대로 선택된다 — 1280*0.42 = 537)
+    const w = Math.min(Math.round(210 * us), Math.round(W * (portrait ? 0.30 : 0.42)));
     const h = Math.max(8, Math.round(8 * us * 0.85));
     const bx = align === 'left' ? x : x - w;
     text(g, side === 'ally' ? `아군  ${alive}/${n}` : `적군  ${alive}/${n}`,
@@ -1935,6 +2016,8 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     get fx() { return fx; },
     get width() { return W; },
     get height() { return H; },
+    /** 세로 배치(폰 세로) 매핑을 쓰고 있는가. 검증 도구가 읽는다 */
+    get portrait() { return portrait; },
     /** 개발용 단계별 프로파일러 (기본 비활성). 위 PROF 주석 참고 */
     __prof: PROF,
   };

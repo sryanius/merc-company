@@ -37,18 +37,70 @@ function isNarrow() {
 }
 
 /**
+ * 폰 세로에서 노리는 **화면상** 스프라이트 셀 폭(CSS px).
+ *
+ * 스프라이트 한 칸은 논리 32px x `SPRITE_SCALE`(3) = **캔버스 96px** 이다(SPEC §4.1).
+ * 캔버스는 `width:100%` 로 축소돼 그려지므로 화면상 셀 폭 = `96 * (표시폭 / 논리폭)` 이다.
+ * 여기서 논리폭을 역산한다: `논리폭 = 표시폭 * 96 / PHONE_SPRITE_PX`.
+ *
+ * 예전에는 폰에서도 가로로 납작한 760x520 을 써서 360px 폭 화면에서 셀이 **42px** 밖에
+ * 안 됐다(760 논리폭 -> 336 표시폭 = 0.44배). 누가 뭘 하는지 안 보였다.
+ */
+const PHONE_SPRITE_PX = 70;
+/** 캔버스 논리 크기 하한/상한 (너무 작으면 오버레이가 겹치고, 너무 크면 스프라이트가 다시 작아진다) */
+const PHONE_W_MIN = 340;
+const PHONE_W_MAX = 640;
+const PHONE_H_MIN = 360;
+const PHONE_H_MAX = 1100;
+
+/**
+ * 폰에서 캔버스가 쓸 수 있는 세로 공간(CSS px).
+ *
+ * 위(HUD + 전투 바)와 아래(로그 토글 + 하단 고정 내비 + 여백)를 **실측해서** 뺀다.
+ * 상수로 박으면 전투 바가 몇 줄로 접히는지에 따라 캔버스가 화면 밖으로 밀린다.
+ */
+function phoneStageH(canvas, vh) {
+  let top = 236;
+  let below = 118;
+  try {
+    if (canvas) {
+      const r = canvas.getBoundingClientRect();
+      top = Math.max(0, r.top + (window.scrollY || 0));
+    }
+    let b = 14;                                   // 캔버스 아래 최소 숨통
+    const lw = (S && S.logWrap) || document.querySelector('.bt-logwrap');
+    if (lw) b += lw.offsetHeight;                 // 로그 토글(+펼쳐져 있으면 로그까지)
+    const nav = document.getElementById('nav');
+    if (nav && getComputedStyle(nav).position === 'fixed') b += nav.offsetHeight;
+    below = b;
+  } catch (e) { /* 잴 수 없으면 기본값으로 간다 */ }
+  return clamp(vh - top - below, 260, 1200);
+}
+
+/**
  * 전투 캔버스의 **논리** 크기.
  *
  * 캔버스는 CSS(`width:100%`)로 화면 폭에 맞춰 줄어든다. PC 기본값(1280x560)은 가로가 2.3배로
- * 납작해서, 폰 세로에서는 높이가 150px 남짓한 띠가 되어 관전이 불가능하다.
- * 폰에서만 더 정사각형에 가까운 크기를 쓴다 — 유닛 간격은 조금 좁아지지만
- * 화면에 보이는 스프라이트가 커지고, 세로 공간을 실제로 쓰게 된다.
- * **PC 값(1280x560)은 렌더러 기본값 그대로다 — 1280px 에서 예전과 완전히 같다.**
+ * 납작해서, 폰 세로에서는 높이 230px 짜리 띠가 되고 스프라이트가 42px 로 뭉개진다.
+ *
+ * 그래서 폰(≤767px)에서는 **세로로 긴 캔버스**를 만든다:
+ *  - 논리 **폭**은 스프라이트가 화면상 `PHONE_SPRITE_PX` 로 보이도록 역산한다.
+ *  - 논리 **높이**는 실제로 남는 세로 공간을 그 표시 배율로 되돌려 잡는다
+ *    (= 캔버스가 화면에 정확히 맞고 세로 공간을 남기지 않는다).
+ * 렌더러는 H/W 비를 보고 세로 전용 필드 매핑으로 전환한다(`battle/renderer.js` PORTRAIT_ASPECT).
+ *
+ * **PC 값(1280x560)은 렌더러 기본값 그대로다 — 768px 이상에서 예전과 완전히 같다.**
  */
-function stageSpec() {
+function stageSpec(canvas) {
   const vw = (typeof window !== 'undefined' && window.innerWidth) || 1280;
-  if (vw <= 620) return { w: 760, h: 520 };
-  return { w: 1280, h: 560 };
+  if (vw > NARROW_PX) return { w: 1280, h: 560 };
+  const vh = (typeof window !== 'undefined' && window.innerHeight) || 800;
+  const dispW = Math.max(240, (canvas && canvas.clientWidth) || (vw - 24));
+  // 10px 단위로 끊어 둔다 — 리사이즈 때마다 값이 미세하게 흔들리면 배경을 계속 다시 굽는다.
+  const w = clamp(Math.round((dispW * 96) / PHONE_SPRITE_PX / 10) * 10, PHONE_W_MIN, PHONE_W_MAX);
+  const scale = dispW / w;                      // 논리 1px 이 화면에서 몇 CSS px 인가
+  const h = clamp(Math.round(phoneStageH(canvas, vh) / scale / 10) * 10, PHONE_H_MIN, PHONE_H_MAX);
+  return { w, h };
 }
 
 /** biome -> [하늘 위, 하늘 아래, 지면] */
@@ -149,13 +201,22 @@ function injectStyle() {
 
 /* ───────── 모바일 (폰 세로 기준 360x800) ───────── */
 @media (max-width:${NARROW_PX}px){
-  /* 전투 바: 한 줄에 다 못 들어간다 — 접어서 전부 누를 수 있게 한다 */
-  .battle-bar.bt-bar{flex-wrap:wrap;gap:6px;padding:8px 10px}
+  /* 전투 바: 한 줄에 다 못 들어간다 — 접어서 전부 누를 수 있게 한다.
+     ★ 바가 한 줄 늘 때마다 전장 캔버스가 44px 씩 줄어든다(세로가 곧 관전 품질이다).
+     제목/랭크/웨이브를 한 줄에 몰고 버튼 5개를 다음 한 줄에 담아 **2줄**로 고정한다. */
+  .battle-bar.bt-bar{flex-wrap:wrap;gap:5px;padding:6px 8px}
   .battle-bar.bt-bar .bt-spacer{display:none}
-  .battle-bar.bt-bar .bt-title{flex:1 1 100%;font-size:14px}
-  .battle-bar.bt-bar .bt-speedlab{margin-left:auto}
-  /* 터치 타겟 40px 하한 */
-  .battle-bar.bt-bar .btn.sm{min-height:40px;padding:8px 12px;font-size:13px}
+  /* 제목은 남는 폭만 먹고 줄인다(말줄임) — 안 그러면 랭크·웨이브를 다음 줄로 밀어낸다 */
+  .battle-bar.bt-bar .bt-title{flex:1 1 0;min-width:72px;font-size:14px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 웨이브 표시는 제목 줄 끝에 붙여 한 줄을 통째로 아낀다 */
+  .battle-bar.bt-bar > .tiny.muted{flex:0 0 auto}
+  /* '속도' 라벨은 감추고 **줄바꿈 자리**로 쓴다 (1x/2x/4x 버튼 자체가 설명이다).
+     이렇게 해야 버튼 5개가 한 줄에 모여 바가 정확히 2줄로 고정된다 */
+  .battle-bar.bt-bar .bt-speedlab{flex:1 0 100%;height:0;margin:-2px 0 0;overflow:hidden;visibility:hidden}
+  /* 터치 타겟 40px 하한 (라벨을 줄여도 높이는 유지한다) */
+  .battle-bar.bt-bar .btn.sm{min-height:40px;padding:8px 10px;font-size:13px}
+  .battle-bar.bt-bar .tag{align-self:center}
   .bt-logtoggle{display:flex}
   .bt-logwrap.bt-off .battle-log{display:none}
   .battle-log.bt-log{height:96px;font-size:12px}
@@ -287,6 +348,15 @@ function buildUI(root) {
   root.appendChild(el('div', { class: 'panel', style: { padding: '0', overflow: 'hidden' } }, bar, stage, logWrap));
   root.appendChild(goBar);
 
+  // 렌더러는 동적 import 라 한 박자 늦게 붙는다. 폰에서는 기본 비율(960x576)로 잠깐 그려졌다가
+  // 세로 캔버스로 바뀌면서 화면이 크게 튄다 — 미리 최종 비율로 맞춰 둔다.
+  // (PC 는 손대지 않는다. 아래 attachRenderer 가 어차피 1280x560 을 넘긴다)
+  if (isNarrow()) {
+    const sp0 = stageSpec(canvas);
+    canvas.width = sp0.w;
+    canvas.height = sp0.h;
+  }
+
   S.waveLabel = waveLabel;
   S.speedBtns = speedBtns;
   S.canvas = canvas;
@@ -330,7 +400,7 @@ function attachResize() {
     timer = setTimeout(() => {
       if (!S || S.token !== token || S.ended) return;
       placeGoBar();          // 내비 높이가 회전으로 달라질 수 있다
-      const sp = stageSpec();
+      const sp = stageSpec(S.canvas);
       if (sp.w === S.stageW && sp.h === S.stageH) return;
       S.stageW = sp.w;
       S.stageH = sp.h;
@@ -1016,7 +1086,7 @@ async function attachRenderer(canvas, token) {
   if (typeof create === 'function') {
     try {
       // 논리 크기를 화면에 맞춰 넘긴다. PC 구간은 렌더러 기본값(1280x560)과 같은 값이다.
-      const sp = stageSpec();
+      const sp = stageSpec(canvas);
       S.stageW = sp.w;
       S.stageH = sp.h;
       const r = create(canvas, { biome: S.biome, width: sp.w, height: sp.h });

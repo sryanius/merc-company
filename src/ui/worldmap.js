@@ -136,6 +136,7 @@ let lastTs = 0;
 let viewW = MAP_W;   // 현재 캔버스의 CSS 픽셀 폭
 let scale = 1;       // 논리 → CSS 픽셀
 let traveling = false;
+let allCityEl = null;  // 전체 도시 목록 패널 (좁은 화면에서만 보인다)
 
 /* ─────────────────────────── 모바일 판정 ───────────────────────────
  * 지도는 도시 14개 + 던전 4개를 한 화면에 밀어 넣는다. 폰 폭(360)에서는 축척이 1/3 이하로
@@ -306,7 +307,13 @@ export function render(root) {
             })))),
       stage,
       legend()),
-    el('div', { class: 'wm-cols' }, neighborPanel(), dungeonPanel(), routeHelpPanel())));
+    el('div', { class: 'wm-cols' },
+      neighborPanel(),
+      // 좁은 화면에서만 보인다. 여기서 narrowMap() 을 못 쓰는 이유는 viewW 가 아직
+      // layout() 전이라 이전 값이기 때문 — 그래서 항상 만들어 두고 layout() 이 표시를 정한다.
+      (allCityEl = allCityPanel()),
+      dungeonPanel(),
+      routeHelpPanel())));
 
   layout();                  // 내부에서 draw()까지 한다 (탭이 숨겨져 rAF가 멈춰 있어도 한 장은 남는다)
   window.addEventListener('resize', layout);
@@ -413,6 +420,42 @@ function neighborPanel() {
       : el('div', { class: 'faint tiny', text: '연결된 길이 없다.' }));
 }
 
+/* ─────────────────────────── 전체 도시 목록 ───────────────────────────
+ * 폰에서는 라벨이 겹쳐 못 읽으므로 지도에 이름을 4~5개만 띄운다(위 flushLabels 참고).
+ * 그러면 나머지 도시는 **이름 없는 점**이 되어 찍어 보기 전에는 어딘지 알 수 없다.
+ * 그래서 좁은 화면에서는 지도 아래에 전체 목록을 깔아, 이름으로 골라 갈 수 있게 한다. */
+
+function allCityPanel() {
+  const here = state.cityId;
+  const rows = CITIES
+    .map((c) => ({ c, days: travelDays(here, c.id) }))
+    .sort((a, b) => {
+      if (a.c.id === here) return -1;
+      if (b.c.id === here) return 1;
+      const ad = Number.isFinite(a.days) ? a.days : 1e9;
+      const bd = Number.isFinite(b.days) ? b.days : 1e9;
+      return ad - bd;
+    })
+    .map(({ c, days }) => {
+      const isHere = c.id === here;
+      const reg = getRegion(c.regionId);
+      const reachable = Number.isFinite(days);
+      return el('div', { class: 'row spread center wm-nb', style: { gap: '10px' } },
+        el('div', { class: 'grow' },
+          el('div', { style: { fontWeight: '600', color: isHere ? 'var(--gold)' : 'var(--ink)' }, text: c.name },
+            el('span', { class: 'faint tiny', text: ` ${c.tier}등급` })),
+          el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${isHere ? '현재 위치' : reachable ? `${days}일` : '길 없음'}` })),
+        isHere || !reachable
+          ? el('span', { class: 'faint tiny', text: isHere ? '여기' : '—' })
+          : el('button', { class: 'btn sm wm-go', onClick: () => askTravel(c.id) }, '이동'));
+    });
+
+  return el('div', { class: 'panel col' },
+    el('h3', { text: '전체 도시' }),
+    el('div', { class: 'muted tiny', text: '지도가 좁아 이름을 다 띄우지 못한다. 여기서 골라도 된다.' }),
+    el('div', { class: 'col', style: { gap: '8px' } }, rows));
+}
+
 function routeHelpPanel() {
   const upkeep = state.roster.reduce((a, m) => a + (m.upkeep || 0), 0);
   const wounded = state.roster.filter((m) => isWounded(m, state.day));
@@ -442,6 +485,8 @@ function layout() {
   canvas.height = Math.round(h * dpr);
   ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 지도가 좁아 라벨을 솎아낼 때만 전체 도시 목록을 띄운다 (넓으면 지도에 다 보이므로 중복)
+  if (allCityEl) allCityEl.style.display = narrowMap() ? '' : 'none';
   draw(); // 크기를 바꾸면 캔버스가 비므로 즉시 다시 그린다
 }
 
@@ -464,10 +509,12 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
 
   drawBackground(W, H);
-  drawRegions();
-  drawLinks();
+  resetLabels();
+  drawRegions();    // 지역명 → 일수 뱃지 → 도시/던전 라벨 순으로 자리를 잡는다.
+  drawLinks();      // 먼저 그려지는 쪽이 자리를 선점하고, 나중 것이 그 자리를 피한다.
   drawNodes();
   drawDungeons();   // 던전은 도시 위에 그린다 (가장 눈에 띄어야 한다)
+  flushLabels();    // 라벨은 노드를 다 그린 뒤 우선순위대로 자리를 잡아 맨 위에 얹는다
 }
 
 function drawBackground(W, H) {
@@ -509,16 +556,37 @@ function drawRegions() {
     }
     ctx.restore();
 
+    // 지역 이름은 **넓은 화면에서만** 쓴다.
+    //
+    // 폰에서는 1000x700 지도가 316px 폭으로 눌린다. 여기에 지역 7개 x 2줄(14개)을 더 얹으면
+    // 도시 이름과 뒤엉켜 하나도 못 읽는다 — 실제로 플레이어가 "지도 글자들이 겹쳐서
+    // 잘 안 보인다"고 지적한 원인이 이것이다(도시 라벨은 이미 thin 으로 솎아내고 있었는데
+    // 지역 라벨만 그 규칙에서 빠져 있었다).
+    // 지역 정보는 색 얼룩으로 이미 구분되고, 자세한 건 도시를 누르면 나온다.
+    if (narrowMap()) continue;
+
     const cx = cities.reduce((a, c) => a + c.x, 0) / cities.length;
     const cy = cities.reduce((a, c) => a + c.y, 0) / cities.length;
     ctx.save();
-    ctx.font = `700 ${Math.max(10, Math.round(13 * scale))}px ${FONT}`;
+    const f1 = Math.max(10, Math.round(13 * scale));
+    const f2 = Math.max(9, Math.round(10 * scale));
+    const sub = `${BIOME_NAME[reg.biome] || ''} · ${reg.tier}등급`;
     ctx.textAlign = 'center';
+
+    // 지역명은 배경 글씨지만 자리는 차지한다 — 찜해 둬야 도시 라벨이 이 위를 피한다.
+    ctx.font = `700 ${f1}px ${FONT}`;
+    const w1 = ctx.measureText(reg.name).width;
+    ctx.font = `${f2}px ${FONT}`;
+    const w2 = ctx.measureText(sub).width;
+    placedLabels.push({ x: sx(cx) - w1 / 2, y: sy(cy) - 74 * scale - f1, w: w1, h: f1 + 2 });
+    placedLabels.push({ x: sx(cx) - w2 / 2, y: sy(cy) - 60 * scale - f2, w: w2, h: f2 + 2 });
+
+    ctx.font = `700 ${f1}px ${FONT}`;
     ctx.fillStyle = hexA(color, 0.5);
     ctx.fillText(`${reg.name}`, sx(cx), sy(cy) - 74 * scale);
-    ctx.font = `${Math.max(9, Math.round(10 * scale))}px ${FONT}`;
+    ctx.font = `${f2}px ${FONT}`;
     ctx.fillStyle = hexA(color, 0.32);
-    ctx.fillText(`${BIOME_NAME[reg.biome] || ''} · ${reg.tier}등급`, sx(cx), sy(cy) - 60 * scale);
+    ctx.fillText(sub, sx(cx), sy(cy) - 60 * scale);
     ctx.restore();
   }
 }
@@ -564,12 +632,20 @@ function drawLinks() {
       ctx.stroke();
       ctx.restore();
 
-      // 소요 일수 표기
+      // 소요 일수 표기.
+      // 폰에서는 아예 안 그린다. 경로가 20여 개라 지도가 숫자 뱃지로 덮이는데,
+      // 정작 **같은 정보가 도시 라벨 둘째 줄("3일")에 이미 있다.** 중복을 지우는 쪽이
+      // 겹침도 줄고 읽기도 쉽다 (계측: 뱃지가 도시 이름을 가리는 겹침이 360px에서 3쌍).
+      if (narrowMap()) continue;
+
       const mx = lerp(sx(c.x), sx(b.x), 0.5);
       const my = lerp(sy(c.y), sy(b.y), 0.5);
+      const br = 8.5 * scale;
+      // 뱃지가 놓인 자리를 먼저 찜해 둔다 — 도시 라벨이 이 위에 겹치지 않도록.
+      placedLabels.push({ x: mx - br, y: my - br, w: br * 2, h: br * 2 });
       ctx.save();
       ctx.beginPath();
-      ctx.arc(mx, my, 8.5 * scale, 0, Math.PI * 2);
+      ctx.arc(mx, my, br, 0, Math.PI * 2);
       ctx.fillStyle = hot ? 'rgba(58,45,20,.95)' : 'rgba(16,13,23,.85)';
       ctx.fill();
       ctx.strokeStyle = hot ? 'rgba(224,180,74,.8)' : 'rgba(160,150,180,.25)';
@@ -590,7 +666,12 @@ function drawNodes() {
   const adj = new Set(neighbors(here).map((l) => l.to));
   const thin = narrowMap();
 
-  for (const c of CITIES) {
+  // 라벨은 **중요한 것부터** 자리를 잡아야 한다 (placeLabel 은 선착순이다).
+  // 노드 자체는 어떤 순서로 그려도 같으므로 이 정렬 하나로 둘 다 해결된다.
+  const rank = (c) => (c.id === here ? 0 : c.id === selectedId ? 1 : c.id === hoverId ? 2 : adj.has(c.id) ? 3 : 4);
+  const ordered = CITIES.slice().sort((a, b) => rank(a) - rank(b));
+
+  for (const c of ordered) {
     const isHere = c.id === here;
     const days = travelDays(here, c.id);
     const reachable = Number.isFinite(days);
@@ -647,16 +728,33 @@ function drawNodes() {
       ctx.font = `${isHere ? '700 ' : '600 '}${fs}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      const ty = y + r + 4 * scale;
-      ctx.fillStyle = 'rgba(6,4,10,.75)';
-      const tw = ctx.measureText(c.name).width;
-      ctx.fillRect(x - tw / 2 - 4 * scale, ty - 1, tw + 8 * scale, fs + 3);
-      ctx.fillStyle = isHere ? '#f2dfa8' : hovered ? '#ffffff' : '#e8e2d8';
-      ctx.fillText(c.name, x, ty);
 
+      const sub = isHere ? '현재 위치' : reachable ? `${days}일` : '길 없음';
+      const tw = ctx.measureText(c.name).width;
       ctx.font = `${fs2}px ${FONT}`;
-      ctx.fillStyle = isHere ? 'rgba(224,180,74,.9)' : 'rgba(167,157,176,.85)';
-      ctx.fillText(isHere ? '현재 위치' : reachable ? `${days}일` : '길 없음', x, ty + fs + 2);
+      const sw = ctx.measureText(sub).width;
+      ctx.font = `${isHere ? '700 ' : '600 '}${fs}px ${FONT}`;
+
+      // 이름 + 거리 두 줄을 한 덩어리로 놓는다. 현재 위치와 직접 고른 곳은 무슨 일이 있어도 보여 준다.
+      // 실제로 그리는 건 flushLabels 다 — 던전 라벨과 자리를 같이 나눠야 하기 때문.
+      const must = isHere || c.id === selectedId || hovered;
+      const nameFont = `${isHere ? '700 ' : '600 '}${fs}px ${FONT}`;
+      const nameCol = isHere ? '#f2dfa8' : hovered ? '#ffffff' : '#e8e2d8';
+      const subCol = isHere ? 'rgba(224,180,74,.9)' : 'rgba(167,157,176,.85)';
+      queueLabel(rank(c), {
+        x, y, r, w: Math.max(tw, sw), h: fs + 2 + fs2, force: must,
+        draw: (lx, ty) => {
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.font = nameFont;
+          boxedText(c.name, lx, ty, fs, nameCol);
+          ctx.font = `${fs2}px ${FONT}`;
+          boxedText(sub, lx, ty + fs + 2, fs2, subCol);
+          ctx.restore();
+        },
+      });
     }
 
     ctx.restore();
@@ -735,25 +833,117 @@ function drawDungeons() {
     // (나머지 정보는 눌렀을 때 툴팁과 옆 던전 목록에 전부 있다).
     const lines = thin ? (open || hovered ? 1 : 0) : 3;
     if (lines > 0) {
-      const below = d.y < MAP_H * 0.88;
       const fs = thin ? 13 : Math.max(10, Math.round(12 * scale));
       const fs2 = thin ? 11 : Math.max(9, Math.round(10 * scale));
-      const nameY = below ? y + r + 4 * scale : y - r - 4 * scale - (fs + fs2 * (lines - 1) + 8);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
       ctx.font = `700 ${fs}px ${FONT}`;
-      boxedText(d.name, x, nameY, fs, open ? '#ffd9a8' : '#b9b0c4');
-      if (lines >= 3) {
-        ctx.font = `${fs2}px ${FONT}`;
-        boxedText(`${setNameOf(d)} · ${open ? '이번 주 개방' : `${d.week}주차에 열림`}`,
-          x, nameY + fs + 2, fs2, open ? hexA(color, 0.95) : 'rgba(150,140,166,.85)');
-        boxedText(`최고 ${prog.bestWave}/${total}${prog.clearedAt ? ' 완주' : ''}`,
-          x, nameY + fs + fs2 + 4, fs2, open ? '#e8e2d8' : 'rgba(140,131,155,.8)');
-      }
+      const w1 = ctx.measureText(d.name).width;
+      const l2 = `${setNameOf(d)} · ${open ? '이번 주 개방' : `${d.week}주차에 열림`}`;
+      const l3 = `최고 ${prog.bestWave}/${total}${prog.clearedAt ? ' 완주' : ''}`;
+      ctx.font = `${fs2}px ${FONT}`;
+      const w = lines >= 3 ? Math.max(w1, ctx.measureText(l2).width, ctx.measureText(l3).width) : w1;
+      const h = lines >= 3 ? fs + fs2 * 2 + 4 : fs;
+
+      // 이번 주 열린 던전은 그 주의 핵심 콘텐츠다 — 도시 이름보다 먼저 자리를 잡는다.
+      queueLabel(open || hovered ? -1 : 3.5, {
+        x, y, r, w, h, force: open || hovered,
+        draw: (lx, nameY) => {
+          ctx.save();
+          ctx.globalAlpha = open ? 1 : hovered ? 0.8 : 0.4;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.font = `700 ${fs}px ${FONT}`;
+          boxedText(d.name, lx, nameY, fs, open ? '#ffd9a8' : '#b9b0c4');
+          if (lines >= 3) {
+            ctx.font = `${fs2}px ${FONT}`;
+            boxedText(l2, lx, nameY + fs + 2, fs2, open ? hexA(color, 0.95) : 'rgba(150,140,166,.85)');
+            boxedText(l3, lx, nameY + fs + fs2 + 4, fs2, open ? '#e8e2d8' : 'rgba(140,131,155,.8)');
+          }
+          ctx.restore();
+        },
+      });
     }
 
     ctx.restore();
   }
+}
+
+/* ─────────────────────────── 라벨 자리 잡기 ───────────────────────────
+ * 폰에서는 축척이 0.32까지 떨어져 노드 사이가 30px밖에 안 되는데 글자는 13px로 고정이다.
+ * 그래서 라벨을 무조건 노드 아래에 찍으면 옆 도시 라벨과 반드시 겹친다
+ * (계측: 360px 폭에서 8쌍 — tools/maplabels.mjs).
+ *
+ * 해결은 **자리 경쟁**이다. 중요한 라벨부터 순서대로 자리를 잡고, 이미 찬 자리와 겹치면
+ * 위쪽을 시도하고, 그것도 막히면 그 라벨은 포기한다. 포기해도 정보가 사라지진 않는다 —
+ * 노드를 누르면 이름·거리·시설이 전부 패널에 뜬다.
+ *
+ * 우선순위: 현재 위치 > 고른 곳 > 가리킨 곳 > 열린 던전 > 이웃 도시 > 나머지 */
+
+/** 이번 프레임에 이미 자리를 잡은 라벨 사각형들 */
+let placedLabels = [];
+/** 아직 자리를 못 정한 라벨들 (우선순위대로 flushLabels 에서 처리) */
+let labelQueue = [];
+
+/** 프레임 시작마다 비운다 */
+function resetLabels() { placedLabels = []; labelQueue = []; }
+
+/**
+ * 라벨을 그리는 대신 **예약**한다. 도시와 던전이 그리는 순서(던전이 위)와
+ * 자리를 잡는 순서(중요한 것 먼저)가 서로 다르기 때문에 한 번 모았다가 처리한다.
+ * @param {number} prio 낮을수록 먼저 자리를 잡는다
+ * @param {(top:number)=>void} draw 확정된 y 를 받아 실제로 그리는 함수
+ */
+function queueLabel(prio, o) { labelQueue.push({ prio, ...o }); }
+
+/** 예약된 라벨을 우선순위대로 배치하고 그린다 */
+function flushLabels() {
+  labelQueue.sort((a, b) => a.prio - b.prio);
+  for (const l of labelQueue) {
+    const p = placeLabel(l.x, l.y, l.r, l.w, l.h, l.force);
+    if (p) l.draw(p.x, p.y);   // 자리가 좌우로 밀렸을 수 있으므로 x 도 받아 쓴다
+  }
+  labelQueue = [];
+}
+
+/** 이 사각형이 이미 찬 자리와 겹치지 않는가 */
+function labelFits(r) {
+  for (const p of placedLabels) {
+    const ox = Math.min(r.x + r.w, p.x + p.w) - Math.max(r.x, p.x);
+    const oy = Math.min(r.y + r.h, p.y + p.h) - Math.max(r.y, p.y);
+    if (ox > 1 && oy > 1) return false;
+  }
+  return true;
+}
+
+/**
+ * 노드 라벨을 놓을 y 를 고른다. 아래 → 위 순으로 시도한다.
+ * @returns {number|null} 라벨 첫 줄의 top y. 자리가 없으면 null (= 그리지 않음)
+ */
+function placeLabel(x, y, nodeR, w, h, force) {
+  const gap = nodeR + 4 * scale;
+  const side = w / 2 + nodeR + 6 * scale;
+
+  // 아래를 가장 선호하고, 막히면 위 → 좌우 → 더 멀리 순으로 밀어낸다.
+  // 후보가 아래/위 둘뿐이면 도시가 붙어 있는 폰에서 금방 자리가 동나 라벨이 사라진다.
+  const cands = [
+    { x, y: y + gap },
+    { x, y: y - gap - h },
+    { x: x + side, y: y - h / 2 },
+    { x: x - side, y: y - h / 2 },
+    { x, y: y + gap + h + 5 },
+    { x, y: y - gap - h * 2 - 5 },
+  ];
+  const boxAt = (p) => ({ x: p.x - w / 2 - 4 * scale, y: p.y - 1, w: w + 8 * scale, h: h + 3 });
+
+  // 빈자리를 먼저 찾는다 — force 라벨도 마찬가지다.
+  // (force 가 자리 검사를 통째로 건너뛰면 "현재 위치"와 "고른 곳"이 서로 겹칠 수 있다.)
+  for (const p of cands) {
+    if (labelFits(boxAt(p))) { placedLabels.push(boxAt(p)); return p; }
+  }
+  if (!force) return null;
+
+  // 반드시 보여야 하는 라벨은 자리가 없어도 그린다 — 안 보이는 것보다 겹치는 게 낫다
+  placedLabels.push(boxAt(cands[0]));
+  return cands[0];
 }
 
 /** 라벨 뒤에 어두운 판을 깔아 배경과 겹쳐도 읽히게 한다 */
