@@ -20,6 +20,7 @@ import { josa } from './gear.js';
 // 붙는 함수라, 이름을 콕 집어 import 하면 아직 없을 때 모듈 링크 단계에서 통째로 터진다.
 import * as Gear from './gear.js';
 import { state as globalState, addLog } from './state.js';
+import { PETS_PER_SQUAD } from '../data/pets.js';
 
 /** 부대 정원 */
 export const SQUAD_SIZE = 7;
@@ -115,6 +116,9 @@ export function createSquad(name = '제1부대', formationId = 'basic') {
     id: uid('sq'),
     name,
     memberUids: new Array(SQUAD_SIZE).fill(null),
+    // ★ state.js newGame 에도 같은 리터럴이 복제돼 있다 (createSquad 를 안 부른다).
+    //   여기만 고치면 새 게임 부대에는 펫 칸이 없다.
+    petUids: new Array(PETS_PER_SQUAD).fill(null),
     formationId,
     status: SQUAD_IDLE,
     returnDay: 0,

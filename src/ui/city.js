@@ -29,6 +29,7 @@ import {
 import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
 import { go, refresh, toast, modal } from './app.js';
+import * as Tower from '../game/tower.js';
 
 export const meta = { id: 'city', title: '도시' };
 
@@ -846,7 +847,25 @@ function weekBlock() {
     nextRow,
     el('div', { class: 'w-row' },
       el('span', { class: 'faint tiny', text: '던전은 월드맵의 별도 노드다. 주차 안에 다녀와야 한다.' }),
-      el('button', { class: 'btn sm ghost', onClick: () => go('world') }, '월드맵에서 보기')));
+      el('button', { class: 'btn sm ghost', onClick: () => go('world') }, '월드맵에서 보기')),
+    towerRow());
+}
+
+/**
+ * 무한의 탑 안내 — 던전과 같은 달력 컨텐츠라 같은 자리에 둔다.
+ * 탑은 **매달 1일에만** 열린다(주차가 아니다).
+ */
+function towerRow() {
+  const entry = Tower.canEnter(state);
+  const best = state.tower?.best || 0;
+  const wait = Tower.daysUntilEntry(state);
+  return el('div', { class: 'w-row' },
+    el('span', { class: entry.ok ? 'w-now' : 'faint tiny', text: '무한의 탑' }),
+    entry.ok
+      ? el('span', {}, el('b', { class: 'w-dun', text: '· 오늘 열려 있다' }))
+      : el('span', { class: 'faint tiny', text: wait > 0 ? `· ${wait}일 뒤 (매달 1일)` : '· 이번 달은 다녀왔다' }),
+    el('span', { class: 'faint tiny', text: best ? `최고 ${best}층` : '미등반' }),
+    el('button', { class: 'btn sm ghost', onClick: () => go('tower') }, '탑으로'));
 }
 
 /** 날짜를 n일 넘긴다. 임금·회복·목록 갱신은 advanceDays 가 처리한다. */

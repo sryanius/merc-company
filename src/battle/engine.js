@@ -124,6 +124,12 @@ export function createBattle(cfg = {}) {
   // 고유 효과를 가진 유닛이 하나도 없으면 관련 경로를 통째로 건너뛴다 (하위 호환 · 비용 0)
   const hasSpecials = units.some((u) => u.specials.length > 0);
 
+  /* ★ 수호 펫 게이트 — hasSpecials 와 같은 이유로 둔다.
+   * 전투 rng 는 **단일 스트림**이라 난수를 한 번만 더 굴려도 그 뒤의 치명타·회피가
+   * 통째로 밀린다. 즉 조건 없이 굴리면 랭크별 승률·던전 WAVE_POWER·세트 효과 측정치가
+   * 전부 무효가 된다. 수호 펫이 실제로 있을 때만 굴리도록 여기서 막는다. */
+  const hasGuardians = units.some((u) => u.pet && u.petRole === 'guardian');
+
   // 행동 순서가 한꺼번에 겹치지 않도록 아주 작은 시작 게이지 편차를 준다 (시드 결정론 유지)
   for (const u of units) u.gauge = rng.float(0, 12);
 
@@ -218,6 +224,25 @@ export function createBattle(cfg = {}) {
    */
   function applyDamage(srcUid, tgt, amount, crit, dmgType, fx, opts = {}) {
     if (!tgt.alive) return 0;
+
+    /* ★ 수호 펫 재대상(redirect)
+     * 이 엔진에는 원래 "피해 대상을 바꾸는" 훅이 없었다 — 가로챌 수 있는 건 죽음(lethal)뿐이었다.
+     * 펫의 '확률적으로 대신 맞기' 때문에 여기 하나를 새로 열었다. 규약 4가지:
+     *   1. `hasGuardians` 가 false 면 rng 를 **한 번도** 안 굴린다 (기존 측정치 보존).
+     *   2. 펫이 맞는 건 다시 넘기지 않는다 — 수호 펫끼리 무한 연쇄를 막는다.
+     *   3. 피해량은 이미 **원래 대상**의 def/res 로 계산된 값이다(resolveHit 이 앞에서 굴린다).
+     *      대신 맞는 쪽이 자기 방어력으로 다시 계산하지 않는다 — 대신 guardCut 으로 깎는다.
+     *      "물렁한 후열 대신 맞아서 오히려 더 아프다" 같은 역전을 피하려는 의도적 선택이다.
+     *   4. 지속 피해(dot)는 넘기지 않는다 — 이미 몸에 붙은 것을 남이 대신 앓을 수는 없다. */
+    if (hasGuardians && !tgt.pet && !opts.fromDot) {
+      const g = pickGuardian(tgt.side);
+      if (g) {
+        amount = amount * (1 - clamp(g.guardCut || 0, 0, 0.9));
+        push({ type: 'guard', uid: g.uid, targetUid: tgt.uid });
+        tgt = g;
+      }
+    }
+
     let remain = Math.max(1, Math.round(amount));
     const total = remain;
     const hadShield = tgt.shield > 0;
@@ -261,6 +286,19 @@ export function createBattle(cfg = {}) {
       }
     }
     return remain;
+  }
+
+  /**
+   * 대신 맞을 수호 펫을 고른다. 살아 있는 수호 펫을 순서대로 훑으며 각자의 확률을 굴린다.
+   * 여러 마리면 앞선 쪽이 먼저 기회를 갖는다 — 순서가 고정이라 결정론이 유지된다.
+   * @returns {object|null} 없으면 null (이때도 굴린 난수는 소비된 상태다)
+   */
+  function pickGuardian(side) {
+    for (const u of units) {
+      if (u.side !== side || !u.alive || !u.pet || u.petRole !== 'guardian') continue;
+      if (rng.chance(clamp(u.guardChance || 0, 0, 1))) return u;
+    }
+    return null;
   }
 
   function kill(tgt, srcUid) {
@@ -691,15 +729,26 @@ export function createBattle(cfg = {}) {
     checkEnd();
   }
 
+  /* ★ 펫은 승패에서 빼고 센다.
+   * `aliveAllies()` 를 그대로 쓰면 안 된다 — 그건 **표적 선택**에도 쓰이므로 펫을 빼면
+   * 회복 스킬이 펫을 못 살리고 적도 펫을 못 때린다. 여기서만 따로 센다. */
+  const aliveFighters = (side) => {
+    let n = 0;
+    for (const u of units) if (u.side === side && u.alive && !u.pet) n++;
+    return n;
+  };
+
   function hpRatioOf(side) {
     let cur = 0, max = 0;
-    for (const u of units) if (u.side === side) { cur += Math.max(0, u.hp); max += u.maxHp; }
+    // 펫 제외 — 덩치 큰 수호 펫이 시간초과 판정을 왜곡한다
+    for (const u of units) if (u.side === side && !u.pet) { cur += Math.max(0, u.hp); max += u.maxHp; }
     return max > 0 ? cur / max : 0;
   }
 
   function checkEnd() {
-    const a = B.aliveAllies().length;
-    const e = B.aliveEnemies().length;
+    // 단원이 전멸했는데 펫이 살아 있다고 이긴 게 아니다 — 펫은 머릿수에 안 넣는다
+    const a = aliveFighters('ally');
+    const e = aliveFighters('enemy');
     if (a > 0 && e > 0) {
       if (B.time >= TIME_LIMIT) {
         const ra = hpRatioOf('ally');
@@ -718,8 +767,9 @@ export function createBattle(cfg = {}) {
     result.winner = winner;
     result.time = Math.round(B.time * 100) / 100;
     result.survivors = units.filter((u) => u.alive).map((u) => u.uid);
-    // MVP: 승리 진영(무승부면 전원) 중 피해+치유+처치 가중 점수 최고
-    const pool = winner === 'draw' ? units : units.filter((u) => u.side === winner);
+    // MVP: 승리 진영(무승부면 전원) 중 피해+치유+처치 가중 점수 최고.
+    // 펫은 후보에서 뺀다 — 수훈은 단원 몫이다(수호 펫은 피해량이 0인데도 뽑힐 수 있다).
+    const pool = (winner === 'draw' ? units : units.filter((u) => u.side === winner)).filter((u) => !u.pet);
     let best = null, bestScore = -1;
     for (const u of pool) {
       const s = (result.damageDealt[u.uid] || 0) + (result.healDone[u.uid] || 0) * 1.2 + (result.kills[u.uid] || 0) * 60;

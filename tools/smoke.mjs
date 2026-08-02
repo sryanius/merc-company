@@ -1854,6 +1854,140 @@ section('index.html 참조 파일');
   }
 }
 
+
+/* ───────────────────── 펫 / 무한의 탑 ───────────────────── */
+
+section('펫 / 무한의 탑');
+{
+  const Pets = await import('../src/data/pets.js');
+  const TD = await import('../src/data/tower.js');
+  const Pet = await import('../src/game/pet.js');
+  const Tower = await import('../src/game/tower.js');
+  const Skills = await import('../src/data/skills.js');
+  const Parts = await import('../src/art/parts.js');
+  const Pal = await import('../src/art/palette.js');
+
+  // 1) 종 정의 무결성 — 어휘 밖 값은 조용히 무시되므로 여기서 잡아야 한다
+  const ROLES = ['attacker', 'healer', 'buffer', 'guardian'];
+  const FX = ['slash', 'pierce', 'blunt', 'arrow', 'bolt', 'heal', 'buff', 'fire', 'shadow', 'lightning', 'holy', 'nature', 'poison'];
+  const DMG = ['phys', 'magic', 'none'];
+  const PSLOT = { skin: 'SKIN', hair: 'HAIR', metal: 'METAL', cloth: 'CLOTH', leather: 'LEATHER', glow: 'GLOW' };
+  const vocab = new Set(Parts.PART_VOCAB || Object.keys(Parts.PARTS));
+  const bad = [];
+  for (const p of Pets.PETS) {
+    if (!ROLES.includes(p.role)) bad.push(`${p.id}: role='${p.role}'`);
+    if (!(p.tier >= 1 && p.tier <= 5)) bad.push(`${p.id}: tier=${p.tier}`);
+    if (!FX.includes(p.basicFx)) bad.push(`${p.id}: fx='${p.basicFx}'`);
+    if (!DMG.includes(p.basicDmgType)) bad.push(`${p.id}: dmgType='${p.basicDmgType}'`);
+    if (!['melee', 'ranged'].includes(p.basicRange)) bad.push(`${p.id}: range='${p.basicRange}'`);
+    for (const sk of p.skills || []) if (!Skills.getSkill(sk)) bad.push(`${p.id}: 없는 스킬 '${sk}'`);
+    for (const [k, v] of Object.entries(p.sprite || {})) {
+      if (k === 'palette') {
+        for (const [ps, pv] of Object.entries(v)) {
+          const pool = Pal.PALETTE_SETS[PSLOT[ps]];
+          const names = Array.isArray(pool) ? pool : (pool ? Object.keys(pool) : null);
+          if (!names || !names.includes(pv)) bad.push(`${p.id}: palette ${ps}='${pv}'`);
+        }
+      } else if (typeof v === 'string' && !vocab.has(v)) bad.push(`${p.id}: 파츠 '${v}'`);
+    }
+  }
+  okAll(bad, '펫 종 정의가 전부 유효한 어휘를 쓴다', Pets.PETS.length);
+
+  // 2) 역할이 4종 다 있어야 한다 (하나라도 빠지면 기획이 반쪽이 된다)
+  const roles = new Set(Pets.PETS.map((p) => p.role));
+  okAll(ROLES.filter((r) => !roles.has(r)).map((r) => `${r} 없음`), '펫 역할 4종이 전부 존재', ROLES.length);
+
+  // 3) 층별 곡선이 단조 증가하고 범위를 안 벗어난다
+  let prev = -1, curveBad = [];
+  for (let f = 1; f <= TD.TOWER_FLOORS; f++) {
+    const p = TD.floorPower(f);
+    if (p < prev - 1e-9) curveBad.push(`${f}층에서 배율 감소`);
+    prev = p;
+  }
+  if (Math.abs(TD.floorPower(1) - TD.POWER_MIN) > 1e-6) curveBad.push('1층이 POWER_MIN 이 아니다');
+  if (Math.abs(TD.floorPower(TD.TOWER_FLOORS) - TD.POWER_MAX) > 1e-6) curveBad.push('최고층이 POWER_MAX 가 아니다');
+  okAll(curveBad, '층 배율이 단조 증가하고 양끝이 맞는다', TD.TOWER_FLOORS);
+
+  // 4) 비용식 — 등차수열 합 공식이 실제 루프와 일치하나
+  const costBad = [];
+  for (const [a, b] of [[1, 1], [1, 100], [50, 500], [1, 500]]) {
+    let loop = 0;
+    for (let f = a; f <= b; f++) loop += TD.floorCost(f);
+    if (loop !== TD.costRange(a, b)) costBad.push(`costRange(${a},${b})=${TD.costRange(a, b)} vs 루프 ${loop}`);
+  }
+  okAll(costBad, '층 비용 합산식이 루프와 일치', 4);
+  ok(TD.costRange(1, TD.TOWER_FLOORS) === 250500, '1~500층 누적 250,500G', `실제 ${TD.costRange(1, 500)}`);
+
+  // 5) '매달 1일' 판정 — dayOfWeek 만 보면 한 달에 4번 참이 된다(실제로 겪은 함정)
+  const State = await import('../src/game/state.js');
+  const entryDays = [];
+  for (let d = 1; d <= State.DAYS_PER_MONTH * 3; d++) {
+    if (Tower.isEntryDay({ day: d })) entryDays.push(d);
+  }
+  const wantEntry = [1, State.DAYS_PER_MONTH + 1, State.DAYS_PER_MONTH * 2 + 1];
+  ok(JSON.stringify(entryDays) === JSON.stringify(wantEntry),
+    '탑 입장일이 매달 1일뿐 (3개월 전수)', `실제 ${entryDays.join(',')} / 기대 ${wantEntry.join(',')}`);
+
+  // 6) 소탕 상한
+  const sweepBad = [];
+  if (TD.sweepLimit(0) !== 0) sweepBad.push('미등반인데 소탕 구간이 생긴다');
+  if (TD.sweepLimit(100) !== 0) sweepBad.push('100층에서 소탕 구간이 생긴다');
+  if (TD.sweepLimit(250) !== 150) sweepBad.push(`250층 소탕이 ${TD.sweepLimit(250)}`);
+  okAll(sweepBad, '소탕 상한 = 최고 기록 −100', 3);
+
+  // 7) 펫 UnitDef 가 엔진 계약을 지키는가 — pet 표식과 진형 미개입
+  State.newGame(777, '스모크');
+  const st = State.state;
+  const sq = st.squads[0];
+  const made = [['pet_warden', 'S'], ['pet_chalice', 'A'], ['pet_starcalf', 'B']]
+    .map(([sid, g]) => Pet.makePet(st, sid, g));
+  made.forEach((p, i) => { st.pets.push(p); Pet.assignPet(st, sq.id, i, p.uid); });
+  const defs = Pet.petUnitDefs(st, sq);
+  const defBad = [];
+  if (defs.length !== 3) defBad.push(`펫 UnitDef ${defs.length}개`);
+  for (const d of defs) {
+    if (d.pet !== true) defBad.push(`${d.name}: pet 표식 없음 (승패 판정에서 안 빠진다)`);
+    if (d.slotIndex != null) defBad.push(`${d.name}: slotIndex 가 있다 (진형 보정을 잘못 받는다)`);
+    if (!d.slot || d.slot.x == null) defBad.push(`${d.name}: slot 좌표 없음`);
+    if (!Array.isArray(d.specials)) defBad.push(`${d.name}: specials 배열 아님`);
+  }
+  const guard = defs.find((d) => d.petRole === 'guardian');
+  if (guard && !(guard.guardChance > 0)) defBad.push('수호 펫에 guardChance 가 없다');
+  okAll(defBad, '펫 UnitDef 가 엔진 계약을 지킨다', defs.length);
+
+  // 8) ★ 프로덕션 아군 경로에 펫이 실리는가.
+  //    이 프로젝트는 진형·세트효과가 각각 한 번씩 "호출자 없는 경로"에만 배선돼 조용히 안 먹었다.
+  const Quest = await import('../src/game/quest.js');
+  const allies = Quest.questBattleDefs(Tower.towerQuest(st, 1, sq.id), 0, st, sq.id).allies;
+  ok(allies.filter((a) => a.pet).length === 3,
+    'questBattleDefs(프로덕션 경로) 아군에 펫 3기가 실린다',
+    `실제 ${allies.filter((a) => a.pet).length}기 / 아군 ${allies.length}기`);
+
+  // 9) 지휘 펫 배율이 실제로 단원 스탯에 곱해지는가 (전투 전 적용 = 최대 체력까지 오른다)
+  sq.petUids = [null, null, null];
+  const before = Quest.questBattleDefs(Tower.towerQuest(st, 1, sq.id), 0, st, sq.id).allies.filter((a) => !a.pet);
+  Pet.assignPet(st, sq.id, 0, made[2].uid);   // starcalf = buffer
+  const after = Quest.questBattleDefs(Tower.towerQuest(st, 1, sq.id), 0, st, sq.id).allies.filter((a) => !a.pet);
+  const hpUp = after.length && before.length && after[0].stats.hp >= before[0].stats.hp;
+  const atkUp = after.length && before.length && after[0].stats.atk > before[0].stats.atk;
+  ok(atkUp, '지휘 펫이 단원 공격력을 올린다',
+    `${before[0]?.stats.atk?.toFixed(1)} → ${after[0]?.stats.atk?.toFixed(1)}`);
+  ok(hpUp, '지휘 펫 버프가 최대 체력에도 반영된다 (엔진 버프로는 불가능한 부분)',
+    `${before[0]?.stats.hp?.toFixed(0)} → ${after[0]?.stats.hp?.toFixed(0)}`);
+
+  // 10) 세이브 왕복 + 손상 세이브 복구
+  const json = JSON.stringify(st);
+  State.importState(JSON.parse(json));
+  ok(State.state.pets.length === 3, '펫이 세이브 왕복을 견딘다', `${State.state.pets.length}마리`);
+  const broken = JSON.parse(json);
+  broken.pets = null; broken.tower = 'garbage'; broken.petSeq = -9;
+  State.importState(broken);
+  const r = State.state;
+  ok(Array.isArray(r.pets) && r.pets.length === 0 && r.tower && typeof r.tower.best === 'number' && r.petSeq >= 0,
+    '손상된 펫/탑 필드를 로드에서 복구한다',
+    `pets=${JSON.stringify(r.pets)} tower=${JSON.stringify(r.tower)} seq=${r.petSeq}`);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

@@ -30,6 +30,10 @@ const SCREENS = [
   // 던전은 도시가 아니라 월드맵의 별도 노드다 — 내비게이션에 상설로 걸지 않고
   // 월드맵에서 노드를 눌러 들어온다. 화면 모듈이 아직 없으면 go()가 오류 패널을 띄운다.
   { id: 'dungeon', title: '던전', nav: false, load: () => import('./dungeon.js') },
+  // 무한의 탑도 월드맵 노드로 들어간다. 하단 탭은 폰에서 6칸이 한계라 더 못 늘린다.
+  { id: 'tower', title: '무한의 탑', nav: false, load: () => import('./tower.js') },
+  // 펫 관리는 용병단 화면에서 들어간다 (장비 관리와 같은 결).
+  { id: 'pets', title: '펫', nav: false, load: () => import('./pets.js') },
 ];
 
 /* HUD 날짜 표기용 소량 CSS. 모듈 안에서 한 번만 주입한다.

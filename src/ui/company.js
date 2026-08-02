@@ -2342,7 +2342,8 @@ function equipBlock(m, stopAnim) {
           style: { color: filled >= max ? 'var(--gold)' : 'var(--ink-faint)' },
           text: `${filled} / ${max}칸`,
         }),
-        el('button', { class: 'btn sm ghost', onClick: () => { stopAnim(); closeModalLayer(); go('inventory'); } }, '장비 화면'))));
+        el('button', { class: 'btn sm ghost', onClick: () => { stopAnim(); closeModalLayer(); go('inventory'); } }, '장비 화면'),
+        el('button', { class: 'btn sm ghost', onClick: () => { stopAnim(); closeModalLayer(); go('pets'); } }, '펫 관리'))));
 
   if (locked) {
     const w = worn.weapon;

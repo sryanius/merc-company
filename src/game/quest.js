@@ -9,6 +9,7 @@ import { buildEnemySquad, getEnemy, enemiesFor } from '../data/enemies.js';
 import * as State from './state.js';
 import * as Merc from './merc.js';
 import * as Squad from './squad.js';
+import * as Pet from './pet.js';
 // 세트 고유 효과 조회용. **네임스페이스로 받는다** — `setSpecialsFor` 는 gear.js 쪽에서 나중에
 // 붙는 함수라, 이름을 콕 집어 import 하면 아직 없을 때 모듈 링크 단계에서 통째로 터진다.
 import * as Gear from './gear.js';
@@ -940,12 +941,17 @@ function allyUnitDefs(st, squad) {
     placed.sort((a, b) => a.slotIndex - b.slotIndex);
   }
 
+  // ★ 지휘(buffer) 펫 배율. **전투 전에** 스탯에 곱해야 최대 체력까지 오른다 —
+  //   엔진의 버프 대상 스탯 목록(ST_KEYS)에는 hp 가 없어서 전투 중에는 못 올린다.
+  const petBuff = Pet.squadPetBuff(st, squad);
+
   placed.forEach(({ merc: m, slotIndex }) => {
     const cls = getClass(m.classId);
     const si = clamp(slotIndex, 0, 6);
-    const stats = withFormation(
+    let stats = withFormation(
       Merc.mercStats(m, { items }), squad.formationId, si,
       { arch: cls && cls.arch, classId: m.classId });
+    if (petBuff) stats = applyPetBuff(stats, petBuff);
     out.push({
       uid: m.uid,
       name: m.name,
@@ -968,6 +974,28 @@ function allyUnitDefs(st, squad) {
       specials: mercSpecials(m, items),
     });
   });
+
+  // ★ 펫을 뒤에 붙인다. 진형 슬롯(7칸)은 건드리지 않는다 — game/pet.js 주석 참조.
+  //   여기가 **프로덕션 아군 경로**다. squad.js 의 squadUnitDefs 는 호출자가 없으므로
+  //   거기에만 배선하면 게임에는 펫이 안 나온다.
+  for (const pd of Pet.petUnitDefs(st, squad)) out.push(pd);
+
+  return out;
+}
+
+/**
+ * 지휘 펫 배율을 스탯에 곱한다. hp 를 포함한 전 스탯이 대상이라 `scaleStats` 와 달리
+ * 최대 체력도 오른다.
+ */
+function applyPetBuff(stats, buff) {
+  const out = { ...stats };
+  for (const [k, v] of Object.entries(buff)) {
+    if (typeof out[k] !== 'number') continue;
+    out[k] = out[k] * (1 + v);
+  }
+  // 파생 스탯 정리 — 치명/회피는 비율 스탯이라 상한을 넘기면 안 된다
+  if (out.crit != null) out.crit = clamp(out.crit, 0, 100);
+  if (out.eva != null) out.eva = clamp(out.eva, 0, 75);
   return out;
 }
 

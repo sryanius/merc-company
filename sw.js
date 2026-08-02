@@ -32,9 +32,9 @@
  */
 
 /* ★ 배포할 때마다 올려라.
- * v2 — 월드맵 라벨 겹침 수정(worldmap.js). v1 로 배포된 뒤에 worldmap.js 만 바뀌어서
- *      그 사이에 설치한 기기에는 옛 지도가 캐시돼 있다. 버전을 올려 확실히 갈아 끼운다. */
-const CACHE = 'merc-v2';
+ * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
+ * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
+const CACHE = 'merc-v3';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -88,6 +88,12 @@ const APP_SHELL = [
   './src/ui/dungeon.js',
   './src/ui/savefile.js',
 
+  './src/data/pets.js',
+  './src/data/tower.js',
+  './src/game/pet.js',
+  './src/game/tower.js',
+  './src/ui/tower.js',
+  './src/ui/pets.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-192.png',

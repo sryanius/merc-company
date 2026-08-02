@@ -9,6 +9,8 @@ import { getFormation } from '../data/formations.js';
 // SLOTS(장비 10슬롯)는 data/items.js 가 소유한다. 여기서 하드코딩하지 않는다.
 import { basesFor, PREFIXES, SUFFIXES, SLOTS } from '../data/items.js';
 import { companyName as genCompanyName } from '../data/names.js';
+import { PETS_PER_SQUAD } from '../data/pets.js';
+import { TOWER_FLOORS } from '../data/tower.js';
 // 순환 참조(state <-> quest, state <-> gear/merc/squad)를 안전하게 다루려고 네임스페이스로 받는다.
 // 최상위에서는 절대 호출하지 않는다.
 import * as Merc from './merc.js';
@@ -127,6 +129,16 @@ function defaultState() {
     rosterCap: ROSTER_CAP_START,
     /** 던전 진행: { [dungeonId]: {bestWave, clearedAt} }. 세이브 직렬화 대상 */
     dungeons: {},
+    /** 보유 펫 [{uid, sid, grade, hp}]. 배치는 squad.petUids 에 있다 */
+    pets: [],
+    /** 펫 uid 채번기. Math.random 대신 이걸 쓴다 (전투 결과 키의 결정론) */
+    petSeq: 0,
+    /**
+     * 무한의 탑 진행. `{ best, lastRunDay, lastRunFloor }`
+     * ★ dungeons 에 얹으면 안 된다 — normalizeDungeons 가 항목을 {bestWave, clearedAt}
+     *   두 키로 재구성해 나머지 필드를 조용히 버린다.
+     */
+    tower: { best: 0, lastRunDay: 0, lastRunFloor: 0 },
     quests: {},
     tavern: {},
     shop: {},
@@ -297,6 +309,10 @@ function replaceState(src) {
     if (!Array.isArray(s.memberUids)) s.memberUids = new Array(7).fill(null);
     while (s.memberUids.length < 7) s.memberUids.push(null);
     s.memberUids.length = 7;
+    // 펫 자리 — 옛 세이브에는 없다. 길이를 고정해 둬야 UI 가 빈 칸을 그릴 수 있다.
+    if (!Array.isArray(s.petUids)) s.petUids = new Array(PETS_PER_SQUAD).fill(null);
+    while (s.petUids.length < PETS_PER_SQUAD) s.petUids.push(null);
+    s.petUids.length = PETS_PER_SQUAD;
     // 파견 필드 하위 호환 — 예전 세이브에는 status/returnDay 가 없다. 없으면 idle 로 본다.
     normalizeSquadDispatch(s, state.day);
   }
@@ -304,8 +320,60 @@ function replaceState(src) {
   normalizeReputation(state);
   normalizeRosterCap(state);
   normalizeDungeons(state);
+  normalizePets(state);
+  normalizeTower(state);
   migrateDataVersion(state);
 }
+
+/**
+ * 펫 보유 목록 정규화.
+ * ★ `Object.assign(state, base, src)` 는 **세이브 값이 무조건 이긴다.** 손상된 세이브에
+ *   `pets: null` 이 들어 있으면 그대로 null 이 박혀 `state.pets.length` 가 터진다.
+ *   defaultState 에 필드를 추가하는 것만으로는 안전하지 않다 — 여기서 반드시 정규화한다.
+ */
+function normalizePets(st) {
+  if (!Array.isArray(st.pets)) st.pets = [];
+  const seen = new Set();
+  st.pets = st.pets.filter((p) => {
+    if (!p || typeof p !== 'object') return false;
+    if (typeof p.uid !== 'string' || typeof p.sid !== 'string') return false;
+    if (seen.has(p.uid)) return false;          // uid 중복은 전투 결과 키를 덮어쓴다
+    seen.add(p.uid);
+    if (typeof p.grade !== 'string') p.grade = 'F';
+    if (typeof p.hp !== 'number' || !(p.hp > 0)) delete p.hp;   // 없으면 만피로 본다
+    return true;
+  });
+
+  // 채번기가 기존 uid 보다 뒤처져 있으면 새 펫이 uid 를 덮어쓴다 — 최대치로 끌어올린다
+  let max = 0;
+  for (const p of st.pets) {
+    const n = parseInt(String(p.uid).replace(/^pet_/, ''), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  if (typeof st.petSeq !== 'number' || st.petSeq < max) st.petSeq = max;
+
+  // 배치 목록에서 이미 없는 펫(놓아준 뒤 세이브가 어긋난 경우)을 걷어낸다
+  const alive = new Set(st.pets.map((p) => p.uid));
+  for (const s of st.squads || []) {
+    if (!Array.isArray(s.petUids)) continue;
+    for (let i = 0; i < s.petUids.length; i++) if (s.petUids[i] && !alive.has(s.petUids[i])) s.petUids[i] = null;
+  }
+}
+
+/** 무한의 탑 진행도 정규화 */
+function normalizeTower(st) {
+  const t = st.tower && typeof st.tower === 'object' ? st.tower : {};
+  st.tower = {
+    best: clampInt(t.best, 0, TOWER_FLOORS),
+    lastRunDay: clampInt(t.lastRunDay, 0, 1e9),
+    lastRunFloor: clampInt(t.lastRunFloor, 0, TOWER_FLOORS),
+  };
+}
+
+const clampInt = (v, lo, hi) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : lo;
+};
 
 /**
  * 데이터 수치가 바뀌었을 때 옛 세이브를 새 수치로 끌어올린다.
@@ -456,6 +524,9 @@ export function newGame(seed = Date.now() >>> 0, companyName = '') {
   const squad = {
     id: 'squad_1', name: '제1부대', memberUids: new Array(7).fill(null), formationId: 'basic',
     status: 'idle', returnDay: 0,
+    // ★ squad.js createSquad 에도 같은 필드가 있다. 이 리터럴은 newGame 전용 사본이라
+    //   한쪽만 고치면 새 게임에만 펫 칸이 없는 재현 어려운 버그가 된다.
+    petUids: new Array(PETS_PER_SQUAD).fill(null),
   };
   state.squads.push(squad);
 
