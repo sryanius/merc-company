@@ -138,6 +138,72 @@ export function assignPet(st, squadId, slot, petUid) {
   return { ok: true };
 }
 
+/**
+ * 자동 배치. 강한 펫부터 부대에 채운다.
+ *
+ * 같은 부대에 같은 역할만 셋 몰리면 값이 떨어진다(수호 3마리는 수호 1마리보다 훨씬 못하다) —
+ * 그래서 **부대마다 역할이 겹치지 않게** 먼저 한 바퀴 돌고, 남는 자리를 전투력 순으로 채운다.
+ *
+ * @param {object} st
+ * @param {string} [squadId] 지정하면 그 부대만, 없으면 전 부대
+ * @returns {{placed:number, squads:number}}
+ */
+export function autoAssign(st, squadId = null) {
+  const squads = (st.squads || []).filter((s) => !squadId || s.id === squadId);
+  if (!squads.length) return { placed: 0, squads: 0 };
+
+  // 대상 부대의 자리를 전부 비우고 시작한다 (부분 배치 상태에서 꼬이지 않게)
+  const freed = new Set();
+  for (const s of squads) {
+    s.petUids = petUidsOf(s);
+    for (let i = 0; i < PETS_PER_SQUAD; i++) { if (s.petUids[i]) freed.add(s.petUids[i]); s.petUids[i] = null; }
+  }
+
+  // 다른 부대(대상이 아닌 곳)에 이미 배치된 펫은 건드리지 않는다
+  const locked = new Set();
+  for (const s of st.squads || []) {
+    if (squads.some((x) => x.id === s.id)) continue;
+    for (const u of petUidsOf(s)) if (u) locked.add(u);
+  }
+
+  const pool = allPets(st)
+    .filter((p) => p && !locked.has(p.uid))
+    .sort((a, b) => petPower(b) - petPower(a));
+
+  let placed = 0;
+  const used = new Set();
+
+  // 1차: 부대마다 역할이 안 겹치게
+  for (const s of squads) {
+    const roles = new Set();
+    for (let i = 0; i < PETS_PER_SQUAD; i++) {
+      const pick = pool.find((p) => {
+        if (used.has(p.uid)) return false;
+        const role = getPetSpecies(p.sid)?.role;
+        return role && !roles.has(role);
+      });
+      if (!pick) break;
+      used.add(pick.uid);
+      roles.add(getPetSpecies(pick.sid).role);
+      s.petUids[i] = pick.uid;
+      placed++;
+    }
+  }
+
+  // 2차: 남은 자리를 전투력 순으로
+  for (const s of squads) {
+    for (let i = 0; i < PETS_PER_SQUAD; i++) {
+      if (s.petUids[i]) continue;
+      const pick = pool.find((p) => !used.has(p.uid));
+      if (!pick) return { placed, squads: squads.length };
+      used.add(pick.uid);
+      s.petUids[i] = pick.uid;
+      placed++;
+    }
+  }
+  return { placed, squads: squads.length };
+}
+
 /** 펫을 놓아준다(삭제). 배치돼 있으면 자리도 비운다. */
 export function releasePet(st, uid) {
   const before = allPets(st).length;

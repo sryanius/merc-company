@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["tools/serve.mjs", "5174"],
       "port": 5174
+    },
+    {
+      "name": "sam3",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/claude/sam3/tools/serve.mjs", "5175"],
+      "port": 5175
     }
   ]
 }

@@ -38,6 +38,7 @@ const CSS = `
 .tw-row.drop { color:#ffd9a8; }
 .tw-row.rest { color:#8fd3a6; }
 .tw-row.lose { color:#ef8a7a; }
+.tw-row.fall { color:#c9a0d0; }
 .tw-row.broke { color:#e8c27a; }
 .tw-row.sweep { color:var(--ink-dim); }
 .tw-zone { display:flex; gap:6px; flex-wrap:wrap; }
@@ -120,7 +121,37 @@ function runPanel(st, entry, preview) {
     el('div', { class: 'faint tiny' },
       `층당 ${num(2)}G × 층수 · 보유 ${num(gold)}G — 골드가 떨어지면 그 층에서 멈춘다.`),
     rows.length ? el('div', { class: 'col', style: { gap: '8px' } }, rows)
-      : el('div', { class: 'faint tiny', text: '출전할 수 있는 부대가 없다.' }));
+      : el('div', { class: 'faint tiny', text: '출전할 수 있는 부대가 없다.' }),
+    squads.length ? watchPanel(st, squads) : null);
+}
+
+/**
+ * 층 관전. 등반은 계산으로 돌지만 "이 층은 눈으로 보고 싶다"를 여기서 받는다.
+ * 500층을 전투 화면으로 돌리면 최소 500회 클릭이라 자동 진행과 양립할 수 없어서,
+ * 등반과 관전을 갈라 놓은 것이다.
+ */
+function watchPanel(st, squads) {
+  const best = st.tower?.best || 0;
+  let floor = Math.max(1, Math.min(TOWER_FLOORS, best || 1));
+  let squadId = squads[0].id;
+
+  const input = el('input', {
+    type: 'number', min: '1', max: String(TOWER_FLOORS), value: String(floor),
+    style: { width: '92px' },
+    onInput: (e) => { floor = Math.max(1, Math.min(TOWER_FLOORS, Number(e.target.value) || 1)); },
+  });
+  const pick = el('select', {
+    onChange: (e) => { squadId = e.target.value; },
+  }, ...squads.map((s) => el('option', { value: s.id, text: s.name })));
+
+  return el('div', { class: 'col', style: { gap: '6px', marginTop: '4px' } },
+    el('div', { class: 'sep' }),
+    el('div', { class: 'faint tiny' },
+      '등반은 계산으로 돌린다 — 500층을 전투 화면으로 넘기면 층마다 클릭해야 해서 자동 진행이 안 된다. '
+      + '특정 층의 전투를 보고 싶으면 여기서 띄워라. 진행도·골드·보상에는 영향이 없다.'),
+    el('div', { class: 'row center', style: { gap: '6px', flexWrap: 'wrap' } },
+      pick, input, el('span', { class: 'faint tiny', text: '층' }),
+      el('button', { class: 'btn sm', onClick: () => watchFloor(squadId, floor) }, '이 층 전투 보기')));
 }
 
 function resultPanel(run) {
@@ -128,8 +159,10 @@ function resultPanel(run) {
     switch (e.type) {
       case 'sweep':
         return row('sweep', `${e.from}~${e.to}`, `소탕으로 지나갔다 (−${num(e.cost)}G)`);
+      case 'fall':
+        return row('fall', `${e.floor}층`, `${e.names.join(' · ')} 쓰러졌다 — 회복 지점까지 못 나온다`);
       case 'rest':
-        return row('rest', `${e.floor}층`, '숨을 돌렸다 — 전원 회복');
+        return row('rest', `${e.floor}층`, '숨을 돌렸다 — 전원 복귀');
       case 'drop':
         return row('drop', `${e.floor}층`, `${Pet.petLabel(e.pet)} 을(를) 얻었다!`);
       case 'lose':
@@ -207,7 +240,30 @@ function doClimb(squadId) {
   }, 30);
 }
 
-/** 층 하나를 전투 화면으로 본다 (관전용) — 진행도에는 영향이 없다 */
-export function watchFloor(squadId, floor) {
-  go('battle', { tower: true, towerFloor: floor, squadId });
+/**
+ * 층 하나를 전투 화면으로 본다 (관전 전용).
+ *
+ * ★ 등반 자체는 헤드리스로 돈다 — 전투 화면에는 자동 진행 경로가 없고 `fastForward()` 에
+ *   12웨이브 하드 캡이 있어 500층을 거기로 돌릴 수 없다. 대신 "이 층은 눈으로 보고 싶다"를
+ *   여기서 받는다. **진행도·골드·드랍에는 아무 영향이 없다** (한 판만 띄우고 끝).
+ */
+function watchFloor(squadId, floor) {
+  let cfg;
+  try {
+    cfg = Tower.towerBattleDefs(state, floor, squadId, {});
+  } catch (e) {
+    console.error('[tower] 관전 편성 실패', e);
+    toast('편성을 만들지 못했다.', 'bad');
+    return;
+  }
+  go('battle', {
+    battleCfg: cfg,
+    title: `무한의 탑 ${floor}층 — ${zoneOf(floor)} (관전)`,
+    rank: 'S',
+    biome: 'cave',
+    squadId,
+    returnTo: 'tower',
+    reward: null,          // 보상 없음 — 관전이라 경험치·골드가 붙으면 안 된다
+    days: 0,
+  });
 }

@@ -75,8 +75,9 @@ export const REP_QUEST_GAIN = { F: 2, E: 3, D: 4, C: 5, B: 6, A: 8, S: 10 };
  * 정원은 골드로 산다. 체증 비용이라 무한 확장은 못 하고, 확장할 때마다 의뢰를 더 돌아야 한다. */
 /** 시작 정원 */
 export const ROSTER_CAP_START = 20;
-/** 정원 상한 */
-export const ROSTER_CAP_MAX = 40;
+/** 정원 상한. 부대 5개 x 7명 = 35 명이 출전 정원이라 40 은 예비가 5명뿐이었다.
+ *  70 이면 부대를 갈아 끼우고 클래스 조합을 실험할 여유가 생긴다. */
+export const ROSTER_CAP_MAX = 70;
 /** 한 번 확장할 때 늘어나는 인원 */
 export const ROSTER_CAP_STEP = 5;
 /**
@@ -86,7 +87,14 @@ export const ROSTER_CAP_STEP = 5;
  * 정원이 제약으로 느껴지지 않았다("너무 싸다"). 부대 구매(1,500 / 4,000 / 9,000 / 18,000G)와
  * 견줄 만한 수준으로 올려서, 정원 확장이 한동안 모아야 하는 목표가 되게 한다.
  */
-export const ROSTER_CAP_COST = { 25: 3500, 30: 9000, 35: 20000, 40: 40000 };
+export const ROSTER_CAP_COST = {
+  25: 3500, 30: 9000, 35: 20000, 40: 40000,
+  // 40 이후 구간. 앞 구간의 2배 곡선을 그대로 이으면 70명까지 152만 G 라 새 벽이 된다 —
+  // 정원을 늘려 달라는 요청의 취지(부대 5개 x 7명 = 35명이라 예비가 없다)와 어긋난다.
+  // 1.35 배로 완만하게 이어 20→70 총 **86만 G** 로 맞췄다. 참고로 이 구간에서는
+  // 정원보다 **하루 임금**이 더 큰 제약이다 (단원이 늘면 임금도 같이 는다).
+  45: 55000, 50: 74000, 55: 100000, 60: 135000, 65: 182000, 70: 246000,
+};
 
 const LOG_MAX = 200;
 const RARITY_MULT = [1, 1.15, 1.35, 1.62, 2.0];
@@ -1247,7 +1255,16 @@ function expireCityLists() {
 function genTavern(city, r) {
   const tier = clamp(city.tier || 1, 1, 5);
   const count = clamp(3 + r.int(0, 2) + (tier >= 4 ? 1 : 0), 3, 6);
-  const classes = r.pickMany(BASE_CLASSES || [], count);
+
+  /* ★ 그 도시의 특화 클래스는 **항상** 목록에 넣는다.
+   * 예전에는 전체 1차 클래스에서 무작위로만 뽑아서, S 등급이 특화 도시에서만 나오는데
+   * 정작 그 도시에 특화 클래스가 안 뜨는 날이 많았다. 특화 도시를 찾아간 이유가 사라진다.
+   * 나머지 자리는 예전대로 무작위로 채운다. */
+  const base = Array.isArray(BASE_CLASSES) ? BASE_CLASSES : [];
+  const spec = (Array.isArray(city.specialty) ? city.specialty : []).filter((c) => base.includes(c));
+  const rest = r.pickMany(base.filter((c) => !spec.includes(c)), Math.max(0, count - spec.length));
+  const classes = [...spec, ...rest];
+
   return classes.map((classId) => {
     let base = 0;
     try { base = Merc.hireCost(classId, 'C', 1) || 0; } catch { base = 0; }

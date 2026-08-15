@@ -1205,7 +1205,14 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
     State.newGame(779);
     ok(State.state.rosterCap === State.ROSTER_CAP_START,
       `새 게임 정원 = ${State.ROSTER_CAP_START}`, State.state.rosterCap);
-    ok(State.ROSTER_CAP_MAX === 40, 'ROSTER_CAP_MAX = 40', State.ROSTER_CAP_MAX);
+    // 값 자체를 박아 두면 상한을 조정할 때마다 깨진다 — 관계만 검사한다.
+    ok(State.ROSTER_CAP_MAX > State.ROSTER_CAP_START
+       && (State.ROSTER_CAP_MAX - State.ROSTER_CAP_START) % State.ROSTER_CAP_STEP === 0,
+      `ROSTER_CAP_MAX(${State.ROSTER_CAP_MAX})가 START(${State.ROSTER_CAP_START})보다 크고 STEP(${State.ROSTER_CAP_STEP}) 배수로 떨어진다`,
+      `${State.ROSTER_CAP_START} → ${State.ROSTER_CAP_MAX} (step ${State.ROSTER_CAP_STEP})`);
+    // 부대 정원(5부대 x 7명 = 35) 보다는 넉넉해야 예비 인원을 둘 수 있다
+    ok(State.ROSTER_CAP_MAX >= 35 + State.ROSTER_CAP_STEP,
+      '정원 상한이 전 부대 정원(35명)보다 넉넉하다', State.ROSTER_CAP_MAX);
     const capBad = [];
     let cap = State.ROSTER_CAP_START;
     let prevCost = 0;
@@ -1229,10 +1236,19 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
       if (!r.ok) break;
       if (State.state.gold >= before) capBad.push('정원 확장이 골드를 차감하지 않는다');
       expandTimes++;
-      if (expandTimes > 10) break;
+      if (expandTimes > 40) break;   // 무한루프 방지용 여유값 (상수에서 기대치를 뽑으므로 넉넉히)
     }
-    ok(State.state.rosterCap === State.ROSTER_CAP_MAX && expandTimes === 4,
-      `정원을 ${State.ROSTER_CAP_MAX}명까지 4번 확장할 수 있다`, `${State.state.rosterCap} / ${expandTimes}회`);
+    // ★ 횟수를 하드코딩하지 않는다 — 정원 상한/증가폭을 바꿀 때마다 이 검사가 같이 깨진다.
+    const wantExpand = Math.round((State.ROSTER_CAP_MAX - State.ROSTER_CAP_START) / State.ROSTER_CAP_STEP);
+    ok(State.state.rosterCap === State.ROSTER_CAP_MAX && expandTimes === wantExpand,
+      `정원을 ${State.ROSTER_CAP_MAX}명까지 ${wantExpand}번 확장할 수 있다`,
+      `${State.state.rosterCap} / ${expandTimes}회 (기대 ${wantExpand})`);
+    // 확장 단계마다 비용표가 있어야 한다 (없으면 확장이 조용히 막힌다)
+    const costGap = [];
+    for (let c = State.ROSTER_CAP_START + State.ROSTER_CAP_STEP; c <= State.ROSTER_CAP_MAX; c += State.ROSTER_CAP_STEP) {
+      if (!(State.ROSTER_CAP_COST[c] > 0)) costGap.push(`${c}명 비용 없음`);
+    }
+    okAll(costGap, '정원 확장 단계마다 비용이 정의돼 있다', wantExpand);
     ok(State.canExpandRoster(State.state).ok === false, '상한에 닿으면 더 확장할 수 없다');
 
     // 정원 초과 고용 차단

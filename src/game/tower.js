@@ -341,6 +341,19 @@ export function climb(st, squadId, opts = {}) {
       break;
     }
     reached = floor;
+
+    /* 이번 층에서 쓰러진 단원을 로그에 남긴다.
+     * 쓰러진 단원은 다음 회복 지점까지 편성에서 빠지는데(= 설계), 알려 주지 않으면
+     * "사람이 조용히 사라진다"로 읽힌다. 누가 언제 빠졌는지 이름으로 적는다. */
+    const fell = [];
+    for (const [uid, hp] of Object.entries(r.carry)) {
+      if (hp !== 0) continue;
+      if (carry && carry[uid] === 0) continue;          // 앞 층에서 이미 빠진 사람
+      const m = (st.roster || []).find((x) => x && x.uid === uid);
+      fell.push(m ? m.name : (Pet.getPet(st, uid) ? Pet.petLabel(Pet.getPet(st, uid)) : uid));
+    }
+    if (fell.length) log.push({ type: 'fall', floor, names: fell });
+
     carry = r.carry;
 
     // 펫 드랍 — 층 전용 RNG (globalRng 금지: load() 가 시드를 되감아 리롤이 가능해진다)

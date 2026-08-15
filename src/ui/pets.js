@@ -68,7 +68,19 @@ export function render(root) {
         el('div', {},
           el('h3', { text: `펫 ${pets.length}마리`, style: { margin: '0' } }),
           el('div', { class: 'faint tiny', text: `부대마다 ${PETS_PER_SQUAD}마리까지. 무한의 탑에서 얻는다.` })),
-        el('div', { class: 'row', style: { gap: '6px' } },
+        el('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap' } },
+          pets.length
+            ? el('button', {
+              class: 'btn sm',
+              onClick: () => {
+                const r = Pet.autoAssign(st);
+                picking = null;
+                save(); refresh();
+                toast(r.placed ? `${r.squads}개 부대에 펫 ${r.placed}마리를 배치했다.` : '배치할 펫이 없다.',
+                  r.placed ? 'good' : '');
+              },
+            }, '자동 배치')
+            : null,
           el('button', { class: 'btn sm', onClick: () => go('tower') }, '탑으로'),
           el('button', { class: 'btn sm', onClick: () => go('company') }, '용병단으로'))),
       pets.length === 0

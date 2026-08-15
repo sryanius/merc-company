@@ -583,6 +583,8 @@ function startWave(i) {
     S.info[u.uid] = {
       name: u.name, side: u.side, classId: u.classId || null, enemyId: u.enemyId || null,
       level: u.level || 1, grade: u.grade || 'F', boss: !!u.boss, maxHp: u.maxHp,
+      // 결과 표에서 단원과 펫을 갈라 놓는 표식 (펫은 경험치·부상이 없다)
+      pet: !!u.pet, petRole: u.petRole || null,
     };
   }
 
@@ -885,6 +887,25 @@ function applyEncounterResult(win) {
   return out;
 }
 
+/**
+ * 펫 참전 요약 한 줄.
+ * 펫은 성장하지 않고 쓰러져도 **다음 전투에 만피로 돌아온다**(부상이 안 남는다) —
+ * 표에 "전투 불능"으로 뜨면 손해를 본 것처럼 읽히므로 그 점을 같이 적는다.
+ */
+function petSummary(petRows) {
+  const down = petRows.filter((p) => p.down).length;
+  const dealt = petRows.reduce((a, p) => a + p.dealt, 0);
+  const healed = petRows.reduce((a, p) => a + p.healed, 0);
+  const parts = [];
+  if (dealt) parts.push(`피해 ${num(dealt)}`);
+  if (healed) parts.push(`회복 ${num(healed)}`);
+  return el('div', { class: 'tiny faint', style: { marginTop: '8px', lineHeight: '1.5' } },
+    `펫 ${petRows.length}마리 참전`,
+    parts.length ? ` — ${parts.join(' · ')}` : '',
+    down ? ` · ${down}마리 쓰러짐(다음 전투에 회복된다)` : '',
+    el('div', { text: petRows.map((p) => p.info.name).join(' · ') }));
+}
+
 function mvpUid(rows) {
   let best = null, score = -1;
   for (const r of rows) {
@@ -899,8 +920,19 @@ function renderResult(win) {
   const a = S.applied || {};
   root.innerHTML = '';
 
+  /* ★ 펫은 단원 표에서 뺀다.
+   * 펫은 경험치도 레벨도 없고 부상도 안 남는다(정산 루프가 roster 에서 못 찾아 건너뛴다).
+   * 그런데도 표에 섞이면 "전투 불능"만 잔뜩 뜨면서 아무 일도 안 일어나는 것처럼 보인다.
+   * 참전 사실은 표 아래 한 줄 요약으로 따로 알린다. */
+  const petRows = Object.keys(S.info)
+    .filter((uid) => S.info[uid].side === 'ally' && S.info[uid].pet)
+    .map((uid) => ({
+      uid, info: S.info[uid], dealt: S.dealt[uid] || 0, healed: S.healed[uid] || 0,
+      down: (S.finalHp[uid] != null ? S.finalHp[uid] : 1) <= 0,
+    }));
+
   const rows = Object.keys(S.info)
-    .filter((uid) => S.info[uid].side === 'ally')
+    .filter((uid) => S.info[uid].side === 'ally' && !S.info[uid].pet)
     .map((uid) => ({
       uid,
       info: S.info[uid],
@@ -942,7 +974,8 @@ function renderResult(win) {
   // 표는 좁은 화면에서 6열이 안 들어간다 — 페이지가 아니라 **표가** 옆으로 스크롤되게 감싼다
   root.appendChild(el('div', { class: 'panel', style: { marginTop: '12px' } },
     el('h3', { text: '전과' }),
-    el('div', { class: 'bt-tablewrap' }, table)));
+    el('div', { class: 'bt-tablewrap' }, table),
+    petRows.length ? petSummary(petRows) : null));
 
   // 보상
   const reward = el('div', { class: 'panel', style: { marginTop: '12px' } }, el('h3', { text: '보상' }));

@@ -27,6 +27,7 @@ import { questBattleDefs } from '../game/quest.js';
 import { canDeploy, squadMembers } from '../game/squad.js';
 import { isWounded } from '../game/merc.js';
 import { go, toast, modal } from './app.js';
+import * as Tower from '../game/tower.js';
 
 export const meta = { id: 'world', title: '월드맵' };
 
@@ -156,6 +157,14 @@ function noHover() {
 const nodeR = (tier) => Math.max(narrowMap() ? 7 : 0, NODE_R(tier) * scale);
 /** 던전 노드 반지름 (CSS px) */
 const dungeonR = () => Math.max(narrowMap() ? 13 : 0, DUNGEON_R * scale);
+
+/* ─────────────────────────── 무한의 탑 ───────────────────────────
+ * 도시도 던전도 아니라 데이터 파일이 아니라 여기 고정 좌표로 둔다 —
+ * 하나뿐이고 이동 대상이 아니다. 좌표는 도시·던전이 없는 서쪽 빈 자리다
+ * (가장 가까운 것이 늙은참나무 215,110 / 피의 투기장 65,430 — 각 170px 이상 떨어져 있다). */
+const TOWER_POS = { x: 150, y: 290 };
+const TOWER_R = 17;
+const towerR = () => Math.max(narrowMap() ? 14 : 0, TOWER_R * scale);
 /** 터치 판정 반지름 — 보이는 크기와 무관하게 최소 22px(도시)/26px(던전)은 잡아 준다 */
 const pickPad = () => (noHover() || narrowMap() ? 14 : 8 * scale);
 
@@ -514,6 +523,7 @@ function draw() {
   drawLinks();      // 먼저 그려지는 쪽이 자리를 선점하고, 나중 것이 그 자리를 피한다.
   drawNodes();
   drawDungeons();   // 던전은 도시 위에 그린다 (가장 눈에 띄어야 한다)
+  drawTower();      // 탑은 그보다 더 위 — 하나뿐이라 놓치면 안 된다
   flushLabels();    // 라벨은 노드를 다 그린 뒤 우선순위대로 자리를 잡아 맨 위에 얹는다
 }
 
@@ -955,6 +965,101 @@ function placeLabel(x, y, nodeR, w, h, force) {
   return p;
 }
 
+/* ─────────────────────────── 무한의 탑 노드 ───────────────────────────
+ * 도시는 원, 던전은 마름모, 탑은 **탑 실루엣**이다 — 셋이 한눈에 구분돼야 한다.
+ * 열린 날(매달 1일)에는 금빛 후광이 돌고, 아닌 날은 흐리게 둔다. */
+
+function drawTower() {
+  const open = Tower.canEnter(state).ok;
+  const x = sx(TOWER_POS.x);
+  const y = sy(TOWER_POS.y);
+  const r = towerR();
+  const best = state.tower?.best || 0;
+
+  ctx.save();
+  ctx.globalAlpha = open ? 1 : 0.55;
+
+  if (open) {
+    const pulse = 1 + Math.sin(clock * 2.4) * 0.15;
+    const g = ctx.createRadialGradient(x, y, r, x, y, r * 3.2 * pulse);
+    g.addColorStop(0, 'rgba(224,180,74,.40)');
+    g.addColorStop(1, 'rgba(224,180,74,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 3.2 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 탑 몸통 — 아래가 넓고 위가 좁은 사다리꼴 + 뾰족지붕
+  const w = r * 1.15;
+  const h = r * 1.9;
+  ctx.beginPath();
+  ctx.moveTo(x - w, y + h * 0.5);
+  ctx.lineTo(x - w * 0.62, y - h * 0.32);
+  ctx.lineTo(x + w * 0.62, y - h * 0.32);
+  ctx.lineTo(x + w, y + h * 0.5);
+  ctx.closePath();
+  const fill = ctx.createLinearGradient(x, y - h * 0.4, x, y + h * 0.5);
+  fill.addColorStop(0, open ? '#6b5f8a' : '#4a4358');
+  fill.addColorStop(1, open ? '#2b2440' : '#241f30');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = open ? '#e0b44a' : 'rgba(180,170,200,.45)';
+  ctx.lineWidth = Math.max(1, 1.6 * scale);
+  ctx.stroke();
+
+  // 지붕
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.78, y - h * 0.32);
+  ctx.lineTo(x, y - h * 0.86);
+  ctx.lineTo(x + w * 0.78, y - h * 0.32);
+  ctx.closePath();
+  ctx.fillStyle = open ? '#8a6f2e' : '#4a4358';
+  ctx.fill();
+  ctx.stroke();
+
+  // 창문 두 줄 — 열린 날에는 불이 켜져 있다
+  ctx.fillStyle = open ? 'rgba(255,220,150,.95)' : 'rgba(140,132,160,.5)';
+  for (const [dy, n] of [[-0.05, 2], [0.28, 3]]) {
+    for (let i = 0; i < n; i++) {
+      const wx = x + (i - (n - 1) / 2) * (w * 0.62);
+      ctx.fillRect(wx - 1.1 * scale, y + h * dy, Math.max(1.6, 2.2 * scale), Math.max(2.4, 3.4 * scale));
+    }
+  }
+  ctx.restore();
+
+  // 라벨 — 도시/던전과 같은 자리 경쟁에 넣는다 (열린 날이면 최우선)
+  const thin = narrowMap();
+  const fs = thin ? 13 : Math.max(10, Math.round(12 * scale));
+  const fs2 = thin ? 11 : Math.max(9, Math.round(10 * scale));
+  ctx.font = `700 ${fs}px ${FONT}`;
+  const w1 = ctx.measureText('무한의 탑').width;
+  const sub = open ? '오늘 열려 있다' : (best ? `최고 ${best}층` : '매달 1일');
+  ctx.font = `${fs2}px ${FONT}`;
+  const w2 = ctx.measureText(sub).width;
+
+  queueLabel(open ? -2 : 3.2, {
+    x, y, r, w: Math.max(w1, w2), h: fs + 2 + fs2, force: open,
+    draw: (lx, ty) => {
+      ctx.save();
+      ctx.globalAlpha = open ? 1 : 0.7;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `700 ${fs}px ${FONT}`;
+      boxedText('무한의 탑', lx, ty, fs, open ? '#f2dfa8' : '#b9b0c4');
+      ctx.font = `${fs2}px ${FONT}`;
+      boxedText(sub, lx, ty + fs + 2, fs2, open ? 'rgba(224,180,74,.9)' : 'rgba(150,140,166,.85)');
+      ctx.restore();
+    },
+  });
+}
+
+/** 탑 노드를 눌렀을 때 */
+function askTower() {
+  if (traveling) return;
+  go('tower');
+}
+
 /** 라벨 뒤에 어두운 판을 깔아 배경과 겹쳐도 읽히게 한다 */
 function boxedText(text, x, y, fs, color) {
   const w = ctx.measureText(text).width;
@@ -1043,6 +1148,21 @@ function pickCity(ev) {
   return best ? { city: best, mx, my } : null;
 }
 
+/**
+ * 무한의 탑 히트 테스트.
+ * 탑은 도시도 던전도 아니라 데이터가 아니라 **여기 고정 좌표**로 산다 —
+ * 하나뿐이고 이동 대상이 아니라서 world.js 에 넣을 이유가 없다.
+ */
+function pickTower(ev) {
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+  const dist = Math.hypot(sx(TOWER_POS.x) - mx, sy(TOWER_POS.y) - my);
+  const r = Math.max(towerR() + pickPad(), noHover() ? 26 : 0);
+  return dist < r ? { mx, my } : null;
+}
+
 /** 던전 노드 히트 테스트 (마름모지만 판정은 원으로 넉넉하게) */
 function pickDungeon(ev) {
   if (!canvas) return null;
@@ -1097,6 +1217,8 @@ function onLeave() {
  */
 function onClick(ev) {
   const touch = noHover();
+  // 탑이 가장 위에 그려지므로 판정도 가장 먼저다
+  if (pickTower(ev)) { askTower(); return; }
   const dg = pickDungeon(ev);
   if (dg) {
     const d = dg.dungeon;
