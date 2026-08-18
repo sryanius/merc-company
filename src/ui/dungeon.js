@@ -683,6 +683,36 @@ export function render(root, params = {}) {
   const sq = pickSquad();
   squadId = sq ? sq.id : null;
 
+  /* ★ "다음 웨이브로 계속" — 전투 결과 화면에서 넘어온 경우.
+   * 정산(settleRun)은 위에서 이미 끝났다. 여기서 곧바로 다음 웨이브로 들어가면
+   * 플레이어는 이 화면을 사실상 보지 않고 웨이브를 이어서 돌게 된다.
+   * **정산을 건너뛰지 않는 것이 핵심이다** — 진행도·세트 조각이 이 화면에서만 반영된다.
+   *
+   * 자동 진입을 막아야 하는 경우가 셋 있다:
+   *   · 방금 졌다            → 이어서 갈 이유가 없다
+   *   · 마지막 웨이브였다     → 더 갈 곳이 없다
+   *   · 출전 조건이 깨졌다    → 전멸·부상으로 세울 인원이 없다 (그냥 화면을 보여 준다)
+   */
+  // 정산은 이제 전투 결과 화면(onResult)에서 이미 끝났다 — 그때 LAST 가 채워진다.
+  // settleRun() 은 여기서 null 을 돌려주므로 LAST 를 함께 본다.
+  const outcome = settled || LAST;
+  if (params.autoNext && outcome && outcome.win && outcome.next > 0) {
+    // settled.next 는 "이어서 도전할 웨이브 번호"(1-based, 0이면 런 종료)다.
+    // 방금 깬 웨이브가 N번(1-based)이면 다음 웨이브의 0-based 인덱스도 N이다.
+    const nextIdx = outcome.next;
+    const dep = squadId ? deployInfo(squadId) : null;
+    if (dep && dep.ok) {
+      LAST = null;                                       // 배너를 남기지 않는다 (바로 전투로 넘어간다)
+      /* ★ 반드시 다음 틱으로 미룬다.
+       * render() 는 app.js 의 go() 안에서 실행 중이고, go() 는 `busy` 플래그로
+       * **중첩 호출을 조용히 무시**한다. 여기서 곧바로 enterWave → go('battle') 을 부르면
+       * 아무 일도 안 일어난 채 던전 화면에 남는다(실제로 그렇게 막혔다).
+       * 아래 '들어간다' 버튼이 setTimeout 을 쓰는 이유도 같다. */
+      setTimeout(() => enterWave(d, squadId, nextIdx, root), 0);
+      return;
+    }
+  }
+
   root.appendChild(el('div', { class: 'col' },
     headerPanel(d, root),
     LAST ? outcomePanel(d, root) : null,
@@ -1107,6 +1137,11 @@ async function enterWave(d, id, waveIndex, root) {
     reward: { gold: 0, exp: 0, renown: 0 },   // 던전 보상은 세트 조각뿐이다 (의뢰 경제와 분리)
     returnTo: 'dungeon',
     returnParams: { dungeonId: d.id },
+    // ★ 승리하면 결과 화면에 "다음 웨이브" 가 뜬다. 누르면 던전 화면을 **거쳐서** 넘어간다 —
+    //   정산(진행도·세트 조각)이 이 화면에서만 일어나기 때문에 건너뛰면 보상이 날아간다.
+    //   던전 화면은 autoNext 를 보면 정산 직후 다음 웨이브로 바로 들어간다.
+    continueLabel: wi + 1 < total ? `${wi + 2}웨이브로 계속` : null,
+    continueParams: { dungeonId: d.id, autoNext: true },
     // ── 던전 정보 (전투 화면이 던전을 아는 빌드용)
     dungeon: true,
     dungeonId: d.id,
@@ -1119,6 +1154,16 @@ async function enterWave(d, id, waveIndex, root) {
     dropSlots: dropSlots(wi),
     dropBand: bandOf(wi + 1).name,
     onDungeonWave: reportRun,
+    /* ★ 전투 화면이 결과를 확정한 **그 자리에서** 정산한다.
+     * 예전에는 던전 화면에 다시 들어와야 settleRun 이 돌아서, 도시로 나가 버리면
+     * "드랍했다는 말도 없이 나중에 장비창에 세트템이 생겨 있는" 상태가 됐다.
+     * 여기서 정산하면 세트 조각이 전투 결과 화면의 전리품 칸에 바로 뜬다.
+     * settleRun 은 run.settled 로 막혀 있어 이중 정산이 안 된다. */
+    onResult: () => {
+      const res = settleRun();
+      if (res) LAST = res;
+      return { items: res && res.item ? [res.item] : [] };
+    },
   });
 
   showBattleBrief(d, wi, total);

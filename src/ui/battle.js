@@ -2,6 +2,8 @@
 // params: { questId, squadId }  또는  { battleCfg, ... } (랜덤 인카운터용)
 import { el, num, clamp } from '../core/util.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+// 세트(신화) 등급 표기용 — RARITY_* 는 전설(4)까지라 세트템 rarity 5 를 못 담는다
+import { MYTHIC_COLOR, MYTHIC_NAME, getSet } from '../data/sets.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
 import { getSkill } from '../data/skills.js';
 import { getClass } from '../data/classes.js';
@@ -277,6 +279,17 @@ export function render(root, params = {}) {
     waveIndex: 0,
     biome: quest ? quest.biome : (params.biome || (cfgBase && cfgBase.biome) || 'plains'),
     returnTo: params.returnTo || 'city',
+    // ★ 복귀 화면에 넘길 params. 예전에는 호출부가 넘겨도 여기서 안 받아서 통째로 버려졌다
+    //   (던전이 `returnParams:{dungeonId}` 를 넘겼는데 복귀 화면은 그걸 못 받았다).
+    returnParams: params.returnParams || null,
+    // 승리 후 "이어서 진행" 버튼. 호출부가 준 경우에만 뜬다 — 전투 화면은 무엇을 이어서
+    //   하는지 몰라도 된다(던전이든 탑이든 호출부가 목적지와 params 를 정한다).
+    continueLabel: params.continueLabel || null,
+    continueParams: params.continueParams || null,
+    // 호출부 정산 훅 (던전 세트 조각 등). 돌려준 items 는 전리품 칸에 합쳐진다.
+    onResult: typeof params.onResult === 'function' ? params.onResult : null,
+    waveIndex: Number.isFinite(params.waveIndex) ? params.waveIndex : 0,
+    extraNote: null,
     reward: params.reward || null,
     days: quest ? (quest.days || 1) : (params.days || 0),
     battle: null,
@@ -842,6 +855,26 @@ function finishAll(win) {
   } else {
     S.applied = applyEncounterResult(win);
   }
+
+  /* ★ 호출부 정산 훅.
+   * 던전·탑처럼 이 화면이 모르는 보상 체계는 호출부가 여기서 정산하고 **전리품을 돌려준다.**
+   * 이게 없던 동안 던전 세트 조각은 던전 화면에 다시 들어가야만 지급·표시됐고,
+   * 도시로 나가 버리면 "드랍했다는 말도 없이 나중에 장비창에 생겨 있는" 상태가 됐다.
+   * 훅이 무엇을 하든 이 화면은 결과 배열만 받아 전리품 칸에 얹는다. */
+  if (typeof S.onResult === 'function') {
+    try {
+      const extra = S.onResult({
+        win, squadId: S.squadId, waveIndex: S.waveIndex,
+        results: S.results, finalHp: { ...S.finalHp },
+      });
+      const gained = extra && Array.isArray(extra.items) ? extra.items.filter(Boolean) : [];
+      if (gained.length) S.applied.items = [...(S.applied.items || []), ...gained];
+      if (extra && extra.note) S.extraNote = extra.note;
+    } catch (e) {
+      console.error('[battle] 호출부 정산 훅 실패', e);
+    }
+  }
+
   try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
   renderResult(S.applied.win != null ? S.applied.win : win);
 }
@@ -1009,8 +1042,16 @@ function renderResult(win) {
   }
 
   // 결과 화면은 자동으로 닫히지 않는다. 아래 버튼을 눌러야 나간다 (하단 고정이라 항상 보인다)
+  // "이어서" 는 **이겼을 때만** 뜬다. 지고도 다음 웨이브로 갈 수는 없다.
+  const canContinue = win && S && S.continueLabel;
   root.appendChild(el('div', { class: 'bt-actions' },
-    el('button', { class: 'btn primary lg', onClick: leaveBattle }, '도시로 돌아가기'),
+    canContinue
+      ? el('button', { class: 'btn primary lg', onClick: continueBattle }, S.continueLabel)
+      : null,
+    el('button', {
+      class: canContinue ? 'btn lg' : 'btn primary lg',
+      onClick: leaveBattle,
+    }, canContinue ? '여기서 그만' : (S && S.returnTo === 'dungeon' ? '던전으로 돌아가기' : '도시로 돌아가기')),
     (a.promotions || []).length
       ? el('button', { class: 'btn lg', onClick: () => { finalizeDays(); go('company'); } }, '전직하러 가기')
       : null,
@@ -1078,11 +1119,18 @@ const rewardStat = (k, v, color) => el('div', { class: 'col', style: { gap: '2px
   el('span', { class: 'num', style: { fontSize: '20px', fontWeight: '800', color } , text: v }));
 
 function itemCard(it) {
-  const color = RARITY_COLOR[it.rarity || 0];
+  /* ★ 세트(신화) 아이템은 rarity 5 인데 RARITY_NAME/COLOR 는 0~4(일반~전설)까지뿐이다.
+   * 그대로 찍으면 "undefined · 아이템 레벨 71" 이 나온다 — 던전 세트 조각이 전부 그랬다.
+   * 등급 이름 자리에 세트 이름을 같이 보여 줘 무슨 세트 조각인지 바로 알게 한다. */
+  const r = it.rarity || 0;
+  const mythic = r >= RARITY_NAME.length;
+  const color = mythic ? MYTHIC_COLOR : RARITY_COLOR[r];
+  const setName = mythic && it.setId ? (getSet(it.setId)?.name || '') : '';
+  const gradeText = mythic ? `${MYTHIC_NAME}${setName ? ` · ${setName} 세트` : ''}` : RARITY_NAME[r];
   const statLine = Object.entries(it.stats || {}).map(([k, v]) => `${STAT_LABEL[k] || k} +${v}`).join(', ');
   return el('div', { class: 'bt-item' },
     el('div', { class: 'nm', style: { color }, text: it.name }),
-    el('div', { class: 'tiny faint', text: `${RARITY_NAME[it.rarity || 0]} · 아이템 레벨 ${it.ilvl || 1}` }),
+    el('div', { class: 'tiny faint', text: `${gradeText} · 아이템 레벨 ${it.ilvl || 1}` }),
     el('div', { class: 'tiny muted', style: { marginTop: '4px' }, text: statLine || '옵션 없음' }));
 }
 
@@ -1100,8 +1148,18 @@ function finalizeDays() {
 
 function leaveBattle() {
   const target = S && S.mode === 'quest' ? 'city' : (S && S.returnTo) || 'city';
+  const params = (S && S.returnParams) || {};
   finalizeDays();
-  go(target);
+  go(target, params);
+}
+
+/** 승리 후 "이어서" — 호출부가 정해 준 곳으로 params 와 함께 넘어간다 */
+function continueBattle() {
+  if (!S || !S.continueLabel) return;
+  const target = S.returnTo || 'city';
+  const params = S.continueParams || S.returnParams || {};
+  finalizeDays();
+  go(target, params);
 }
 
 /* ─────────────────────────── 렌더러 연결 ─────────────────────────── */
