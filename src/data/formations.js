@@ -84,7 +84,7 @@ export const FORMATIONS = {
       { x: 0.84, y: 0.50 },
     ],
     effects: [
-      { scope: 'front', mods: { atk: 0.09, spd: 0.045, def: -0.12, res: -0.12 } },
+      { scope: 'front', mods: { atk: 0.09, spd: 0.045, def: -0.070, res: -0.070 } },
       { scope: 'mid', mods: { atk: 0.038, crit: 0.056 } },
       { scope: 'back', mods: { spd: 0.038, hp: -0.075 } },
     ],
@@ -107,7 +107,7 @@ export const FORMATIONS = {
     effects: [
       { scope: 'back', mods: { atk: 0.11, crit: 0.125 } },
       { scope: 'mid', mods: { atk: 0.05, spd: 0.04 } },
-      { scope: 'front', mods: { def: -0.105, hp: -0.075 } },
+      { scope: 'front', mods: { def: -0.075, hp: -0.055 } },
       { scope: 'role:archer', mods: { atk: 0.06, spd: 0.05 } },
       { scope: 'role:mage', mods: { atk: 0.06 } },
     ],
@@ -127,7 +127,7 @@ export const FORMATIONS = {
       { x: 0.50, y: 0.65 }, { x: 0.50, y: 0.80 }, { x: 0.50, y: 0.95 },
     ],
     effects: [
-      { scope: 'all', mods: { atk: 0.03, spd: 0.03, def: -0.12, res: -0.12 } },
+      { scope: 'all', mods: { atk: 0.05, spd: 0.045, def: -0.070, res: -0.070 } },
       { scope: 'role:rogue', mods: { eva: 0.038, crit: 0.031 } },
       { scope: 'role:lancer', mods: { atk: 0.021 } },
     ],
@@ -169,7 +169,7 @@ export const FORMATIONS = {
       { x: 0.56, y: 0.62 }, { x: 0.68, y: 0.74 }, { x: 0.80, y: 0.86 },
     ],
     effects: [
-      { scope: 'all', mods: { spd: 0.049, eva: 0.07, def: -0.09 } },
+      { scope: 'all', mods: { spd: 0.049, eva: 0.07, def: -0.035 } },
       { scope: 'mid', mods: { atk: 0.042 } },
       { scope: 'role:archer', mods: { crit: 0.07 } },
       { scope: 'role:tank', mods: { spd: 0.028, hp: -0.06 } },
@@ -212,8 +212,8 @@ export const FORMATIONS = {
       { x: 0.70, y: 0.50 },
     ],
     effects: [
-      { scope: 'all', mods: { def: 0.074, res: 0.052, spd: -0.092 } },
-      { scope: 'front', mods: { hp: 0.067, atk: -0.079 } },
+      { scope: 'all', mods: { def: 0.074, res: 0.052, spd: -0.055 } },
+      { scope: 'front', mods: { hp: 0.067, atk: -0.045 } },
       { scope: 'back', mods: { atk: 0.056 } },
       { scope: 'role:tank', mods: { def: 0.056, hp: 0.037 } },
     ],
@@ -279,7 +279,7 @@ export const FORMATIONS = {
       { x: 0.86, y: 0.58 },
     ],
     effects: [
-      { scope: 'all', mods: { spd: 0.04, crit: 0.05, hp: -0.075 } },
+      { scope: 'all', mods: { spd: 0.04, crit: 0.05, hp: -0.045 } },
       { scope: 'mid', mods: { atk: 0.04 } },
       { scope: 'back', mods: { atk: 0.045, critDmg: 0.05, def: -0.075 } },
       { scope: 'role:rogue', mods: { eva: 0.05 } },

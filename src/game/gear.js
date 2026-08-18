@@ -77,7 +77,17 @@ export const RARITY_MULT = (Array.isArray(ITEMS.RARITY_MULT) && ITEMS.RARITY_MUL
   : [1, 1.15, 1.35, 1.62, 2.0, 2.7];
 /** 희귀도 상한 (= 신화) */
 export const MAX_RARITY = RARITY_MULT.length - 1;
-export const RARITY_WEIGHTS = [55, 27, 13, 4.2, 0.8, 0];
+/**
+ * 희귀도 기본 가중치 [일반, 고급, 희귀, 영웅, 전설, 신화].
+ * 신화(5)는 0 — 일반 전리품에서는 절대 안 나온다(던전 세트 전용).
+ *
+ * ★ 예전 값 [55, 27, 13, 4.2, 0.8] 은 기울기가 너무 가팔라서, ilvl 보정(step)을 다 먹여도
+ *   후반 드랍의 절반 이상이 일반·고급이었다(S랭크 ilvl80 실측 53.4%, 전설 5.1%).
+ *   "후반에 쓸만한 게 없다"의 직접 원인이라 완만하게 눕혔다.
+ *   실측 (S랭크 rarityBonus 0.5): ilvl80 일반+고급 53.4% → 40.0%, 전설 5.1% → 12.3%.
+ *   초반(ilvl10, bonus 0)은 79.9% → 70.7% 로 거의 그대로다 — 초반 보호를 깨지 않는다.
+ */
+export const RARITY_WEIGHTS = [44, 28, 16, 7.5, 2.4, 0];
 export const RARITY_VALUE = [1, 1.7, 2.8, 4.8, 9.5, 18];
 /** 판매가 = 가치 * SELL_RATE */
 export const SELL_RATE = 0.4;
@@ -524,7 +534,11 @@ function joinName(prefix, base, suffix) {
 /** ilvl / 보너스를 반영한 희귀도 가중치 (신화는 항상 0 — 던전 보스 전용) */
 export function rarityWeights(ilvl = 1, rarityBonus = 0) {
   const b = Math.max(0, rarityBonus || 0);
-  const t = clamp((ilvl - 1) / 60, 0, 1);
+  /* ★ 분모가 60 이면 t 가 **ilvl 61 에서 1.0 으로 포화**한다.
+   * 그 결과 ilvl 61 과 80 의 등급 분포가 소수점까지 같아져, 게임 후반 20레벨 동안
+   * 장비 진행이 통째로 멈춘다(실측: ilvl 60/61/70/80 전부 전설 4~5.6%).
+   * 아이템 레벨 상한이 80 이므로 79 로 나눠 곡선이 마지막 레벨까지 이어지게 한다. */
+  const t = clamp((ilvl - 1) / 79, 0, 1);
   const step = 1 + 0.55 * b + 0.5 * t;
   const w = RARITY_WEIGHTS.map((v, i) => v * Math.pow(step, i));
   w[0] = w[0] / (1 + 0.35 * b + 0.4 * t);
