@@ -137,6 +137,11 @@ function defaultState() {
     rosterCap: ROSTER_CAP_START,
     /** 던전 진행: { [dungeonId]: {bestWave, clearedAt} }. 세이브 직렬화 대상 */
     dungeons: {},
+    /**
+     * 의뢰 결과에서 이 등급 **이하** 장비를 자동으로 판다. -1 = 끔.
+     * 0 일반 / 1 고급 / 2 희귀 / 3 영웅 / 4 전설. 신화(세트)는 어떤 값이어도 안 판다.
+     */
+    autoSellRarity: -1,
     /** 보유 펫 [{uid, sid, grade, hp}]. 배치는 squad.petUids 에 있다 */
     pets: [],
     /** 펫 uid 채번기. Math.random 대신 이걸 쓴다 (전투 결과 키의 결정론) */
@@ -328,6 +333,11 @@ function replaceState(src) {
   normalizeReputation(state);
   normalizeRosterCap(state);
   normalizeDungeons(state);
+  // 자동 판매 설정 — 범위를 벗어난 값이 세이브에 있으면 끔으로 되돌린다
+  {
+    const v = Math.round(Number(state.autoSellRarity));
+    state.autoSellRarity = Number.isFinite(v) && v >= 0 && v <= 4 ? v : -1;
+  }
   normalizePets(state);
   normalizeTower(state);
   migrateDataVersion(state);

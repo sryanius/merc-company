@@ -1380,6 +1380,30 @@ export function unequipSlot(state, merc, slot) {
  * 매각. 장착 중이면 자동 해제한 뒤 목록에서 제거하고 골드를 준다.
  * @returns {{ok:boolean, reason:string, gold:number, item:object|null}}
  */
+/**
+ * 팔 수 있는 장비인가.
+ *
+ * ★ 이 규칙의 **유일한 출처**다. 예전에는 `ui/inventory.js` 안에만 있어서
+ *   판매 경로가 늘어날 때마다(자동 판매 등) 규칙이 갈릴 위험이 있었다 —
+ *   이 프로젝트는 같은 종류의 사고(아군 UnitDef 두 경로)를 이미 두 번 겪었다.
+ *   `sellItem` 자체는 아무것도 안 막으므로 **부르는 쪽이 반드시 이걸 통과시켜야 한다.**
+ *
+ * 못 파는 것: 명시적 noSell / 신화(던전 세트) / 착용 중인 장비.
+ * @param {object} item
+ * @param {object} [st] 넘기면 착용 여부까지 본다
+ */
+export function isSellable(item, st = null) {
+  if (!item) return false;
+  if (item.noSell === true) return false;
+  // 신화 = 던전 세트 조각. rarity 로도, setId 로도 판정한다 (둘 중 하나만 있는 데이터가 있다)
+  const mythicR = Number.isFinite(SETS_DATA.MYTHIC_RARITY) ? SETS_DATA.MYTHIC_RARITY : 5;
+  if ((item.rarity || 0) >= mythicR) return false;
+  if (item.mythic) return false;
+  if (item.setId) return false;
+  if (st && ownerOf(st, item.uid)) return false;
+  return true;
+}
+
 export function sellItem(state, itemUid) {
   if (shifted(state)) { [state, itemUid] = [gs(), state]; }
   const st = useState(state);

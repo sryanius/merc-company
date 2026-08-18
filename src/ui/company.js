@@ -1219,6 +1219,38 @@ function askAddSquad() {
   });
 }
 
+/**
+ * 용병 이름 변경.
+ * 이름은 순수 표시용이다 — 세이브·전투 결과 키는 전부 `uid` 를 쓰므로 바꿔도 안전하다.
+ */
+function renameMerc(m) {
+  const input = el('input', { class: 'co-in', value: m.name || '', maxlength: '16' });
+  const orig = m.name;
+  modal({
+    title: '용병 이름 변경',
+    body: el('div', { class: 'col co-mbody' },
+      el('div', { class: 'tiny muted', text: '16자 이내로 입력하세요. 비우고 확인하면 원래 이름으로 되돌립니다.' }),
+      input,
+      el('div', { class: 'tiny faint', text: `현재: ${orig}` })),
+    actions: [
+      { label: '취소', kind: 'ghost' },
+      {
+        label: '변경',
+        kind: 'primary',
+        act: () => {
+          const v = input.value.trim();
+          if (!v) { toast('이름을 입력하세요.', 'bad'); return false; }
+          m.name = v.slice(0, 16);
+          save();
+          redraw();
+          toast(`${orig} → ${m.name}`, 'good');
+          return true;
+        },
+      },
+    ],
+  });
+}
+
 function renameSquad(sq) {
   const input = el('input', { class: 'co-in', value: sq.name, maxlength: '16' });
   modal({
@@ -2250,6 +2282,9 @@ function openMercDetail(mercUid) {
     onClose: () => anim.stop(),
     actions: [
       { label: '해고', kind: 'ghost danger', act: () => { anim.stop(); setTimeout(() => askDismiss(m), 0); } },
+      // 모달 안에서 모달을 바로 열면 바깥 모달이 닫히며 같이 사라진다 —
+      // 부대 이름 변경(askDismiss)과 같은 이유로 다음 틱으로 미룬다.
+      { label: '이름 변경', kind: '', act: () => { anim.stop(); setTimeout(() => renameMerc(m), 0); } },
       { label: '닫기', kind: '' },
     ],
   });

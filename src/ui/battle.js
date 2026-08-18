@@ -11,7 +11,7 @@ import { createBattle, setSkillResolver } from '../battle/engine.js';
 import { state, addGold, addLog, save, getMerc, itemsById } from '../game/state.js';
 import { questBattleDefs, applyQuestResult } from '../game/quest.js';
 import { canPromote, gainExp, mercStats, mercPower, promoteOptionsFor } from '../game/merc.js';
-import { autoEquipAll, SLOT_NAME } from '../game/gear.js';
+import { autoEquipAll, SLOT_NAME, isSellable, sellItem } from '../game/gear.js';
 import { go, toast, confirmDlg } from './app.js';
 
 export const meta = { id: 'battle', title: '전투' };
@@ -875,6 +875,8 @@ function finishAll(win) {
     }
   }
 
+  autoSellLoot();
+
   try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
   renderResult(S.applied.win != null ? S.applied.win : win);
 }
@@ -1024,6 +1026,8 @@ function renderResult(win) {
     reward.appendChild(lootAutoEquipBlock(items));
   } else {
     reward.appendChild(el('div', { class: 'tiny faint', text: win ? '쓸 만한 전리품은 없었다.' : '전리품은 없다.' }));
+  const soldLine = autoSoldLine();
+  if (soldLine) reward.appendChild(soldLine);
   }
   root.appendChild(reward);
 
@@ -1056,6 +1060,47 @@ function renderResult(win) {
       ? el('button', { class: 'btn lg', onClick: () => { finalizeDays(); go('company'); } }, '전직하러 가기')
       : null,
     el('span', { class: 'tiny faint', text: '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다.' })));
+}
+
+/* ─────────────────────────── 전리품 자동 판매 ─────────────────────────── */
+
+/**
+ * 설정된 등급 이하의 전리품을 그 자리에서 판다 (`state.autoSellRarity`, -1 = 끔).
+ *
+ * ★ 팔 수 있는지는 반드시 `Gear.isSellable` 로 묻는다 — 신화(세트)·착용 중 판정의
+ *   유일한 출처다. `sellItem` 자체는 아무것도 안 막으므로 여기서 안 거르면 세트 조각이 팔린다.
+ *   (자동 판매는 되돌릴 수 없어서, 이 한 줄이 없으면 던전 보상이 조용히 사라진다.)
+ */
+function autoSellLoot() {
+  if (!S || !S.applied) return;
+  const th = Math.round(Number(state.autoSellRarity));
+  if (!Number.isFinite(th) || th < 0) return;
+
+  const items = (S.applied.items || []).filter(Boolean);
+  if (!items.length) return;
+
+  const keep = [];
+  const sold = [];
+  let gold = 0;
+  for (const it of items) {
+    if ((it.rarity || 0) > th || !isSellable(it, state)) { keep.push(it); continue; }
+    const r = sellItem(state, it.uid);
+    if (r && r.ok) { gold += r.gold; sold.push(it); } else keep.push(it);
+  }
+  if (!sold.length) return;
+
+  S.applied.items = keep;
+  S.autoSold = { count: sold.length, gold, names: sold.map((x) => x.name) };
+  addLog(`전리품 ${sold.length}점을 현장에서 팔아 ${num(gold)}G를 챙겼다.`);
+}
+
+/** 결과 화면에 붙는 자동 판매 한 줄 */
+function autoSoldLine() {
+  const a = S && S.autoSold;
+  if (!a) return null;
+  return el('div', { class: 'tiny', style: { marginTop: '8px', color: 'var(--gold-dim)', lineHeight: '1.5' } },
+    `자동 판매 ${a.count}점 → +${num(a.gold)}G`,
+    el('div', { class: 'faint', text: a.names.join(' · ') }));
 }
 
 /* ─────────────────────────── 전리품 자동 착용 ─────────────────────────── */

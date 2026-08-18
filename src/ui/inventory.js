@@ -255,7 +255,9 @@ function setIdOfItem(item) {
 /** 신화(세트) 아이템인가 */
 const isMythic = (it) => !!(it && ((it.rarity || 0) >= MYTHIC || it.mythic || setIdOfItem(it)));
 /** 팔 수 없는 장비인가 (던전 세트는 매각 대상이 아니다) */
-const isProtected = (it) => !!(it && (it.noSell === true || isMythic(it)));
+// 판매 가능 판정은 `gear.js isSellable` 이 유일한 출처다 —
+// 자동 판매(전투 결과)와 규칙이 갈리면 세트 조각이 한쪽에서만 팔린다.
+const isProtected = (it) => !GearAPI.isSellable(it);
 
 /** 세트 정의 목록 (data/sets.js 우선) */
 function setDefList() {
@@ -603,8 +605,8 @@ function headerPanel(owners, list) {
       el('div', { class: 'tiny faint', text: `미장착 ${free.length}점 · 매각 가능 ${sellable.length}점 / ${num(stock)}G (전부 팔면 약 ${num(sellable.reduce((a, it) => a + sellPrice(it), 0))}G)` }),
       el('div', { class: 'row wrap', style: { gap: '6px' } },
         el('button', { class: 'btn sm primary', onClick: openAutoEquipPicker }, '자동 착용'),
-        el('button', { class: 'btn sm', onClick: () => bulkSell(0, '일반') }, short('일반 판매', '일반 전부 판매')),
-        el('button', { class: 'btn sm', onClick: () => bulkSell(1, '일반·고급') }, short('일반·고급 판매', '일반·고급 전부 판매')))),
+        bulkSellControl())),
+    autoSellControl(),
     el('div', { class: 'tiny faint', text: '신화(세트) 장비는 판매되지 않습니다 — 던전에서만 나오는 한정 장비입니다.' }));
 }
 
@@ -920,6 +922,53 @@ function planCard(row) {
   card.__setBreak = breaks;
   if (breaks) card.style.borderColor = 'var(--bad)';
   return card;
+}
+
+/** 등급 이름 (일반~전설). 신화는 판매 대상이 아니라 목록에 없다. */
+const SELL_TIERS = ['일반', '고급', '희귀', '영웅', '전설'];
+
+/** 선택한 등급 **이하**를 한 번에 판다 */
+let bulkTier = 1;
+
+function bulkSellControl() {
+  const sel = el('select', {
+    onChange: (e) => { bulkTier = clamp(Number(e.target.value) || 0, 0, SELL_TIERS.length - 1); },
+    style: { minWidth: '92px' },
+  }, ...SELL_TIERS.map((n, i) => el('option', { value: String(i), text: `${n} 이하`, selected: i === bulkTier })));
+
+  return el('div', { class: 'row center', style: { gap: '6px' } },
+    sel,
+    el('button', {
+      class: 'btn sm',
+      onClick: () => bulkSell(bulkTier, SELL_TIERS.slice(0, bulkTier + 1).join('·')),
+    }, '일괄 판매'));
+}
+
+/**
+ * 의뢰 결과에서 자동으로 팔 등급. `state.autoSellRarity` (-1 = 끔).
+ * 전투 화면이 이 값을 읽어 그 자리에서 판다.
+ */
+function autoSellControl() {
+  const cur = Number.isFinite(state.autoSellRarity) ? state.autoSellRarity : -1;
+  const sel = el('select', {
+    onChange: (e) => {
+      const v = Number(e.target.value);
+      state.autoSellRarity = v >= 0 ? clamp(v, 0, SELL_TIERS.length - 1) : -1;
+      save();
+      toast(state.autoSellRarity < 0
+        ? '자동 판매를 껐습니다.'
+        : `의뢰 결과에서 ${SELL_TIERS[state.autoSellRarity]} 이하를 자동으로 팝니다.`, 'good');
+      refresh();
+    },
+    style: { minWidth: '92px' },
+  },
+    el('option', { value: '-1', text: '끔', selected: cur < 0 }),
+    ...SELL_TIERS.map((n, i) => el('option', { value: String(i), text: `${n} 이하`, selected: i === cur })));
+
+  return el('div', { class: 'row center wrap', style: { gap: '8px', marginTop: '6px' } },
+    el('span', { class: 'tiny faint', text: '의뢰 결과 자동 판매' }),
+    sel,
+    el('span', { class: 'tiny faint', text: cur < 0 ? '전리품을 그대로 창고에 넣습니다.' : '전투가 끝나면 그 자리에서 팔고 골드로 바꿉니다.' }));
 }
 
 function bulkSell(maxRarity, label) {
