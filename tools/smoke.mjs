@@ -1932,7 +1932,11 @@ section('펫 / 무한의 탑');
     if (loop !== TD.costRange(a, b)) costBad.push(`costRange(${a},${b})=${TD.costRange(a, b)} vs 루프 ${loop}`);
   }
   okAll(costBad, '층 비용 합산식이 루프와 일치', 4);
-  ok(TD.costRange(1, TD.TOWER_FLOORS) === 250500, '1~500층 누적 250,500G', `실제 ${TD.costRange(1, 500)}`);
+  // 값을 박아 두면 GOLD_PER_FLOOR 를 조정할 때마다 깨진다 — 공식과 일치하는지만 본다.
+  const wantTotal = TD.GOLD_PER_FLOOR * (TD.TOWER_FLOORS * (TD.TOWER_FLOORS + 1)) / 2;
+  ok(TD.costRange(1, TD.TOWER_FLOORS) === wantTotal,
+    `1~${TD.TOWER_FLOORS}층 누적이 등차수열 합과 일치 (${wantTotal.toLocaleString()}G)`,
+    `실제 ${TD.costRange(1, TD.TOWER_FLOORS)}`);
 
   // 5) '매달 1일' 판정 — dayOfWeek 만 보면 한 달에 4번 참이 된다(실제로 겪은 함정)
   const State = await import('../src/game/state.js');

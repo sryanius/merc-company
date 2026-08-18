@@ -140,7 +140,8 @@ function renderHud() {
   if (!hud) return;
   injectStyle();
   const city = state.cityId ? getCity(state.cityId) : null;
-  const upkeep = state.roster.reduce((a, m) => a + (m.upkeep || 0), 0);
+  // 대기 인원 할인이 들어간 실제 값. state.js dailyUpkeep 이 유일한 출처다.
+  const upkeep = GameState.dailyUpkeep(state);
   // 용병단 이름이 정해져 있으면 브랜드 자리에 그 이름을 건다. 없으면 예전처럼 '용병단'.
   const brand = (state.companyName || '').trim() || DEFAULT_BRAND;
   // 날짜는 년/월/주차가 본문이고 일차는 작게 병기한다 — 주차가 곧 개방 던전이라 눈에 띄어야 한다.

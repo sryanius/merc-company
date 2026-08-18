@@ -1088,6 +1088,48 @@ function maxHpOf(merc, idx) {
 }
 
 /**
+ * 부대에 배치되지 않은 단원(대기 인원)의 임금 배율.
+ *
+ * ★ 왜 필요한가: 부대 상한이 5 x 7 = 35 명인데 정원은 70 까지 늘릴 수 있다.
+ *   36번째 단원부터는 **수입 기여가 0인데 임금은 100% 낸다** — 정원을 늘리는 것이
+ *   순수한 손실이 되어, 실측 일수지가 정원 35 +810G / 50 -1,590G / 70 -4,790G 였다.
+ *   대기 인원을 싸게 두면 "예비를 두는 여유"라는 원래 의도가 살아난다.
+ *
+ * 0.25 는 실측으로 고른 값이다 (탑 비용 1/2 · 의뢰 보상 +20% 와 함께):
+ *   정원 35 +2,092G/일 · 50 +1,372G/일 · 70 +692G/일 — 전 구간 흑자.
+ */
+export const BENCH_UPKEEP_MULT = 0.25;
+
+/**
+ * 하루 총임금. **이 함수가 유일한 출처다** — 실제 차감(advanceDays)과 화면 표시가
+ * 서로 다른 식을 쓰면 "표시는 1만인데 2만이 빠지는" 버그가 된다.
+ * 합산 지점이 6곳이나 흩어져 있었으므로 전부 여기를 부르게 했다.
+ */
+export function dailyUpkeep(st = state) {
+  const assigned = new Set();
+  for (const sq of st.squads || []) {
+    for (const u of sq.memberUids || []) if (u) assigned.add(u);
+  }
+  let total = 0;
+  for (const m of st.roster || []) {
+    if (!m) continue;
+    const base = m.upkeep || 0;
+    total += assigned.has(m.uid) ? base : base * BENCH_UPKEEP_MULT;
+  }
+  return Math.round(total);
+}
+
+/** 한 단원이 실제로 내는 하루 임금 (대기면 할인 적용). 개별 표시용. */
+export function upkeepOfMerc(m, st = state) {
+  if (!m) return 0;
+  const base = m.upkeep || 0;
+  for (const sq of st.squads || []) {
+    if ((sq.memberUids || []).includes(m.uid)) return base;
+  }
+  return Math.round(base * BENCH_UPKEEP_MULT);
+}
+
+/**
  * n일 진행. 매일 임금 지출 / 부상 회복 / **원정 부대 복귀** / 도시 목록 만료를 처리한다.
  *
  * ※ 의뢰를 끝냈다고 여기가 자동으로 불리지는 않는다. 날짜는 플레이어가 직접 넘긴다
@@ -1115,7 +1157,7 @@ export function advanceDays(n = 1) {
     }
 
     // 임금
-    const due = Math.round(state.roster.reduce((a, m) => a + (m.upkeep || 0), 0));
+    const due = dailyUpkeep(state);
     if (due > 0) {
       if (state.gold >= due) {
         state.gold -= due;

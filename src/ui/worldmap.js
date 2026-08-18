@@ -466,7 +466,7 @@ function allCityPanel() {
 }
 
 function routeHelpPanel() {
-  const upkeep = state.roster.reduce((a, m) => a + (m.upkeep || 0), 0);
+  const upkeep = GameState.dailyUpkeep(state);
   const wounded = state.roster.filter((m) => isWounded(m, state.day));
   return el('div', { class: 'panel col' },
     el('h3', { text: '원정 준비' }),
@@ -1390,7 +1390,7 @@ function askTravel(toId) {
   if (!path.length || !Number.isFinite(days)) { toast('그 도시로 가는 길이 없습니다.', 'bad'); return; }
 
   const dest = getCity(toId);
-  const upkeep = state.roster.reduce((a, m) => a + (m.upkeep || 0), 0) * days;
+  const upkeep = GameState.dailyUpkeep(state) * days;
   const wounded = state.roster.filter((m) => isWounded(m, state.day));
   const evChance = Math.round(eventChance(days) * 100);
 

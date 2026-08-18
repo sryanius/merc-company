@@ -35,6 +35,8 @@ import * as StateAPI from '../game/state.js';
 import * as GearAPI from '../game/gear.js';
 import * as ItemsAPI from '../data/items.js';
 import * as SetsAPI from '../data/sets.js';
+// 임금은 대기 인원 할인이 걸리므로 state.js 의 dailyUpkeep/upkeepOfMerc 를 쓴다 (유일한 출처)
+import * as GameState from '../game/state.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -1133,7 +1135,7 @@ function squadBar() {
     el('span', { style: { color: 'var(--ink-dim)' }, text: `부대 ${chk.count} / ${MAX_SQUADS}` }),
     el('span', { style: full ? { color: 'var(--bad)', fontWeight: '700' } : {}, text: `단원 ${state.roster.length} / ${cap}` }),
     el('span', { style: free ? { color: 'var(--gold)' } : {}, text: `미배치 ${free}명` }),
-    el('span', { text: `하루 임금 ${num(state.roster.reduce((a, m) => a + (m.upkeep || 0), 0))}G` }),
+    el('span', { text: `하루 임금 ${num(GameState.dailyUpkeep(state))}G` }),
     el('span', { text: `보유 진형 ${state.formations.length}종` }),
     chk.count >= MAX_SQUADS
       ? el('span', { style: { color: 'var(--ink-faint)' }, text: '최대 부대 수에 도달했다' })
@@ -1907,7 +1909,7 @@ function markedMercs() {
 
 function dismissBar(list) {
   const sel = markedMercs();
-  const upkeep = sel.reduce((a, m) => a + (m.upkeep || 0), 0);
+  const upkeep = sel.reduce((a, m) => a + GameState.upkeepOfMerc(m, state), 0);
   const inSquad = sel.filter((m) => m.squadId).length;
   const pool = selectableIn(list);
 
@@ -2157,7 +2159,7 @@ function rosterCard(m) {
         el('div', { class: 'bar hp', style: { marginTop: '3px' } }, el('i', { style: { width: `${hpRatio * 100}%` } })))),
     el('div', { class: 'row spread center tiny', style: { marginTop: '7px' } },
       el('span', { class: 'num muted', text: `전투력 ${num(mercPower(m, state))}` }),
-      el('span', { class: 'num faint', text: `${m.upkeep || 0}G/일` })),
+      el('span', { class: 'num faint', text: `${GameState.upkeepOfMerc(m, state)}G/일` })),
     el('div', { class: 'row wrap', style: { gap: '4px', marginTop: '6px' } },
       el('span', { class: 'tag', style: { color: TIER_COLOR[c.tier] || 'var(--ink-faint)' }, text: TIER_NAME[c.tier] || `${c.tier}차` }),
       wounded ? el('span', { class: 'tag', style: { color: 'var(--bad)' }, text: `부상 ~${m.woundUntil}일` }) : null,
@@ -2262,7 +2264,7 @@ function openMercDetail(mercUid) {
       promoteProgressLine(m)),
     el('div', { class: 'tiny faint col center', style: { gap: '1px', textAlign: 'center' } },
       el('div', { text: sq ? `${sq.name} ${m.slotIndex + 1}번 자리` : '미배치' }),
-      el('div', { text: `일당 ${num(m.upkeep || 0)}G · 고용 ${num(m.hiredDay || 1)}일차` }),
+      el('div', { text: `일당 ${num(GameState.upkeepOfMerc(m, state))}G · 고용 ${num(m.hiredDay || 1)}일차` }),
       el('div', { text: `전투 ${num(m.battles || 0)}회 · 처치 ${num(m.kills || 0)}` }),
       isWounded(m, state.day) ? el('div', { style: { color: 'var(--bad)' }, text: `부상 — ${num(m.woundUntil)}일차 회복` }) : null),
     promoteBlock(m, () => { anim.stop(); }));
@@ -2880,7 +2882,7 @@ function askDismissMany(mercs) {
     .filter((m) => m && state.roster.some((r) => r.uid === m.uid));
   if (!list.length) { toast('해고할 단원을 먼저 고르세요.', 'bad'); return; }
 
-  const upkeep = list.reduce((a, m) => a + (m.upkeep || 0), 0);
+  const upkeep = list.reduce((a, m) => a + GameState.upkeepOfMerc(m, state), 0);
   const deployed = list.filter((m) => m.squadId);
   // 해고 환급금은 이 게임에 없다. 대신 착용 장비가 창고로 돌아온다 — 그 가치를 대신 보여준다.
   const refund = 0;

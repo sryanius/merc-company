@@ -463,7 +463,7 @@ function capPanel(cap) {
 
 function headerPanel({ city, tier, gate, cap, spec }, offers) {
   const openCount = offers.filter((o) => !o.hired).length;
-  const upkeep = state.roster.reduce((a, m) => a + (m.upkeep || 0), 0);
+  const upkeep = GameState.dailyUpkeep(state);
   const t = repTier(gate.rep);
   const specNames = spec.map((id) => getClass(id)).filter(Boolean);
 

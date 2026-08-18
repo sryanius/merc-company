@@ -353,7 +353,8 @@ function classSprite(cls, scale = 2) {
   }
 }
 
-const totalUpkeep = () => state.roster.reduce((a, m) => a + (m.upkeep || 0), 0);
+// 대기 인원 할인 포함 — 실제 차감(advanceDays)과 같은 식을 쓴다
+const totalUpkeep = () => GameState.dailyUpkeep(state);
 const cityQuests = (id) => state.quests?.[id]?.list || [];
 const cityTavern = (id) => state.tavern?.[id]?.list || [];
 const cityShop = (id) => state.shop?.[id]?.list || [];

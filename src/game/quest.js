@@ -196,6 +196,9 @@ export function normalizeQuest(q) {
 // 랭크 구간이 겹치지 않게 바뀌면서 랭크가 오를수록 권장 레벨도 반드시 올라간다.
 // 보상은 (60 + level*13) * RANK_MULT 이므로 레벨과 배율이 함께 올라 단조 증가가 유지된다.
 const RANK_MULT = [1, 1.7, 2.8, 4.5, 7.2, 11.5, 18];
+
+/** 의뢰 보상 **골드**에만 걸리는 전역 계수. 경제가 흔들리면 여기부터 만져라. */
+export const GOLD_MULT = 1.20;
 /** 랭크별 웨이브 수 [최소, 최대] */
 // 웨이브 수가 체감 난이도를 가장 크게 좌우한다(HP가 다음 웨이브로 이어지므로).
 // F는 항상 1웨이브, E는 1~2웨이브다. 초반 부대에게 2웨이브는 사실상 두 배 난이도다.
@@ -552,7 +555,10 @@ function buildReward(rank, level, type, waveCount, r, opts = {}) {
   //   골드·경험치: ×SUB_REWARD × (정예면 ×2.2) / 명성: ×SUB_REWARD × (정예면 ×1.5)
   const gxMult = (SUB_REWARD[sub] || 1) * (elite ? ELITE_REWARD : 1);
   const rnMult = (SUB_REWARD[sub] || 1) * (elite ? ELITE_RENOWN : 1);
-  const gold = Math.max(1, Math.round((60 + level * 13) * mult * gxMult * r.float(0.92, 1.12)));
+  // ★ GOLD_MULT — 후반 경제가 적자여서 넣은 전역 보상 계수.
+  //   임금은 레벨에 따라 초선형으로 느는데 보상 기울기가 못 따라가 정원 50 이상에서 일수지가
+  //   음수가 됐다(실측). 경험치·명성은 건드리지 않는다 — 성장 속도는 그대로 둬야 랭크 밸런스가 산다.
+  const gold = Math.max(1, Math.round((60 + level * 13) * mult * gxMult * GOLD_MULT * r.float(0.92, 1.12)));
   const exp = Math.max(1, Math.round(24 * EXP_SCALE * Math.pow(level, 1.5) * (1 + idx * 0.1) * (0.85 + waveCount * 0.12) * gxMult));
   const renown = Math.max(1, Math.round((1 + idx * 2 + Math.floor(level / 12)) * rnMult));
   const rolls = clamp(1 + Math.floor(idx / 2) + (r.chance(0.25 + idx * 0.05) ? 1 : 0), 1, 4);
