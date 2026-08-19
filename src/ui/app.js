@@ -17,6 +17,9 @@ const NAME_MAX = 20;
 /** 이름이 아직 없는 세이브에서 HUD에 쓸 기본 표기 */
 const DEFAULT_BRAND = '용병단';
 
+/** 봉인 확인용 암호. `ui/savefile.js` 와 **같은 값이어야 한다** (한쪽만 바꾸면 파일과 브라우저가 갈린다). */
+const LEGACY_PASSWORD = 'qwe123!@#';
+
 // short/icon 은 모바일 하단 탭 바 전용 표기다 (6칸을 360px 에 나눠야 해서 2글자로 줄인다).
 // PC 에서는 CSS 가 아이콘·축약을 숨기고 title 전체 이름만 보여준다 — 기존과 동일.
 const SCREENS = [
@@ -450,6 +453,57 @@ function promptNewGame({ overwrite = true, mandatory = false } = {}) {
   return close;
 }
 
+/**
+ * 업데이트 **이전에 저장된** 브라우저 세이브를 만났을 때 — 딱 한 번만 뜬다.
+ *
+ * 그 시절 세이브는 개발자도구로 값만 바꿔 놓은 것일 수 있어 한 번 걸러 낸다.
+ * 통과하면 표식이 찍혀 그 뒤로는 다시 안 묻는다.
+ * 암호를 못 넣으면 새 게임이고 그 순간 원래 진행 상황은 사라진다 — 그래서 미리 경고한다.
+ */
+function askLockedSave(held) {
+  renderHud();
+  $('#screen').innerHTML = '';
+  $('#screen').appendChild(el('div', { class: 'panel', style: { textAlign: 'center', padding: '40px 14px' } },
+    el('h3', { text: '이어서 하려면 암호가 필요합니다' })));
+
+  const input = el('input', { type: 'password', class: 'co-in', placeholder: '암호' });
+  const msg = el('div', { class: 'tiny', style: { color: 'var(--bad)', minHeight: '16px' } });
+  const s = held.summary || held;
+
+  modal({
+    title: '이전 버전 세이브 확인',
+    dismissable: false,
+    body: el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(340px, 80vw)' } },
+      el('div', { class: 'tiny muted' },
+        '이 세이브는 세이브 보호가 들어가기 **이전**에 저장된 것입니다. 한 번만 확인합니다 — '
+        + '통과하면 다음부터는 묻지 않습니다.'),
+      el('div', { class: 'tiny faint' },
+        `발견된 세이브: ${s.day ?? '?'}일차 · 골드 ${num(s.gold ?? 0)} · 단원 ${(held.roster || []).length}명`),
+      el('div', { class: 'tiny', style: { color: 'var(--bad)' } },
+        '암호 없이 진행하면 이 세이브는 사라지고 새 게임으로 시작합니다.'),
+      input, msg),
+    actions: [
+      {
+        label: '새 게임으로',
+        kind: 'ghost',
+        act: () => { promptNewGame({ overwrite: false, mandatory: true }); },
+      },
+      {
+        label: '이어서 하기',
+        kind: 'primary',
+        act: () => {
+          if (input.value !== LEGACY_PASSWORD) { msg.textContent = '암호가 맞지 않습니다.'; return false; }
+          if (!GameState.acceptLockedSave(held)) { msg.textContent = '세이브를 살리지 못했습니다.'; return false; }
+          toast('세이브를 이어서 불러왔습니다.', 'good');
+          go('city');
+          return true;
+        },
+      },
+    ],
+  });
+  setTimeout(() => input.focus(), 60);
+}
+
 /* ---------------- 따라하기 안내 ---------------- */
 
 /**
@@ -482,6 +536,12 @@ export function boot() {
     try { loaded = load() !== false; } catch (e) { console.warn('세이브 로드 실패, 새 게임으로 시작', e); loaded = false; }
   }
   if (loaded) { go('city'); return; }
+
+  /* ★ 봉인 검사에 걸린 세이브가 있으면 암호를 먼저 묻는다.
+   * load() 는 그 세이브를 **지우지 않고** 들고 있다 — 암호를 맞추면 그대로 이어진다.
+   * 못 맞추면 새 게임이다(진행 상황은 그때 사라진다). */
+  const held = GameState.takeLockedSave ? GameState.takeLockedSave() : null;
+  if (held) { askLockedSave(held); return; }
 
   // 세이브가 없거나 못 읽었다 — 곧장 newGame() 하지 않고 용병단 이름부터 받는다.
   renderHud();

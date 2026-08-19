@@ -640,11 +640,51 @@ export function hasSave() {
  *   정상 세이브로 로드되어 아무것도 없는 용병단으로 시작하게 된다(실제로 재현됨).
  *   seed 로 걸러 내면 어느 경로에서 save() 가 불려도 같은 사고가 나지 않는다.
  */
+/* ─────────────────── 업데이트 이전 세이브 관문 ───────────────────
+ * 봉인 이전 빌드의 브라우저 세이브는 개발자도구로 값만 바꿔 놓은 것일 수 있다.
+ * 그래서 **딱 한 번** 암호를 묻고, 통과하면 표식을 찍어 그 뒤로는 다시 안 묻는다.
+ *
+ * ★ 매번 검사하지 않는다. 표식이 있는지만 본다 —
+ *   즉 이건 "구버전 세이브 걸러내기"이지 상시 치트 방지가 아니다.
+ *   상시 검사는 플레이할 때마다 발목을 잡고, 어차피 이 코드를 읽으면 뚫린다.
+ *   내보낸 **파일** 쪽은 계속 체크섬을 본다(ui/savefile.js) — 거긴 주고받는 물건이라 다르다.
+ */
+
+/** 이 버전부터 찍는 표식. 값이 있으면 관문을 이미 지난 세이브다. */
+export const SEAL_MARK = 1;
+
+/** 관문을 지나야 하는 세이브인가 (= 표식이 없다) */
+export function needsUnlock(data) {
+  return !!data && typeof data === 'object' && !data.sealMark;
+}
+
+/**
+ * 마지막 load() 가 관문에 걸렸을 때 그 세이브를 보관해 둔다.
+ * 부팅 화면(app.js)이 가져가 암호를 묻는다 — **세이브를 지우지 않는 게 핵심**이다.
+ */
+let pendingLocked = null;
+export function takeLockedSave() {
+  const v = pendingLocked;
+  pendingLocked = null;
+  return v;
+}
+
+/** 암호를 맞춘 뒤 그 세이브를 적용한다 (표식이 찍혀 다음부터는 안 묻는다) */
+export function acceptLockedSave(data) {
+  if (!data || typeof data !== 'object') return false;
+  replaceState(data);
+  if (state.seed) rng.s = (state.seed >>> 0) || 1;
+  save();          // save() 가 표식을 찍는다
+  touch();
+  return true;
+}
+
 export function save() {
   const ls = storage();
   if (!ls) return false;
   if (!started()) return false;
   try {
+    state.sealMark = SEAL_MARK;                 // 관문을 지난 세이브라는 표식
     ls.setItem(SAVE_KEY, JSON.stringify(state));
     return true;
   } catch (e) {
@@ -672,6 +712,15 @@ export function load() {
     newGame();
     return false;
   }
+  /* ★ 업데이트 이전 세이브면 딱 한 번 암호를 묻는다 (표식이 없는 세이브).
+   * 세이브를 **지우지는 않는다** — 원본을 들고 있다가 암호를 맞추면 그대로 살린다. */
+  if (needsUnlock(data)) {
+    console.warn('[state] 업데이트 이전 세이브 — 암호 확인이 필요합니다.');
+    pendingLocked = data;
+    newGame();
+    return false;
+  }
+
   replaceState(data);
   if (state.seed) rng.s = (state.seed >>> 0) || 1;
   touch();
