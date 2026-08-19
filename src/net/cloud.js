@@ -127,6 +127,20 @@ function readSynced() {
 }
 const writeSynced = (v) => writeLS(SYNCED_KEY, v ? JSON.stringify(v) : null);
 
+/**
+ * 실패한 업로드의 재시도를 예약한다.
+ * ★ 예약은 **여기서만** 한다. 흩어 놓으면 `nextAt: 0` 같은 구멍이 생기고
+ *   (실제로 seed 확인 실패 경로에 그런 구멍을 냈다) 백오프가 통째로 무력해진다.
+ */
+function scheduleRetry(prevTries, rev, error) {
+  const tries = (prevTries || 0) + 1;
+  const wait = RETRY_MS[Math.min(tries - 1, RETRY_MS.length - 1)];
+  writeOutbox({ rev, tries, nextAt: Date.now() + wait, stalled: '' });
+  last = { at: Date.now(), ok: false, error, rev, seed: 0 };
+  clearTimeout(retryT);
+  retryT = setTimeout(flush, wait);
+}
+
 function cancelTimers() {
   clearTimeout(debounceT); debounceT = 0;
   clearTimeout(maxWaitT); maxWaitT = 0;
@@ -155,7 +169,7 @@ function currentSave() {
  */
 export function queuePush(opt = {}) {
   if (!ready()) return;
-  if (opt.now) { cancelTimers(); flush(); return; }
+  if (opt.now) { cancelTimers(); flush({ force: true }); return; }
 
   clearTimeout(debounceT);
   debounceT = setTimeout(flush, PUSH_DEBOUNCE_MS);
@@ -163,8 +177,11 @@ export function queuePush(opt = {}) {
   if (!maxWaitT) maxWaitT = setTimeout(flush, PUSH_MAX_WAIT_MS);
 }
 
-/** 실제 업로드. 겹쳐 불려도 한 번만 돈다. */
-async function flush() {
+/**
+ * 실제 업로드. 겹쳐 불려도 한 번만 돈다.
+ * @param {{force?:boolean}} [opt] force 면 백오프 대기를 무시한다 (사람이 직접 누른 경우)
+ */
+async function flush(opt = {}) {
   cancelTimers();
   if (inFlight || !ready()) return;
 
@@ -172,6 +189,20 @@ async function flush() {
   if (!cur || !cur.rev) return;              // 저장된 게 없다
 
   const box = readOutbox();
+
+  /* ★ 백오프를 **여기서** 지킨다.
+   *   예전에는 `nextAt` 을 쓰기만 하고 아무도 안 읽어서 지수 백오프가 장식이었다:
+   *   · `flush()` 첫 줄의 cancelTimers() 가 예약된 재시도 타이머를 지운다
+   *   · 그 뒤 아무 저장이나 한 번 일어나면 20초 뒤 flush 가 돌아 30분 백오프를 건너뛴다
+   *   · `retryPending()` 은 아예 1.5초로 덮어썼다
+   *   호출 경로가 셋이라 각각 고치면 또 새는 곳이 생긴다 — 관문을 하나로 모은다.
+   *   실패가 반복될 때 후반 세이브(수백 KB)를 20초마다 올리면 대역폭만 태운다. */
+  if (!opt.force && box && box.nextAt > Date.now()) {
+    clearTimeout(retryT);
+    retryT = setTimeout(flush, box.nextAt - Date.now());
+    return;
+  }
+
   if (box && box.stalled && box.rev >= cur.rev) return;
   /* 이미 서버가 받아 준 것과 같은 판·같은 rev 면 보낼 이유가 없다.
    * ★ seed 를 반드시 함께 본다 — 새 게임은 rev 가 1로 리셋되므로 rev 만 보면
@@ -188,8 +219,7 @@ async function flush() {
     if (!done || done.seed !== cur.seed) {
       const chk = await remoteMeta();
       if (!chk.ok) {                       // 확인을 못 했으면 올리지 않는다 (안전 우선)
-        last = { at: Date.now(), ok: false, error: chk.error, rev: cur.rev, seed: cur.seed };
-        writeOutbox({ rev: cur.rev, tries: (box?.tries || 0) + 1, nextAt: 0, stalled: '' });
+        scheduleRetry(box?.tries, cur.rev, chk.error);
         return;
       }
       if (chk.meta && chk.meta.seed !== cur.seed) {
@@ -229,12 +259,7 @@ async function flush() {
     }
 
     // 그 밖의 실패 — 조용히 백오프 재시도. 화면에는 아무것도 안 띄운다.
-    const tries = (box?.tries || 0) + 1;
-    const wait = RETRY_MS[Math.min(tries - 1, RETRY_MS.length - 1)];
-    last = { at: Date.now(), ok: false, error: res.error, rev: cur.rev };
-    writeOutbox({ rev: cur.rev, tries, nextAt: Date.now() + wait, stalled: '' });
-    clearTimeout(retryT);
-    retryT = setTimeout(flush, wait);
+    scheduleRetry(box?.tries, cur.rev, res.error);
   } finally {
     inFlight = false;
   }
@@ -244,8 +269,8 @@ async function flush() {
 export async function pushNow() {
   if (!ready()) return { ok: false, error: '클라우드가 꺼져 있다' };
   writeOutbox(null);                         // 백오프·정체 표시를 지우고 새로 시도
-  last = { at: 0, ok: false, error: '', rev: 0 };
-  await flush();
+  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
+  await flush({ force: true });              // 사람이 직접 눌렀다 — 기다리게 하지 않는다
   return { ok: last.ok, error: last.error };
 }
 
@@ -282,10 +307,13 @@ export function init() {
 function retryPending() {
   if (!ready()) return;
   const box = readOutbox();
-  if (box && box.stalled) return;            // 되감기 정체는 S7 이 풀어야 한다
-  // 앱을 다시 켠 직후라 아직 아무것도 안 올렸을 수 있다 — 조건 없이 한 번 본다
+  if (box && box.stalled) return;            // 사람이 골라야 풀리는 정체다
+
+  /* ★ 백오프를 덮지 않는다. 여기서 무조건 1.5초로 잡으면 앱을 앞뒤로 옮길 때마다
+   *   30분 백오프가 1.5초로 리셋된다 (실제로 그랬다). */
+  const wait = box && box.nextAt > Date.now() ? box.nextAt - Date.now() : 1500;
   clearTimeout(retryT);
-  retryT = setTimeout(flush, 1500);
+  retryT = setTimeout(flush, wait);
 }
 
 /* ─────────────────────────── 복원 (pull) ───────────────────────────
