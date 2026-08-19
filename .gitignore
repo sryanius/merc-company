@@ -21,3 +21,7 @@ node_modules/
 *.apk
 *.aab
 
+
+# Supabase CLI 로컬 상태 (프로젝트 연결 정보·임시 파일)
+supabase/.branches
+supabase/.temp

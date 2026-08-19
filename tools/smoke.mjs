@@ -2318,6 +2318,33 @@ section('세이브 관문');
   delete globalThis.localStorage;
 }
 
+/* ───────────────── 서버 공유 규칙 드리프트 ───────────────── */
+
+section('서버 공유 규칙');
+{
+  /* ★ 검증 규칙은 Edge Function 쪽에 **복사본**으로 산다 (supabase/functions/_shared/).
+   *   복사본은 반드시 썩는다 — 밸런스를 고치고 재배포를 안 하면 서버가 옛 규칙으로
+   *   판정해서 정상 플레이어를 거절하기 시작한다. 그게 조용히 일어나는 것만은 막는다. */
+  const { execFileSync } = await import('node:child_process');
+  let out = '';
+  let failed = false;
+  try {
+    out = execFileSync(process.execPath, ['tools/syncshared.mjs', '--check'], { encoding: 'utf8' });
+  } catch (e) {
+    failed = true;
+    out = String(e.stdout || e.message);
+  }
+  ok(!failed, '검증 규칙 복사본이 원본과 일치한다 (tools/syncshared.mjs --check)',
+    out.trim().split(/\r?\n/).slice(0, 6).join(' | '));
+
+  // 규칙 모듈이 의존성 0 모듈만 물고 있는가 — 서버(Deno)로 게임 전체가 딸려가면 안 된다
+  const fsm = await import('node:fs');
+  const pure = ['src/data/limits.js', 'src/data/abyss.js', 'src/data/tower.js'];
+  const impure = pure.filter((f) => (fsm.readFileSync(f, 'utf8').match(/^import /gm) || []).length > 0);
+  okAll(impure.map((f) => `${f} 에 import 가 생겼다`),
+    '규칙이 쓰는 데이터 모듈은 의존성 0 을 유지한다', pure.length);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

@@ -40,9 +40,9 @@
  *   그래서 상수를 `data/limits.js` 로 빼고 원래 자리에서는 다시 내보내게 했다.
  *   **여기에 새 import 를 추가할 때는 그 모듈의 import 도 0인지 확인해라.**
  *   (tools/syncshared.mjs 가 이 조건을 검사한다) */
-import { DEPTH_CAP, goldRange, weekIndex } from '../data/abyss.js';
-import { TOWER_FLOORS } from '../data/tower.js';
-import { MAX_LEVEL, DAYS_PER_WEEK, DAYS_PER_MONTH, MAX_SQUADS, ROSTER_CAP_MAX } from '../data/limits.js';
+import { DEPTH_CAP, goldRange, weekIndex } from './abyss.js';
+import { TOWER_FLOORS } from './tower.js';
+import { MAX_LEVEL, DAYS_PER_WEEK, DAYS_PER_MONTH, MAX_SQUADS, ROSTER_CAP_MAX } from './limits.js';
 
 /** 랭킹에 올라가는 값만 뽑아낸다. 세이브 전체를 서버에 판단시키지 않는다. */
 export function extractScore(st) {

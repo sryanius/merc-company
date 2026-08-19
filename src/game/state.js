@@ -12,6 +12,15 @@ import { companyName as genCompanyName } from '../data/names.js';
 import { PETS_PER_SQUAD } from '../data/pets.js';
 import { TOWER_FLOORS } from '../data/tower.js';
 import { DEPTH_CAP } from '../data/abyss.js';
+/* ★ 달력 상수의 **정의는 `data/limits.js` 한 곳**이다 (의존성 0 모듈).
+ *   랭킹 검증이 서버(Deno)에서도 돌아야 하는데 state.js 는 import 가 14개라
+ *   상수 하나 읽자고 게임 전체를 끌고 가게 된다. 여기서는 받아서 다시 내보낸다 —
+ *   기존 `import { DAYS_PER_WEEK } from './state.js'` 는 전부 그대로 동작한다. */
+import {
+  DAYS_PER_WEEK as LIMIT_DAYS_PER_WEEK,
+  WEEKS_PER_MONTH as LIMIT_WEEKS_PER_MONTH,
+  DAYS_PER_MONTH as LIMIT_DAYS_PER_MONTH,
+} from '../data/limits.js';
 // 순환 참조(state <-> quest, state <-> gear/merc/squad)를 안전하게 다루려고 네임스페이스로 받는다.
 // 최상위에서는 절대 호출하지 않는다.
 import * as Merc from './merc.js';
@@ -186,13 +195,13 @@ const touch = () => bus.emit('change');
  * UI 표기는 `calendarLabel()` 의 `3년 7월 2주차 (245일차)` 형태로 통일한다. */
 
 /** 1주의 일수 */
-export const DAYS_PER_WEEK = 7;
+export const DAYS_PER_WEEK = LIMIT_DAYS_PER_WEEK;
 /** 1개월의 주 수 */
-export const WEEKS_PER_MONTH = 4;
+export const WEEKS_PER_MONTH = LIMIT_WEEKS_PER_MONTH;
 /** 1년의 개월 수 */
 export const MONTHS_PER_YEAR = 12;
 /** 1개월의 일수 (28) */
-export const DAYS_PER_MONTH = DAYS_PER_WEEK * WEEKS_PER_MONTH;
+export const DAYS_PER_MONTH = LIMIT_DAYS_PER_MONTH;
 /** 1년의 일수 (336) */
 export const DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR;
 

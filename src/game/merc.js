@@ -1,5 +1,6 @@
 // 용병(Mercenary) 런타임 모델 — 생성 / 스탯 / 성장 / 전직 / 외형 레시피.
 // 순수 JS: 모듈 최상위에서 document·window·canvas를 만지지 않는다 (node import 가능).
+import { MAX_LEVEL as LIMIT_MAX_LEVEL } from '../data/limits.js';
 //
 // 주의: state.js 와는 순환 import 관계다. `globalState` 는 반드시 함수 "안"에서만 읽는다.
 import { clamp, clone, lerp } from '../core/util.js';
@@ -29,7 +30,11 @@ export const TIER_MULT = [1.00, 1.30, 1.66, 2.10];
 export const GROWTH_RATE = 0.085;
 /** 클래스 최고 차수 (= TIER_MULT 길이). 차수를 더 늘리면 여기만 따라온다. */
 export const MAX_TIER = TIER_MULT.length;
-export const MAX_LEVEL = 80;
+/* ★ 정의는 `data/limits.js` 에 있다 (의존성 0 모듈).
+ *   랭킹 검증이 서버(Deno)에서도 돌아야 하는데, 상수 하나 읽자고 merc.js 를 통째로
+ *   끌고 가면 게임 전체가 딸려 간다. 여기서는 **다시 내보내기만** 한다 —
+ *   기존 `import { MAX_LEVEL } from './merc.js'` 는 전부 그대로 동작한다. */
+export const MAX_LEVEL = LIMIT_MAX_LEVEL;
 /** 각 차수로 전직하는 데 필요한 레벨. 키 = 목표 차수 */
 export const PROMOTE_LEVEL = { 2: 15, 3: 35, 4: 55 };
 
