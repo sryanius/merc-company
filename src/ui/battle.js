@@ -13,6 +13,7 @@ import { questBattleDefs, applyQuestResult } from '../game/quest.js';
 import { canPromote, gainExp, mercStats, mercPower, promoteOptionsFor } from '../game/merc.js';
 import { autoEquipAll, SLOT_NAME, isSellable, sellItem } from '../game/gear.js';
 import { go, toast, confirmDlg } from './app.js';
+import * as Squad from '../game/squad.js';
 
 export const meta = { id: 'battle', title: '전투' };
 
@@ -185,6 +186,19 @@ function injectStyle() {
 .bt-log-enemy{color:#d09090}
 .bt-log-sys{color:var(--gold)}
 .bt-log-heal{color:var(--ok)}
+/* 판을 가르는 사건은 줄 전체 색으로 구분한다 — 전부 금색이면 웨이브 개시와 전멸이 같아 보인다 */
+.bt-log-wave{color:var(--gold);font-weight:700;letter-spacing:.04em}
+.bt-log-miss{color:#8a93a8}
+.bt-log-down{color:#ff7a6b;font-weight:700}
+.bt-log-downfoe{color:#9fd8a0}
+.bt-log-win{color:var(--gold);font-weight:800}
+.bt-log-lose{color:#ff6b5c;font-weight:800}
+/* 줄 안의 한 조각만 강조 (치명타 숫자 등) */
+.bt-mk{font-weight:700}
+.bt-mk-crit{color:#ffd166;text-shadow:0 0 6px rgba(255,209,102,.45)}
+.bt-mk-kill{color:#ff9d6b}
+.bt-mk-down{color:#ff7a6b}
+.bt-mk-miss{color:#a8b0c4}
 .bt-res-head{text-align:center;padding:18px 12px}
 .bt-res-head .verdict{font-size:34px;font-weight:900;letter-spacing:.14em}
 .bt-mvp{color:var(--gold);font-weight:700}
@@ -545,12 +559,31 @@ function placeGoBar() {
 const nameOf = (uid) => (S && S.info[uid] ? S.info[uid].name : '???');
 const sideOf = (uid) => (S && S.info[uid] ? S.info[uid].side : 'sys');
 
-function pushLog(text, kind = 'sys') {
+/**
+ * 전투 로그 한 줄.
+ *
+ * `text` 에 **부분 강조 마크업**을 쓸 수 있다 — `«…»` 로 감싼 조각에 `parts` 클래스가 붙는다.
+ * 줄 전체를 한 색으로만 칠하면 "62 피해" 와 "치명타! 62 피해" 가 구분이 안 된다.
+ * 예: pushLog(`${a} → ${b} «치명타» ${n} 피해`, 'ally', 'crit')
+ *
+ * @param {string} text
+ * @param {string} kind  줄 전체 색 (ally/enemy/heal/sys/down/miss/wave/win/lose)
+ * @param {string} [mark] «…» 안쪽에 붙일 추가 클래스
+ */
+function pushLog(text, kind = 'sys', mark = '') {
   if (!S) return;
-  S.lines.push({ text, kind });
+  S.lines.push({ text: String(text).replace(/[«»]/g, ''), kind });
   if (S.lines.length > 400) S.lines.splice(0, S.lines.length - 400);
   if (S.quiet || !S.logNode) return;
-  S.logNode.appendChild(el('div', { class: `bt-log-${kind}`, text }));
+
+  const row = el('div', { class: `bt-log-${kind}` });
+  for (const part of String(text).split(/(«[^»]*»)/g)) {
+    if (!part) continue;
+    if (part.startsWith('«') && part.endsWith('»')) {
+      row.appendChild(el('span', { class: `bt-mk ${mark ? `bt-mk-${mark}` : ''}`, text: part.slice(1, -1) }));
+    } else row.appendChild(document.createTextNode(part));
+  }
+  S.logNode.appendChild(row);
   while (S.logNode.childElementCount > LOG_MAX) S.logNode.removeChild(S.logNode.firstChild);
   S.logNode.scrollTop = S.logNode.scrollHeight;
 }
@@ -613,7 +646,7 @@ function startWave(i) {
     try { S.renderer.setBattle(b); } catch (e) { console.warn('[battle] setBattle 실패', e); }
   }
   const foes = b.units.filter((u) => u.side === 'enemy').length;
-  pushLog(`── ${i + 1}웨이브 개시 · 적 ${foes}기 ──`, 'sys');
+  pushLog(`── ${i + 1}웨이브 개시 · 적 ${foes}기 ──`, 'wave');
   return true;
 }
 
@@ -635,7 +668,13 @@ function consumeEvents(evs) {
         S.dealt[e.uid] = (S.dealt[e.uid] || 0) + amt;
         S.taken[e.targetUid] = (S.taken[e.targetUid] || 0) + amt;
         if (e.killed) S.kills[e.uid] = (S.kills[e.uid] || 0) + 1;
-        if (!S.externalLog) pushLog(`${nameOf(e.uid)} → ${nameOf(e.targetUid)} ${num(amt)}${e.crit ? ' 치명타!' : ''}${e.killed ? ' · 쓰러뜨렸다' : ''}`, sideOf(e.uid));
+        if (!S.externalLog) {
+          // 치명타·처치는 숫자만 봐서는 안 보인다 — 그 조각만 색을 달리한다
+          const dmg = e.crit ? `«치명타 ${num(amt)}»` : `${num(amt)} 피해`;
+          const kill = e.killed ? ' · «쓰러뜨렸다»' : '';
+          pushLog(`${nameOf(e.uid)} → ${nameOf(e.targetUid)} ${dmg}${kill}`,
+            sideOf(e.uid), e.killed ? 'kill' : (e.crit ? 'crit' : ''));
+        }
         break;
       }
       case 'heal': {
@@ -645,13 +684,21 @@ function consumeEvents(evs) {
         break;
       }
       case 'miss':
-        if (!S.externalLog) pushLog(`${nameOf(e.targetUid)}이(가) 공격을 흘려냈다.`, 'sys');
+        if (!S.externalLog) pushLog(`${nameOf(e.targetUid)}이(가) 공격을 «흘려냈다».`, 'miss', 'miss');
         break;
       case 'death':
-        if (!S.externalLog) pushLog(`${nameOf(e.targetUid)} 전투 불능.`, 'sys');
+        if (!S.externalLog) {
+          // 아군이 쓰러진 건 가장 크게 보여야 한다 — 판을 뒤집는 사건이다
+          const foe = sideOf(e.targetUid) === 'enemy';
+          pushLog(`${nameOf(e.targetUid)} «전투 불능».`, foe ? 'downfoe' : 'down', foe ? '' : 'down');
+        }
         break;
       case 'end':
-        if (!S.externalLog) pushLog(e.winner === 'ally' ? '적을 모두 쓰러뜨렸다.' : e.winner === 'enemy' ? '부대가 무너졌다...' : '양측 모두 물러섰다.', 'sys');
+        if (!S.externalLog) {
+          pushLog(e.winner === 'ally' ? '적을 모두 쓰러뜨렸다.'
+            : e.winner === 'enemy' ? '부대가 무너졌다...' : '양측 모두 물러섰다.',
+          e.winner === 'ally' ? 'win' : e.winner === 'enemy' ? 'lose' : 'sys');
+        }
         break;
       default:
         break;
@@ -1055,7 +1102,10 @@ function renderResult(win) {
     el('button', {
       class: canContinue ? 'btn lg' : 'btn primary lg',
       onClick: leaveBattle,
-    }, canContinue ? '여기서 그만' : (S && S.returnTo === 'dungeon' ? '던전으로 돌아가기' : '도시로 돌아가기')),
+    }, canContinue ? '여기서 그만'
+      : S && S.returnTo === 'dungeon' ? '던전으로 돌아가기'
+        : (S && S.mode === 'quest' && hasReadySquad()) ? '의뢰소로 돌아가기'
+          : '도시로 돌아가기'),
     (a.promotions || []).length
       ? el('button', { class: 'btn lg', onClick: () => { finalizeDays(); go('company'); } }, '전직하러 가기')
       : null,
@@ -1191,8 +1241,28 @@ function finalizeDays() {
   try { save(); } catch (e) { console.warn('[battle] 저장 실패', e); }
 }
 
+/**
+ * 아직 내보낼 부대가 남았는가 (원정 중이 아니고, 세울 수 있는 단원이 있는 부대).
+ * 의뢰를 마치고 어디로 돌아갈지 정하는 데 쓴다.
+ */
+function hasReadySquad() {
+  for (const sq of state.squads || []) {
+    if (!sq || sq.status === 'away') continue;
+    try {
+      const chk = Squad.canDeploy(state, sq.id);
+      if (chk && chk.ok) return true;
+    } catch (e) { /* 판정 실패는 '없음'으로 본다 */ }
+  }
+  return false;
+}
+
 function leaveBattle() {
-  const target = S && S.mode === 'quest' ? 'city' : (S && S.returnTo) || 'city';
+  /* 의뢰를 마치면 예전에는 무조건 도시로 갔다. 그런데 부대가 여럿이면
+   * 도시 → 의뢰소로 한 번 더 눌러야 다음 부대를 내보낼 수 있었다.
+   * **아직 내보낼 부대가 남았으면 의뢰소로** 돌려보낸다 — 그게 바로 할 일이다.
+   * 남은 부대가 없으면 도시로 간다(거기서 날짜를 넘겨야 하므로). */
+  let target = (S && S.returnTo) || 'city';
+  if (S && S.mode === 'quest') target = hasReadySquad() ? 'quests' : 'city';
   const params = (S && S.returnParams) || {};
   finalizeDays();
   go(target, params);

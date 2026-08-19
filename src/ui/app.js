@@ -238,7 +238,9 @@ export function modal({ title, body, actions = [], onClose, wide = false, dismis
   // wide 는 인라인 min-width 였는데 인라인은 미디어쿼리로 덮을 수 없어 폰에서 가로 스크롤을 만들었다.
   // 이제 `.modal.wide` 클래스(css/style.css)가 폭을 정한다 — PC 계산값은 그대로 760px.
   const box = el('div', { class: `modal${wide ? ' wide' : ''}` },
-    title ? el('header', { text: title }) : null,
+    // title 은 문자열이 보통이지만 **노드도 받는다** — 머리말에 버튼을 달 수 있어야 한다
+    //   (용병 상세의 이름 옆 수정 아이콘 등).
+    title ? (typeof title === 'string' ? el('header', { text: title }) : el('header', {}, title)) : null,
     el('div', { class: 'body' }, body),
     actions.length
       ? el('footer', {}, actions.map((a) => el('button', {

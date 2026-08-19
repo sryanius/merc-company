@@ -591,6 +591,11 @@ function formationModsOf(merc) {
 
 const STYLE_ID = 'company-style';
 const CSS = `
+/* 용병 상세 머리말의 이름 변경 아이콘 */
+.co-rename { flex:0 0 auto; padding:2px 9px; font-size:14px; line-height:1.3; opacity:.8; }
+.co-rename:hover { opacity:1; }
+@media (max-width: 767px) { .co-rename { font-size:16px; padding:4px 11px; } }
+
 /* 2단 레이아웃 — 왼쪽 편성판(고정), 오른쪽 명부(스크롤)
    좁은 화면에서는 co-left/co-right 를 display:contents 로 "녹여" 한 줄 그리드로 만든다.
    그래야 편성판의 sticky 기준 블록이 명부까지 포함하는 co-wrap 이 되어 끝까지 따라붙는다. */
@@ -2292,15 +2297,22 @@ export function openMercDetail(mercUid) {
     setBlock(m));
 
   modal({
-    title: `${m.name} — ${c.name || m.classId}`,
+    /* 이름 옆에 바로 수정 아이콘을 단다.
+     * 예전에는 하단 액션에 «이름 변경» 이 있었는데, 이름을 고치러 모달 끝까지 내려가야 했다. */
+    title: el('span', { class: 'row center', style: { gap: '8px', flexWrap: 'wrap' } },
+      el('span', { text: `${m.name} — ${c.name || m.classId}` }),
+      el('button', {
+        class: 'btn sm ghost co-rename',
+        title: '이름 변경',
+        'aria-label': '이름 변경',
+        // 모달 안에서 모달을 바로 열면 바깥 모달이 닫히며 같이 사라진다 — 다음 틱으로 미룬다
+        onClick: () => { anim.stop(); setTimeout(() => renameMerc(m), 0); },
+      }, '✎')),
     wide: true,
     body: el('div', { class: 'row wrap co-mbody', style: { alignItems: 'flex-start', gap: '16px' } }, left, right),
     onClose: () => anim.stop(),
     actions: [
       { label: '해고', kind: 'ghost danger', act: () => { anim.stop(); setTimeout(() => askDismiss(m), 0); } },
-      // 모달 안에서 모달을 바로 열면 바깥 모달이 닫히며 같이 사라진다 —
-      // 부대 이름 변경(askDismiss)과 같은 이유로 다음 틱으로 미룬다.
-      { label: '이름 변경', kind: '', act: () => { anim.stop(); setTimeout(() => renameMerc(m), 0); } },
       { label: '닫기', kind: '' },
     ],
   });
