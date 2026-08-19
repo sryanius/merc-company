@@ -36,6 +36,8 @@ import { authed } from './rest.js';
 import { SAVE_KEY, onSaved } from '../game/state.js';
 
 const ON_KEY = 'merc_cloud_on_v1';
+/** 서버 세이브를 적용하기 직전의 로컬 원본. 되돌릴 유일한 수단이라 반드시 남긴다. */
+const ROLLBACK_KEY = 'merc_cloud_rollback_v1';
 
 function storage() {
   try { return globalThis.localStorage || null; } catch { return null; }
@@ -243,6 +245,113 @@ function retryPending() {
   clearTimeout(retryT);
   retryT = setTimeout(flush, 1500);
 }
+
+/* ─────────────────────────── 복원 (pull) ───────────────────────────
+ * ★ 이 구간이 이 기능 전체에서 **가장 위험하다.** 잘못 고르면 플레이어의 진행이 사라진다.
+ *   그래서 규칙을 셋으로 못 박는다:
+ *
+ *   1. **자동으로 덮어쓰지 않는다.** 무엇을 할지는 여기서 정하지 않고
+ *      `{status, local, remote}` 로 알려만 준다 — 결정은 사람이 한다.
+ *   2. **로컬을 먼저 지킨다.** 서버가 최신이어도 물어보고, 거절하면 로컬이 이긴다.
+ *   3. **적용은 도시 화면에서만.** `replaceState` 는 state 의 키를 전부 지웠다 다시 채운다.
+ *      전투나 월드맵이 잡고 있던 배열 참조가 그 순간 유령이 된다.
+ */
+
+/** @typedef {{seed:number, rev:number, day:number, at:string}} Meta */
+
+/** 서버에 있는 세이브의 메타만 읽는다 (본문은 안 받는다 — 수백 KB다) */
+async function remoteMeta() {
+  const res = await authed(`${EP.saves}?select=seed,rev,day,updated_at`, {}, Auth);
+  if (!res.ok) return { ok: false, error: res.error, meta: null };
+  const row = Array.isArray(res.data) ? res.data[0] : null;
+  if (!row) return { ok: true, error: '', meta: null };          // 아직 올린 적 없다
+  return {
+    ok: true,
+    error: '',
+    meta: { seed: Number(row.seed) || 0, rev: Number(row.rev) || 0, day: Number(row.day) || 1, at: row.updated_at },
+  };
+}
+
+/**
+ * 서버와 로컬을 비교한다. **아무것도 바꾸지 않는다.**
+ * @returns {Promise<{ok:boolean, error:string, status:string, local:Meta|null, remote:Meta|null}>}
+ *   status:
+ *     `none`         서버에 세이브가 없다
+ *     `local-newer`  로컬 rev 가 높다 (올리면 된다)
+ *     `same`         같다
+ *     `remote-newer` 서버 rev 가 높다 — 물어봐야 한다
+ *     `other-run`    seed 가 다르다 = 다른 플레이스루 — 반드시 물어봐야 한다
+ *
+ * ★ `divergent` 가 참이면 **rev 순서와 진행 일수가 어긋난다.**
+ *   `rev` 는 "몇 번 저장했나"지 "얼마나 진행했나"가 아니다. 두 기기가 각각 오프라인으로
+ *   진행하면 5일차에서 천 번 저장한 쪽이 200일차에서 쉰 번 저장한 쪽을 이긴다 —
+ *   실제로 재현했다. 이때 rev 만 보고 판단하면 **200일차 세이브를 5일차로 덮으라고 권하게 된다.**
+ *   그래서 어긋남을 따로 알리고, 화면은 rev 가 아니라 **일수**를 기준으로 말한다.
+ */
+export async function compare() {
+  if (!ready()) return { ok: false, error: '클라우드가 꺼져 있다', status: 'off', local: null, remote: null };
+
+  const cur = currentSave();
+  const local = cur ? { seed: cur.seed, rev: cur.rev, day: cur.day, at: new Date(cur.savedAt).toISOString() } : null;
+
+  const r = await remoteMeta();
+  if (!r.ok) return { ok: false, error: r.error, status: 'error', local, remote: null };
+  if (!r.meta) return { ok: true, error: '', status: 'none', local, remote: null };
+
+  const remote = r.meta;
+  if (!local) return { ok: true, error: '', status: 'remote-newer', divergent: false, local, remote };
+  if (local.seed !== remote.seed) return { ok: true, error: '', status: 'other-run', divergent: false, local, remote };
+
+  const status = remote.rev > local.rev ? 'remote-newer'
+    : remote.rev < local.rev ? 'local-newer' : 'same';
+
+  /* rev 순서와 일수 순서가 반대면 두 기기가 갈라진 것이다.
+   * 어느 쪽도 자동으로 이기면 안 된다 — 반드시 사람이 고른다. */
+  const divergent = (status === 'remote-newer' && local.day > remote.day)
+    || (status === 'local-newer' && remote.day > local.day);
+
+  return { ok: true, error: '', status, divergent, local, remote };
+}
+
+/**
+ * 서버 세이브를 내려받아 **현재 상태로 올린다.**
+ *
+ * ★ 부르기 전에 화면이 안전한지 호출부가 확인해야 한다 (도시 화면 등).
+ *   여기서 화면을 검사하지 않는 이유는 net/ 이 ui/ 를 알면 안 되기 때문이다.
+ *
+ * @param {(data:object)=>boolean} apply 상태에 적용하는 함수 (state.importState)
+ */
+export async function adoptRemote(apply) {
+  if (!ready()) return { ok: false, error: '클라우드가 꺼져 있다' };
+
+  const res = await authed(`${EP.saves}?select=payload`, {}, Auth);
+  if (!res.ok) return { ok: false, error: res.error };
+  const row = Array.isArray(res.data) ? res.data[0] : null;
+  if (!row || !row.payload) return { ok: false, error: '서버에 세이브가 없다' };
+
+  let data = null;
+  try { data = JSON.parse(row.payload); } catch { return { ok: false, error: '서버 세이브를 읽지 못했다' }; }
+  if (!data || typeof data !== 'object') return { ok: false, error: '서버 세이브가 비어 있다' };
+
+  /* ★ 적용 **전에** 로컬 원본을 한 벌 남긴다.
+   *   여기서 뭔가 잘못되면 플레이어는 되돌릴 방법이 전혀 없다. 파일로 내보내기를
+   *   해 두라고 안내하는 것으로는 부족하다 — 코드가 알아서 남겨야 한다. */
+  const before = readLS(SAVE_KEY);
+  if (before) writeLS(ROLLBACK_KEY, before);
+
+  if (!apply(data)) {
+    return { ok: false, error: '세이브를 적용하지 못했다' };
+  }
+  // 적용된 내용이 곧 최신이다. 아웃박스의 정체 표시를 푼다.
+  writeOutbox(null);
+  last = { at: Date.now(), ok: true, error: '', rev: Number(data.rev) || 0 };
+  return { ok: true, error: '' };
+}
+
+/** 직전 `adoptRemote` 로 덮이기 전의 로컬 세이브 (없으면 null) */
+export function rollbackSave() { return readLS(ROLLBACK_KEY); }
+/** 되돌리기 백업을 버린다 */
+export function clearRollback() { writeLS(ROLLBACK_KEY, null); }
 
 /* ─────────────────────────── 상태 표시 ─────────────────────────── */
 

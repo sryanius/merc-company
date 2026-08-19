@@ -397,6 +397,12 @@ function doCloud() {
         },
       }, '지금 올리기')
       : null,
+    st.on
+      ? el('button', {
+        class: 'btn sm ghost', style: { alignSelf: 'flex-start' },
+        onClick: (ev) => { ev.currentTarget.closest('.modal') && maybeReconcile({ silent: false }); },
+      }, '서버와 맞추기')
+      : null,
     el('div', { class: 'sep' }),
     el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
       el('b', { text: '랭킹' }), '에 참여한다. 로그인 화면은 없다 — 계정이 자동으로 만들어진다.'),
@@ -438,6 +444,125 @@ function doCloud() {
             return true;
           },
         },
+    ],
+  });
+}
+
+/* ---------------- 클라우드 복원 ---------------- */
+
+/**
+ * 서버 세이브가 로컬보다 앞서 있으면 물어보고 가져온다.
+ *
+ * ★ **도시 화면에서만 돈다.** `replaceState` 는 state 의 키를 전부 지웠다 다시 채우므로,
+ *   전투나 월드맵이 잡고 있던 배열 참조가 그 순간 유령이 된다. 캔버스가 도는 화면에서
+ *   이걸 실행하면 다음 프레임에 죽는다.
+ *
+ * ★ **자동으로 덮어쓰지 않는다.** 로컬이 최신이면 아무것도 안 하고,
+ *   서버가 최신이어도 물어본다. 거절하면 로컬이 이긴다.
+ */
+let reconciling = false;
+
+export async function maybeReconcile({ silent = true } = {}) {
+  if (reconciling) return;
+  if (!Cloud.ready()) { if (!silent) toast('클라우드가 꺼져 있습니다.'); return; }
+  if (currentScreen() !== 'city') { if (!silent) toast('도시 화면에서만 확인할 수 있습니다.'); return; }
+
+  reconciling = true;
+  try {
+    const c = await Cloud.compare();
+    if (!c.ok) { if (!silent) toast(c.error || '서버를 확인하지 못했습니다.', 'bad'); return; }
+
+    /* ★ `local-newer` 라고 그냥 올리면 안 된다.
+     *   rev 는 저장 횟수지 진행도가 아니라서, 서버 쪽이 일수로는 훨씬 앞선 경우가 있다.
+     *   그때 조용히 올리면 **묻지도 않고 남의 진행을 덮는다.** divergent 면 무조건 묻는다. */
+    if (!c.divergent && (c.status === 'none' || c.status === 'same' || c.status === 'local-newer')) {
+      if (!silent) {
+        toast(c.status === 'local-newer' ? '이 기기가 더 최신입니다. 올리는 중입니다.' : '서버와 같습니다.', 'good');
+        if (c.status === 'local-newer') Cloud.queuePush({ now: true });
+      }
+      return;
+    }
+    askAdopt(c);
+  } finally {
+    reconciling = false;
+  }
+}
+
+/**
+ * 어느 쪽을 쓸지 묻는다. 양쪽 요약을 나란히 보여 주고 사람이 고른다.
+ *
+ * ★ 화면 문구와 기본 버튼은 **rev 가 아니라 진행 일수**로 정한다.
+ *   rev 로 "서버가 더 최신입니다" 라고 말하면, 5일차에서 천 번 저장한 세이브를
+ *   200일차 세이브보다 최신이라고 우기는 셈이 된다 (실제로 재현된 상황이다).
+ */
+function askAdopt(c) {
+  const other = c.status === 'other-run';
+  const localDay = c.local?.day || 0;
+  const remoteDay = c.remote?.day || 0;
+  /* 기본 강조를 어디에 줄지.
+   * ★ 갈렸으면(divergent) **어느 쪽에도 안 준다.** 한쪽을 강조하는 순간 그게 권고가 되는데,
+   *   갈린 상황에서는 코드가 옳은 쪽을 알 방법이 없다 — 저장 횟수와 진행 일수가 서로
+   *   반대를 가리키는 게 divergent 의 정의다. 사람이 읽고 고르게 두는 게 유일하게 안전하다. */
+  const primary = c.divergent ? 'none' : (remoteDay >= localDay ? 'remote' : 'local');
+  const side = (title, m, tone) => el('div', { class: 'col', style: { gap: '2px', flex: '1 1 140px' } },
+    el('div', { class: 'tiny', style: { fontWeight: '700', color: tone } , text: title }),
+    el('div', { class: 'tiny', text: m ? `${num(m.day)}일차` : '없음' }),
+    el('div', { class: 'faint tiny', text: m ? `저장 ${num(m.rev)}회` : '' }));
+
+  const msg = el('div', { class: 'tiny', style: { minHeight: '16px', color: 'var(--bad)' } });
+
+  modal({
+    title: other ? '다른 용병단이 서버에 있습니다'
+      : c.divergent ? '두 기기의 진행이 갈렸습니다'
+        : '다른 기기의 진행이 더 최신입니다',
+    dismissable: false,
+    body: el('div', { class: 'col', style: { gap: '10px', minWidth: 'min(380px, 86vw)' } },
+      el('div', { class: 'row', style: { gap: '14px' } },
+        side('이 기기', c.local, 'var(--ink)'),
+        side('서버', c.remote, 'var(--gold)')),
+      el('div', { class: 'sep' }),
+      el('div', { class: 'tiny muted' }, other
+        ? '서버에 저장된 것은 다른 용병단입니다(시드가 다릅니다). 하나를 고르면 다른 쪽은 이 기기에서 사라집니다.'
+        : c.divergent
+          ? `두 기기에서 각각 진행한 것으로 보입니다. 저장 횟수는 ${c.remote.rev > c.local.rev ? '서버' : '이 기기'}가 많지만 `
+            + `진행은 ${remoteDay > localDay ? '서버' : '이 기기'}가 앞섭니다 — 어느 쪽이 맞는지는 직접 고르셔야 합니다.`
+          : '다른 기기에서 더 진행한 세이브가 서버에 있습니다. 가져오면 이 기기의 진행은 덮입니다.'),
+      el('div', { class: 'tiny', style: { color: '#e8c27a' } },
+        '덮기 전에 이 기기의 세이브를 한 벌 남겨 둡니다. 잘못 골랐으면 되돌릴 수 있습니다.'),
+      msg),
+    actions: [
+      {
+        label: `이 기기 것을 쓴다 (${num(localDay)}일차)`,
+        kind: primary === 'local' ? 'primary' : 'ghost',
+        act: () => {
+          /* 로컬을 택했다 = 서버를 덮어야 한다. 그런데 서버 rev 가 더 높아서 그냥 올리면
+           * 되감기 방어에 막힌다. 로컬 rev 를 서버보다 위로 올려 다음 저장이 통과하게 한다. */
+          const bump = (c.remote?.rev || 0) + 1;
+          if ((state.rev || 0) < bump) state.rev = bump;
+          save();
+          Cloud.queuePush({ now: true });
+          toast('이 기기의 진행을 유지합니다.', 'good');
+          return true;
+        },
+      },
+      {
+        label: `서버 것을 가져온다 (${num(remoteDay)}일차)`,
+        kind: primary === 'remote' ? 'primary' : 'ghost',
+        act: async () => {
+          msg.style.color = 'var(--ink-faint)';
+          msg.textContent = '가져오는 중…';
+          const r = await Cloud.adoptRemote((data) => GameState.importState(data));
+          if (!r.ok) {
+            msg.style.color = 'var(--bad)';
+            msg.textContent = r.error || '가져오지 못했습니다.';
+            return false;
+          }
+          save();                          // 가져온 내용을 로컬에도 확정한다
+          toast('서버 세이브를 가져왔습니다.', 'good');
+          go('city');
+          return true;
+        },
+      },
     ],
   });
 }
@@ -643,7 +768,13 @@ export function boot() {
     // 그 경우도 사실상 새 게임이므로 이름부터 묻는다.
     try { loaded = load() !== false; } catch (e) { console.warn('세이브 로드 실패, 새 게임으로 시작', e); loaded = false; }
   }
-  if (loaded) { go('city'); return; }
+  if (loaded) {
+    go('city');
+    /* ★ boot() 는 동기로 둔다. 복원 확인은 화면이 뜬 **뒤에** 비동기로 붙인다 —
+     *   여기서 await 하면 네트워크가 느린 기기에서 첫 화면이 그만큼 늦게 뜬다. */
+    setTimeout(() => { maybeReconcile().catch((e) => console.warn('[app] 복원 확인 실패', e)); }, 1200);
+    return;
+  }
 
   /* ★ 봉인 검사에 걸린 세이브가 있으면 암호를 먼저 묻는다.
    * load() 는 그 세이브를 **지우지 않고** 들고 있다 — 암호를 맞추면 그대로 이어진다.
