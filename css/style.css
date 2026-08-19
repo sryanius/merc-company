@@ -378,4 +378,9 @@ table.data tbody tr:hover { background: rgba(255,255,255,.025); }
 
   /* 캔버스가 뷰포트를 넘지 않게 (모듈이 따로 크기를 지정하면 그쪽이 이긴다) */
   canvas { max-width: 100%; }
+
+  /* 터치 타겟 40px 하한. `.btn.sm` 쪽이 더 구체적이라 클래스를 겹쳐 특이도를 맞춘다.
+     월드맵·탑·나락의 "이동/등반/내려간다" 버튼이 전부 이 규칙을 쓴다. */
+  .btn.sm.wm-go { min-height: 40px; padding: 8px 14px; font-size: 13px; }
+  .wm-nb { padding: 6px 0; }
 }

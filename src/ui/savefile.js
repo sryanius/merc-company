@@ -4,7 +4,7 @@
 // 여기서는 세이브를 JSON 파일로 내려받고 다시 올릴 수 있게 한다. 서버도 로그인도 필요 없다.
 //
 // DOM을 쓰므로 game/ 이 아니라 ui/ 에 둔다 (SPEC §0: game/ 은 순수 JS 유지).
-import { state, save, load, SAVE_KEY, SAVE_VERSION } from '../game/state.js';
+import { state, save, load, SAVE_KEY, SAVE_VERSION, SEAL_MARK } from '../game/state.js';
 
 const APP_ID = 'merc-company';
 
@@ -201,6 +201,18 @@ export function importSaveText(text, opts = {}) {
   }
 
   payload.version = SAVE_VERSION;
+  /* ★ 관문 표식을 여기서 찍는다.
+   *
+   *   이걸 빼먹어서 **암호를 맞춰도 불러오기가 실패했다.** 아래 `load()` 는 localStorage 쪽
+   *   관문(`needsUnlock` = sealMark 가 없다)을 한 번 더 보는데, 옛 평문 파일의 본문에는
+   *   그 필드가 없으니 방금 통과시킨 세이브를 `load()` 가 다시 막아 세우고 `newGame()` 을
+   *   돌려 버린다 — 호출부에는 "세이브를 불러오지 못했습니다"만 남고, 그 사이에
+   *   **원래 하던 게임까지 날아간다.**
+   *
+   *   여기까지 왔다는 건 이 함수의 검사(봉인 해제 또는 암호 확인 + 형태 검사)를 전부
+   *   지났다는 뜻이다. 그게 곧 관문 통과다. 표식은 한 곳에서만 찍혀야 하므로
+   *   state.js 의 상수를 그대로 쓴다. */
+  payload.sealMark = SEAL_MARK;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   } catch (e) {

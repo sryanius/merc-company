@@ -2087,6 +2087,133 @@ section('황금 나락');
     '손상된 나락 필드를 로드에서 복구한다', `abyss=${JSON.stringify(a)}`);
 }
 
+/* ───────────────────── 세이브 관문 (암호) ───────────────────── */
+
+section('세이브 관문');
+{
+  /* 이 절이 있는 이유:
+   * "업뎃 이전 세이브면 딱 한 번만 암호를 묻는다" 를 구현했는데, **파일 불러오기 쪽에서
+   * 맞는 암호를 넣어도 실패했다.** importSaveText 가 payload 를 localStorage 에 쓴 뒤
+   * load() 를 부르는데, load() 는 sealMark 가 없으면 다시 관문을 세우고 newGame() 을 돌린다.
+   * 결과: 암호를 맞춘 사람이 세이브를 못 살리고 **하던 게임까지 날아갔다.**
+   * 관문이 두 곳(localStorage / 파일)이라 한쪽만 고치면 조용히 어긋난다 — 둘 다 여기서 잰다. */
+
+  // savefile.js 는 브라우저 저장소를 쓴다. node 에서 재려면 최소 스텁이 필요하다.
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: (k) => { mem.delete(k); },
+    clear: () => mem.clear(),
+  };
+  const State = await import('../src/game/state.js');
+  const SaveFile = await import('../src/ui/savefile.js');
+  const PW = 'qwe123!@#';
+
+  const snapshot = () => {
+    State.newGame(4242, '관문검사');
+    State.state.gold = 12345;
+    State.state.day = 77;
+    return JSON.parse(JSON.stringify(State.state));
+  };
+  const base = snapshot();
+  /** 봉인 이전에 내보내던 파일 (봉투 + state 평문) */
+  const legacyFile = () => {
+    const st = JSON.parse(JSON.stringify(base));
+    delete st.sealMark;
+    return JSON.stringify({
+      app: 'merc-company', saveVersion: State.SAVE_VERSION, exportedAt: '2026-08-01T00:00:00.000Z',
+      summary: { day: st.day, gold: st.gold, roster: st.roster.length, city: st.cityId },
+      state: st,
+    });
+  };
+  /** 아주 옛날: state 를 그대로 저장한 파일 */
+  const rawFile = () => {
+    const st = JSON.parse(JSON.stringify(base));
+    delete st.sealMark;
+    return JSON.stringify(st);
+  };
+  /** 다른 게임을 진행 중인 상태로 만든다 (실패한 불러오기가 이걸 날리면 안 된다) */
+  const inProgress = () => { State.newGame(1, '진행중'); State.save(); };
+
+  // 1) localStorage 관문 — 표식 없는 세이브는 한 번 붙잡고, 세이브를 지우지 않는다
+  const g1 = [];
+  const old = JSON.parse(JSON.stringify(base));
+  delete old.sealMark;
+  globalThis.localStorage.setItem(State.SAVE_KEY, JSON.stringify(old));
+  if (State.load() !== false) g1.push('표식 없는 세이브가 그냥 통과했다');
+  const held = State.takeLockedSave();
+  if (!held) g1.push('붙잡아 둔 세이브가 없다 — 원본이 사라졌다');
+  else if (held.day !== 77 || held.gold !== 12345) g1.push(`보관된 세이브가 다르다 (${held.day}일 ${held.gold}G)`);
+  okAll(g1, 'localStorage 관문이 옛 세이브를 붙잡고 원본을 지킨다', 3);
+
+  // 2) 암호 통과 후에는 다시 안 묻는다 ("딱 한 번" 계약)
+  const g2 = [];
+  if (!State.acceptLockedSave(held)) g2.push('acceptLockedSave 실패');
+  if (State.state.day !== 77 || State.state.gold !== 12345) g2.push('살린 세이브 내용이 다르다');
+  if (State.state.sealMark !== State.SEAL_MARK) g2.push('표식이 안 찍혔다');
+  if (State.load() !== true) g2.push('재부팅에서 세이브를 못 읽는다');
+  if (State.takeLockedSave()) g2.push('두 번째 부팅에서 또 묻는다 — "딱 한 번" 계약 위반');
+  okAll(g2, '암호를 통과하면 표식이 찍혀 다시 묻지 않는다', 5);
+
+  // 3) 파일 관문 — 암호 없이는 거절하고 needPassword 를 켠다
+  const g3 = [];
+  for (const [tag, text] of [['봉투형', legacyFile()], ['원시형', rawFile()]]) {
+    inProgress();
+    const r = SaveFile.importSaveText(text, {});
+    if (r.ok) g3.push(`${tag}: 암호 없이 통과했다`);
+    if (!r.needPassword) g3.push(`${tag}: needPassword 가 안 켜졌다 — 호출부가 암호를 못 묻는다`);
+    const r2 = SaveFile.importSaveText(text, { password: '틀린암호' });
+    if (r2.ok) g3.push(`${tag}: 틀린 암호로 통과했다`);
+    // ★ 실패한 불러오기가 진행 중이던 게임을 날리면 안 된다
+    if (State.state.day !== 1) g3.push(`${tag}: 실패한 불러오기가 진행 중이던 게임을 바꿨다 (${State.state.day}일차)`);
+  }
+  okAll(g3, '옛 형식 파일은 암호 없이 거절하고, 실패해도 진행 중인 게임을 안 건드린다', 8);
+
+  // 4) ★ 맞는 암호로는 반드시 살아나야 한다 (여기가 실제로 깨져 있던 지점)
+  const g4 = [];
+  for (const [tag, text] of [['봉투형', legacyFile()], ['원시형', rawFile()]]) {
+    inProgress();
+    const r = SaveFile.importSaveText(text, { password: PW });
+    if (!r.ok) { g4.push(`${tag}: 맞는 암호인데 실패했다 — "${r.error}"`); continue; }
+    if (State.state.day !== 77 || State.state.gold !== 12345) {
+      g4.push(`${tag}: 불러온 내용이 다르다 (${State.state.day}일 ${State.state.gold}G)`);
+    }
+    if (State.state.sealMark !== State.SEAL_MARK) g4.push(`${tag}: 표식이 안 찍혔다 — 다음 부팅에서 또 묻는다`);
+    if (State.load() !== true || State.takeLockedSave()) g4.push(`${tag}: 재부팅에서 또 관문에 걸린다`);
+  }
+  okAll(g4, '맞는 암호로 옛 파일을 살리면 그대로 이어지고 다시 안 묻는다', 6);
+
+  // 5) 봉인된(현재 형식) 파일은 암호를 묻지 않는다. 본문을 고치면 거절한다.
+  const g5 = [];
+  State.newGame(4242, '봉인검사');
+  State.state.gold = 555; State.state.day = 9; State.save();
+  const plain = JSON.stringify(State.state);
+  // exportSave 는 DOM 을 쓴다 — 봉투는 같은 규칙으로 직접 만든다
+  const sealedText = (() => {
+    const sum = (() => { let h = 2166136261 >>> 0; for (let i = 0; i < plain.length; i++) { h ^= plain.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; })();
+    function* ks(seed) { let x = (seed >>> 0) || 0x9e3779b9; for (;;) { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; yield x & 0xff; yield (x >>> 8) & 0xff; yield (x >>> 16) & 0xff; yield (x >>> 24) & 0xff; } }
+    const bytes = Buffer.from(plain, 'utf8');
+    const k = ks(sum ^ 0x4d455243);
+    const out = Buffer.alloc(bytes.length);
+    for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ k.next().value;
+    return JSON.stringify({ app: 'merc-company', saveVersion: State.SAVE_VERSION, seal: 1, sum, data: out.toString('base64') });
+  })();
+  inProgress();
+  const rs = SaveFile.importSaveText(sealedText, {});
+  if (!rs.ok) g5.push(`봉인 파일이 그냥 안 열린다 — "${rs.error}"`);
+  if (rs.needPassword) g5.push('봉인 파일인데 암호를 묻는다 — "그 이후로는 자유롭게" 계약 위반');
+  if (State.state.day !== 9) g5.push(`봉인 파일 내용이 다르다 (${State.state.day}일차)`);
+  const broken = JSON.parse(sealedText);
+  broken.data = `${broken.data.slice(0, -4)}AAAA`;
+  inProgress();
+  if (SaveFile.importSaveText(JSON.stringify(broken), {}).ok) g5.push('본문을 고친 봉인 파일이 통과했다');
+  if (State.state.day !== 1) g5.push('손상 파일 거절이 진행 중이던 게임을 건드렸다');
+  okAll(g5, '봉인된 파일은 암호 없이 열리고, 본문을 고치면 거절한다', 5);
+
+  delete globalThis.localStorage;
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
