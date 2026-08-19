@@ -2243,7 +2243,12 @@ function lineageBlock(m) {
     strip);
 }
 
-function openMercDetail(mercUid) {
+/**
+ * 단원 상세 모달. **다른 화면에서도 부를 수 있게 export 한다** (장비 화면의 단원별 표 등).
+ * 내부에서 쓰는 `redraw()` 는 app.js `refresh()`(= 지금 떠 있는 화면 다시 그리기)를 부를 뿐이라
+ * 용병단 화면이 안 떠 있어도 안전하다.
+ */
+export function openMercDetail(mercUid) {
   const m = state.roster.find((x) => x.uid === mercUid);
   if (!m) { toast('용병을 찾을 수 없습니다.', 'bad'); return; }
   const c = getClass(m.classId) || {};

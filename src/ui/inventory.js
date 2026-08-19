@@ -638,6 +638,24 @@ function headerPanel(owners, list) {
     el('div', { class: 'tiny faint', text: '신화(세트) 장비는 판매되지 않습니다 — 던전에서만 나오는 한정 장비입니다.' }));
 }
 
+/**
+ * 단원 상세를 **이 화면 위에** 띄운다 (장비 화면을 벗어나지 않는다).
+ *
+ * 모달 본문은 `ui/company.js` 가 갖고 있다 — 스프라이트 애니메이션·클래스 계보·전직 후보까지
+ * 붙은 화면이라 여기서 다시 만들 이유가 없다. 동적 import 로 그 함수만 빌려 온다
+ * (정적 import 하면 두 화면이 서로를 물어 순환 참조가 된다).
+ */
+async function openMercDetailHere(uid) {
+  try {
+    const mod = await import('./company.js');
+    if (typeof mod.openMercDetail === 'function') { mod.openMercDetail(uid); return; }
+    go('company', { mercUid: uid });          // 옛 빌드 폴백
+  } catch (e) {
+    console.warn('[inventory] 단원 상세 열기 실패', e);
+    go('company', { mercUid: uid });
+  }
+}
+
 /* ───────────────────── 단원별 착용 장비 한눈에 ───────────────────── */
 
 /** 펼침 상태 (화면을 다시 그려도 유지) */
@@ -710,7 +728,7 @@ function wornPanel() {
             class: 'iv-wmerc',
             style: { fontWeight: '700', color: GRADE_COLOR[m.grade] || 'var(--ink)' },
             title: '용병 상세 보기',
-            onClick: () => go('company', { mercUid: m.uid }),
+            onClick: () => openMercDetailHere(m.uid),
           }, m.name),
           el('div', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1} · ${filled}/${SLOTS.length}칸` }),
           setTag ? el('div', { class: 'tiny', style: { color: MYTHIC_COLOR }, text: setTag }) : null),
