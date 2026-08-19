@@ -383,7 +383,10 @@ export function climb(st, squadId, opts = {}) {
   }
 
   // 기록 갱신
-  if (!st.tower) st.tower = { best: 0, lastRunDay: 0, lastRunFloor: 0 };
+  if (!st.tower) st.tower = { best: 0, bestDay: 0, lastRunDay: 0, lastRunFloor: 0 };
+  // ★ bestDay 는 '기록을 세운 날'이다. lastRunDay('마지막 입장일')와 다르다 —
+  //   랭킹 동점자를 가를 때 "누가 더 적은 일수로 도달했나"를 이걸로 본다.
+  if (reached > (st.tower.best || 0)) st.tower.bestDay = st.day || 0;
   st.tower.best = Math.max(st.tower.best || 0, reached);
   st.tower.lastRunDay = st.day || 0;
   st.tower.lastRunFloor = reached;

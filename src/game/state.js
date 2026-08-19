@@ -152,9 +152,9 @@ function defaultState() {
      * ★ dungeons 에 얹으면 안 된다 — normalizeDungeons 가 항목을 {bestWave, clearedAt}
      *   두 키로 재구성해 나머지 필드를 조용히 버린다.
      */
-    tower: { best: 0, lastRunDay: 0, lastRunFloor: 0 },
+    tower: { best: 0, bestDay: 0, lastRunDay: 0, lastRunFloor: 0 },
     /** 황금 나락 진행. `{ best, lastRunDay, lastRunDepth, lastGold }` — 주당 1회 판정에 lastRunDay 를 쓴다 */
-    abyss: { best: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 },
+    abyss: { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 },
     quests: {},
     tavern: {},
     shop: {},
@@ -387,6 +387,7 @@ function normalizeAbyss(st) {
   const a = st.abyss && typeof st.abyss === 'object' ? st.abyss : {};
   st.abyss = {
     best: clampInt(a.best, 0, DEPTH_CAP),
+    bestDay: clampInt(a.bestDay, 0, 1e9),
     lastRunDay: clampInt(a.lastRunDay, 0, 1e9),
     lastRunDepth: clampInt(a.lastRunDepth, 0, DEPTH_CAP),
     lastGold: clampInt(a.lastGold, 0, 1e12),
@@ -398,6 +399,7 @@ function normalizeTower(st) {
   const t = st.tower && typeof st.tower === 'object' ? st.tower : {};
   st.tower = {
     best: clampInt(t.best, 0, TOWER_FLOORS),
+    bestDay: clampInt(t.bestDay, 0, 1e9),
     lastRunDay: clampInt(t.lastRunDay, 0, 1e9),
     lastRunFloor: clampInt(t.lastRunFloor, 0, TOWER_FLOORS),
   };
@@ -732,6 +734,12 @@ export function save() {
   if (!started()) return false;
   try {
     state.sealMark = SEAL_MARK;                 // 관문을 지난 세이브라는 표식
+    /* ★ 기기 간 최신 판정용. 클라우드 세이브가 붙으면 "어느 쪽이 최신인가"를
+     *   이 둘로 정한다 — rev 가 1차 기준(단조 증가), savedAt 은 동률일 때만 본다.
+     *   savedAt 은 클라이언트 시계라 **신뢰하지 않는다**(기기 시각은 조작된다).
+     *   지금 넣어 두는 이유: 나중에 넣으면 그 사이 세이브들에는 이 값이 없다. */
+    state.rev = (Number(state.rev) || 0) + 1;
+    state.savedAt = Date.now();
     ls.setItem(SAVE_KEY, JSON.stringify(state));
     return true;
   } catch (e) {

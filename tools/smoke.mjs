@@ -2258,6 +2258,31 @@ section('세이브 관문');
   }
   okAll(g6, '1부대 전원 S 만 새 게임으로 돌린다 (임시 관문)', 14);
 
+  // 7) 랭킹용 계측 필드 — 정규화가 화이트리스트라 여기 빠지면 로드마다 조용히 사라진다
+  const g7 = [];
+  State.newGame(4242, '계측필드');
+  State.state.tower = { best: 120, bestDay: 57, lastRunDay: 57, lastRunFloor: 120 };
+  State.state.abyss = { best: 44, bestDay: 61, lastRunDay: 68, lastRunDepth: 40, lastGold: 1000 };
+  const round = JSON.parse(JSON.stringify(State.state));
+  State.importState(round);
+  if (State.state.tower.bestDay !== 57) g7.push(`tower.bestDay 가 왕복에서 사라졌다 (${State.state.tower.bestDay})`);
+  if (State.state.abyss.bestDay !== 61) g7.push(`abyss.bestDay 가 왕복에서 사라졌다 (${State.state.abyss.bestDay})`);
+  // rev 는 save() 마다 단조 증가해야 한다 (기기 간 최신 판정의 1차 기준)
+  const r0 = State.state.rev || 0;
+  State.save(); const r1 = State.state.rev;
+  State.save(); const r2 = State.state.rev;
+  if (!(r1 > r0 && r2 > r1)) g7.push(`rev 가 단조 증가하지 않는다 (${r0}→${r1}→${r2})`);
+  if (!(State.state.savedAt > 0)) g7.push('savedAt 이 안 찍힌다');
+  // 옛 세이브(필드 없음)도 깨지지 않고 0 으로 채워져야 한다
+  const legacy = JSON.parse(JSON.stringify(State.state));
+  delete legacy.rev; delete legacy.savedAt;
+  delete legacy.tower.bestDay; delete legacy.abyss.bestDay;
+  State.importState(legacy);
+  if (State.state.tower.bestDay !== 0 || State.state.abyss.bestDay !== 0) {
+    g7.push('옛 세이브에서 bestDay 가 0 으로 안 채워졌다');
+  }
+  okAll(g7, '랭킹용 계측 필드가 세이브 왕복을 견딘다', 6);
+
   delete globalThis.localStorage;
 }
 

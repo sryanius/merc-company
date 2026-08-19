@@ -275,7 +275,9 @@ export function dive(st, squadId, opts = {}) {
   //   중간에 예외가 나올 때 절반만 지급된 상태가 남는다.
   st.gold = (st.gold || 0) + gold;
 
-  if (!st.abyss) st.abyss = { best: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 };
+  if (!st.abyss) st.abyss = { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 };
+  // ★ bestDay = 기록을 세운 날 (lastRunDay = 마지막 입장일과 다르다). 랭킹 동점 판정용.
+  if (reached > (st.abyss.best || 0)) st.abyss.bestDay = st.day || 0;
   st.abyss.best = Math.max(st.abyss.best || 0, reached);
   st.abyss.lastRunDay = st.day || 0;
   st.abyss.lastRunDepth = reached;
