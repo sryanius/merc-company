@@ -20,8 +20,10 @@ import * as Sets from '../data/sets.js';
 import {
   CITIES, REGIONS, getCity, getRegion, cityRegion, cityBiome,
   travelDays, pathBetween, linkDays, neighbors,
+  citySpecialty, citiesForClass,
   TRAVEL_EVENTS, rollTravelEvent,
 } from '../data/world.js';
+import { getClass, BASE_CLASSES } from '../data/classes.js';
 import { buildEnemySquad } from '../data/enemies.js';
 import { questBattleDefs } from '../game/quest.js';
 import { canDeploy, squadMembers } from '../game/squad.js';
@@ -87,6 +89,14 @@ const CSS = `
 .wm-legend .lg { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-dim); }
 .wm-legend .dot { width:10px; height:10px; border-radius:50%; border:1px solid rgba(0,0,0,.5); }
 .wm-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; align-items:start; }
+/* 명물 색인 — 클래스 7행 × 도시 3개 */
+.wm-spec-row { display:flex; gap:8px; align-items:baseline; padding:5px 6px; border-radius:5px; cursor:pointer;
+  border:1px solid transparent; }
+.wm-spec-row:hover { background:rgba(255,255,255,.05); }
+.wm-spec-row.on { background:rgba(224,180,74,.13); border-color:var(--gold-dim); }
+.wm-spec-cls { flex:0 0 72px; font-weight:700; font-size:12px; }
+.wm-spec-cities { flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:2px 10px; }
+.wm-spec-city { font-size:11px; color:var(--ink-dim); font-variant-numeric:tabular-nums; }
 .wm-route { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .wm-route .leg { color:var(--ink-faint); font-size:11px; }
 /* .wm-ev / .wm-nb / .btn.sm.wm-go 는 css/style.css 로 옮겼다 —
@@ -112,6 +122,10 @@ const CSS = `
 }
 @media (max-width:767px) {
   .wm-cols { grid-template-columns:1fr; }
+  /* 폰 하한 12px. 터치 타겟도 같이 키운다 */
+  .wm-spec-city { font-size:12px; }
+  .wm-spec-cls { font-size:13px; flex-basis:66px; }
+  .wm-spec-row { padding:8px 6px; }
   .wm-tip { max-width:min(260px, 84vw); }
   .wm-tip .tiny { font-size:12px; }
   .wm-legend .lg { font-size:12px; }
@@ -147,6 +161,30 @@ let allCityEl = null;  // 전체 도시 목록 패널 (좁은 화면에서만 �
 
 /** 지도가 좁은가. 뷰포트가 아니라 **캔버스 실제 폭**으로 판단한다 (라벨 밀도의 문제라서) */
 const narrowMap = () => viewW < 560;
+
+/* ─────────────────────────── 명물(특화) 클래스 ───────────────────────────
+ * 도시마다 배출하는 1차 클래스가 1~2종 있고, **그 도시에서만 S등급이 나온다.**
+ * 그런데 지도에는 그 정보가 없어서 "검사 S를 뽑으려면 어디로 가야 하나"에 답하려면
+ * 도시를 하나씩 들어가 봐야 했다.
+ *
+ * ★ 캔버스에 글자를 늘리지 않는다. 라벨 겹침을 힘들게 잡아 놓은 참이라
+ *   여기서 두 줄을 더하면 그게 그대로 회귀가 된다. 표시는 전부 DOM 쪽(툴팁·패널)이고,
+ *   캔버스는 **알파(밝기)만** 건드린다 — 라벨 사각형과 배치 큐가 전혀 안 바뀐다.
+ */
+
+/** 이 도시의 명물 클래스 이름들 (없으면 빈 배열) */
+function specNamesOf(cityId) {
+  let ids = [];
+  try { ids = citySpecialty(cityId) || []; } catch (e) { ids = []; }
+  return ids.map((id) => getClass(id)).filter(Boolean).map((c) => c.name);
+}
+/** 한 줄 표기 — 구분자는 도시 화면과 같은 '·' (공백 없음) */
+const specLine = (cityId) => specNamesOf(cityId).join('·');
+
+/** 지금 고른 명물 필터 (클래스 id). null 이면 평소 화면 그대로다. */
+let specFilter = null;
+/** 필터 결과 줄 — 패널을 다시 만들지 않고 이 노드만 갈아 끼운다 */
+let specResultEl = null;
 
 /** hover 가 없는 입력인가 (폰·태블릿). 툴팁에만 정보를 두면 안 되므로 탭 흐름으로 바꾼다 */
 function noHover() {
@@ -294,6 +332,8 @@ export function render(root) {
   hoverDgId = null;
   selectedId = null;
   selectedDgId = null;
+  specFilter = null;         // 나갔다 오면 지도가 어두운 채로 뜨면 안 된다
+  specResultEl = null;
   // 해금 판정은 여기서 **한 번만**. draw() 는 초당 60번 도는데
   // Progress.unlocked 는 로스터 전체를 훑는 루프다.
   abyssOn = Progress.unlocked(Progress.FEATURES.ABYSS, state);
@@ -336,6 +376,7 @@ export function render(root) {
       // 좁은 화면에서만 보인다. 여기서 narrowMap() 을 못 쓰는 이유는 viewW 가 아직
       // layout() 전이라 이전 값이기 때문 — 그래서 항상 만들어 두고 layout() 이 표시를 정한다.
       (allCityEl = allCityPanel()),
+      specPanel(),
       dungeonPanel(),
       routeHelpPanel())));
 
@@ -432,7 +473,7 @@ function neighborPanel() {
       el('div', {},
         el('div', { style: { fontWeight: '600' }, text: c.name },
           el('span', { class: 'faint tiny', text: ` ${c.tier}등급` })),
-        el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${lk.days}일` })),
+        el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${lk.days}일${specLine(c.id) ? ` · 명물 ${specLine(c.id)}` : ''}` })),
       el('button', {
         class: 'btn sm wm-go', onClick: () => askTravel(c.id),
       }, '이동'));
@@ -468,7 +509,7 @@ function allCityPanel() {
         el('div', { class: 'grow' },
           el('div', { style: { fontWeight: '600', color: isHere ? 'var(--gold)' : 'var(--ink)' }, text: c.name },
             el('span', { class: 'faint tiny', text: ` ${c.tier}등급` })),
-          el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${isHere ? '현재 위치' : reachable ? `${days}일` : '길 없음'}` })),
+          el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${isHere ? '현재 위치' : reachable ? `${days}일` : '길 없음'}${specLine(c.id) ? ` · 명물 ${specLine(c.id)}` : ''}` })),
         isHere || !reachable
           ? el('span', { class: 'faint tiny', text: isHere ? '여기' : '—' })
           : el('button', { class: 'btn sm wm-go', onClick: () => askTravel(c.id) }, '이동'));
@@ -478,6 +519,60 @@ function allCityPanel() {
     el('h3', { text: '전체 도시' }),
     el('div', { class: 'muted tiny', text: '지도가 좁아 이름을 다 띄우지 못한다. 여기서 골라도 된다.' }),
     el('div', { class: 'col', style: { gap: '8px' } }, rows));
+}
+
+/* ─────────────────────────── 명물 색인 ───────────────────────────
+ * 플레이어의 실제 질문은 **역방향**이다 — "이 도시 명물이 뭐지"가 아니라
+ * "검사 S를 뽑으려면 어디로 가야 하지". 도시 14개를 나열하면 그 질문에 답하려고
+ * 머릿속에서 표를 뒤집어야 하므로, 클래스 7행으로 **뒤집어서** 보여 준다.
+ *
+ * ★ 행을 누르면 지도에서 해당 도시만 남고 나머지가 어두워진다.
+ *   캔버스는 rAF 로 계속 다시 그리므로 상태 변수 하나만 바꾸면 다음 프레임에 반영된다 —
+ *   패널을 다시 만들 필요가 없다(사이드 패널은 render() 때 한 번만 만들어진다).
+ */
+function specPanel() {
+  const here = state.cityId;
+
+  const rows = (BASE_CLASSES || []).map((id) => {
+    const cls = getClass(id);
+    if (!cls) return null;
+    let ids = [];
+    try { ids = citiesForClass(id) || []; } catch (e) { ids = []; }
+    const cities = ids.map((cid) => getCity(cid)).filter(Boolean);
+
+    const row = el('div', {
+      class: 'wm-spec-row',
+      onClick: () => {
+        specFilter = specFilter === id ? null : id;
+        for (const r of document.querySelectorAll('.wm-spec-row')) r.classList.remove('on');
+        if (specFilter) row.classList.add('on');
+        if (specResultEl) specResultEl.textContent = specFilter
+          ? `지도에서 ${cls.name}의 고장만 밝게 남겼다. 다시 누르면 해제.`
+          : '';
+      },
+    },
+      el('div', { class: 'wm-spec-cls', text: cls.name }),
+      el('div', { class: 'wm-spec-cities' },
+        ...cities.map((c) => {
+          const d = travelDays(here, c.id);
+          const isHere = c.id === here;
+          return el('span', {
+            class: 'wm-spec-city',
+            style: isHere ? { color: 'var(--gold)', fontWeight: '700' } : null,
+            // ★ tier 가 곧 등급 확률이다. 같은 명물이면 높은 tier 로 가는 게 맞다.
+            text: `${c.name} ★${c.tier}${isHere ? ' · 여기' : Number.isFinite(d) ? ` · ${d}일` : ' · 길없음'}`,
+          });
+        })));
+    return row;
+  }).filter(Boolean);
+
+  specResultEl = el('div', { class: 'faint tiny', style: { minHeight: '15px' } });
+
+  return el('div', { class: 'panel col' },
+    el('h3', { text: '명물 색인' }),
+    el('div', { class: 'muted tiny', text: '그 클래스의 S등급은 명물 도시에서만 나온다. 눌러 보면 지도에서 위치가 보인다.' }),
+    el('div', { class: 'col', style: { gap: '2px' } }, rows),
+    specResultEl);
 }
 
 function routeHelpPanel() {
@@ -706,7 +801,23 @@ function drawNodes() {
     const r = nodeR(c.tier || 1);
     const x = sx(c.x);
     const y = sy(c.y);
-    const alpha = isHere ? 1 : hovered ? 1 : adj.has(c.id) ? 0.92 : reachable ? 0.62 : 0.28;
+    let alpha = isHere ? 1 : hovered ? 1 : adj.has(c.id) ? 0.92 : reachable ? 0.62 : 0.28;
+    /* 명물 필터 — 고른 클래스의 고장만 남기고 나머지를 죽인다.
+     *
+     * ★ 알파만 건드린다. 라벨의 폭·높이·우선순위·force 는 그대로라 **배치 결과가 안 바뀐다** —
+     *   힘들게 잡아 놓은 라벨 겹침을 이 기능이 건드릴 여지가 구조적으로 없다.
+     *
+     * ★ 곱셈이 아니라 **상한**으로 죽인다. 곱하면 기준 알파가 이미 낮은 먼 도시(0.28)가
+     *   0.05 까지 떨어져 아예 사라진다. 지도에서 위치를 보려고 켠 기능인데 지도가
+     *   없어지면 안 된다. 반대로 맞는 도시는 거리와 무관하게 1로 올려 눈에 띄게 한다.
+     *   라벨 draw 콜백이 이 alpha 를 클로저로 잡으므로 이름도 같이 흐려진다(의도한 것).
+     *
+     * ★ 현재 위치는 절대 안 죽인다 — 내가 어디 있는지는 항상 보여야 한다. */
+    if (specFilter && !isHere) {
+      let match = false;
+      try { match = (citySpecialty(c.id) || []).includes(specFilter); } catch (e) { match = false; }
+      alpha = match ? 1 : Math.min(alpha, 0.15);
+    }
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -1436,6 +1547,12 @@ function showTip(city, mx, my) {
       el('span', { class: 'faint', text: '등급 ' }),
       el('span', { style: { color: 'var(--gold)' }, text: '★'.repeat(clamp(city.tier || 1, 0, 5)) + '☆'.repeat(clamp(5 - (city.tier || 1), 0, 5)) })),
     el('div', { class: 'tiny muted', text: `시설: ${services}` }),
+    // 명물 — 이 도시에서만 그 클래스의 S등급이 나온다. 목적지를 고르는 핵심 정보다.
+    specNamesOf(city.id).length
+      ? el('div', { class: 'tiny', style: { marginTop: '2px' } },
+        el('span', { class: 'faint', text: '명물 ' }),
+        ...specNamesOf(city.id).map((n) => el('span', { class: 'spec-badge', text: n })))
+      : null,
     el('div', { class: 'tiny muted', text: `의뢰: ${quests ? `${quests.length}건` : '미확인'}` }),
     el('div', { class: 'tiny', style: { marginTop: '4px', color: 'var(--gold)' }, text: city.id === state.cityId ? '현재 위치' : Number.isFinite(days) ? `이동 ${days}일` : '갈 수 없다' }),
     // 폰에는 hover 가 없다 — 다음에 뭘 해야 하는지 툴팁 안에서 말해 준다
