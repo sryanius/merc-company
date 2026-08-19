@@ -28,6 +28,9 @@ import { canDeploy, squadMembers } from '../game/squad.js';
 import { isWounded } from '../game/merc.js';
 import { go, toast, modal } from './app.js';
 import * as Tower from '../game/tower.js';
+import * as Abyss from '../game/abyss.js';
+import * as Progress from '../game/progress.js';
+import { ABYSS_POS, ABYSS_NODE_R } from '../data/abyss.js';
 
 export const meta = { id: 'world', title: '월드맵' };
 
@@ -163,6 +166,17 @@ const dungeonR = () => Math.max(narrowMap() ? 13 : 0, DUNGEON_R * scale);
 const TOWER_POS = { x: 150, y: 290 };
 const TOWER_R = 17;
 const towerR = () => Math.max(narrowMap() ? 14 : 0, TOWER_R * scale);
+
+/* ─────────────────────────── 황금 나락 ───────────────────────────
+ * 좌표는 `data/abyss.js` 에 있다 — UI 안에 숨겨 두면 계측 도구가 못 본다(탑의 전철).
+ * 판정 반경은 **던전과 글자 그대로 같은 식**을 쓴다. 좌표를 그 전제로 골랐기 때문에
+ * 여기를 키우면 폰에서 이웃 도시 터치 판정과 겹친다. */
+const abyssR = () => Math.max(narrowMap() ? 13 : 0, ABYSS_NODE_R * scale);
+
+/** 나락이 해금됐는가. ★ 프레임마다 계산하면 안 된다 — `Progress.unlocked` 는
+ *  로스터(최대 70명)를 도는 루프라 60fps × 70 이 된다. render() 에서 한 번만 잡는다.
+ *  월드맵에 머무는 동안 해금이 뒤집힐 일은 없다(레벨업은 전투 화면에서만 일어난다). */
+let abyssOn = false;
 /** 터치 판정 반지름 — 보이는 크기와 무관하게 최소 22px(도시)/26px(던전)은 잡아 준다 */
 const pickPad = () => (noHover() || narrowMap() ? 14 : 8 * scale);
 
@@ -280,6 +294,9 @@ export function render(root) {
   hoverDgId = null;
   selectedId = null;
   selectedDgId = null;
+  // 해금 판정은 여기서 **한 번만**. draw() 는 초당 60번 도는데
+  // Progress.unlocked 는 로스터 전체를 훑는 루프다.
+  abyssOn = Progress.unlocked(Progress.FEATURES.ABYSS, state);
 
   canvas = el('canvas');
   tip = el('div', { class: 'wm-tip hidden' });
@@ -522,6 +539,7 @@ function draw() {
   drawNodes();
   drawDungeons();   // 던전은 도시 위에 그린다 (가장 눈에 띄어야 한다)
   drawTower();      // 탑은 그보다 더 위 — 하나뿐이라 놓치면 안 된다
+  drawAbyss();      // 나락도 같은 층위 (해금 전에는 아무것도 안 그린다)
   flushLabels();    // 라벨은 노드를 다 그린 뒤 우선순위대로 자리를 잡아 맨 위에 얹는다
 }
 
@@ -1058,6 +1076,128 @@ function askTower() {
   go('tower');
 }
 
+/* ─────────────────────────── 황금 나락 노드 ───────────────────────────
+ * 탑이 **위로 솟은** 실루엣이라면 나락은 **아래로 뚫린** 갱구다.
+ * 도시=원 / 던전=마름모 / 탑=탑 / 나락=수직 갱구 — 네 개가 한눈에 갈려야 한다.
+ *
+ * ★ 색에 금빛(#e0b44a)을 쓰지 않는다. 그 색은 '현재 위치'가 독점하고 있다.
+ *   대신 청동색 구조물 안쪽에 금맥이 비치는 식으로 표현한다.
+ *
+ * ★ "어느 도시 아래에도 있는 갱도"라는 설정과 지도 위 한 점은 어긋나 보인다.
+ *   그래서 라벨 부제를 상태가 아니라 **성격**으로 쓴다 — '어느 도시에서나'.
+ *   실제로 도시 화면에서도 들어갈 수 있으므로 거짓이 아니다. */
+
+function drawAbyss() {
+  if (!abyssOn) return;                    // 해금 전에는 노드도 라벨도 히트도 없다
+
+  const open = Abyss.canEnter(state).ok;
+  const x = sx(ABYSS_POS.x);
+  const y = sy(ABYSS_POS.y);
+  const r = abyssR();
+  const best = state.abyss?.best || 0;
+
+  ctx.save();
+  ctx.globalAlpha = open ? 1 : 0.55;
+
+  if (open) {
+    const pulse = 1 + Math.sin(clock * 1.7) * 0.13;
+    const g = ctx.createRadialGradient(x, y, r, x, y, r * 3 * pulse);
+    g.addColorStop(0, 'rgba(212,150,60,.34)');
+    g.addColorStop(1, 'rgba(212,150,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 3 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 갱구 — 위가 넓고 아래로 좁아지는 역사다리꼴 (탑과 정확히 반대 방향)
+  const w = r * 1.05;
+  const h = r * 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - w, y - h * 0.45);
+  ctx.lineTo(x + w, y - h * 0.45);
+  ctx.lineTo(x + w * 0.5, y + h * 0.55);
+  ctx.lineTo(x - w * 0.5, y + h * 0.55);
+  ctx.closePath();
+  const fill = ctx.createLinearGradient(x, y - h * 0.45, x, y + h * 0.55);
+  fill.addColorStop(0, open ? '#7a5a2e' : '#4d3f2a');
+  fill.addColorStop(1, '#100c08');            // 아래로 갈수록 어둠 — 바닥이 없다
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = open ? '#b8823c' : 'rgba(150,124,90,.45)';
+  ctx.lineWidth = Math.max(1, 1.5 * scale);
+  ctx.stroke();
+
+  // 도르래 가로대 — 광산이라는 걸 알려 주는 유일한 장식
+  ctx.beginPath();
+  ctx.moveTo(x - w * 1.25, y - h * 0.45);
+  ctx.lineTo(x + w * 1.25, y - h * 0.45);
+  ctx.stroke();
+
+  // 갱 안쪽 금맥
+  if (open) {
+    ctx.fillStyle = 'rgba(240,192,90,.85)';
+    ctx.beginPath();
+    ctx.arc(x, y + h * 0.15, Math.max(1.2, r * 0.16), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* ── 라벨 ──
+   * prio 4.5 · force:false 가 이 라벨의 **계약**이다.
+   *   · 지금 큐의 최댓값이 4(기타 도시)라 4.5 면 항상 맨 뒤 = 남은 자리만 쓴다.
+   *   · 4 정각은 안 된다 — 안정 정렬이라 동점이면 draw() 호출 순서에 좌우된다.
+   *   · force:true 는 절대 금지. force 라벨은 자리를 못 찾아도 점유해 버려서
+   *     뒤에 오는 라벨을 밀어낸다. 지금도 열린 던전·열린 탑이 force 로 경쟁 중이다.
+   *   · 탑처럼 `open ? -2 : 3.2` 로 하면 안 된다. 나락은 주 1회라 거의 항상 열려 있어
+   *     사실상 상시 최우선이 되어 도시 라벨을 상시로 밀어낸다. */
+  const thin = narrowMap();
+  const fs = thin ? 13 : Math.max(10, Math.round(12 * scale));
+  const fs2 = thin ? 11 : Math.max(9, Math.round(10 * scale));
+  ctx.font = `700 ${fs}px ${FONT}`;
+  const w1 = ctx.measureText(Abyss.ABYSS_NAME).width;
+  const sub = open ? '어느 도시에서나' : (best ? `최고 ${best}심층` : '주 1회');
+  ctx.font = `${fs2}px ${FONT}`;
+  const w2 = ctx.measureText(sub).width;
+
+  queueLabel(4.5, {
+    x, y, r, force: false,
+    // 좁은 화면에서는 한 줄만 — 던전이 thin 에서 줄을 줄이는 것과 같은 규칙
+    w: thin ? w1 : Math.max(w1, w2),
+    h: thin ? fs : fs + 2 + fs2,
+    draw: (lx, ty) => {
+      ctx.save();
+      ctx.globalAlpha = open ? 1 : 0.7;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `700 ${fs}px ${FONT}`;
+      boxedText(Abyss.ABYSS_NAME, lx, ty, fs, open ? '#f0c05a' : '#b0a08c');
+      if (!thin) {
+        ctx.font = `${fs2}px ${FONT}`;
+        boxedText(sub, lx, ty + fs + 2, fs2, open ? 'rgba(212,150,60,.9)' : 'rgba(150,136,110,.85)');
+      }
+      ctx.restore();
+    },
+  });
+}
+
+/** 나락 히트 테스트. 해금 전이면 **아무것도 안 잡는다** (노드가 없으니 당연하다) */
+function pickAbyss(ev) {
+  if (!canvas || !abyssOn) return null;
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+  const dist = Math.hypot(sx(ABYSS_POS.x) - mx, sy(ABYSS_POS.y) - my);
+  const r = Math.max(abyssR() + pickPad(), noHover() ? 26 : 0);
+  return dist < r ? { mx, my } : null;
+}
+
+/** 나락 노드를 눌렀을 때. 이동 일수를 쓰지 않는다 — 갱도는 지금 있는 도시 아래에도 있다 */
+function askAbyss() {
+  if (traveling) return;
+  go('abyss', { from: 'world' });
+}
+
 /** 라벨 뒤에 어두운 판을 깔아 배경과 겹쳐도 읽히게 한다 */
 function boxedText(text, x, y, fs, color) {
   const w = ctx.measureText(text).width;
@@ -1182,6 +1322,16 @@ function onMove(ev) {
   // 터치 기기에서도 탭 직전에 mousemove 가 한 번 오는 브라우저가 있다.
   // 그걸 hover 로 처리하면 툴팁이 깜빡이고 선택 상태와 엇갈린다 — 탭 흐름에 맡긴다.
   if (noHover()) return;
+  /* ★ 나락을 던전보다 먼저 본다 (그리는 순서의 역순).
+   *   그리고 여기에 등록해야 커서가 pointer 로 바뀐다 — 탑은 이게 빠져 있어서
+   *   마우스를 올려도 화살표 그대로다(누를 수 있는데 눌릴 것처럼 안 보인다). */
+  if (pickAbyss(ev)) {
+    hoverDgId = null;
+    hoverId = null;
+    if (canvas) canvas.style.cursor = 'pointer';
+    showAbyssTip(ev);
+    return;
+  }
   // 던전이 도시보다 위에 그려지므로 판정도 던전이 먼저다.
   const dg = pickDungeon(ev);
   if (dg) {
@@ -1215,8 +1365,11 @@ function onLeave() {
  */
 function onClick(ev) {
   const touch = noHover();
-  // 탑이 가장 위에 그려지므로 판정도 가장 먼저다
+  // 그리는 순서의 역순으로 판정한다 — 위에 그려진 것이 먼저 잡혀야 한다.
+  // ★ 도시(pickCity)를 앞에 두면 안 된다. 나락 판정원이 이웃 도시와 스칠 때
+  //   도시가 먼저 가로채 나락이 영영 안 눌린다.
   if (pickTower(ev)) { askTower(); return; }
+  if (pickAbyss(ev)) { askAbyss(); return; }
   const dg = pickDungeon(ev);
   if (dg) {
     const d = dg.dungeon;
@@ -1320,6 +1473,40 @@ function showDungeonTip(d, mx, my) {
       text: open
         ? (noHover() ? '이번 주 개방 — 한 번 더 누르면 들어간다' : '이번 주 개방 — 클릭하면 들어간다')
         : `${d.week}주차에 열린다${wait ? ` (${wait}일 뒤)` : ''}`,
+    }),
+  );
+  tip.classList.remove('hidden');
+  placeTip(mx, my);
+}
+
+/**
+ * 나락 툴팁.
+ * ★ "어느 도시에서나 내려간다"를 여기서 못 박는다 — 지도 위 한 점으로 보이면
+ *   "저기까지 가야 하나?" 로 읽히는데, 실제로는 이동 일수를 쓰지 않는다.
+ */
+function showAbyssTip(ev) {
+  if (!tip || !canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+  const open = Abyss.canEnter(state).ok;
+  const best = state.abyss?.best || 0;
+  const wait = Abyss.daysUntilEntry(state);
+
+  tip.innerHTML = '';
+  tip.append(
+    el('div', { class: 'nm', style: { color: '#f0c05a' }, text: `▼ ${Abyss.ABYSS_NAME}` }),
+    el('div', { class: 'faint tiny', text: '도시 아래로 뚫린 옛 주조장 갱도' }),
+    el('div', { class: 'tiny muted', style: { marginTop: '4px' }, text: '골드만 나온다 — 장비·펫·경험치 없음' }),
+    el('div', { class: 'tiny muted', text: `깊이 내려갈수록 많이 캔다 · ${Abyss.VAULT_EVERY}심층마다 금고 ${Abyss.VAULT_MULT}배` }),
+    el('div', { class: 'tiny', style: { marginTop: '4px' }, text: best ? `최고 ${best}심층 (${Abyss.zoneOf(best)})` : '아직 내려간 적이 없다' }),
+    el('div', { class: 'tiny faint', text: '어느 도시에서든 내려간다 — 이동 일수를 쓰지 않는다' }),
+    el('div', {
+      class: 'tiny',
+      style: { marginTop: '2px', color: open ? '#f0c05a' : 'var(--ink-faint)', fontWeight: '700' },
+      text: open
+        ? (noHover() ? '이번 주 몫이 남았다 — 누르면 들어간다' : '이번 주 몫이 남았다 — 클릭하면 들어간다')
+        : `이번 주는 다녀왔다 (${wait}일 뒤)`,
     }),
   );
   tip.classList.remove('hidden');

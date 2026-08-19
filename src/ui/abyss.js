@@ -59,13 +59,20 @@ function injectStyle() {
 
 /* ─────────────────────────── 화면 ─────────────────────────── */
 
-export function render(root) {
+/**
+ * @param {HTMLElement} root
+ * @param {{from?:string}} [params] `from:'world'` 이면 나갈 때 월드맵으로 돌아간다.
+ *   ★ 진입로가 둘(도시 화면 · 월드맵 노드)이라 나가는 문도 둘이어야 한다.
+ *     탑 화면은 `go('world')` 로 고정돼 있어서 도시에서 들어가면 엉뚱한 데로 나간다.
+ */
+export function render(root, params = {}) {
   injectStyle();
   const st = state;
   const entry = Abyss.canEnter(st);
+  const back = params.from === 'world' ? 'world' : 'city';
 
   root.appendChild(el('div', { class: 'col', style: { gap: '12px' } },
-    header(st, entry),
+    header(st, entry, back),
     ledgerPanel(st),
     divePanel(st, entry),
     lastRun ? resultPanel(lastRun) : null,
@@ -73,7 +80,7 @@ export function render(root) {
   ));
 }
 
-function header(st, entry) {
+function header(st, entry, back = 'city') {
   const best = st.abyss?.best || 0;
   return el('div', { class: 'panel col', style: { gap: '10px' } },
     el('div', { class: 'row spread center', style: { gap: '10px', flexWrap: 'wrap' } },
@@ -82,7 +89,8 @@ function header(st, entry) {
         el('div', { class: 'col', style: { gap: '2px' } },
           el('div', { style: { fontWeight: '700' }, text: ABYSS_NAME }),
           el('div', { class: 'faint tiny', text: best ? `${zoneOf(best)} · 최고 기록` : '아직 내려간 적이 없다' }))),
-      el('button', { class: 'btn sm', onClick: () => go('city') }, '도시로')),
+      el('button', { class: 'btn sm', onClick: () => go(back) },
+        back === 'world' ? '월드맵으로' : '도시로')),
     el('div', { class: 'ab-zone' },
       ...[20, 50, 90, 140, 200].map((d) =>
         el('span', { class: best >= d ? 'on' : '', text: `${zoneOf(d)} ${d}` }))),
