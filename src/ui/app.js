@@ -169,7 +169,8 @@ function renderHud() {
       el('button', { class: 'btn sm', onClick: () => { save(); toast('저장했습니다.', 'good'); } }, '저장'),
       el('button', { class: 'btn sm ghost', title: '세이브를 파일로 내려받는다', onClick: doExport }, '내보내기'),
       el('button', { class: 'btn sm ghost', title: '세이브 파일을 불러온다', onClick: doImport }, '불러오기'),
-      el('button', { class: 'btn sm ghost', onClick: () => promptNewGame({ overwrite: hasSave() }) }, '새 게임')),
+      el('button', { class: 'btn sm ghost', onClick: () => promptNewGame({ overwrite: hasSave() }) }, '새 게임'),
+      el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기')),
     // 모바일 전용 펼치기 버튼. PC 에서는 CSS 가 숨긴다.
     el('button', {
       class: 'btn sm ghost hud-toggle',
@@ -200,6 +201,8 @@ function renderNav() {
     nav.appendChild(el('button', {
       class: active ? 'active' : '',
       disabled: current?.def.id === 'battle',   // 전투 중에는 내비 비활성 (기존 동작 유지)
+      // 튜토리얼이 이 버튼을 짚는다 — 클래스는 CSS 가 바뀔 때 같이 흔들리므로 전용 표식을 둔다
+      data: { nav: s.id },
       title: s.title,
       'aria-current': active ? 'page' : null,
       onClick: () => go(s.id),
@@ -305,6 +308,8 @@ function beginNewGame(name) {
   save();
   go('city');
   toast(`「${name}」 결성! 새 용병단이 세상에 나섰습니다.`, 'good');
+  // 새 용병단은 항상 처음이다 — 따라하기 안내를 띄운다 (건너뛰기 가능).
+  startTutorial();
 }
 
 /**
@@ -405,6 +410,26 @@ function promptNewGame({ overwrite = true, mandatory = false } = {}) {
   input.focus();
   input.select();
   return close;
+}
+
+/* ---------------- 따라하기 안내 ---------------- */
+
+/**
+ * 튜토리얼을 켠다. 모듈은 필요할 때만 받는다 (첫 로딩을 무겁게 하지 않는다).
+ * @param {boolean} force true 면 이미 본 사람도 다시 본다
+ */
+export async function startTutorial(force = false) {
+  try {
+    const tut = await import('./tutorial.js');
+    if (!force && tut.seen()) return;
+    // 화면 전환이 끝난 뒤 시작해야 첫 대상(하단 탭)을 찾을 수 있다
+    setTimeout(() => {
+      try { (force ? tut.restart : tut.start)({ screenOf: currentScreen, navigate: (id) => go(id) }); }
+      catch (e) { console.warn('[app] 튜토리얼 시작 실패', e); }
+    }, 400);
+  } catch (e) {
+    console.warn('[app] 튜토리얼 모듈을 불러오지 못했습니다', e);
+  }
 }
 
 /* ---------------- 부팅 ---------------- */

@@ -32,6 +32,7 @@
  */
 
 /* ★ 배포할 때마다 올려라.
+ * v13 — 따라하기 튜토리얼 + 진행도 해금 + 지금 할 일 안내.
  * v12 — 장비탭에서 화면 이동 없이 단원 상세 모달만 띄운다.
  * v11 — 자동착용이 대기 인원을 대상에서 제외 · 장비표 이름 클릭으로 단원 상세.
  * v10 — 장비표 부대별 구분 · 자동착용에 대기 해제 통합 · 이름변경 드래그 버그 · 툴팁 null.
@@ -43,7 +44,7 @@
  * v4 — 월드맵 탑 노드 / 정원 70 / 펫 자동배치 / 주점 특화 클래스 고정.
  * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
  * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
-const CACHE = 'merc-v12';
+const CACHE = 'merc-v13';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -103,6 +104,8 @@ const APP_SHELL = [
   './src/game/tower.js',
   './src/ui/tower.js',
   './src/ui/pets.js',
+  './src/game/progress.js',
+  './src/ui/tutorial.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-192.png',

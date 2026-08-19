@@ -30,6 +30,7 @@ import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
 import { go, refresh, toast, modal } from './app.js';
 import * as Tower from '../game/tower.js';
+import * as Progress from '../game/progress.js';
 
 export const meta = { id: 'city', title: '도시' };
 
@@ -62,6 +63,14 @@ const WOUND_SPEEDUP = GameState.REST_WOUND_SPEEDUP ?? 1; // 숙박 1일당 부�
 const REST_WOUND_STEP = 1 + WOUND_SPEEDUP;
 
 const CSS = `
+/* 「지금 할 일」 — 첫 화면에서 가장 먼저 눈에 들어와야 한다 */
+.city-next { border-color: rgba(224,180,74,.45); background: rgba(224,180,74,.07); }
+.city-next-t { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.4; }
+.city-next-tag { display:inline-block; font-size:11px; font-weight:700; color:var(--gold);
+                 background:rgba(224,180,74,.16); border-radius:99px; padding:1px 8px; margin-right:7px;
+                 vertical-align:middle; }
+@media (max-width: 767px) { .city-next-t { font-size: 14px; } .city-next-tag { font-size: 12px; } }
+
 .city-hero { display:flex; gap:20px; justify-content:space-between; flex-wrap:wrap; }
 .city-hero h2 { margin:0 0 4px; font-size:22px; letter-spacing:.02em; }
 .city-hero .desc { max-width:640px; }
@@ -715,6 +724,7 @@ export function render(root) {
   // city-screen = 모바일 규칙(글자 크기·배너 순서)을 이 화면 안으로만 한정하는 표식이다.
   const wrap = el('div', { class: 'col city-screen' });
   add(wrap,
+    nextStepPanel(),
     timePanel(city),
     woundedBanner(city),
     heroPanel(city, gate, repDelta),
@@ -843,6 +853,13 @@ function weekBlock() {
       ? el('span', { class: 'faint', text: `— ${now.name}${josa(now.name, '은/는')} 그때 닫힌다` })
       : null);
 
+  // 던전은 아직 안 열렸으면 통째로 감춘다 — 첫 화면 복잡도의 큰 몫이었다
+  if (!Progress.unlocked(Progress.FEATURES.DUNGEON, state)) {
+    return el('div', { class: 'city-week' },
+      el('span', { class: 'faint tiny', text: `이번 주: ${week}주차` }),
+      el('span', { class: 'faint tiny', text: `· ${Progress.lockHint(Progress.FEATURES.DUNGEON, state)}` }));
+  }
+
   return el('div', { class: 'city-week' },
     nowRow,
     nextRow,
@@ -857,6 +874,8 @@ function weekBlock() {
  * 탑은 **매달 1일에만** 열린다(주차가 아니다).
  */
 function towerRow() {
+  // 탑은 후반 컨텐츠다 — 조건 전에는 아예 안 보여 준다
+  if (!Progress.unlocked(Progress.FEATURES.TOWER, state)) return null;
   const entry = Tower.canEnter(state);
   const best = state.tower?.best || 0;
   const wait = Tower.daysUntilEntry(state);
@@ -867,6 +886,24 @@ function towerRow() {
       : el('span', { class: 'faint tiny', text: wait > 0 ? `· ${wait}일 뒤 (매달 1일)` : '· 이번 달은 다녀왔다' }),
     el('span', { class: 'faint tiny', text: best ? `최고 ${best}층` : '미등반' }),
     el('button', { class: 'btn sm ghost', onClick: () => go('tower') }, '탑으로'));
+}
+
+/**
+ * 「지금 할 일」 — 상황을 읽어 **한 가지만** 짚어 준다.
+ *
+ * 첫 화면이 글자 2,217자 · 버튼 30개인데 정작 "무엇부터 하나"가 없었다(실측).
+ * 여러 개를 나열하면 같은 문제가 되므로 game/progress.js 가 딱 하나만 돌려준다.
+ * 안내할 게 없으면(익숙해진 플레이어) 카드 자체가 안 뜬다.
+ */
+function nextStepPanel() {
+  const step = Progress.nextStep(state);
+  if (!step) return null;
+  return el('div', { class: 'panel city-next' },
+    el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
+      el('div', { class: 'col', style: { gap: '2px', minWidth: '0' } },
+        el('div', { class: 'city-next-t' }, el('span', { class: 'city-next-tag', text: '지금 할 일' }), step.title),
+        el('div', { class: 'tiny faint', text: step.why })),
+      step.go ? el('button', { class: 'btn sm primary', onClick: () => go(step.go) }, step.cta || '가기') : null));
 }
 
 /** 날짜를 n일 넘긴다. 임금·회복·목록 갱신은 advanceDays 가 처리한다. */
@@ -1054,6 +1091,8 @@ function facilityPanel(city) {
   const awayCount = state.squads.filter(isAway).length;
   const idleCount = state.squads.length - awayCount;
   const openDun = openDungeonAt();
+  // 던전이 아직 안 열렸으면 시설 설명에서도 언급하지 않는다 (신규 화면 정리)
+  const showDun = openDun && Progress.unlocked(Progress.FEATURES.DUNGEON, state) ? openDun : null;
 
   // 평판이 모자라면 주점은 들어갈 수는 있어도 고용이 잠긴다 — 카드에서 미리 알린다.
   const gate = tavernGate(city.id);
@@ -1089,8 +1128,8 @@ function facilityPanel(city) {
     facCard('월드맵',
       anyAway()
         ? '짐을 꾸리고 다음 도시로 향한다. 원정 나간 부대도 함께 끌려간다 — 복귀를 기다리는 편이 낫다.'
-        : `짐을 꾸리고 다음 도시로 향한다. 이동에는 날짜가 든다.${openDun ? ` 지도에는 이번 주 열린 ${openDun.name}도 찍혀 있다.` : ''}`,
-      `연결된 도시 ${linked}곳${openDun ? ` · ${dungeonWeekOf()}주차 던전 개방` : ''}`,
+        : `짐을 꾸리고 다음 도시로 향한다. 이동에는 날짜가 든다.${showDun ? ` 지도에는 이번 주 열린 ${showDun.name}도 찍혀 있다.` : ''}`,
+      `연결된 도시 ${linked}곳${showDun ? ` · ${dungeonWeekOf()}주차 던전 개방` : ''}`,
       true, () => go('world'), '',
       // .fac-badge 는 붉은 경고색이다 — 던전 안내를 여기 넣으면 위험 표시처럼 보인다.
       { action: '길 떠나기', badge: awayCount ? `원정 ${awayCount}개 부대` : null }),
