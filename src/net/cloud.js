@@ -355,7 +355,8 @@ function worthSubmitting(score) {
     || score.questsDone > (done.quests || 0);
 }
 
-let submitting = false;
+/** 지금 날고 있는 제출 (없으면 null). 겹친 호출은 이걸 기다린다. */
+let inflightSubmit = null;
 
 /**
  * 랭킹에 제출한다. 기록이 안 올랐으면 아무것도 안 한다.
@@ -364,17 +365,23 @@ let submitting = false;
  */
 export async function submitScore(opt = {}) {
   if (!ready()) return { ok: false, error: '클라우드가 꺼져 있다' };
-  /* 이미 보내는 중이면 그냥 넘어간다. 실패로 다루면 안 된다 —
-   * 저장 훅이 쏜 제출과 "지금 올리기" 버튼이 겹치면 화면에 빨간 오류가 뜬다. */
-  if (submitting) return { ok: true, skipped: true, error: '' };
+
+  /* ★ 겹친 호출을 **버리지 않고 기다린다.**
+   *   저장 훅이 save() 마다 제출을 쏘는데, 그게 날고 있는 동안 "지금 올리기" 를 누르면
+   *   예전에는 그냥 skipped 로 돌아왔다 — 눌러도 아무 일이 안 일어나는 것처럼 보였다
+   *   (실제로 실측에서 제출 시도가 전부 skipped 로 삼켜졌다).
+   *   앞선 요청을 기다린 뒤 이어서 판단하면, 그 사이 이미 올라갔으면
+   *   worthSubmitting 이 거르고 아니면 정상적으로 보낸다. */
+  if (inflightSubmit) {
+    try { await inflightSubmit; } catch { /* 앞 요청의 실패는 여기서 다루지 않는다 */ }
+  }
 
   let score = null;
   try { score = extractScore(state); } catch (e) { return { ok: false, error: String(e.message || e) }; }
   if (!score) return { ok: false, error: '점수를 읽지 못했다' };
   if (!opt.force && !worthSubmitting(score)) return { ok: true, skipped: true, error: '' };
 
-  submitting = true;
-  try {
+  const run = (async () => {
     const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { state } }, Auth);
     if (!res.ok) {
       // 함수가 아직 배포 안 됐으면 404 다. 조용히 넘어간다 — 다음 기록 때 다시 시도한다.
@@ -392,9 +399,10 @@ export async function submitScore(opt = {}) {
       seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
     }));
     return { ok: true, error: '' };
-  } finally {
-    submitting = false;
-  }
+  })();
+
+  inflightSubmit = run;
+  try { return await run; } finally { if (inflightSubmit === run) inflightSubmit = null; }
 }
 
 /** 순위표를 읽는다. 로그인 없이도 읽힌다 (누구나 보라고 만든 것이다). */
