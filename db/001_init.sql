@@ -300,8 +300,10 @@ language sql stable security definer set search_path = '' as $$
   limit least(greatest(coalesce(p_limit, 100), 1), 200);
 $$;
 
-revoke all on function public.leaderboard(text, integer) from public;
-grant execute on function public.leaderboard(text, integer) to authenticated;
+-- ★ 로그인 없이도 읽히게 둔다 (실측 확인: anon 으로 200 이 온다).
+--   순위표는 애초에 남에게 보여 주려고 만드는 것이고, 이 함수는 user_id·seed 를
+--   내보내지 않는다. 클라우드를 안 켠 사람도 순위는 볼 수 있어야 한다.
+grant execute on function public.leaderboard(text, integer) to anon, authenticated;
 
 
 /* keep-alive.

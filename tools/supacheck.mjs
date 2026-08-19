@@ -79,18 +79,46 @@ let missing = 0;
 for (const t of TABLES) {
   const r = await get(`${SUPABASE_URL}/rest/v1/${t}?select=*&limit=1`);
   if (r.json?.code === 'PGRST205') { fail(`${t} — 테이블이 없다`); missing++; }
-  else if (r.status === 200) pass(`${t} — 있다 (익명이 읽을 수 있다: 정책 확인 필요)`);
-  else if (r.status === 401 || r.status === 403) pass(`${t} — 있다 (RLS 가 막는다: 정상)`);
+  else if (r.status === 200 || r.status === 401 || r.status === 403) pass(`${t} — 있다`);
   else warn(`${t} — HTTP ${r.status} ${r.text.slice(0, 80)}`);
 }
 if (missing) console.log(`\n     → SQL Editor 에 db/001_init.sql 을 붙여넣고 실행해라.`);
+
+/* ── 4b. RLS 가 **실제로** 막는가 ──────────────────────────────
+ * ★ 읽기만으로는 판별이 안 된다. 테이블이 비어 있으면
+ *   "RLS 가 0행으로 걸렀다" 와 "권한이 열렸는데 마침 데이터가 없다" 가
+ *   똑같이 `200 []` 로 보인다. 그래서 **쓰기**를 시도한다.
+ *
+ *   42501 = RLS 가 거절 (정상). 그 밖의 응답 = 정책 구멍이다.
+ *   보내는 본문은 NOT NULL 컬럼을 일부러 빼 뒀다 — 만에 하나 RLS 가 통과시켜도
+ *   제약에 걸려 **아무것도 안 써진다.** 남의 디비에 쓰레기를 남기지 않는다. */
+console.log('\n── 4b. RLS 가 실제로 막는가 (쓰기 시도)');
+if (missing) {
+  warn('테이블이 없어 건너뛴다');
+} else {
+  for (const t of TABLES) {
+    let res;
+    try {
+      const raw = await fetch(`${SUPABASE_URL}/rest/v1/${t}`, {
+        method: 'POST',
+        headers: { ...H, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: '00000000-0000-0000-0000-000000000000' }),
+      });
+      res = { status: raw.status, json: await raw.json().catch(() => null) };
+    } catch (e) { warn(`${t} — 요청 실패 ${e.message}`); continue; }
+
+    if (res.json?.code === '42501') pass(`${t} — RLS 가 쓰기를 막는다`);
+    else if (res.status < 300) fail(`${t} — ★ 익명이 쓸 수 있다! 정책 구멍이다`);
+    else fail(`${t} — RLS 를 통과했다 (${res.json?.code || res.status}: ${res.json?.message || ''})`);
+  }
+}
 
 /* ── 5. 순위표 RPC ───────────────────────────────────────────── */
 console.log('\n── 5. 순위표 RPC');
 const lb = await get(`${SUPABASE_URL}/rest/v1/rpc/leaderboard?p_kind=abyss&p_limit=1`);
 if (lb.json?.code === 'PGRST202') fail('leaderboard() 함수가 없다 — 스키마 미적용');
-else if (lb.status === 401 || lb.status === 403) pass('있다 (로그인 필요: 정상)');
-else if (lb.status === 200) pass(`있다 — 현재 등재 ${Array.isArray(lb.json) ? lb.json.length : '?'}건`);
+else if (lb.status === 200) pass(`있다 — 등재 ${Array.isArray(lb.json) ? lb.json.length : '?'}건 (로그인 없이 읽힌다: 의도한 것)`);
+else if (lb.status === 401 || lb.status === 403) warn('로그인해야 읽힌다 — 순위표는 누구나 보는 편이 낫다');
 else warn(`HTTP ${lb.status} ${lb.text.slice(0, 100)}`);
 
 /* ── 결과 ──────────────────────────────────────────────────── */
