@@ -687,11 +687,43 @@ export function takeLockedSave() {
 /** 암호를 맞춘 뒤 그 세이브를 적용한다 (표식이 찍혀 다음부터는 안 묻는다) */
 export function acceptLockedSave(data) {
   if (!data || typeof data !== 'object') return false;
+  if (tripsResetRule(data)) { newGame(); return false; }   // 암호와 무관한 별개 관문
   replaceState(data);
   if (state.seed) rng.s = (state.seed >>> 0) || 1;
   save();          // save() 가 표식을 찍는다
   touch();
   return true;
+}
+
+/* ─────────────────── 임시 관문: 1부대 전원 S ───────────────────
+ * ★ **임시 조치다.** 세이브 봉인은 파일에만 걸려 있고 브라우저 저장소(localStorage)는
+ *   개발자도구로 그냥 고칠 수 있다. 고친 티가 가장 확실하게 나는 지점이
+ *   "1부대가 꽉 찬 채 전원 S등급" 이라, 그걸 만나면 새 게임으로 돌린다.
+ *
+ * ★ 이건 **언젠가 반드시 정상 플레이어에게도 걸린다.** S등급은 특화 도시에서 정상적으로
+ *   나오고, 이 게임은 애초에 "S를 모으는 것"이 목표다. 지금 넣는 근거는 오직
+ *   "아직 거기까지 간 사람이 없다"는 것뿐이므로, **누군가 정상적으로 도달하기 전에 빼야 한다.**
+ *
+ * ★ 판정을 "꽉 찬 부대"로 잡은 이유: 슬롯이 2개만 찬 부대가 우연히 둘 다 S인 건
+ *   중반에도 충분히 일어난다. 그걸로 세이브를 날리면 그게 더 큰 사고다.
+ */
+export function squadAllS(sq, roster) {
+  if (!sq || !Array.isArray(sq.memberUids)) return false;
+  const uids = sq.memberUids.filter(Boolean);
+  if (uids.length < sq.memberUids.length || !uids.length) return false;   // 빈 슬롯이 있으면 아니다
+  const byUid = new Map((roster || []).filter(Boolean).map((m) => [m.uid, m]));
+  for (const uid of uids) {
+    const m = byUid.get(uid);
+    if (!m || m.grade !== 'S') return false;
+  }
+  return true;
+}
+
+/** 이 세이브가 임시 관문에 걸리는가 (= 1부대가 꽉 찬 채 전원 S) */
+export function tripsResetRule(data) {
+  if (!data || typeof data !== 'object') return false;
+  const sq = (data.squads || [])[0];
+  return squadAllS(sq, data.roster);
 }
 
 export function save() {
@@ -727,6 +759,14 @@ export function load() {
     newGame();
     return false;
   }
+  /* ★ 임시 관문 — 1부대 전원 S 는 새 게임으로 돌린다 (위 squadAllS 주석 참고).
+   *   암호 관문보다 **앞**에 둔다: 어차피 못 쓸 세이브를 두고 암호를 묻는 건 의미가 없다. */
+  if (tripsResetRule(data)) {
+    console.warn('[state] 1부대 전원 S — 새 게임으로 시작합니다.');
+    newGame();
+    return false;
+  }
+
   /* ★ 업데이트 이전 세이브면 딱 한 번 암호를 묻는다 (표식이 없는 세이브).
    * 세이브를 **지우지는 않는다** — 원본을 들고 있다가 암호를 맞추면 그대로 살린다. */
   if (needsUnlock(data)) {

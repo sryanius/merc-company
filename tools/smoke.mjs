@@ -2211,6 +2211,53 @@ section('세이브 관문');
   if (State.state.day !== 1) g5.push('손상 파일 거절이 진행 중이던 게임을 건드렸다');
   okAll(g5, '봉인된 파일은 암호 없이 열리고, 본문을 고치면 거절한다', 5);
 
+  // 6) 임시 관문 — 1부대가 꽉 찬 채 전원 S 면 새 게임으로 돌린다
+  const g6 = [];
+  const mkSave = (grades) => {
+    State.newGame(4242, '전원S검사');
+    const st = State.state;
+    st.day = 88; st.gold = 7777;
+    st.roster = grades.map((g, i) => ({
+      uid: `s_${i}`, name: `단원${i}`, grade: g, classId: 'swordsman', level: 50,
+      equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0, upkeep: 10,
+    }));
+    st.squads = [{ id: 'sq0', name: '제1부대', memberUids: st.roster.map((m) => m.uid), formationId: 'basic', status: 'idle' }];
+    while (st.squads[0].memberUids.length < 7) st.squads[0].memberUids.push(null);
+    return JSON.parse(JSON.stringify(st));
+  };
+  const S7 = Array(7).fill('S');
+
+  // 걸려야 하는 경우
+  const trip = mkSave(S7);
+  if (!State.tripsResetRule(trip)) g6.push('꽉 찬 부대 전원 S 인데 안 걸린다');
+  globalThis.localStorage.setItem(State.SAVE_KEY, JSON.stringify(trip));
+  if (State.load() !== false) g6.push('전원 S 세이브가 그대로 불러와진다');
+  if (State.state.day === 88) g6.push('새 게임으로 안 돌아갔다');
+  if (State.takeLockedSave()) g6.push('전원 S 인데 암호 관문에 붙잡혔다 — 관문 순서가 틀렸다');
+
+  // 걸리면 안 되는 경우들 (오작동이 세이브를 날린다 — 이쪽이 더 중요하다)
+  const safe = [
+    ['한 명만 A', ['S', 'S', 'S', 'S', 'S', 'S', 'A']],
+    ['전원 A', Array(7).fill('A')],
+    ['세 명 전원 S (빈 슬롯 있음)', ['S', 'S', 'S']],
+    ['여섯 명 전원 S (빈 슬롯 1)', Array(6).fill('S')],
+  ];
+  for (const [tag, grades] of safe) {
+    const d = mkSave(grades);
+    if (State.tripsResetRule(d)) g6.push(`${tag}: 걸리면 안 되는데 걸렸다`);
+  }
+  // 2부대가 전원 S 인 건 규칙 밖이다 (플레이어가 말한 건 1부대다)
+  const two = mkSave(['A', 'A', 'A', 'A', 'A', 'A', 'A']);
+  two.squads.push({ id: 'sq1', name: '제2부대', memberUids: S7.map((_, i) => `x_${i}`), formationId: 'basic', status: 'idle' });
+  two.roster.push(...S7.map((g, i) => ({ uid: `x_${i}`, name: `2단원${i}`, grade: g, classId: 'swordsman', level: 50, equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0, upkeep: 10 })));
+  if (State.tripsResetRule(two)) g6.push('2부대 전원 S 로 걸렸다 — 규칙은 1부대다');
+  // 빈 세이브·깨진 입력에 터지지 않는다
+  for (const bad of [null, {}, { squads: null }, { squads: [{}] }, { squads: [{ memberUids: [] }] }]) {
+    try { if (State.tripsResetRule(bad)) g6.push(`깨진 입력에 걸렸다: ${JSON.stringify(bad)}`); }
+    catch (e) { g6.push(`깨진 입력에 예외: ${JSON.stringify(bad)} — ${e.message}`); }
+  }
+  okAll(g6, '1부대 전원 S 만 새 게임으로 돌린다 (임시 관문)', 14);
+
   delete globalThis.localStorage;
 }
 
