@@ -42,6 +42,8 @@ const SCREENS = [
   { id: 'abyss', title: '황금 나락', nav: false, load: () => import('./abyss.js') },
   // 펫 관리는 용병단 화면에서 들어간다 (장비 관리와 같은 결).
   { id: 'pets', title: '펫', nav: false, load: () => import('./pets.js') },
+  // 순위표는 읽기 전용이라 로그인 없이도 열린다. 클라우드 설정에서 들어간다.
+  { id: 'rank', title: '순위표', nav: false, load: () => import('./rank.js') },
 ];
 
 /* HUD 날짜 표기용 소량 CSS. 모듈 안에서 한 번만 주입한다.
@@ -412,6 +414,11 @@ function doCloud() {
         onClick: (ev) => { ev.currentTarget.closest('.modal') && maybeReconcile({ silent: false }); },
       }, '서버와 맞추기')
       : null,
+    // 순위표는 클라우드가 꺼져 있어도 볼 수 있다 (읽기 전용이라 로그인이 필요 없다)
+    el('button', {
+      class: 'btn sm ghost', style: { alignSelf: 'flex-start' },
+      onClick: (ev) => { const c = ev.currentTarget.closest('.modal'); if (c) c.remove(); go('rank'); },
+    }, '순위표 보기'),
     /* ★ 되돌리기. 이게 없으면 충돌 모달의 "잘못 골랐으면 되돌릴 수 있습니다" 가 거짓말이 된다 —
      *   백업은 잘 써지고 있었는데 꺼내는 코드가 아예 없었다. */
     rollback

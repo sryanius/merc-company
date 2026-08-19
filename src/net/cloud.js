@@ -32,8 +32,9 @@ import {
   ENABLED, EP, OUTBOX_KEY, PUSH_DEBOUNCE_MS, PUSH_MAX_WAIT_MS, RETRY_MS,
 } from './config.js';
 import * as Auth from './auth.js';
-import { authed } from './rest.js';
-import { SAVE_KEY, onSaved } from '../game/state.js';
+import { authed, call } from './rest.js';
+import { SAVE_KEY, onSaved, state } from '../game/state.js';
+import { extractScore } from '../game/rules.js';
 
 const ON_KEY = 'merc_cloud_on_v1';
 /** 서버 세이브를 적용하기 직전의 로컬 원본. 되돌릴 유일한 수단이라 반드시 남긴다. */
@@ -48,6 +49,13 @@ const ROLLBACK_KEY = 'merc_cloud_rollback_v1';
  *   새 플레이스루가 영영 안 올라간다.
  */
 const SYNCED_KEY = 'merc_cloud_synced_v1';
+/**
+ * 마지막으로 **서버가 받아 준** 랭킹 값 `{seed, abyss, tower, quests}`.
+ * ★ 기록이 실제로 올랐을 때만 제출하려고 둔다. 저장할 때마다 부르면
+ *   함수 호출이 시간당 수백 번이 되는데, 탑은 월 1회·나락은 주 1회라
+ *   기록이 오르는 일 자체가 드물다.
+ */
+const SUBMITTED_KEY = 'merc_cloud_submitted_v1';
 
 function storage() {
   try { return globalThis.localStorage || null; } catch { return null; }
@@ -288,7 +296,12 @@ export function init() {
 
   // ★ 훅은 항상 꽂는다. 안에서 ready() 를 보므로 꺼져 있으면 아무 일도 안 한다.
   //   켤 때마다 훅을 꽂았다 빼면 "켰는데 첫 저장이 안 올라가는" 구멍이 생긴다.
-  onSaved(() => { try { queuePush(); } catch (e) { console.warn('[cloud] 예약 실패', e); } });
+  onSaved(() => {
+    try { queuePush(); } catch (e) { console.warn('[cloud] 예약 실패', e); }
+    /* 기록이 올랐을 때만 랭킹을 제출한다. worthSubmitting 이 아니면 즉시 돌아온다 —
+     * 저장은 시간당 수백 번인데 기록이 오르는 건 주에 한 번 수준이다. */
+    try { submitScore().catch(() => {}); } catch (e) { /* 게임을 방해하지 않는다 */ }
+  });
 
   if (typeof document !== 'undefined') {
     /* 앱이 뒤로 갔다 돌아왔을 때 밀린 걸 올린다.
@@ -315,6 +328,84 @@ function retryPending() {
   clearTimeout(retryT);
   retryT = setTimeout(flush, wait);
 }
+
+/* ─────────────────────────── 랭킹 제출 ───────────────────────────
+ * ★ 세이브 업로드와 **완전히 다른 물건이다.**
+ *   세이브는 본인 백업이라 검증하지 않고 자주 올린다.
+ *   랭킹은 남과 비교되는 숫자라 서버가 검증하고, **기록이 오를 때만** 올린다.
+ *
+ * ★ 실패는 전부 조용하다. 랭킹이 안 올라갔다고 게임을 방해할 이유가 없다.
+ *   함수가 아직 배포 안 됐으면 404 가 오는데 그것도 그냥 넘어간다.
+ */
+
+function readSubmitted() {
+  try {
+    const o = JSON.parse(readLS(SUBMITTED_KEY) || 'null');
+    return o && typeof o === 'object' ? o : null;
+  } catch { return null; }
+}
+
+/** 지금 값이 마지막으로 제출한 것보다 나은가 */
+function worthSubmitting(score) {
+  if (!score) return false;
+  const done = readSubmitted();
+  if (!done || done.seed !== score.seed) return true;      // 새 판이면 무조건 한 번
+  return score.abyssBest > (done.abyss || 0)
+    || score.towerBest > (done.tower || 0)
+    || score.questsDone > (done.quests || 0);
+}
+
+let submitting = false;
+
+/**
+ * 랭킹에 제출한다. 기록이 안 올랐으면 아무것도 안 한다.
+ * @param {{force?:boolean}} [opt]
+ * @returns {Promise<{ok:boolean, skipped?:boolean, error:string}>}
+ */
+export async function submitScore(opt = {}) {
+  if (!ready()) return { ok: false, error: '클라우드가 꺼져 있다' };
+  /* 이미 보내는 중이면 그냥 넘어간다. 실패로 다루면 안 된다 —
+   * 저장 훅이 쏜 제출과 "지금 올리기" 버튼이 겹치면 화면에 빨간 오류가 뜬다. */
+  if (submitting) return { ok: true, skipped: true, error: '' };
+
+  let score = null;
+  try { score = extractScore(state); } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  if (!score) return { ok: false, error: '점수를 읽지 못했다' };
+  if (!opt.force && !worthSubmitting(score)) return { ok: true, skipped: true, error: '' };
+
+  submitting = true;
+  try {
+    const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { state } }, Auth);
+    if (!res.ok) {
+      // 함수가 아직 배포 안 됐으면 404 다. 조용히 넘어간다 — 다음 기록 때 다시 시도한다.
+      return { ok: false, error: res.error };
+    }
+    if (res.data && res.data.ok === false) {
+      /* 서버가 거절했다(A등급). 되풀이해 봐야 같은 답이라 **다시 안 보낸다** —
+       * 지금 값을 제출한 것으로 기록해 둔다. 게임은 아무 영향 없이 계속된다. */
+      writeLS(SUBMITTED_KEY, JSON.stringify({
+        seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+      }));
+      return { ok: false, error: (res.data.reasons || []).join(' / ') || '서버가 거절했다' };
+    }
+    writeLS(SUBMITTED_KEY, JSON.stringify({
+      seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+    }));
+    return { ok: true, error: '' };
+  } finally {
+    submitting = false;
+  }
+}
+
+/** 순위표를 읽는다. 로그인 없이도 읽힌다 (누구나 보라고 만든 것이다). */
+export async function leaderboard(kind = 'abyss', limit = 100) {
+  const res = await call(`${EP.rpc('leaderboard')}?p_kind=${encodeURIComponent(kind)}&p_limit=${limit}`, {});
+  if (!res.ok) return { ok: false, rows: [], error: res.error };
+  return { ok: true, rows: Array.isArray(res.data) ? res.data : [], error: '' };
+}
+
+/** 내 최고 기록 (제출된 값 기준) */
+export function mySubmitted() { return readSubmitted(); }
 
 /* ─────────────────────────── 복원 (pull) ───────────────────────────
  * ★ 이 구간이 이 기능 전체에서 **가장 위험하다.** 잘못 고르면 플레이어의 진행이 사라진다.
