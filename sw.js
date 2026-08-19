@@ -48,7 +48,7 @@
  * v4 — 월드맵 탑 노드 / 정원 70 / 펫 자동배치 / 주점 특화 클래스 고정.
  * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
  * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
-const CACHE = 'merc-v22';
+const CACHE = 'merc-v23';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -113,6 +113,10 @@ const APP_SHELL = [
   './src/data/abyss.js',
   './src/game/abyss.js',
   './src/ui/abyss.js',
+  './src/net/config.js',
+  './src/net/rest.js',
+  './src/net/auth.js',
+  './src/net/cloud.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-192.png',

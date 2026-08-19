@@ -9,6 +9,8 @@ import { state, save, load, hasSave, newGame, bus } from '../game/state.js';
 // 달력 API(calendar/calendarLabel)는 나중에 붙은 함수라, 이름 import 하면 없는 빌드에서
 // 모듈 전체가 죽는다. 네임스페이스로 받아 존재할 때만 쓰고 없으면 옛 표기로 폴백한다.
 import * as GameState from '../game/state.js';
+import * as Cloud from '../net/cloud.js';
+import * as Auth from '../net/auth.js';
 import { getCity } from '../data/world.js';
 import { companyName } from '../data/names.js';
 
@@ -176,7 +178,10 @@ function renderHud() {
       el('button', { class: 'btn sm ghost', title: '세이브를 파일로 내려받는다', onClick: doExport }, '내보내기'),
       el('button', { class: 'btn sm ghost', title: '세이브 파일을 불러온다', onClick: doImport }, '불러오기'),
       el('button', { class: 'btn sm ghost', onClick: () => promptNewGame({ overwrite: hasSave() }) }, '새 게임'),
-      el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기')),
+      el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기'),
+      // 클라우드는 **선택**이다 — 기본이 꺼짐이라 버튼 문구로 현재 상태를 알려 준다
+      el('button', { class: 'btn sm ghost', title: '클라우드 저장 · 랭킹', onClick: doCloud },
+        `클라우드${Cloud.isOn() ? ' ●' : ''}`)),
     // 모바일 전용 펼치기 버튼. PC 에서는 CSS 가 숨긴다.
     el('button', {
       class: 'btn sm ghost hud-toggle',
@@ -248,7 +253,25 @@ export function modal({ title, body, actions = [], onClose, wide = false, dismis
     actions.length
       ? el('footer', {}, actions.map((a) => el('button', {
           class: `btn ${a.kind || ''}`,
-          onClick: () => { if (a.act?.(close) !== false) close(); },
+          /* `act` 가 false 를 돌려주면 창을 닫지 않는다 (검증 실패 등).
+           *
+           * ★ **Promise 도 받는다.** 예전에는 결과를 그대로 `!== false` 로 봤는데,
+           *   async 함수는 Promise 를 돌려주므로 `!== false` 가 항상 참이 되어
+           *   **일이 끝나기도 전에 창이 닫혔다.** 네트워크를 타는 액션
+           *   (클라우드 연결 등)은 전부 여기에 걸린다.
+           *   기다리는 동안 버튼을 잠가 두 번 눌리는 것도 막는다. */
+          onClick: (ev) => {
+            const r = a.act?.(close);
+            if (r && typeof r.then === 'function') {
+              const btn = ev.currentTarget;
+              btn.disabled = true;
+              r.then((v) => { if (v !== false) close(); })
+                .catch((e) => { console.error('[modal] 동작 실패', e); })
+                .finally(() => { btn.disabled = false; });
+              return;
+            }
+            if (r !== false) close();
+          },
         }, a.label)))
       : el('footer', {}, el('button', { class: 'btn', onClick: close }, '닫기')));
   layer.innerHTML = '';
@@ -339,6 +362,71 @@ function askLegacyPassword(rawText, fileName, importSaveText) {
     ],
   });
   setTimeout(() => input.focus(), 60);
+}
+
+/* ---------------- 클라우드 ---------------- */
+
+/**
+ * 클라우드 켜기/끄기.
+ *
+ * ★ 기본은 꺼짐이다. 게임을 켜자마자 계정을 만들지 않는다 —
+ *   익명 가입에는 IP 기준 요청 제한이 있어서, 그게 부팅을 막으면 안 된다.
+ *
+ * ★ 못 지킬 약속을 화면에 쓰지 않는다. 지금은 계정 복구 수단이 없으므로
+ *   "브라우저 저장소를 지우면 계정이 사라진다"를 그대로 적는다.
+ */
+function doCloud() {
+  const st = Cloud.status();
+  const msg = el('div', { class: 'tiny', style: { minHeight: '16px', color: 'var(--bad)' } });
+
+  const body = el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(360px, 84vw)' } },
+    el('div', { class: 'row spread center' },
+      el('span', { class: 'muted tiny', text: '상태' }),
+      el('b', { style: { color: st.on ? 'var(--ok)' : 'var(--ink-faint)' }, text: st.label })),
+    el('div', { class: 'faint tiny', text: st.detail }),
+    el('div', { class: 'sep' }),
+    el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
+      el('b', { text: '랭킹' }), '에 참여한다. 로그인 화면은 없다 — 계정이 자동으로 만들어진다.'),
+    el('div', { class: 'tiny', style: { color: '#e8c27a' } },
+      '⚠ 지금은 계정 복구 수단이 없다. 브라우저 저장소를 지우거나 앱을 삭제하면 '
+      + '랭킹 기록과의 연결이 끊긴다. (세이브 파일 내보내기는 그대로 쓸 수 있다.)'),
+    msg);
+
+  modal({
+    title: '클라우드 저장 · 랭킹',
+    body,
+    actions: [
+      { label: '닫기', kind: 'ghost' },
+      st.on
+        ? {
+          label: '끄기',
+          kind: 'ghost',
+          act: () => {
+            Cloud.disable();          // ★ 계정은 안 지운다. 다시 켜면 이어진다
+            toast('클라우드를 껐습니다. 세이브는 이 기기에 그대로 있습니다.');
+            renderHud();
+            return true;
+          },
+        }
+        : {
+          label: '켜기',
+          kind: 'primary',
+          act: async () => {
+            msg.style.color = 'var(--ink-faint)';
+            msg.textContent = '연결하는 중…';
+            const r = await Cloud.enable();
+            if (!r.ok) {
+              msg.style.color = 'var(--bad)';
+              msg.textContent = r.error || '연결에 실패했습니다.';
+              return false;
+            }
+            toast('클라우드를 켰습니다.', 'good');
+            renderHud();
+            return true;
+          },
+        },
+    ],
+  });
 }
 
 /* ---------------- 새 게임 / 용병단 이름 ---------------- */
