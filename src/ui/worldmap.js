@@ -1255,6 +1255,18 @@ function onClick(ev) {
 
 function hideTip() { if (tip) tip.classList.add('hidden'); }
 
+/**
+ * `append()` 하되 null/undefined/false 는 건너뛴다.
+ * DOM 의 `append()` 는 노드가 아닌 값을 **텍스트로 변환**하므로 null 을 그대로 넘기면
+ * 화면에 "null" 이 찍힌다. 조건부 자식이 있는 곳에서는 이걸 써라.
+ */
+function appendAll(host, ...kids) {
+  for (const k of kids.flat(9)) {
+    if (k == null || k === false) continue;
+    host.append(k);
+  }
+}
+
 function showTip(city, mx, my) {
   if (!tip) return;
   const reg = cityRegion(city.id);
@@ -1263,7 +1275,10 @@ function showTip(city, mx, my) {
   const services = (city.services || []).map((s) => SERVICE_NAME[s] || s).join(' · ') || '없음';
 
   tip.innerHTML = '';
-  tip.append(
+  /* ★ `el()` 은 자식의 null 을 걸러 주지만 **DOM 의 append() 는 안 걸러 준다** —
+   * null 을 넘기면 문자열 "null" 이 그대로 화면에 찍힌다.
+   * 실제로 PC(hover 있음)에서 툴팁 맨 아래에 "null" 이 보였다. */
+  appendAll(tip,
     el('div', { class: 'nm', style: { color: BIOME_COLOR[cityBiome(city.id)] || 'var(--ink)' }, text: city.name }),
     el('div', { class: 'faint tiny', text: `${reg ? reg.name : ''} · ${BIOME_NAME[cityBiome(city.id)] || ''}` }),
     el('div', { class: 'tiny', style: { marginTop: '4px' } },

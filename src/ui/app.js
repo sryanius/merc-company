@@ -242,7 +242,16 @@ export function modal({ title, body, actions = [], onClose, wide = false, dismis
       : el('footer', {}, el('button', { class: 'btn', onClick: close }, '닫기')));
   layer.innerHTML = '';
   layer.appendChild(box);
-  layer.onclick = dismissable ? (e) => { if (e.target === layer) close(); } : null;
+  /* ★ 배경 클릭으로 닫기 — 반드시 **누른 곳도 배경이었을 때만** 닫는다.
+   * 예전에는 click 하나만 봤는데, 입력창의 글자를 드래그하다 배경에서 손을 떼면
+   * click 의 target 이 배경이 되어 모달이 그대로 꺼졌다
+   * (이름 변경창에서 기존 이름을 드래그하면 창이 닫혀 이름을 못 바꿨다).
+   * mousedown 지점을 기억해 두고 둘 다 배경일 때만 닫는다. */
+  let downOnLayer = false;
+  layer.onmousedown = (e) => { downOnLayer = e.target === layer; };
+  layer.onclick = dismissable
+    ? (e) => { if (e.target === layer && downOnLayer) close(); downOnLayer = false; }
+    : null;
   return close;
 }
 

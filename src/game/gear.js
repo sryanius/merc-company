@@ -1773,10 +1773,37 @@ export function unequipBenched(state) {
   return { unequipped: n, mercs: who };
 }
 
-export function autoEquipAll(state, { squadId = null, mercs = null, pool = null, dryRun = false, powerOf = null } = {}) {
+export function autoEquipAll(state, {
+  squadId = null, mercs = null, pool = null, dryRun = false, powerOf = null,
+  freeBenched = true,
+} = {}) {
   const st = useState(state);
   if (!st) return { perMerc: [], total: 0 };
   const targets = resolveTargets(st, { squadId, mercs });
+
+  /* ★ 대기 인원(부대 미배치) 장비를 먼저 회수한다.
+   * 부대 상한 5 x 7 = 35 명인데 정원은 70 이라, 대기 인원이 장비를 쥐고 있으면
+   * 정작 출전하는 단원이 낄 물건이 창고에 없다.
+   *
+   * dryRun 일 때도 **똑같이** 해야 한다 — 미리보기와 실제 결과가 갈리면 안 된다.
+   * 그래서 dryRun 이면 원래 장비를 기억했다가 계획을 만든 뒤 되돌린다.
+   *
+   * 자동 착용 대상 자신이 대기 인원이면 건드리지 않는다(그 사람 걸 뺏어 그 사람에게
+   * 다시 주는 꼴이라 의미가 없고, 계획이 요란해진다). */
+  const restore = [];
+  if (freeBenched) {
+    const targetUids = new Set(targets.map((m) => m && m.uid).filter(Boolean));
+    const assigned = new Set();
+    for (const sq of st.squads || []) for (const u of sq.memberUids || []) if (u) assigned.add(u);
+    for (const m of st.roster || []) {
+      if (!m || assigned.has(m.uid) || targetUids.has(m.uid)) continue;
+      for (const s of slotKeysOf(m.equipment)) {
+        if (!m.equipment[s]) continue;
+        restore.push({ m, s, uid: m.equipment[s] });
+        m.equipment[s] = null;
+      }
+    }
+  }
   const strength = typeof powerOf === 'function'
     ? (m) => { try { return powerOf(m) || 0; } catch { return 0; } }
     : (m) => mercStrength(st, m);
@@ -1787,7 +1814,13 @@ export function autoEquipAll(state, { squadId = null, mercs = null, pool = null,
 
   const perMerc = buildPlan(st, ordered, { pool });
   if (!dryRun) applyPlan(st, perMerc);
-  return { perMerc, total: perMerc.reduce((a, r) => a + r.changed.length, 0) };
+  else for (const r of restore) r.m.equipment[r.s] = r.uid;   // 미리보기는 상태를 안 바꾼다
+
+  return {
+    perMerc,
+    total: perMerc.reduce((a, r) => a + r.changed.length, 0),
+    freed: restore.length,
+  };
 }
 
 /**
