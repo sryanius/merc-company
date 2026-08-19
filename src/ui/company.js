@@ -1021,6 +1021,15 @@ export function render(root, params = {}) {
   bindGlobal();
   if (params.squadId) selectedSquadId = params.squadId;
   ensureSelection();
+
+  /* 다른 화면(장비 등)에서 단원을 지정해 들어온 경우 그 단원의 상세를 바로 연다.
+   * render 는 go() 안에서 실행 중이고 모달은 별도 레이어라 직접 열어도 되지만,
+   * 화면이 다 그려진 뒤에 뜨는 편이 자연스러워 다음 틱으로 미룬다. */
+  if (params.mercUid) {
+    const uid = params.mercUid;
+    setTimeout(() => { try { openMercDetail(uid); } catch (e) { console.warn('[company] 단원 상세 열기 실패', e); } }, 0);
+  }
+
   validatePick();
   pruneMarked();
 

@@ -7,7 +7,7 @@
 //    "이걸 모으려면 던전을 돌아야 한다"가 목록에서 바로 보이게 한다.
 //  - 상단에 세트 수집 현황 패널 — 4세트 × 10칸을 슬롯 점(pip)으로 그린다.
 import { el, num, clamp } from '../core/util.js';
-import { refresh, toast, modal } from './app.js';
+import { refresh, toast, modal, go } from './app.js';
 import { state, addLog, save } from '../game/state.js';
 import { getClass } from '../data/classes.js';
 import { makePalette, RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
@@ -132,6 +132,8 @@ const CSS = `
 .iv-worn .iv-wcell { max-width: 128px; }
 .iv-worn .iv-witem { overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .iv-worn .iv-witem:hover { text-decoration: underline; }
+.iv-worn .iv-wmerc { cursor: pointer; }
+.iv-worn .iv-wmerc:hover { text-decoration: underline; }
 .iv-worn .iv-wcell.empty { color: var(--ink-faint); text-align: center; }
 @media (max-width: 767px) {
   .iv-worn .iv-wcell { max-width: 104px; font-size: 12px; }
@@ -704,7 +706,12 @@ function wornPanel() {
 
       return el('tr', {},
         el('td', { class: 'iv-wname' },
-          el('div', { style: { fontWeight: '700', color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+          el('div', {
+            class: 'iv-wmerc',
+            style: { fontWeight: '700', color: GRADE_COLOR[m.grade] || 'var(--ink)' },
+            title: '용병 상세 보기',
+            onClick: () => go('company', { mercUid: m.uid }),
+          }, m.name),
           el('div', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1} · ${filled}/${SLOTS.length}칸` }),
           setTag ? el('div', { class: 'tiny', style: { color: MYTHIC_COLOR }, text: setTag }) : null),
         ...SLOTS.map((sl) => {
@@ -886,7 +893,10 @@ function openAutoEquipPicker() {
       sub ? el('span', { class: 'tiny faint', text: sub }) : null),
     el('span', { class: 'tiny faint', text: '미리보기 ▸' }));
 
-  box.appendChild(row('전체 단원', `${state.roster.length}명 전부`, { label: '전체 단원' }));
+  const assignedN = new Set(
+    (state.squads || []).flatMap((sq) => (sq.memberUids || []).filter(Boolean)),
+  ).size;
+  box.appendChild(row('부대 전원', `배치된 단원 ${assignedN}명 (대기 인원 장비는 회수)`, { label: '부대 전원' }));
 
   const squads = (state.squads || []).filter(Boolean);
   if (squads.length) {

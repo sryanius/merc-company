@@ -1779,7 +1779,18 @@ export function autoEquipAll(state, {
 } = {}) {
   const st = useState(state);
   if (!st) return { perMerc: [], total: 0 };
-  const targets = resolveTargets(st, { squadId, mercs });
+  let targets = resolveTargets(st, { squadId, mercs });
+
+  /* ★ 대기 인원은 **대상에서 뺀다** (단, 사용자가 `mercs` 로 그 사람을 콕 집었을 때는 존중).
+   * `resolveTargets` 는 squadId 가 없으면 로스터 전원을 돌려준다. 그대로 두면
+   * "전체 단원" 자동 착용이 대기 인원에게도 장비를 물려, 정작 출전 단원이 낄 게 없어진다
+   * (실제로 대기 14명이 장비를 낀 채 남았다).
+   * 장비는 싸우는 사람이 낀다 — 대기 인원은 벗기고 끝이다. */
+  if (freeBenched && !mercs) {
+    const assigned = new Set();
+    for (const sq of st.squads || []) for (const u of sq.memberUids || []) if (u) assigned.add(u);
+    targets = targets.filter((m) => m && assigned.has(m.uid));
+  }
 
   /* ★ 대기 인원(부대 미배치) 장비를 먼저 회수한다.
    * 부대 상한 5 x 7 = 35 명인데 정원은 70 이라, 대기 인원이 장비를 쥐고 있으면
