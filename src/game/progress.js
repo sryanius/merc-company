@@ -26,6 +26,7 @@ export const FEATURES = {
   SQUADS: 'squads',         // 부대 추가 · 진형
   DUNGEON: 'dungeon',       // 던전
   TOWER: 'tower',           // 무한의 탑
+  ABYSS: 'abyss',           // 황금 나락
   PETS: 'pets',             // 펫
   REPUTATION: 'reputation', // 도시 평판 · 명물 클래스
 };
@@ -68,6 +69,12 @@ const RULES = {
     label: '무한의 탑',
     hint: '단원이 50레벨을 넘기면 탑이 열린다.',
     done: (st) => topLevel(st) >= 50 || (st.tower?.best || 0) > 0,
+  },
+  [FEATURES.ABYSS]: {
+    label: '황금 나락',
+    // 임금이 버거워지기 시작하는 지점에 연다. 실측상 Lv35 부대도 17심층·7,500G 는 캔다.
+    hint: '단원이 35레벨을 넘기면 도시 아래 갱도가 열린다.',
+    done: (st) => topLevel(st) >= 35 || (st.abyss?.best || 0) > 0,
   },
   [FEATURES.PETS]: {
     label: '펫',

@@ -86,9 +86,9 @@ const CSS = `
 .wm-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; align-items:start; }
 .wm-route { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .wm-route .leg { color:var(--ink-faint); font-size:11px; }
-.wm-ev { border-left:3px solid var(--gold-dim); background:rgba(224,180,74,.07); padding:8px 10px; border-radius:4px; }
-.wm-ev.bad { border-left-color:var(--bad); background:rgba(207,90,90,.08); }
-.wm-ev.good { border-left-color:var(--ok); background:rgba(111,174,122,.08); }
+/* .wm-ev / .wm-nb / .btn.sm.wm-go 는 css/style.css 로 옮겼다 —
+   탑·나락 화면이 이 클래스를 쓰는데 저기는 도시에서 바로 들어올 수 있어서
+   월드맵을 한 번도 안 열면 스타일이 통째로 빠졌다. */
 /* 던전 목록 (지도 옆) */
 .wm-dg { display:flex; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--line);
   border-radius:var(--radius); background:var(--bg-2); }
@@ -116,8 +116,6 @@ const CSS = `
   .wm-route .leg { font-size:12px; }
   /* 터치 타겟 40px 하한. .btn.sm 쪽이 더 구체적이라 클래스를 겹쳐 특이도를 맞춘다 */
   .wm-dg { padding:10px; min-height:52px; }
-  .btn.sm.wm-go { min-height:40px; padding:8px 14px; font-size:13px; }
-  .wm-nb { padding:6px 0; }
 }
 `;
 

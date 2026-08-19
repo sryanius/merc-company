@@ -269,8 +269,11 @@ export function runFloor(st, squadId, floor, carry = null) {
   // 살아남은 아군의 체력을 다음 층으로 넘긴다.
   // ★ 죽은 단원은 아예 넘기지 않는다 — carry 에 없으면 다음 층에서 만피로 서므로,
   //   "쓰러진 단원이 다음 층에 멀쩡히 나온다"가 된다. 그래서 0 을 명시적으로 넣는다.
+  // ★ 쓰러진 사람의 0 은 `towerBattleDefs` 가 그를 편성에서 빼기 때문에 아래 루프에 안 잡힌다.
+  //    그래서 0 이 한 층만 살고 사라져 **두 층 뒤에 만피로 복귀**했다. 앞선 0 을 먼저 옮겨 둔다.
   const next = {};
   if (win) {
+    if (carry) for (const [uid, hp] of Object.entries(carry)) if (hp === 0) next[uid] = 0;
     for (const a of cfg.allies) {
       const u = b.unitOf(a.uid);
       next[a.uid] = u && u.alive ? Math.max(1, Math.round(u.hp)) : 0;

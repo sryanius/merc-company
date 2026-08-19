@@ -11,6 +11,7 @@ import { basesFor, PREFIXES, SUFFIXES, SLOTS } from '../data/items.js';
 import { companyName as genCompanyName } from '../data/names.js';
 import { PETS_PER_SQUAD } from '../data/pets.js';
 import { TOWER_FLOORS } from '../data/tower.js';
+import { DEPTH_CAP } from '../data/abyss.js';
 // 순환 참조(state <-> quest, state <-> gear/merc/squad)를 안전하게 다루려고 네임스페이스로 받는다.
 // 최상위에서는 절대 호출하지 않는다.
 import * as Merc from './merc.js';
@@ -152,6 +153,8 @@ function defaultState() {
      *   두 키로 재구성해 나머지 필드를 조용히 버린다.
      */
     tower: { best: 0, lastRunDay: 0, lastRunFloor: 0 },
+    /** 황금 나락 진행. `{ best, lastRunDay, lastRunDepth, lastGold }` — 주당 1회 판정에 lastRunDay 를 쓴다 */
+    abyss: { best: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 },
     quests: {},
     tavern: {},
     shop: {},
@@ -340,6 +343,7 @@ function replaceState(src) {
   }
   normalizePets(state);
   normalizeTower(state);
+  normalizeAbyss(state);
   migrateDataVersion(state);
 }
 
@@ -376,6 +380,17 @@ function normalizePets(st) {
     if (!Array.isArray(s.petUids)) continue;
     for (let i = 0; i < s.petUids.length; i++) if (s.petUids[i] && !alive.has(s.petUids[i])) s.petUids[i] = null;
   }
+}
+
+/** 황금 나락 진행도 정규화 */
+function normalizeAbyss(st) {
+  const a = st.abyss && typeof st.abyss === 'object' ? st.abyss : {};
+  st.abyss = {
+    best: clampInt(a.best, 0, DEPTH_CAP),
+    lastRunDay: clampInt(a.lastRunDay, 0, 1e9),
+    lastRunDepth: clampInt(a.lastRunDepth, 0, DEPTH_CAP),
+    lastGold: clampInt(a.lastGold, 0, 1e12),
+  };
 }
 
 /** 무한의 탑 진행도 정규화 */

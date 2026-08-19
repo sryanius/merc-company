@@ -35,6 +35,9 @@ const SCREENS = [
   { id: 'dungeon', title: '던전', nav: false, load: () => import('./dungeon.js') },
   // 무한의 탑도 월드맵 노드로 들어간다. 하단 탭은 폰에서 6칸이 한계라 더 못 늘린다.
   { id: 'tower', title: '무한의 탑', nav: false, load: () => import('./tower.js') },
+  // 황금 나락은 도시 화면에서 들어간다 — 갱도는 어느 도시 아래에도 있다는 설정이고,
+  // 임금 재원이라 원정 중에 이동해야만 갈 수 있으면 안 된다.
+  { id: 'abyss', title: '황금 나락', nav: false, load: () => import('./abyss.js') },
   // 펫 관리는 용병단 화면에서 들어간다 (장비 관리와 같은 결).
   { id: 'pets', title: '펫', nav: false, load: () => import('./pets.js') },
 ];

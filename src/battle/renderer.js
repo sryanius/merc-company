@@ -1016,10 +1016,25 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   const headTop = (v) => posY(v) - FOOT_Y * SPRITE_SCALE;
 
   /* ── 로그 ──────────────────────────────────────────── */
-  function log(text) {
+  /**
+   * 로그 한 줄을 구독자에게 보낸다.
+   *
+   * ★ 로그 문구는 **여기서 만든다** (ui/battle.js 는 externalLog 로 자기 쪽을 끈다).
+   *   그래서 색을 입히려면 종류를 여기서 같이 실어 보내야 한다 — 예전에는 문자열만 보내서
+   *   받는 쪽이 전부 '아군'(흰색)으로 칠했다.
+   * @param {string} text  `«…»` 로 감싼 조각은 받는 쪽이 따로 강조한다
+   * @param {string} [kind] 줄 전체 색 (ally/enemy/heal/miss/down/downfoe/win/lose/wave/sys)
+   * @param {string} [mark] «…» 조각에 붙일 추가 클래스 (crit/kill/down/miss)
+   */
+  function log(text, kind = 'ally', mark = '') {
     if (!text) return;
-    for (const fn of logFns) { try { fn(text); } catch (e) { console.error(e); } }
+    for (const fn of logFns) { try { fn(text, kind, mark); } catch (e) { console.error(e); } }
   }
+  /** 이 유닛이 아군인가 (로그 색을 가르는 기준) */
+  const sideKind = (uid) => {
+    const u = battle && battle.unitOf ? battle.unitOf(uid) : null;
+    return u && u.side === 'enemy' ? 'enemy' : 'ally';
+  };
   const nameOf = (uid) => {
     const u = battle && battle.unitOf ? battle.unitOf(uid) : null;
     return u ? u.name : '?';
@@ -1058,7 +1073,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const sk = e.skillId ? getSkill(e.skillId) : null;
     if (sk) {
       v.bubble = { text: sk.name || e.skillId, t: 0, dur: 1.05 };
-      log(`${u.name} — ${sk.name || e.skillId}`);
+      log(`${u.name} — «${sk.name || e.skillId}»`, sideKind(e.uid), 'skill');
     }
     const range = sk ? (sk.range || 'melee') : (u.basicRange === 'ranged' ? 'ranged' : 'melee');
     const support = sk ? (sk.target === 'self' || sk.target === 'ally' || sk.target === 'allAlly') : false;
@@ -1130,7 +1145,11 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     }
 
     const who = e.uid != null ? `${nameOf(e.uid)} → ` : '';
-    log(`${who}${nameOf(e.targetUid)} ${Math.round(e.amount)} 피해${crit ? ' (치명타!)' : ''}`);
+    // 치명타는 숫자만 봐서는 안 보인다 — 그 조각만 색을 달리한다
+    log(crit
+      ? `${who}${nameOf(e.targetUid)} «치명타 ${Math.round(e.amount)}» 피해`
+      : `${who}${nameOf(e.targetUid)} ${Math.round(e.amount)} 피해`,
+    e.uid != null ? sideKind(e.uid) : 'sys', crit ? 'crit' : '');
   }
 
   function onHeal(e) {
@@ -1138,7 +1157,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (!t) return;
     fx.spawn('heal', posX(t), posY(t) - 8, { dir: facing(t.u) });
     addPop(t, `+${Math.round(e.amount)}`, '#7ff0a0', 1.05, false);
-    log(`${e.uid != null ? `${nameOf(e.uid)} → ` : ''}${nameOf(e.targetUid)} ${Math.round(e.amount)} 회복`);
+    log(`${e.uid != null ? `${nameOf(e.uid)} → ` : ''}${nameOf(e.targetUid)} ${Math.round(e.amount)} 회복`, 'heal');
   }
 
   function onMiss(e) {
@@ -1146,7 +1165,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (!t) return;
     addPop(t, '빗나감', '#cfd4e0', 0.92, false);
     fx.spawn('dust', posX(t), posY(t), { dir: -facing(t.u), count: 4 });
-    log(`${nameOf(e.targetUid)} 회피!`);
+    log(`${nameOf(e.targetUid)} «회피»!`, 'miss', 'miss');
   }
 
   function onBuff(e) {
@@ -1156,7 +1175,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     t.ringT = Math.max(t.ringT, 0.9);
     fx.spawn('buff', posX(t), posY(t), { dir: facing(t.u), color: up ? '#ffd24a' : '#b06fd6' });
     addPop(t, `${STAT_KO[e.stat] || e.stat} ${up ? '▲' : '▼'}`, up ? '#ffe08a' : '#d6a8ff', 0.86, false);
-    log(`${nameOf(e.targetUid)} ${STAT_KO[e.stat] || e.stat} ${up ? '증가' : '감소'}`);
+    log(`${nameOf(e.targetUid)} ${STAT_KO[e.stat] || e.stat} ${up ? '증가' : '감소'}`, up ? 'buff' : 'debuff');
   }
 
   function onStatus(e) {
@@ -1165,14 +1184,14 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (e.status === 'stun') {
       addPop(t, '기절', '#ffe08a', 0.95, false);
       fx.spawn('blunt', posX(t), chestY(t), { dir: facing(t.u), scale: 0.7 });
-      log(`${nameOf(e.targetUid)} 기절 (${(e.dur || 1).toFixed(1)}초)`);
+      log(`${nameOf(e.targetUid)} «기절» (${(e.dur || 1).toFixed(1)}초)`, 'debuff', 'stun');
     } else if (e.status === 'shield') {
       t.ringT = Math.max(t.ringT, 0.8);
       fx.spawn('holy', posX(t), chestY(t), { dir: facing(t.u), scale: 0.8 });
-      log(`${nameOf(e.targetUid)} 보호막`);
+      log(`${nameOf(e.targetUid)} 보호막`, 'buff');
     } else if (e.status === 'dot') {
       fx.spawn('poison', posX(t), chestY(t), { dir: facing(t.u), scale: 0.7 });
-      log(`${nameOf(e.targetUid)} 지속 피해`);
+      log(`${nameOf(e.targetUid)} 지속 피해`, 'debuff');
     }
   }
 
@@ -1192,14 +1211,15 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     stopFor(0.05);
     const ally = t.u.side === 'ally';
     pulseEdge(ally ? 1 : 0.8, ally ? EDGE_ALLY : EDGE_ENEMY);
-    log(`${t.u.name} 쓰러짐`);
+    // 아군이 쓰러진 건 판을 뒤집는 사건이다 — 가장 크게 보여야 한다
+    log(`${t.u.name} «쓰러짐»`, ally ? 'down' : 'downfoe', ally ? 'down' : '');
   }
 
   function onEnd(e) {
     ending = { winner: e.winner, t: 0 };
     pulseEdge(0.8, e.winner === 'ally' ? EDGE_ENEMY : EDGE_ALLY);
     const txt = e.winner === 'ally' ? '승리' : e.winner === 'enemy' ? '패배' : '무승부';
-    log(`── 전투 종료: ${txt} ──`);
+    log(`── 전투 종료: ${txt} ──`, e.winner === 'ally' ? 'win' : e.winner === 'enemy' ? 'lose' : 'sys');
     for (const fn of endFns) { try { fn(e.winner); } catch (err) { console.error(err); } }
   }
 

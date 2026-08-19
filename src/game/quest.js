@@ -335,6 +335,24 @@ const PLACE_ADJ = ['잿빛', '안개 낀', '버려진', '오래된', '피에 젖
 const LAIR_WORD = ['소굴', '둥지', '야영지', '본거지', '땅굴'];
 const RUIN_WORD = ['유적', '폐허', '고분', '무너진 제단', '버려진 초소', '봉인된 석실'];
 const GUARD_WORD = ['방어전', '수성전', '농성전', '경계 임무'];
+
+/**
+ * 장소 낱말 -> 전투 배경.
+ *
+ * ★ 이건 **배경(scene)만** 바꾼다. 적 편성에 쓰는 `biome` 은 손대지 않는다 —
+ *   `enemiesFor(biome, tier)` 가 적 풀을 고르므로 여기서 biome 을 흔들면
+ *   난이도표가 통째로 어긋난다.
+ *
+ * "봉인된 석실 조사"인데 배경이 들판으로 나오던 문제. 지하·실내를 뜻하는 낱말이
+ * 이름에 들어가면 배경만 동굴로 바꾼다. 나머지는 도시 지형 그대로가 맞다
+ * ('무너진 제단'이나 '야영지'는 바깥이다).
+ */
+const SCENE_WORD = {
+  고분: 'cave',
+  '봉인된 석실': 'cave',
+  땅굴: 'cave',
+  소굴: 'cave',
+};
 const ESCORT_WORD = ['상단 호위', '순례단 호위', '사절 호위', '보급대 호위', '피난민 호위'];
 const FOE_FALLBACK = ['도적단', '들짐승', '언데드', '괴수', '약탈자'];
 
@@ -394,9 +412,15 @@ function makeName(type, ctx, r) {
   const place = placeName(biome, r);
   switch (type) {
     case '토벌': return { name: `${city.name} 인근의 ${foe} 소탕`, foe, place };
-    case '섬멸': return { name: `${place}의 ${foe} ${r.pick(LAIR_WORD)} 섬멸`, foe, place };
+    case '섬멸': {
+      const w = r.pick(LAIR_WORD);
+      return { name: `${place}의 ${foe} ${w} 섬멸`, foe, place, scene: SCENE_WORD[w] };
+    }
     case '호위': return { name: `${r.pick(ESCORT_WORD)}: ${neighborName(city, r)}行`, foe, place };
-    case '탐색': return { name: `${place} ${r.pick(RUIN_WORD)} 조사`, foe, place };
+    case '탐색': {
+      const w = r.pick(RUIN_WORD);
+      return { name: `${place} ${w} 조사`, foe, place, scene: SCENE_WORD[w] };
+    }
     default: return { name: `${place} ${r.pick(GUARD_WORD)}`, foe, place };
   }
 }
@@ -676,6 +700,7 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
       type,
       cityId,
       biome,
+      scene: named.scene || biome,           // 전투 배경 (적 편성은 biome 이 정한다)
       rank,                                  // F~S 문자 그대로 유지 (기존 분기 코드 호환)
       sub,                                   // -1|0|1
       rankLabel: `${rank}${SUB_LABEL[sub] || ''}`, // 표시용 'E+' 등
@@ -1034,7 +1059,7 @@ export function questBattleDefs(quest, waveIndex = 0, st = State.state, squadId 
     // 별칭 (렌더러/엔진이 다른 이름을 볼 수도 있어 함께 넣는다)
     formation: allyFormationId,
     formationId: allyFormationId,
-    biome: quest.biome,
+    biome: quest.scene || quest.biome,      // 배경용. 옛 세이브엔 scene 이 없다
     seed: (hashStr(`${quest.id}#${waveIndex}#${squad.id}`) ^ (st.seed >>> 0)) >>> 0,
     questId: quest.id,
     waveIndex,

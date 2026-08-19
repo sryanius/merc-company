@@ -170,6 +170,15 @@ table.data th, table.data td { padding: 7px 10px; text-align: left; border-botto
 table.data th { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; }
 table.data tbody tr:hover { background: rgba(255,255,255,.025); }
 
+/* ───────── 여러 화면이 공유하는 조각 ─────────
+ * 원래 worldmap.js 안에 있었는데, 탑·나락 화면이 같은 클래스를 쓰면서 문제가 됐다 —
+ * 저 두 화면은 도시에서 바로 들어올 수 있어서 월드맵을 한 번도 안 열면 스타일이 없었다.
+ * 화면 전용이 아닌 조각은 여기 둔다. */
+.wm-ev { border-left: 3px solid var(--gold-dim); background: rgba(224,180,74,.07);
+  padding: 8px 10px; border-radius: 4px; }
+.wm-ev.bad { border-left-color: var(--bad); background: rgba(207,90,90,.08); }
+.wm-ev.good { border-left-color: var(--ok); background: rgba(111,174,122,.08); }
+
 /* ---------- 토스트 ---------- */
 #toast-layer { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
 .toast {

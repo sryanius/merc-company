@@ -30,6 +30,7 @@ import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
 import { go, refresh, toast, modal } from './app.js';
 import * as Tower from '../game/tower.js';
+import * as Abyss from '../game/abyss.js';
 import * as Progress from '../game/progress.js';
 
 export const meta = { id: 'city', title: '도시' };
@@ -871,7 +872,8 @@ function weekBlock() {
     el('div', { class: 'w-row' },
       el('span', { class: 'faint tiny', text: '던전은 월드맵의 별도 노드다. 주차 안에 다녀와야 한다.' }),
       el('button', { class: 'btn sm ghost', onClick: () => go('world') }, '월드맵에서 보기')),
-    towerRow());
+    towerRow(),
+    abyssRow());
 }
 
 /**
@@ -891,6 +893,25 @@ function towerRow() {
       : el('span', { class: 'faint tiny', text: wait > 0 ? `· ${wait}일 뒤 (매달 1일)` : '· 이번 달은 다녀왔다' }),
     el('span', { class: 'faint tiny', text: best ? `최고 ${best}층` : '미등반' }),
     el('button', { class: 'btn sm ghost', onClick: () => go('tower') }, '탑으로'));
+}
+
+/**
+ * 황금 나락 안내 — 탑과 같은 자리에 둔다.
+ * ★ 탑·던전과 달리 **월드맵 노드가 없다.** 이건 임금 재원이라 "그 도시까지 가야 한다"가
+ *   되면 안 된다 — 갱도는 어느 도시 아래에도 있다는 설정으로 도시 화면에서 바로 연다.
+ */
+function abyssRow() {
+  if (!Progress.unlocked(Progress.FEATURES.ABYSS, state)) return null;
+  const entry = Abyss.canEnter(state);
+  const best = state.abyss?.best || 0;
+  const wait = Abyss.daysUntilEntry(state);
+  return el('div', { class: 'w-row' },
+    el('span', { class: entry.ok ? 'w-now' : 'faint tiny', text: '황금 나락' }),
+    entry.ok
+      ? el('span', {}, el('b', { class: 'w-dun', text: '· 이번 주 몫이 남아 있다' }))
+      : el('span', { class: 'faint tiny', text: `· ${wait}일 뒤 (주 1회)` }),
+    el('span', { class: 'faint tiny', text: best ? `최고 ${best}심층` : '미답사' }),
+    el('button', { class: 'btn sm ghost', onClick: () => go('abyss') }, '갱도로'));
 }
 
 /* ─────────────────── 접기 상태 ───────────────────

@@ -189,6 +189,8 @@ function injectStyle() {
 /* 판을 가르는 사건은 줄 전체 색으로 구분한다 — 전부 금색이면 웨이브 개시와 전멸이 같아 보인다 */
 .bt-log-wave{color:var(--gold);font-weight:700;letter-spacing:.04em}
 .bt-log-miss{color:#8a93a8}
+.bt-log-buff{color:#8fc7ff}
+.bt-log-debuff{color:#c79bd8}
 .bt-log-down{color:#ff7a6b;font-weight:700}
 .bt-log-downfoe{color:#9fd8a0}
 .bt-log-win{color:var(--gold);font-weight:800}
@@ -199,6 +201,8 @@ function injectStyle() {
 .bt-mk-kill{color:#ff9d6b}
 .bt-mk-down{color:#ff7a6b}
 .bt-mk-miss{color:#a8b0c4}
+.bt-mk-skill{color:#ffe3a3;font-weight:700}
+.bt-mk-stun{color:#d8b4ff;font-weight:700}
 .bt-res-head{text-align:center;padding:18px 12px}
 .bt-res-head .verdict{font-size:34px;font-weight:900;letter-spacing:.14em}
 .bt-mvp{color:var(--gold);font-weight:700}
@@ -291,7 +295,8 @@ export function render(root, params = {}) {
     rank: quest ? quest.rank : (params.rank || null),
     waveCount: quest ? Math.max(1, (quest.waves || []).length) : 1,
     waveIndex: 0,
-    biome: quest ? quest.biome : (params.biome || (cfgBase && cfgBase.biome) || 'plains'),
+    // scene = 전투 배경. 옛 세이브의 의뢰엔 없으니 biome 으로 떨어진다
+    biome: quest ? (quest.scene || quest.biome) : (params.biome || (cfgBase && cfgBase.biome) || 'plains'),
     returnTo: params.returnTo || 'city',
     // ★ 복귀 화면에 넘길 params. 예전에는 호출부가 넘겨도 여기서 안 받아서 통째로 버려졌다
     //   (던전이 `returnParams:{dungeonId}` 를 넘겼는데 복귀 화면은 그걸 못 받았다).
@@ -1310,7 +1315,10 @@ async function attachRenderer(canvas, token) {
   if (typeof S.renderer.onLog === 'function') {
     S.externalLog = true;
     try {
-      S.renderer.onLog((text) => { if (S && S.token === token) pushLog(text, 'ally'); });
+      // 렌더러가 종류·강조까지 실어 준다. 예전엔 문자열만 받아 전부 'ally'(흰색)로 칠했다.
+      S.renderer.onLog((text, kind, mark) => {
+        if (S && S.token === token) pushLog(text, kind || 'ally', mark || '');
+      });
     } catch (e) {
       S.externalLog = false;
       console.warn('[battle] 로그 구독 실패', e);

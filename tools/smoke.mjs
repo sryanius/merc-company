@@ -2008,6 +2008,85 @@ section('펫 / 무한의 탑');
     `pets=${JSON.stringify(r.pets)} tower=${JSON.stringify(r.tower)} seq=${r.petSeq}`);
 }
 
+/* ───────────────────── 황금 나락 ───────────────────── */
+
+section('황금 나락');
+{
+  const AD = await import('../src/data/abyss.js');
+  const Abyss = await import('../src/game/abyss.js');
+  const State = await import('../src/game/state.js');
+  const Quest = await import('../src/game/quest.js');
+
+  // 1) 보상 합산식 — 등차수열 + 금고 가산분을 닫힌 식으로 계산한다. 루프와 일치해야 한다.
+  const goldBad = [];
+  for (const d of [0, 1, 9, 10, 11, 37, 60, 100, AD.DEPTH_CAP]) {
+    let loop = 0;
+    for (let i = 1; i <= d; i++) loop += AD.depthGold(i);
+    if (loop !== AD.goldRange(d)) goldBad.push(`goldRange(${d})=${AD.goldRange(d)} vs 루프 ${loop}`);
+  }
+  okAll(goldBad, '나락 보상 합산식이 루프와 일치', 9);
+
+  // 2) 금고층은 정확히 VAULT_EVERY 배수에서만, 배율만큼만 준다
+  const vaultBad = [];
+  for (let d = 1; d <= 60; d++) {
+    const want = AD.GOLD_PER_DEPTH * d * (d % AD.VAULT_EVERY === 0 ? AD.VAULT_MULT : 1);
+    if (AD.depthGold(d) !== want) vaultBad.push(`${d}심층 ${AD.depthGold(d)} != ${want}`);
+  }
+  okAll(vaultBad, '금고층 배율이 VAULT_EVERY 배수에서만 걸린다', 60);
+
+  // 3) 난이도 축이 단조 증가한다 (배율·적 레벨·적 수 어느 하나도 뒤로 가면 안 된다)
+  let pPrev = -1, lPrev = -1, cPrev = -1;
+  const curveBad = [];
+  for (let d = 1; d <= AD.DEPTH_CAP; d++) {
+    const p = AD.depthPower(d), l = AD.depthEnemyLevel(d), c = AD.depthEnemyCount(d);
+    if (p < pPrev - 1e-9) curveBad.push(`${d}심층 배율 감소`);
+    if (l < lPrev) curveBad.push(`${d}심층 적 레벨 감소`);
+    if (c < cPrev) curveBad.push(`${d}심층 적 수 감소`);
+    pPrev = p; lPrev = l; cPrev = c;
+  }
+  if (Math.abs(AD.depthPower(1) - AD.POWER_BASE) > 1e-9) curveBad.push('1심층이 POWER_BASE 가 아니다');
+  if (AD.depthEnemyLevel(AD.DEPTH_CAP) !== 80) curveBad.push('깊은 곳 적 레벨이 80 에 안 닿는다');
+  okAll(curveBad, '나락 난이도 축 3개가 전부 단조 증가', AD.DEPTH_CAP);
+
+  // 4) '주 1회' 판정 — 요일이 아니라 주 번호로 세는지. (탑은 dayOfWeek 만 보다가
+  //    한 달에 4번 열리는 함정을 밟은 전례가 있다.)
+  const weekBad = [];
+  for (let d = 1; d <= 30; d++) {
+    const want = Math.floor((d - 1) / State.DAYS_PER_WEEK);
+    if (AD.weekIndex(d) !== want) weekBad.push(`day ${d} → ${AD.weekIndex(d)} (기대 ${want})`);
+  }
+  // 같은 주 안에서는 막히고, 주가 바뀌면 열린다
+  const stub = (day, lastRunDay) => ({ day, abyss: { lastRunDay } });
+  if (!Abyss.alreadyRanThisWeek(stub(3, 1))) weekBad.push('같은 주(1일→3일)에 또 들어가진다');
+  if (Abyss.alreadyRanThisWeek(stub(8, 1))) weekBad.push('다음 주(8일)에 안 열린다');
+  if (Abyss.alreadyRanThisWeek(stub(1, 0))) weekBad.push('한 번도 안 갔는데 막힌다');
+  okAll(weekBad, '나락은 요일이 아니라 주 번호로 1회를 센다', 33);
+
+  // 5) ★ 프로덕션 아군 경로를 그대로 타는가 (자체 조립기를 쓰면 세트 고유효과가 빠진다)
+  State.newGame(778, '나락스모크');
+  const st = State.state;
+  const sq = st.squads[0];
+  const q = Abyss.abyssQuest(st, 12, sq.id);
+  const cfg = Quest.questBattleDefs(q, 0, st, sq.id);
+  const defBad = [];
+  if (!cfg.allies.length) defBad.push('아군이 비었다');
+  if (cfg.enemies.length !== AD.depthEnemyCount(12)) defBad.push(`적 ${cfg.enemies.length}기 (기대 ${AD.depthEnemyCount(12)})`);
+  if (q.reward.gold !== 0) defBad.push('합성 의뢰에 골드 보상이 붙어 있다 — 관전만으로 돈이 들어온다');
+  if ((q.reward.itemRolls || []).length) defBad.push('장비 보상이 붙어 있다 — 나락은 골드 전용이다');
+  if (q.days !== 0) defBad.push('부대를 날짜로 잠근다');
+  if (q.cityId != null) defBad.push('cityId 가 있다 — 평판 경로를 탄다');
+  okAll(defBad, '나락 편성이 프로덕션 경로를 타고 보상 계약을 지킨다', 6);
+
+  // 6) 손상 세이브 복구
+  const json = JSON.stringify(st);
+  const broken = JSON.parse(json);
+  broken.abyss = 'garbage';
+  State.importState(broken);
+  const a = State.state.abyss;
+  ok(a && typeof a.best === 'number' && a.best === 0 && typeof a.lastRunDay === 'number',
+    '손상된 나락 필드를 로드에서 복구한다', `abyss=${JSON.stringify(a)}`);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
