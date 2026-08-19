@@ -63,6 +63,11 @@ const WOUND_SPEEDUP = GameState.REST_WOUND_SPEEDUP ?? 1; // 숙박 1일당 부�
 const REST_WOUND_STEP = 1 + WOUND_SPEEDUP;
 
 const CSS = `
+/* 접기 버튼 — 머리말 오른쪽에 작게 */
+.city-fold { flex: 0 0 auto; font-size: 12px; padding: 2px 8px; opacity: .75; }
+.city-fold:hover { opacity: 1; }
+@media (max-width: 767px) { .city-fold { font-size: 12px; padding: 4px 10px; } }
+
 /* 「지금 할 일」 — 첫 화면에서 가장 먼저 눈에 들어와야 한다 */
 .city-next { border-color: rgba(224,180,74,.45); background: rgba(224,180,74,.07); }
 .city-next-t { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.4; }
@@ -888,6 +893,34 @@ function towerRow() {
     el('button', { class: 'btn sm ghost', onClick: () => go('tower') }, '탑으로'));
 }
 
+/* ─────────────────── 접기 상태 ───────────────────
+ * 도시 설명문과 시설 카드는 화면에서 가장 무거운 두 블록이다(실측 398자 / 362자).
+ * 익숙해진 플레이어는 매번 볼 이유가 없으므로 접을 수 있게 한다.
+ * 세이브가 아니라 localStorage 에 둔다 — 진행 상황이 아니라 **보기 설정**이다.
+ * (세이브에 넣으면 파일을 주고받을 때 남의 화면 설정까지 따라간다.) */
+
+const FOLD_KEY = 'merc_city_fold';
+
+function folds() {
+  try { return JSON.parse(localStorage.getItem(FOLD_KEY) || '{}') || {}; } catch { return {}; }
+}
+function folded(id) { return !!folds()[id]; }
+function toggleFold(id) {
+  const f = folds();
+  f[id] = !f[id];
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(f)); } catch { /* 사파리 시크릿 등 */ }
+  refresh();
+}
+
+/** 패널 머리말에 붙는 접기 버튼 */
+function foldBtn(id) {
+  return el('button', {
+    class: 'btn sm ghost city-fold',
+    title: folded(id) ? '펼치기' : '접기',
+    onClick: (ev) => { ev.stopPropagation(); toggleFold(id); },
+  }, folded(id) ? '펼치기 ▾' : '접기 ▴');
+}
+
 /**
  * 「지금 할 일」 — 상황을 읽어 **한 가지만** 짚어 준다.
  *
@@ -1001,15 +1034,26 @@ function heroPanel(city, gate = tavernGate(city.id), repDelta = 0) {
     ? `${state.roster.length} / ${Math.round(Number(state.rosterCap))}명`
     : `${state.roster.length}명`;
 
+  /* 설명문·명물·평판은 화면에서 가장 무거운 덩어리다(실측 398자).
+   * 도시 이름·등급과 우측 지표는 늘 필요하므로 남기고, **설명 부분만** 접는다. */
+  const fold = folded('hero');
+
   return el('div', { class: 'panel' },
     el('div', { class: 'city-hero' },
       el('div', {},
-        el('h2', {}, city.name, ' ', el('span', { class: 'city-stars tiny' }, stars(city.tier || 1))),
+        el('div', { class: 'row spread center', style: { gap: '8px' } },
+          el('h2', { style: { margin: '0' } }, city.name, ' ', el('span', { class: 'city-stars tiny' }, stars(city.tier || 1))),
+          foldBtn('hero')),
         el('div', { class: 'muted tiny' }, `${region ? region.name : '알 수 없는 지역'} · ${biome} · ${city.tier || 1}등급 도시`),
-        el('p', { class: 'muted desc', style: { margin: '10px 0 0' }, text: city.desc || '' }),
-        el('div', { class: 'faint tiny', style: { marginTop: '6px' } }, `시설: ${services}`),
-        specialtyBlock(city),
-        repBlock(city, gate, repDelta)),
+        fold
+          ? el('div', { class: 'faint tiny', style: { marginTop: '6px' } },
+            `시설: ${services}${specialtyNames(city) ? ` · 명물 ${specialtyNames(city)}` : ''} · 평판 ${gate.rep}/100`)
+          : [
+            el('p', { class: 'muted desc', style: { margin: '10px 0 0' }, text: city.desc || '' }),
+            el('div', { class: 'faint tiny', style: { marginTop: '6px' } }, `시설: ${services}`),
+            specialtyBlock(city),
+            repBlock(city, gate, repDelta),
+          ]),
       el('div', { class: 'col', style: { gap: '6px', minWidth: '190px', textAlign: 'right' } },
         kv('용병단', state.companyName || '이름 없는 용병단', 'var(--gold-dim)'),
         kv('날짜', calShort(), 'var(--gold-dim)'),
@@ -1019,6 +1063,11 @@ function heroPanel(city, gate = tavernGate(city.id), repDelta = 0) {
         kv('단원', capText),
         kv('평판', `${gate.rep} / 100`, repTier(gate.rep).color),
         kv('명성', num(state.renown)))));
+}
+
+/** 접었을 때 한 줄로 쓰는 명물 클래스 이름 */
+function specialtyNames(city) {
+  return specialtyOf(city.id).map((id) => getClass(id)).filter(Boolean).map((c) => c.name).join('·');
 }
 
 /** 이 도시가 배출하는 클래스. 저티어 도시를 굳이 들르는 이유가 여기 있다. */
@@ -1135,7 +1184,19 @@ function facilityPanel(city) {
       { action: '길 떠나기', badge: awayCount ? `원정 ${awayCount}개 부대` : null }),
   );
 
-  return el('div', { class: 'panel' }, el('h3', { text: '시설' }), cards);
+  /* 시설 카드 6장은 362자짜리 덩어리다. 익숙해지면 하단 탭으로 바로 가므로 접을 수 있게 한다.
+   * 접어도 '무엇이 몇 개 있는지'는 한 줄로 남긴다 — 접었더니 정보가 통째로 사라지면 안 된다. */
+  const fold = folded('fac');
+  return el('div', { class: 'panel' },
+    el('div', { class: 'row spread center', style: { gap: '8px' } },
+      el('h3', { text: '시설', style: { margin: '0' } }),
+      foldBtn('fac')),
+    fold
+      ? el('div', { class: 'faint tiny', style: { marginTop: '4px' } },
+        `의뢰 ${quests.length}건${eliteCount ? ` (정예 ${eliteCount})` : ''} · 주점 ${tavern.length}명`
+        + ` · 상점 ${shop.length}종 · 장비 ${(state.items || []).length}점`
+        + `${hurt.length ? ` · 부상 ${hurt.length}명` : ''} · 출전 가능 ${idleCount}개 부대`)
+      : cards);
 }
 
 /**
