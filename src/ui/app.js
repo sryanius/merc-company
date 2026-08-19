@@ -377,6 +377,15 @@ function askLegacyPassword(rawText, fileName, importSaveText) {
  */
 function doCloud() {
   const st = Cloud.status();
+  // 되돌릴 백업이 있으면 꺼내 둔다 (없으면 버튼도 안 만든다)
+  const rollback = (() => {
+    const raw = Cloud.rollbackSave();
+    if (!raw) return null;
+    try {
+      const data = JSON.parse(raw);
+      return data && typeof data === 'object' ? { data, day: Number(data.day) || 0 } : null;
+    } catch { return null; }
+  })();
   const msg = el('div', { class: 'tiny', style: { minHeight: '16px', color: 'var(--bad)' } });
 
   const body = el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(360px, 84vw)' } },
@@ -402,6 +411,26 @@ function doCloud() {
         class: 'btn sm ghost', style: { alignSelf: 'flex-start' },
         onClick: (ev) => { ev.currentTarget.closest('.modal') && maybeReconcile({ silent: false }); },
       }, '서버와 맞추기')
+      : null,
+    /* ★ 되돌리기. 이게 없으면 충돌 모달의 "잘못 골랐으면 되돌릴 수 있습니다" 가 거짓말이 된다 —
+     *   백업은 잘 써지고 있었는데 꺼내는 코드가 아예 없었다. */
+    rollback
+      ? el('button', {
+        class: 'btn sm ghost', style: { alignSelf: 'flex-start', color: '#e8c27a' },
+        onClick: () => confirmDlg(
+          '가져오기 되돌리기',
+          `서버 세이브를 가져오기 전의 이 기기 세이브(${num(rollback.day)}일차)로 되돌립니다. `
+          + '지금 진행 중인 내용은 사라집니다.',
+          () => {
+            if (!GameState.importState(rollback.data)) { toast('되돌리지 못했습니다.', 'bad'); return; }
+            save();
+            Cloud.clearRollback();
+            toast(`${num(rollback.day)}일차로 되돌렸습니다.`, 'good');
+            go('city');
+          },
+          '되돌린다',
+        ),
+      }, `가져오기 되돌리기 (${num(rollback.day)}일차)`)
       : null,
     el('div', { class: 'sep' }),
     el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
@@ -470,6 +499,11 @@ export async function maybeReconcile({ silent = true } = {}) {
   reconciling = true;
   try {
     const c = await Cloud.compare();
+    /* ★ 기다리는 동안 플레이어가 도시를 떠났을 수 있다. 부팅 1.2초 + 토큰 만료 시
+     *   401→갱신→재시도까지 겹치면 의뢰에 출전하고도 남는 시간이다.
+     *   여기서 다시 보지 않으면 진행 중인 판 위에 못 닫는 모달이 뜨고,
+     *   replaceState 가 그 판을 통째로 날린다. */
+    if (currentScreen() !== 'city') { if (!silent) toast('도시 화면에서만 확인할 수 있습니다.'); return; }
     if (!c.ok) { if (!silent) toast(c.error || '서버를 확인하지 못했습니다.', 'bad'); return; }
 
     /* ★ `local-newer` 라고 그냥 올리면 안 된다.
@@ -534,13 +568,42 @@ function askAdopt(c) {
       {
         label: `이 기기 것을 쓴다 (${num(localDay)}일차)`,
         kind: primary === 'local' ? 'primary' : 'ghost',
-        act: () => {
-          /* 로컬을 택했다 = 서버를 덮어야 한다. 그런데 서버 rev 가 더 높아서 그냥 올리면
-           * 되감기 방어에 막힌다. 로컬 rev 를 서버보다 위로 올려 다음 저장이 통과하게 한다. */
-          const bump = (c.remote?.rev || 0) + 1;
+        act: async () => {
+          msg.style.color = 'var(--ink-faint)';
+          msg.textContent = '올리는 중…';
+
+          /* ★ 화면에 보여 준 건 **localStorage 의 세이브**인데 save() 는 메모리 state 를 쓴다.
+           *   다른 탭이나 PWA 가 그 사이 더 저장했으면 둘이 다르다 — 그때 메모리를 그대로
+           *   쓰면 모달이 약속한 일수가 아니라 이 탭의 낡은 진행이 로컬·서버를 덮는다. */
+          const cur = Cloud.localSave();
+          if (cur && (cur.rev !== (Number(state.rev) || 0) || cur.day !== state.day)) {
+            let data = null;
+            try { data = JSON.parse(cur.raw); } catch { data = null; }
+            if (!data || !GameState.importState(data)) {
+              msg.style.color = 'var(--bad)';
+              msg.textContent = '이 기기의 세이브를 다시 읽지 못했습니다. 새로고침 후 다시 시도해 주세요.';
+              return false;
+            }
+          }
+
+          Cloud.acceptLocalRun();      // 'other-run' 정체를 푼다 (없으면 영영 갇힌다)
+
+          /* 서버 rev 가 더 높으면 그냥 올려도 되감기 방어에 막힌다 — 그 위로 올려 통과시킨다.
+           * ★ bump 를 모달을 띄울 때 찍은 값으로 계산하면 안 된다. 이 모달은 닫기가 없어
+           *   얼마든지 오래 열려 있고 그 사이 다른 기기가 더 올릴 수 있다. 직전에 다시 본다. */
+          const fresh = await Cloud.compare();
+          const remoteRev = (fresh.ok && fresh.remote?.rev) || c.remote?.rev || 0;
+          const bump = remoteRev + 1;
           if ((state.rev || 0) < bump) state.rev = bump;
           save();
-          Cloud.queuePush({ now: true });
+
+          // ★ 결과를 기다린다. 던져 두고 성공 토스트를 띄우면 거절당해도 성공했다고 말하게 된다.
+          const r = await Cloud.pushNow();
+          if (!r.ok) {
+            msg.style.color = 'var(--bad)';
+            msg.textContent = r.error || '올리지 못했습니다. 잠시 후 다시 시도합니다.';
+            return false;
+          }
           toast('이 기기의 진행을 유지합니다.', 'good');
           return true;
         },

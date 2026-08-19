@@ -127,6 +127,13 @@ export async function refresh() {
 
   const res = await call(EP.refresh, { method: 'POST', body: { refresh_token: s.refresh } });
   if (!res.ok) {
+    /* ★ 서버가 "이 갱신 토큰은 죽었다"고 **말한 경우에만** 버린다.
+     *   타임아웃(status 0)이나 5xx·429 로 버리면 살아 있는 토큰을 버리는 것이고,
+     *   익명 계정에는 복구 수단이 없으므로 그 순간 계정이 영영 사라진다.
+     *   (그 뒤 ready() 가 거짓이 되어 조용히 아무것도 안 하는데 화면은 "켜짐"으로 남는다.)
+     *   여기서 세션을 지키면 아웃박스 백오프가 나중에 다시 시도한다. */
+    const dead = res.status === 400 || res.status === 401 || res.status === 403;
+    if (!dead) return { ...res, error: `갱신하지 못했다 (${res.error})` };
     session = null;
     persist();
     return { ...res, error: `세션이 만료됐다 (${res.error})` };

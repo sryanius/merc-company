@@ -38,6 +38,16 @@ import { SAVE_KEY, onSaved } from '../game/state.js';
 const ON_KEY = 'merc_cloud_on_v1';
 /** 서버 세이브를 적용하기 직전의 로컬 원본. 되돌릴 유일한 수단이라 반드시 남긴다. */
 const ROLLBACK_KEY = 'merc_cloud_rollback_v1';
+/**
+ * 마지막으로 **서버가 받아 준** {seed, rev}.
+ *
+ * ★ 메모리(`last`)만으로는 안 된다. 새로고침하면 초기화되어 콜드 스타트마다
+ *   서버와 같은 rev 를 다시 올리고 P0001 을 맞는다 — 그러면 "서버에 더 최신 세이브가
+ *   있다"는 **거짓 정체**가 눌러붙는다.
+ * ★ seed 를 함께 보는 것이 핵심이다. 새 게임은 rev 가 1로 리셋되므로 rev 만 보면
+ *   새 플레이스루가 영영 안 올라간다.
+ */
+const SYNCED_KEY = 'merc_cloud_synced_v1';
 
 function storage() {
   try { return globalThis.localStorage || null; } catch { return null; }
@@ -81,6 +91,9 @@ export async function enable() {
 export function disable() {
   writeLS(ON_KEY, null);
   cancelTimers();
+  // 껐다 켰을 때 옛 실패·정체 표시가 되살아나면 안 된다
+  writeOutbox(null);
+  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
 }
 
 /* ─────────────────────────── 업로드 큐 ───────────────────────────
@@ -96,7 +109,7 @@ let maxWaitT = 0;
 let retryT = 0;
 let inFlight = false;
 /** 마지막 결과 — 화면 표시용 */
-let last = { at: 0, ok: false, error: '', rev: 0 };
+let last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
 
 function readOutbox() {
   try {
@@ -105,6 +118,14 @@ function readOutbox() {
   } catch { return null; }
 }
 const writeOutbox = (o) => writeLS(OUTBOX_KEY, o ? JSON.stringify(o) : null);
+
+function readSynced() {
+  try {
+    const o = JSON.parse(readLS(SYNCED_KEY) || 'null');
+    return o && typeof o === 'object' ? { seed: Number(o.seed) || 0, rev: Number(o.rev) || 0 } : null;
+  } catch { return null; }
+}
+const writeSynced = (v) => writeLS(SYNCED_KEY, v ? JSON.stringify(v) : null);
 
 function cancelTimers() {
   clearTimeout(debounceT); debounceT = 0;
@@ -151,12 +172,32 @@ async function flush() {
   if (!cur || !cur.rev) return;              // 저장된 게 없다
 
   const box = readOutbox();
-  // 이미 올린 것과 같은 rev 면 보낼 이유가 없다
   if (box && box.stalled && box.rev >= cur.rev) return;
-  if (last.ok && last.rev >= cur.rev) return;
+  /* 이미 서버가 받아 준 것과 같은 판·같은 rev 면 보낼 이유가 없다.
+   * ★ seed 를 반드시 함께 본다 — 새 게임은 rev 가 1로 리셋되므로 rev 만 보면
+   *   새 플레이스루의 첫 업로드가 조용히 막힌다. */
+  const done = readSynced();
+  if (done && done.seed === cur.seed && done.rev >= cur.rev) return;
 
   inFlight = true;
   try {
+    /* ★ 다른 플레이스루를 조용히 덮지 않는다.
+     *   서버 트리거(saves_guard)는 seed 가 다르면 rev 검사를 **건너뛴다** —
+     *   그래서 새 게임(rev 1, 1일차)이 120일차 세이브를 그냥 덮어 버린다.
+     *   실제로 재현된 경로다. 서버는 어느 판을 원하는지 모르니 여기서 막는 수밖에 없다. */
+    if (!done || done.seed !== cur.seed) {
+      const chk = await remoteMeta();
+      if (!chk.ok) {                       // 확인을 못 했으면 올리지 않는다 (안전 우선)
+        last = { at: Date.now(), ok: false, error: chk.error, rev: cur.rev, seed: cur.seed };
+        writeOutbox({ rev: cur.rev, tries: (box?.tries || 0) + 1, nextAt: 0, stalled: '' });
+        return;
+      }
+      if (chk.meta && chk.meta.seed !== cur.seed) {
+        last = { at: Date.now(), ok: false, error: '서버에 다른 용병단이 있다', rev: cur.rev, seed: cur.seed };
+        writeOutbox({ rev: cur.rev, tries: 0, nextAt: 0, stalled: 'other-run' });
+        return;                            // 사람이 고를 때까지 멈춘다
+      }
+    }
     const res = await authed(EP.saves, {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates' },
@@ -171,8 +212,9 @@ async function flush() {
     }, Auth);
 
     if (res.ok) {
-      last = { at: Date.now(), ok: true, error: '', rev: cur.rev };
+      last = { at: Date.now(), ok: true, error: '', rev: cur.rev, seed: cur.seed };
       writeOutbox(null);
+      writeSynced({ seed: cur.seed, rev: cur.rev });
       return;
     }
 
@@ -336,17 +378,41 @@ export async function adoptRemote(apply) {
   /* ★ 적용 **전에** 로컬 원본을 한 벌 남긴다.
    *   여기서 뭔가 잘못되면 플레이어는 되돌릴 방법이 전혀 없다. 파일로 내보내기를
    *   해 두라고 안내하는 것으로는 부족하다 — 코드가 알아서 남겨야 한다. */
+  /* ★ 이미 백업이 있으면 덮지 않는다. 두 번 연속 가져오면 원본이 '직전에 가져온
+   *   서버 세이브'로 바뀌어 되돌릴 대상이 사라진다. */
   const before = readLS(SAVE_KEY);
-  if (before) writeLS(ROLLBACK_KEY, before);
+  if (before && !readLS(ROLLBACK_KEY)) writeLS(ROLLBACK_KEY, before);
 
   if (!apply(data)) {
     return { ok: false, error: '세이브를 적용하지 못했다' };
   }
-  // 적용된 내용이 곧 최신이다. 아웃박스의 정체 표시를 푼다.
+  /* 적용된 내용이 곧 서버의 것이다 — 정체를 풀고 동기화 지점을 여기로 옮긴다.
+   * ★ seed 를 빼먹으면 안 된다. 방금 받아 온 것과 같은 rev 를 도로 올려 보내
+   *   P0001 을 맞고 "서버에 더 최신 세이브가 있다"는 거짓 정체가 걸린다. */
   writeOutbox(null);
-  last = { at: Date.now(), ok: true, error: '', rev: Number(data.rev) || 0 };
-  return { ok: true, error: '' };
+  const gotSeed = Number(data.seed) || 0;
+  const gotRev = Number(data.rev) || 0;
+  last = { at: Date.now(), ok: true, error: '', rev: gotRev, seed: gotSeed };
+  writeSynced({ seed: gotSeed, rev: gotRev });
+  return { ok: true, error: '', backedUp: !!before };
 }
+
+/**
+ * "이 기기 것을 쓴다" 를 골랐을 때 부른다.
+ *
+ * ★ 이게 없으면 위의 `other-run` 정체에서 **영원히 못 빠져나온다.**
+ *   사람이 이미 골랐는데도 flush 가 매번 "서버에 다른 용병단이 있다"로 막는다.
+ */
+export function acceptLocalRun() {
+  const cur = currentSave();
+  if (!cur) return;
+  writeSynced({ seed: cur.seed, rev: 0 });   // 이 판은 올려도 된다고 표시 (rev 0 = 아직 안 올림)
+  writeOutbox(null);
+  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
+}
+
+/** 모달이 보여 준 그 로컬 세이브 원본 (compare 가 읽은 것과 같은 출처) */
+export function localSave() { return currentSave(); }
 
 /** 직전 `adoptRemote` 로 덮이기 전의 로컬 세이브 (없으면 null) */
 export function rollbackSave() { return readLS(ROLLBACK_KEY); }
@@ -362,11 +428,18 @@ export function status() {
   if (!Auth.signedIn()) return { on: false, label: '연결 끊김', detail: '다시 켜면 연결된다.', sync: '' };
 
   const box = readOutbox();
+  const done = readSynced();
+  const cur = currentSave();
   let sync = '아직 올린 적 없음';
   if (box && box.stalled === 'newer-on-server') sync = '서버에 더 최신 세이브가 있다';
+  else if (box && box.stalled === 'other-run') sync = '서버에 다른 용병단이 있다 — 서버와 맞추기를 눌러라';
   else if (box) sync = '올리는 중 — 연결되면 자동으로 재시도한다';
   else if (last.ok) sync = `마지막 업로드 ${new Date(last.at).toLocaleTimeString()}`;
   else if (last.error) sync = '올리는 중 — 연결되면 자동으로 재시도한다';
+  /* ★ `last` 는 메모리라 새로고침하면 사라진다. 그때 "아직 올린 적 없음" 이라고 하면
+   *   멀쩡히 올라가 있는데도 안 올라간 것처럼 보인다 — 저장된 동기화 지점으로 답한다. */
+  else if (done && cur && done.seed === cur.seed && done.rev >= cur.rev) sync = '서버와 같다';
+  else if (done) sync = '올릴 것이 남아 있다';
 
   return { on: true, label: '켜짐', detail: `계정 ${Auth.userId().slice(0, 8)}…`, sync };
 }
