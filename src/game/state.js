@@ -800,7 +800,20 @@ export function load() {
   if (needsUnlock(data)) {
     console.warn('[state] 업데이트 이전 세이브 — 암호 확인이 필요합니다.');
     pendingLocked = data;
-    newGame();
+    /* ★ 여기서 `newGame()` 을 부르면 안 된다. 실제로 세이브를 날려 먹었다:
+     *   newGame() 이 seed 를 채우면 `started()` 가 참이 되고, `app.js` 가 boot() 에서
+     *   load() 보다 **먼저** 걸어 둔 `beforeunload → save()` 가 발동한다.
+     *   암호 모달 위에서 새로고침 한 번, 탭 닫기 한 번이면 1일차 새 게임이
+     *   옛 세이브를 덮는다. 게다가 save() 가 `sealMark` 까지 찍어서
+     *   **다음 부팅에는 관문조차 안 뜬다** — 플레이어는 세이브가 사라진 줄도 모른다.
+     *
+     *   대신 **"시작 전 빈 상태"로 명시적으로 되돌린다.** seed 가 0 이면 `started()` 가
+     *   거짓이라 save() 가 `if (!started()) return false` 에서 그대로 튕기고,
+     *   localStorage 의 원본은 손도 안 탄다 — 위 주석이 약속한 그대로다.
+     *
+     *   ※ "아무것도 안 하기"로는 부족하다. load() 가 두 번째로 불릴 때는
+     *      state 에 앞 게임이 남아 있어서 seed 가 여전히 채워져 있다(스모크가 잡았다). */
+    replaceState(defaultState());
     return false;
   }
 

@@ -2211,6 +2211,38 @@ section('세이브 관문');
   if (State.state.day !== 1) g5.push('손상 파일 거절이 진행 중이던 게임을 건드렸다');
   okAll(g5, '봉인된 파일은 암호 없이 열리고, 본문을 고치면 거절한다', 5);
 
+  /* 5b) ★ 관문에 걸린 세이브는 **어떤 경로로도 덮이면 안 된다.**
+   *
+   *  실제로 날려 먹은 버그다: 관문 분기에서 newGame() 을 부르면 seed 가 채워져
+   *  started() 가 참이 되고, app.js 가 boot() 에서 걸어 둔 beforeunload → save() 가
+   *  암호 모달 위에서 새로고침 한 번에 1일차 새 게임을 옛 세이브 위에 쓴다.
+   *  게다가 sealMark 가 찍혀 다음 부팅엔 관문조차 안 뜬다 — 사라진 줄도 모르게 된다. */
+  const g5b = [];
+  {
+    const old = JSON.parse(JSON.stringify(base));
+    delete old.sealMark;
+    old.day = 300; old.gold = 424242;
+    const before = JSON.stringify(old);
+    globalThis.localStorage.setItem(State.SAVE_KEY, before);
+
+    if (State.load() !== false) g5b.push('관문에 안 걸렸다');
+    // ★ 이 시점의 state 는 "시작 전 빈 상태"여야 한다. seed 가 채워지면 save() 가 통과한다.
+    if (State.state.seed) g5b.push(`관문 직후 seed 가 채워져 있다 (${State.state.seed}) — save() 가 옛 세이브를 덮는다`);
+
+    // beforeunload 가 부르는 것과 같은 호출
+    const saved = State.save();
+    if (saved !== false) g5b.push('관문 상태에서 save() 가 통과했다');
+    if (globalThis.localStorage.getItem(State.SAVE_KEY) !== before) {
+      g5b.push('save() 가 잠긴 세이브를 덮었다 — 진행이 사라진다');
+    }
+    // 그래도 원본은 살아 있어야 하고, 암호를 맞추면 살아나야 한다
+    const held = State.takeLockedSave();
+    if (!held || held.day !== 300 || held.gold !== 424242) g5b.push(`보관된 원본이 다르다 (${JSON.stringify(held && { d: held.day, g: held.gold })})`);
+    if (held && !State.acceptLockedSave(held)) g5b.push('암호 통과 후 복원 실패');
+    if (State.state.day !== 300 || State.state.gold !== 424242) g5b.push(`복원 결과가 다르다 (${State.state.day}일 ${State.state.gold}G)`);
+  }
+  okAll(g5b, '관문에 걸린 세이브는 save() 로도 덮이지 않는다', 7);
+
   // 6) 임시 관문 — 1부대가 꽉 찬 채 전원 S 면 새 게임으로 돌린다
   const g6 = [];
   const mkSave = (grades) => {
