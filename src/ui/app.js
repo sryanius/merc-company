@@ -284,15 +284,53 @@ async function doExport() {
 }
 
 async function doImport() {
-  const { pickSaveFile } = await import('./savefile.js');
+  const { pickSaveFile, importSaveText } = await import('./savefile.js');
   confirmDlg('세이브 불러오기', '현재 진행 상황을 덮어씁니다. 계속할까요?', () => {
-    pickSaveFile((res, fileName) => {
-      if (!res.ok) { toast(res.error || '불러오기에 실패했습니다.', 'bad'); return; }
-      const s = res.summary || {};
-      toast(`${fileName} 불러옴 — ${s.day ?? '?'}일차 · 단원 ${s.roster ?? '?'}명`, 'good');
-      go('city');
+    pickSaveFile((res, fileName, rawText) => {
+      if (res.ok) { finishImport(res, fileName); return; }
+      // 봉인 이전(평문) 파일이면 암호를 한 번 물어본다
+      if (res.needPassword) { askLegacyPassword(rawText, fileName, importSaveText); return; }
+      toast(res.error || '불러오기에 실패했습니다.', 'bad');
     });
   }, '파일 선택');
+}
+
+function finishImport(res, fileName) {
+  const s = res.summary || {};
+  toast(`${fileName} 불러옴 — ${s.day ?? '?'}일차 · 단원 ${s.roster ?? '?'}명`, 'good');
+  go('city');
+}
+
+/**
+ * 예전 형식(암호화 전) 세이브 파일을 열려 할 때.
+ * 그대로 두면 메모장으로 고친 파일이 그냥 들어오므로 한 번 막아 세운다.
+ */
+function askLegacyPassword(rawText, fileName, importSaveText) {
+  const input = el('input', { type: 'password', class: 'co-in', placeholder: '암호' });
+  const msg = el('div', { class: 'tiny', style: { color: 'var(--bad)', minHeight: '16px' } });
+  modal({
+    title: '예전 형식 세이브 파일',
+    body: el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(340px, 80vw)' } },
+      el('div', { class: 'tiny muted' },
+        '암호화 이전에 내보낸 파일입니다. 이런 파일은 내용을 손으로 고칠 수 있어 기본적으로 막습니다.'),
+      el('div', { class: 'tiny faint' },
+        '본인 세이브가 맞다면 암호를 넣어 이어서 하세요. 암호가 없으면 새 게임으로 시작해야 합니다.'),
+      input, msg),
+    actions: [
+      { label: '새 게임으로', kind: 'ghost', act: () => { promptNewGame({ overwrite: hasSave() }); } },
+      {
+        label: '이어서 하기',
+        kind: 'primary',
+        act: () => {
+          const res = importSaveText(rawText, { password: input.value });
+          if (!res.ok) { msg.textContent = res.needPassword ? '암호가 맞지 않습니다.' : (res.error || '불러오기 실패'); return false; }
+          finishImport(res, fileName);
+          return true;
+        },
+      },
+    ],
+  });
+  setTimeout(() => input.focus(), 60);
 }
 
 /* ---------------- 새 게임 / 용병단 이름 ---------------- */

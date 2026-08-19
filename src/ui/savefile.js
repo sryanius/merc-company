@@ -8,6 +8,83 @@ import { state, save, load, SAVE_KEY, SAVE_VERSION } from '../game/state.js';
 
 const APP_ID = 'merc-company';
 
+/* ══════════════════════════ 세이브 봉인 ══════════════════════════
+ * 내보낸 파일이 그냥 JSON 이라 메모장으로 골드를 고칠 수 있었다.
+ *
+ * ★ 먼저 분명히 해 둘 것 — 이건 **암호화가 아니라 봉인(tamper-evident)** 이다.
+ *   싱글 플레이 게임이라 열쇠가 클라이언트 안에 있을 수밖에 없고, 이 파일을 읽을 줄 아는
+ *   사람은 언제든 되돌릴 수 있다. 목적은 "메모장으로 숫자만 바꾸는" 것을 막는 것이지
+ *   작정한 사람을 막는 게 아니다. 그렇게 광고해서도 안 된다.
+ *
+ * 방식: JSON → UTF-8 → 키스트림 XOR → base64. 체크섬을 같이 실어 한 글자만 바뀌어도 걸린다.
+ * 봉투(app/버전/요약)는 **평문으로 남긴다** — 파일만 보고 어느 게임의 언제 세이브인지
+ * 알 수 있어야 하고, 그게 이 기능의 원래 쓸모다.
+ */
+
+/** 봉인 형식 버전. 방식이 바뀌면 올린다 (옛 파일은 계속 읽을 수 있어야 한다). */
+const SEAL_VERSION = 1;
+
+/**
+ * 봉인 이전에 내보낸 **평문 세이브 파일**을 열 때 물어보는 암호.
+ *
+ * ★ 이건 보안이 아니다. 이 파일을 열어 보면 그대로 적혀 있다 —
+ *   목적은 "옛 파일로 그냥 이어 하는 것"을 한 번 막아 세우는 것뿐이다.
+ *   평문 파일은 메모장으로 골드를 고칠 수 있었으므로 기본은 거절하고,
+ *   본인 세이브임을 아는 사람만 통과시킨다.
+ */
+const LEGACY_PASSWORD = 'qwe123!@#';
+
+/** FNV-1a 32bit — 위·변조 검출용 (충돌 저항이 필요한 용도가 아니다) */
+function checksum(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/** 키스트림 — 시드 하나로 바이트열을 만든다 (xorshift32) */
+function* keystream(seed) {
+  let x = (seed >>> 0) || 0x9e3779b9;
+  for (;;) {
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;  x >>>= 0;
+    yield x & 0xff;
+    yield (x >>> 8) & 0xff;
+    yield (x >>> 16) & 0xff;
+    yield (x >>> 24) & 0xff;
+  }
+}
+
+const SEAL_SALT = 0x4d455243;   // 'MERC'
+
+/** 문자열 → 봉인된 base64 */
+function sealText(plain) {
+  const bytes = new TextEncoder().encode(plain);
+  const ks = keystream(checksum(plain) ^ SEAL_SALT);
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ ks.next().value;
+  let bin = '';
+  for (const b of out) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+/** 봉인 해제. 체크섬이 안 맞으면 null (= 누가 건드렸거나 깨진 파일) */
+function unsealText(b64, sum) {
+  let bin;
+  try { bin = atob(String(b64)); } catch { return null; }
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ks = keystream((sum >>> 0) ^ SEAL_SALT);
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ ks.next().value;
+  let plain;
+  try { plain = new TextDecoder().decode(out); } catch { return null; }
+  return checksum(plain) === (sum >>> 0) ? plain : null;
+}
+
 /** 파일에 담기는 봉투. state를 그대로 쓰지 않고 감싸서 자기 서술적으로 만든다. */
 function envelope() {
   return {
@@ -22,7 +99,10 @@ function envelope() {
       roster: state.roster?.length ?? 0,
       city: state.cityId,
     },
-    state,
+    // ★ 본문은 봉인해서 담는다. 봉투(위 필드들)는 평문이라 파일만 봐도 무엇인지 안다.
+    seal: SEAL_VERSION,
+    sum: 0,          // exportSave 에서 채운다
+    data: '',        // exportSave 에서 채운다
   };
 }
 
@@ -37,7 +117,11 @@ export function saveFileName() {
 /** 현재 상태를 JSON 파일로 내려받는다. */
 export function exportSave() {
   save(); // 내보내기 전에 최신 상태를 localStorage에도 반영
-  const text = JSON.stringify(envelope(), null, 2);
+  const env = envelope();
+  const plain = JSON.stringify(state);
+  env.sum = checksum(plain);
+  env.data = sealText(plain);
+  const text = JSON.stringify(env, null, 2);
   const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -64,7 +148,7 @@ function migrate(data, from) {
  * 파일 텍스트를 읽어 세이브로 적용한다.
  * @returns {{ok:boolean, error?:string, summary?:object}}
  */
-export function importSaveText(text) {
+export function importSaveText(text, opts = {}) {
   let raw = null;
   try { raw = JSON.parse(text); } catch { return { ok: false, error: '올바른 JSON 파일이 아닙니다.' }; }
   if (!raw || typeof raw !== 'object') return { ok: false, error: '세이브 내용이 비어 있습니다.' };
@@ -75,8 +159,29 @@ export function importSaveText(text) {
   if (raw.app && raw.app !== APP_ID) {
     return { ok: false, error: '이 게임의 세이브 파일이 아닙니다.' };
   }
-  if (raw.state && typeof raw.state === 'object') payload = raw.state;
-  else version = raw.version;
+  /* 봉인된 파일이면 풀어서 쓴다. 체크섬이 안 맞으면 **손대지 않고 거절**한다 —
+   * 반쯤 고쳐진 세이브를 억지로 살리면 그게 더 나쁘다.
+   * 봉인 이전에 내보낸 평문 파일(state 를 그대로 담은 것)도 계속 받는다. */
+  if (raw.seal && typeof raw.data === 'string') {
+    const plain = unsealText(raw.data, raw.sum);
+    if (!plain) {
+      return { ok: false, error: '세이브 파일이 손상되었거나 수정되었습니다. 원본을 다시 내보내 주세요.' };
+    }
+    try { payload = JSON.parse(plain); } catch { return { ok: false, error: '세이브 본문을 읽지 못했습니다.' }; }
+  } else {
+    /* 봉인 이전 형식(평문)이다. 메모장으로 고칠 수 있던 파일이라 **기본은 거절**한다.
+     * 암호를 넣으면 통과시킨다 — 본인 세이브를 잃게 만들 이유는 없다.
+     * `needPassword` 를 켜서 호출부가 암호를 물어볼 수 있게 한다. */
+    if (opts.password !== LEGACY_PASSWORD) {
+      return {
+        ok: false,
+        needPassword: true,
+        error: '예전 형식(암호화 전) 세이브 파일입니다. 그대로는 쓸 수 없습니다.',
+      };
+    }
+    if (raw.state && typeof raw.state === 'object') payload = raw.state;
+    else version = raw.version;                 // 아주 옛날: state 를 그대로 저장한 파일
+  }
 
   if (version == null) return { ok: false, error: '세이브 버전 정보가 없습니다.' };
   if (version !== SAVE_VERSION) {
@@ -111,7 +216,7 @@ export function importSaveText(text) {
 }
 
 /** 파일 선택 창을 띄우고 결과를 콜백으로 넘긴다. */
-export function pickSaveFile(onResult) {
+export function pickSaveFile(onResult, opts = {}) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'application/json,.json';
@@ -121,7 +226,7 @@ export function pickSaveFile(onResult) {
     input.remove();
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => onResult(importSaveText(String(reader.result)), file.name);
+    reader.onload = () => onResult(importSaveText(String(reader.result), opts), file.name, String(reader.result));
     reader.onerror = () => onResult({ ok: false, error: '파일을 읽지 못했습니다.' }, file.name);
     reader.readAsText(file);
   });
