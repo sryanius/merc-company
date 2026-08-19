@@ -1598,6 +1598,42 @@ export function bestItemFor(state, merc, slot, opt = {}) {
  * 슬롯은 `SLOTS` 순서대로 본다 — 오른손이 먼저라 양손 무기를 고르면 그 자리에서 왼손이 잠긴다.
  * @returns {{uid:string, name:string, merc:object, changed:Array}[]}
  */
+/**
+ * 이 교체가 **활성 세트 단계를 떨어뜨리는가**.
+ * 예: 3칸(3단계 보너스 활성)에서 한 칸을 다른 세트/일반템으로 바꾸면 2칸이 되어 단계가 사라진다.
+ *
+ * @param {object} st
+ * @param {object} eq   가상 장비 맵 (buildPlan 진행 중 상태)
+ * @param {string} slot 바꾸려는 슬롯
+ * @param {object} curItem 지금 낀 것
+ * @param {object} next 새로 낄 것
+ * @returns {boolean} true 면 그 교체를 하면 안 된다
+ */
+function breaksSetTier(st, eq, slot, curItem, next) {
+  const sid = setIdOf(curItem);
+  if (!sid) return false;                 // 세트 조각이 아니면 지킬 단계가 없다
+  if (setIdOf(next) === sid) return false; // 같은 세트끼리 교체 — 개수가 안 변한다
+
+  let now = 0;
+  for (const s of slotKeysOf(eq)) {
+    const it = findItem(st, eq[s]);
+    if (it && setIdOf(it) === sid) now++;
+  }
+  const after = Math.max(0, now - 1);
+  return tierOf(sid, now) > tierOf(sid, after);
+}
+
+/** 조각 n 개일 때 활성인 세트 단계 (없으면 0) */
+function tierOf(sid, n) {
+  const def = setDefOf(sid);
+  const steps = (def && Array.isArray(def.tiers) && def.tiers.length)
+    ? def.tiers.map((t) => (t === 'full' ? SLOTS.length : t))
+    : [3, 5, 7, SLOTS.length];
+  let best = 0;
+  for (const t of steps) if (n >= t && t > best) best = t;
+  return best;
+}
+
 function buildPlan(st, targets, opt = {}) {
   const pool = toUidSet(opt.pool);
   const owner = new Map(); // itemUid -> mercUid (가상 소유)
@@ -1635,6 +1671,14 @@ function buildPlan(st, targets, opt = {}) {
       }
       // 지금 낀 것보다 뚜렷하게 낫지 않으면 그대로 둔다
       if (!best || !isUpgrade(curScore, bestScore)) continue;
+
+      /* ★ 세트 단계 보호.
+       * `scoreItemFor` 는 세트 보너스를 ×(1 + 0.05n + 0.18) 배율로 **근사**할 뿐,
+       * 실제 보너스 스탯·고유효과를 점수에 넣지 않는다. 그래서 전설 후보가 많아지면
+       * (희귀도 곡선을 고친 뒤 실제로 그렇게 됐다) 배율을 넘겨 세트를 하나씩 벗겨 낸다 —
+       * 실측: 3칸 보유 부대가 자동 착용 후 평균 1.0칸, 30회 중 27회 3칸 보너스가 날아갔다.
+       * 활성 단계(3/5/7/풀)를 **내리는 교체는 하지 않는다.** 같은 세트로 갈아타는 건 허용한다. */
+      if (curItem && breaksSetTier(st, eq, slot, curItem, best)) continue;
       changed.push({
         slot, from: curItem || null, to: best,
         delta: Math.round((bestScore - curScore) * 100) / 100,
@@ -1700,6 +1744,35 @@ export function autoEquipMerc(state, merc, opt = {}) {
  * @param {{squadId?:string, mercs?:Array, pool?:Array|Set, dryRun?:boolean, powerOf?:Function}} opt
  * @returns {{perMerc:Array<{uid:string, name:string, merc:object, changed:Array}>, total:number}}
  */
+/**
+ * 부대에 배치되지 않은 단원의 장비를 전부 벗긴다.
+ *
+ * 부대 상한이 5 x 7 = 35 명인데 정원은 70 이라, 대기 인원이 장비를 쥔 채 놀고 있으면
+ * 정작 출전하는 단원이 낄 물건이 창고에 없다. 자동 착용 전에 이걸 돌리면
+ * 대기 인원의 장비가 전부 후보 풀로 돌아온다.
+ *
+ * @param {object} state
+ * @returns {{unequipped:number, mercs:number}}
+ */
+export function unequipBenched(state) {
+  const st = useState(state);
+  if (!st) return { unequipped: 0, mercs: 0 };
+  const assigned = new Set();
+  for (const sq of st.squads || []) {
+    for (const u of sq.memberUids || []) if (u) assigned.add(u);
+  }
+  let n = 0, who = 0;
+  for (const m of st.roster || []) {
+    if (!m || assigned.has(m.uid)) continue;
+    let any = false;
+    for (const s of slotKeysOf(m.equipment)) {
+      if (m.equipment[s]) { m.equipment[s] = null; n++; any = true; }
+    }
+    if (any) who++;
+  }
+  return { unequipped: n, mercs: who };
+}
+
 export function autoEquipAll(state, { squadId = null, mercs = null, pool = null, dryRun = false, powerOf = null } = {}) {
   const st = useState(state);
   if (!st) return { perMerc: [], total: 0 };

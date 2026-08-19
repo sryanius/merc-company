@@ -457,6 +457,12 @@ export function dropSlotForWave(waveIndex = 0, rng = null) {
   return pool[clamp(Math.floor(Math.random() * pool.length), 0, pool.length - 1)];
 }
 
+/**
+ * 웨이브를 깼을 때 세트 조각이 나올 확률.
+ * 올리면 수집이 빨라지고 내리면 느려진다 — 완주 1회가 곧 1개월이라 체감이 크다.
+ */
+export const DROP_CHANCE = 0.30;
+
 /** 드랍 아이템 레벨 */
 export function dropIlvl(waveIndex = 0) {
   return clamp(DROP_ILVL_BASE + normWaveIndex(waveIndex), 1, DROP_ILVL_MAX);
@@ -530,6 +536,19 @@ export function dropForWave(dungeonId, waveIndex = 0, rng = null) {
   if (!d) return null;
   const wi = normWaveIndex(waveIndex, d.waves);
   const r = rng || globalRng;
+
+  /* ★ 드랍 확률.
+   * 원래 설계는 **확정 드랍**이었다(SPEC §521 "보스를 잡을 때마다 세트 아이템 1개").
+   * 그때는 10웨이브를 완주하면 조각 10개가 나와 풀세트가 평균 3개월이면 끝났다.
+   * 세트 예산 버그를 고쳐 세트가 실제로 강해지자 이 속도가 과해져 확률제로 바꿨다.
+   *
+   * 실측 (완주 1회 = 1개월, 중앙값):
+   *   100% → 3칸 1개월 / 5칸 1 / 7칸 1 / 10칸 3
+   *    30% → 3칸 1개월 / 5칸 2 / 7칸 4 / 10칸 9   ← 채택
+   *    20% → 3칸 2개월 / 5칸 3 / 7칸 5 / 10칸 14
+   * 30% 를 고른 이유: 초반 보너스(3·5칸)는 여전히 빨리 닿아 매달 갈 이유가 남고,
+   * 풀세트만 장기 목표로 남는다. */
+  if (!r.chance(DROP_CHANCE)) return null;
   const slot = dropSlotForWave(wi, r);
   const ilvl = dropIlvl(wi);
   const ctx = {

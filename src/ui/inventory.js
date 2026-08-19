@@ -116,6 +116,17 @@ export function dispose() { /* 타이머·rAF를 쓰지 않는다 */ }
 
 const STYLE_ID = 'inventory-style';
 const CSS = `
+/* 단원별 착용 장비 표 — 11열이라 좁은 화면에서는 표가 옆으로 스크롤된다(.bt-tablewrap) */
+.iv-worn th, .iv-worn td { vertical-align: top; white-space: nowrap; }
+.iv-worn .iv-wcell { max-width: 132px; }
+.iv-worn .iv-wcell > div:first-child { overflow: hidden; text-overflow: ellipsis; }
+.iv-worn .iv-wcell.empty { color: var(--ink-faint); text-align: center; }
+.iv-worn tr.iv-wbench { opacity: .55; }
+@media (max-width: 767px) {
+  .iv-worn .iv-wcell { max-width: 108px; font-size: 12px; }
+  .iv-worn .tiny { font-size: 12px; }
+}
+
 .iv-icon{display:flex;align-items:center;justify-content:center;flex:0 0 auto;overflow:hidden;border-radius:5px;
   background:radial-gradient(circle at 50% 50%,#241e31,#100d17);border:1px solid var(--line-soft);}
 .iv-card{border-left-width:3px;}
@@ -555,6 +566,7 @@ export function render(root, params = {}) {
   root.appendChild(el('div', { class: 'col iv-root' },
     headerPanel(owners, list),
     setPanel(),
+    wornPanel(),
     listPanel(list, owners)));
 }
 
@@ -605,9 +617,93 @@ function headerPanel(owners, list) {
       el('div', { class: 'tiny faint', text: `미장착 ${free.length}점 · 매각 가능 ${sellable.length}점 / ${num(stock)}G (전부 팔면 약 ${num(sellable.reduce((a, it) => a + sellPrice(it), 0))}G)` }),
       el('div', { class: 'row wrap', style: { gap: '6px' } },
         el('button', { class: 'btn sm primary', onClick: openAutoEquipPicker }, '자동 착용'),
+        el('button', { class: 'btn sm', onClick: doUnequipBenched }, short('대기 해제', '대기 인원 장비 해제')),
         bulkSellControl())),
     autoSellControl(),
     el('div', { class: 'tiny faint', text: '신화(세트) 장비는 판매되지 않습니다 — 던전에서만 나오는 한정 장비입니다.' }));
+}
+
+/* ───────────────────── 단원별 착용 장비 한눈에 ───────────────────── */
+
+/** 펼침 상태 (화면을 다시 그려도 유지) */
+let wornPanelOpen = false;
+
+/** uid -> 아이템 (없으면 null) */
+const itemOf = (uid) => (uid ? (state.items || []).find((x) => x && x.uid === uid) || null : null);
+
+/**
+ * 누가 무엇을 끼고 있는지 한 표로 본다.
+ * 창고 목록만으로는 "이 전설이 누구 것인지" 를 카드마다 열어 봐야 알 수 있었다.
+ */
+function wornPanel() {
+  const roster = (state.roster || []).filter(Boolean);
+  if (!roster.length) return null;
+
+  const assigned = new Map();   // uid -> 부대명
+  for (const sq of state.squads || []) {
+    for (const u of sq.memberUids || []) if (u) assigned.set(u, sq.name || '부대');
+  }
+
+  const panel = el('div', { class: 'panel col' });
+  panel.appendChild(el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
+    el('h3', { class: 'panel-title', style: { margin: '0' }, text: `단원별 착용 장비 — ${roster.length}명` }),
+    el('button', {
+      class: 'btn sm ghost',
+      onClick: () => { wornPanelOpen = !wornPanelOpen; refresh(); },
+    }, wornPanelOpen ? '접기' : '펼치기')));
+
+  if (!wornPanelOpen) {
+    const bare = roster.filter((m) => !Object.values(m.equipment || {}).some(Boolean)).length;
+    const full = roster.filter((m) => SLOTS.every((s) => m.equipment && m.equipment[s])).length;
+    panel.appendChild(el('div', { class: 'tiny faint', text: `10칸 전부 채운 단원 ${full}명 · 아무것도 안 낀 단원 ${bare}명` }));
+    return panel;
+  }
+
+  // 배치된 단원 먼저, 그 안에서는 전투력 순
+  const ordered = roster.slice().sort((a, b) => {
+    const aa = assigned.has(a.uid) ? 0 : 1;
+    const bb = assigned.has(b.uid) ? 0 : 1;
+    return aa - bb || mercPower(b, state) - mercPower(a, state);
+  });
+
+  const head = el('tr', {}, el('th', { text: '단원' }),
+    ...SLOTS.map((s) => el('th', { class: 'iv-wcell', text: SLOT_NAME[s] || s })));
+
+  const rows = ordered.map((m) => {
+    const c = getClass(m.classId) || {};
+    const squad = assigned.get(m.uid);
+    const sets = new Map();
+    for (const s of SLOTS) {
+      const it = itemOf(m.equipment && m.equipment[s]);
+      const nm = it && setNameOfItem(it);
+      if (nm) sets.set(nm, (sets.get(nm) || 0) + 1);
+    }
+    const setTag = [...sets.entries()].map(([nm, n]) => `${nm} ${n}`).join(' · ');
+
+    return el('tr', { class: squad ? '' : 'iv-wbench' },
+      el('td', {},
+        el('div', { style: { fontWeight: '700', color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+        el('div', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1}` }),
+        el('div', { class: 'tiny', style: { color: squad ? 'var(--gold-dim)' : 'var(--ink-faint)' },
+          text: squad || '대기' }),
+        setTag ? el('div', { class: 'tiny', style: { color: MYTHIC_COLOR }, text: setTag }) : null),
+      ...SLOTS.map((s) => {
+        const it = itemOf(m.equipment && m.equipment[s]);
+        if (!it) return el('td', { class: 'iv-wcell empty', text: '—' });
+        return el('td', { class: 'iv-wcell' },
+          el('div', {
+            style: { color: rColor(it), fontWeight: isMythic(it) ? '700' : '500', cursor: 'pointer' },
+            title: it.name,
+            onClick: () => openItemDetail(it.uid),
+          }, it.name),
+          el('div', { class: 'tiny faint', text: `iL${it.ilvl || 1}` }));
+      }));
+  });
+
+  panel.appendChild(el('div', { class: 'bt-tablewrap' },
+    el('table', { class: 'data tiny iv-worn' }, el('thead', {}, head), el('tbody', {}, rows))));
+  panel.appendChild(el('div', { class: 'tiny faint', text: '칸을 누르면 그 장비의 상세가 열립니다. 회색 줄은 부대에 없는 대기 인원입니다.' }));
+  return panel;
 }
 
 /* ─────────────────────────── 세트 수집 현황 ─────────────────────────── */
@@ -742,15 +838,39 @@ function openSetDetail(setId) {
 /* ─────────────────────────── 자동 착용 ─────────────────────────── */
 
 /** 1단계 — 누구에게 배분할지 고른다 */
+/**
+ * 부대에 배치되지 않은 단원의 장비를 전부 벗긴다.
+ * 대기 인원이 장비를 쥐고 있으면 정작 출전하는 단원이 낄 물건이 창고에 없다.
+ */
+function doUnequipBenched() {
+  const assigned = new Set();
+  for (const sq of state.squads || []) for (const u of sq.memberUids || []) if (u) assigned.add(u);
+  const benched = (state.roster || []).filter((m) => m && !assigned.has(m.uid));
+  const holding = benched.filter((m) => Object.values(m.equipment || {}).some(Boolean));
+
+  if (!holding.length) { toast('대기 인원 중 장비를 낀 단원이 없습니다.'); return; }
+
+  confirmBox('대기 인원 장비 해제',
+    `부대에 없는 단원 ${holding.length}명의 장비를 전부 창고로 돌립니다. `
+    + '자동 착용 전에 돌리면 그 장비들이 출전 단원에게 갑니다.',
+    () => {
+      const r = GearAPI.unequipBenched(state);
+      addLog(`대기 인원 ${r.mercs}명의 장비 ${r.unequipped}점을 창고로 돌렸다.`);
+      save();
+      toast(`${r.mercs}명에게서 ${r.unequipped}점을 회수했습니다.`, 'good');
+      refresh();
+    }, '해제');
+}
+
 function openAutoEquipPicker() {
   if (!(state.roster || []).length) { toast('단원이 없습니다.', 'bad'); return; }
 
   const box = el('div', { class: 'col iv-mbody', style: { gap: '6px', minWidth: 'min(340px, 80vw)' } },
     el('div', { class: 'tiny faint', text: '창고의 장비를 클래스에 맞춰 10칸 전부 자동으로 끼웁니다. 전투력이 높은 단원부터 좋은 장비를 가져갑니다.' }),
-    el('div', { class: 'iv-warn tiny' },
-      '주의 — 자동 착용은 칸별 스탯으로만 고릅니다. ',
-      el('b', { text: '세트 단계 효과가 개별 스탯보다 큰 경우가 많아' }),
-      ' 모아 둔 세트가 깨질 수 있습니다. 미리보기에서 세트 변화 경고를 반드시 확인하세요.'));
+    el('div', { class: 'tiny', style: { color: 'var(--ok)' } },
+      el('b', { text: '세트는 유지됩니다.' }),
+      ' 활성 세트 단계(3·5·7·10칸)를 떨어뜨리는 교체는 하지 않습니다 — '
+      + '개별 스탯이 더 좋은 전설이 있어도 세트를 벗기지 않습니다.'));
 
   const row = (label, sub, target) => el('div', {
     class: 'iv-row pick',
