@@ -384,6 +384,19 @@ function doCloud() {
       el('span', { class: 'muted tiny', text: '상태' }),
       el('b', { style: { color: st.on ? 'var(--ok)' : 'var(--ink-faint)' }, text: st.label })),
     el('div', { class: 'faint tiny', text: st.detail }),
+    st.sync ? el('div', { class: 'faint tiny', text: st.sync }) : null,
+    st.on
+      ? el('button', {
+        class: 'btn sm ghost', style: { alignSelf: 'flex-start' },
+        onClick: async (ev) => {
+          const b = ev.currentTarget;
+          b.disabled = true; b.textContent = '올리는 중…';
+          const r = await Cloud.pushNow();
+          b.disabled = false; b.textContent = '지금 올리기';
+          toast(r.ok ? '세이브를 올렸습니다.' : (r.error || '올리지 못했습니다.'), r.ok ? 'good' : 'bad');
+        },
+      }, '지금 올리기')
+      : null,
     el('div', { class: 'sep' }),
     el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
       el('b', { text: '랭킹' }), '에 참여한다. 로그인 화면은 없다 — 계정이 자동으로 만들어진다.'),
@@ -620,6 +633,8 @@ export async function startTutorial(force = false) {
 /* ---------------- 부팅 ---------------- */
 export function boot() {
   bus.on('change', () => { renderHud(); });
+  // 저장 훅을 꽂고 밀려 있던 업로드를 이어 간다. 꺼져 있으면 아무 일도 안 한다.
+  try { Cloud.init(); } catch (e) { console.warn('[app] 클라우드 초기화 실패', e); }
   window.addEventListener('beforeunload', () => { try { save(); } catch {} });
 
   let loaded = false;

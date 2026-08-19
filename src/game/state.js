@@ -728,6 +728,22 @@ export function tripsResetRule(data) {
   return squadAllS(sq, data.roster);
 }
 
+/* ─────────────────── 저장 훅 ───────────────────
+ * ★ `state.js` 는 `net/` 을 **import 하지 않는다.**
+ *   data/ · game/ · battle/ 은 DOM 없이 node 에서 import 되어야 한다는 게 이 프로젝트의
+ *   불변식이고(도구 전체가 그 위에 서 있다), 여기서 네트워크 계층을 끌어오면
+ *   계층이 뒤집힌다. 대신 훅을 열어 두고 UI 쪽에서 꽂는다.
+ *
+ * ★ 훅은 **절대 저장을 방해하면 안 된다.** 예외는 여기서 삼킨다 —
+ *   클라우드가 죽었다고 로컬 저장이 실패하면 그게 훨씬 큰 사고다. */
+let saveHook = null;
+
+/**
+ * 저장이 끝난 뒤 불릴 함수를 등록한다 (클라우드 업로드 등).
+ * @param {(state:object)=>void|null} fn null 이면 해제
+ */
+export function onSaved(fn) { saveHook = typeof fn === 'function' ? fn : null; }
+
 export function save() {
   const ls = storage();
   if (!ls) return false;
@@ -741,11 +757,15 @@ export function save() {
     state.rev = (Number(state.rev) || 0) + 1;
     state.savedAt = Date.now();
     ls.setItem(SAVE_KEY, JSON.stringify(state));
-    return true;
   } catch (e) {
     console.warn('[state] 저장 실패', e);
     return false;
   }
+  // 로컬 저장이 확정된 뒤에만 부른다. 훅이 터져도 저장은 이미 끝나 있다.
+  if (saveHook) {
+    try { saveHook(state); } catch (e) { console.warn('[state] 저장 훅 실패', e); }
+  }
+  return true;
 }
 
 /** 세이브를 불러온다. 실패하거나 버전이 다르면 새 게임을 시작하고 false를 반환. */
