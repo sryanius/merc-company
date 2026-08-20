@@ -486,8 +486,8 @@ function headerPanel({ city, tier, gate, cap, spec }, offers) {
       ? el('span', {
         class: 'tiny',
         style: { color: 'var(--ember)' },
-        title: `이 도시를 떠나 있으면 하루 ${GameState.REP_DECAY_PER_DAY}씩 준다. ${GameState.REP_DECAY_FLOOR} 아래로는 안 내려간다.`,
-        text: `자리를 비우면 하루 −${GameState.REP_DECAY_PER_DAY} (${GameState.REP_DECAY_FLOOR}까지)`,
+        title: `이 도시 의뢰를 ${GameState.REP_DECAY_GRACE ?? 7}일 넘게 안 하면 하루 ${GameState.REP_DECAY_PER_DAY}씩 준다. ${GameState.REP_DECAY_FLOOR} 아래로는 안 내려간다. 머물러 있어도 일을 안 하면 깎인다.`,
+        text: `${GameState.REP_DECAY_GRACE ?? 7}일 넘게 일 안 하면 하루 −${GameState.REP_DECAY_PER_DAY} (${GameState.REP_DECAY_FLOOR}까지)`,
       })
       : null,
     gate.ok

@@ -1876,11 +1876,19 @@ if (State) {
       State.newGame(4242, '감쇠');
       const st = State.state;
       st.cityId = 'greenhold';
+      st.day = 100;
       st.reputation = { greenhold: 300, kingsrest: 300, frostgate: 55, millford: 40 };
+      /* ★ 기준은 «서 있는 곳» 이 아니라 «최근에 일한 곳» 이다 (REP_DECAY_GRACE).
+       *   눌러앉기만 해도 유지되면 «신경 쓰게» 만들자는 취지가 무너진다. */
+      st.repTouch = { greenhold: 100 };        // 오늘 일했다 · kingsrest 는 기록 없음
+      State.advanceDays(3);
+      ok(st.reputation.greenhold === 300,
+        '최근에 일한 도시는 유예 안에서 안 깎인다', String(st.reputation.greenhold));
+      ok(st.reputation.kingsrest === 300 - 3 * State.REP_DECAY_PER_DAY,
+        '일한 적 없는 도시는 하루 REP_DECAY_PER_DAY 씩 깎인다', String(st.reputation.kingsrest));
       State.advanceDays(10);
-      ok(st.reputation.greenhold === 300, '머무는 도시는 안 깎인다', String(st.reputation.greenhold));
-      ok(st.reputation.kingsrest === 300 - 10 * State.REP_DECAY_PER_DAY,
-        '자리를 비운 도시는 하루 REP_DECAY_PER_DAY 씩 깎인다', String(st.reputation.kingsrest));
+      ok(st.reputation.greenhold < 300,
+        '유예가 지나면 머물러 있어도 깎인다', String(st.reputation.greenhold));
       ok(st.reputation.frostgate === State.REP_DECAY_FLOOR,
         '바닥에서 멈춘다', String(st.reputation.frostgate));
       ok(st.reputation.millford === 40,

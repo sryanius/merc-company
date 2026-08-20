@@ -135,10 +135,20 @@ export const REP_QUEST_GAIN = { F: 2, E: 3, D: 4, C: 6, B: 8, A: 11, S: 14 };
  * ★ `REP_DECAY_FLOOR` 아래로는 **안 내려간다.** 한 번 다진 도시가 영영 잠기는 일
  *   (주점 재잠금)을 막고, «기본은 영구 · 정점은 관리» 가 되게 한다.
  *
- * ★ **지금 있는 도시는 안 깎인다.** 거기서 일하고 있다는 뜻이니까.
+ * ★ 판단 기준은 «서 있는 곳» 이 아니라 **«최근에 일한 곳»** 이다 (REP_DECAY_GRACE).
  */
 export const REP_DECAY_PER_DAY = 1;
 export const REP_DECAY_FLOOR = 50;
+
+/**
+ * 마지막으로 그 도시 일을 한 뒤 **며칠까지 봐주는가.**
+ *
+ * ★ 처음에는 «지금 머무는 도시만 안 깎인다» 로 만들었다. 그런데 그러면
+ *   **한 도시에 눌러앉으면 관리가 필요 없어진다** — 평판을 «신경 쓰게» 만들자는
+ *   취지와 어긋난다 (제작자 지적).
+ *   지금은 **최근에 그 도시에서 일했는가**로 본다. 서 있기만 해서는 안 된다.
+ */
+export const REP_DECAY_GRACE = 7;
 
 /* ─────────────────────────── 단원 정원 노브 ───────────────────────────
  * 정원은 골드로 산다. 체증 비용이라 무한 확장은 못 하고, 확장할 때마다 의뢰를 더 돌아야 한다. */
@@ -202,6 +212,8 @@ function defaultState() {
     formations: ['basic'],
     /** 도시별 평판 0~100. 세이브 직렬화 대상 */
     reputation: defaultReputation(),
+    /** 도시별 «마지막으로 일한 날». 평판 감쇠가 이걸 본다 (REP_DECAY_GRACE) */
+    repTouch: {},
     /** 단원 정원. 골드로 확장한다 (ROSTER_CAP_COST) */
     rosterCap: ROSTER_CAP_START,
     /** 던전 진행: { [dungeonId]: {bestWave, clearedAt} }. 세이브 직렬화 대상 */
@@ -381,7 +393,7 @@ function replaceState(src) {
   state.squads = Array.isArray(state.squads) ? state.squads : [];
   state.log = Array.isArray(state.log) ? state.log : [];
   state.formations = Array.isArray(state.formations) && state.formations.length ? state.formations : ['basic'];
-  for (const key of ['quests', 'tavern', 'shop']) {
+  for (const key of ['quests', 'tavern', 'shop', 'repTouch']) {
     if (!state[key] || typeof state[key] !== 'object') state[key] = {};
   }
   // 장비 10슬롯 정규화 — 옛 세이브의 {weapon, armor, accessory} 를 옮긴다.
@@ -1041,6 +1053,10 @@ export function addRep(cityId, delta, st = state) {
   const d = Math.round(Number(delta) || 0);
   const after = clamp(before + d, REP_MIN, REP_MAX);
   st.reputation[cityId] = after;
+  /* ★ «이 도시에서 일했다» 는 도장. 감쇠가 이걸 본다.
+   *   성공이든 실패든 일은 일이다 — 실패했다고 방치로 치면 이중 처벌이 된다. */
+  if (!st.repTouch || typeof st.repTouch !== 'object') st.repTouch = {};
+  st.repTouch[cityId] = Number(st.day) || 0;
   if (after !== before) {
     const name = getCity(cityId)?.name || cityId;
     const diff = after - before;
@@ -1384,10 +1400,13 @@ export function advanceDays(n = 1) {
      * ★ 도시가 16곳이라 전부 만점으로 유지하는 건 불가능하다 — 그게 목적이다.
      *   «어느 도시를 거점으로 삼을까» 라는 선택이 생긴다. */
     if (REP_DECAY_PER_DAY > 0 && state.reputation) {
+      const touch = state.repTouch && typeof state.repTouch === 'object' ? state.repTouch : {};
       for (const cid of Object.keys(state.reputation)) {
-        if (cid === state.cityId) continue;
         const v = Number(state.reputation[cid]);
         if (!Number.isFinite(v) || v <= REP_DECAY_FLOOR) continue;
+        // 최근에 그 도시 일을 했으면 봐준다 — «서 있는 것» 이 아니라 «일한 것» 이 기준이다
+        const last = Number(touch[cid]) || 0;
+        if (last > 0 && state.day - last < REP_DECAY_GRACE) continue;
         state.reputation[cid] = Math.max(REP_DECAY_FLOOR, v - REP_DECAY_PER_DAY);
       }
     }
