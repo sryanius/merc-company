@@ -175,6 +175,7 @@ function injectStyle() {
 .qs-diff b{font-weight:800}
 /* 예상 손실 한 줄 — 색 옆에 붙는다. 색만으로는 「적정」의 뜻을 알 수 없다 (설계 3c) */
 .qs-cost{color:var(--ink-faint);font-size:11px}
+.qs-peril b{color:var(--ember)}
 .qs-rew .elite-x{color:var(--bad);font-weight:800}
 
 /* ══════════════════ 모바일 대응 ══════════════════
@@ -632,6 +633,21 @@ function dangerFor(quest, squadId) {
 }
 
 /**
+ * 도시 험지 배지 — 이 의뢰가 «어느 등급 땅의» 의뢰인가.
+ *
+ * 랭크(F~S)는 권장 레벨을 정하고, 도시 등급은 **적을 통째로 강화**한다.
+ * 둘은 다른 축이라 랭크만 보면 난이도를 알 수 없다.
+ */
+function questPeril(q) {
+  const p = Number(q && q.cityPower) || 1;
+  if (!(p > 1.001)) return null;
+  return el('span', {
+    class: 'qs-m2 qs-peril',
+    title: `이 땅의 적은 기본보다 ${p.toFixed(2)}배 강하고 우두머리도 자주 나온다`,
+  }, '험지 ', el('b', { text: `×${p.toFixed(2)}` }));
+}
+
+/**
  * 「이 의뢰가 얼마짜리인가」 한 줄.
  *
  * ★ 「부상」 이라고 쓰면 안 된다. 부상은 **실패했을 때만** 난다 (`quest.js` 부상 판정).
@@ -978,6 +994,11 @@ function questCard(q, root) {
           el('span', { class: 'qs-m2' }, '지역 ', el('b', { text: biome })),
           el('span', {}, '권장 ', el('b', { text: `Lv${q.level}` })),
           el('span', { class: 'qs-m2' }, '단계 ', el('b', { text: `${rankLabel(q)} · ${subName(q)}` })),
+          /* ★ 도시 배율 — 같은 「S랭크」라도 도시 등급에 따라 난이도가 배로 다르다
+           *   (1등급 ×1.00 vs 5등급 ×1.90, 게다가 보스 등장률도 2.8배 — HANDOFF §37).
+           *   화면에 안 쓰면 플레이어는 «같은 S인데 왜 다르지» 를 알 길이 없다.
+           *   ×1.0 인 도시에서는 안 쓴다 — 기준값이라 정보가 없다. */
+          questPeril(q),
           el('span', { class: 'qs-m2' }, '웨이브 ', el('b', { text: `${waves.length}` })),
           el('span', { class: 'qs-m2' }, '복귀 ', el('b', { class: 'num', text: `${num(state.day + q.days)}일차` })),
           el('span', { class: daysLeft <= 1 ? '' : 'faint', style: daysLeft <= 1 ? { color: 'var(--bad)' } : {}, text: daysLeft <= 0 ? '오늘 마감' : `${daysLeft}일 남음` }))),
