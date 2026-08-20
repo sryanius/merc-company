@@ -116,7 +116,10 @@ async function load(list) {
         el('div', { class: 'rk-nm', text: r.company_name || '이름 없음' }),
         el('div', { class: 'rk-sub' },
           `${num(r.day)}일차`,
-          city ? ` · ${city.name} ★${r.city_tier || city.tier}` : '',
+          /* ★ 도시 등급은 **여기서 직접 찾는다.** 서버의 city_tier 는 비어 있다 —
+           *   검증 규칙(rules.js)이 의존성 0 모듈만 쓸 수 있어서 world.js 를 못 물기 때문이다.
+           *   클라이언트는 어차피 도시 데이터를 다 갖고 있으니 여기서 푸는 게 맞다. */
+          city ? ` · ${city.name} ★${city.tier || r.city_tier || '?'}` : '',
           r.top_level ? ` · 최고 Lv${r.top_level}` : '',
           r.roster_n ? ` · 단원 ${r.roster_n}` : '')),
       el('div', { class: 'rk-val' },
