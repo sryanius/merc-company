@@ -13,6 +13,7 @@ import * as Cloud from '../net/cloud.js';
 import * as Auth from '../net/auth.js';
 import { getCity } from '../data/world.js';
 import { companyName } from '../data/names.js';
+import { CHANGELOG, LATEST_ID } from '../data/changelog.js';
 
 /** 용병단 이름 최대 길이 */
 const NAME_MAX = 20;
@@ -54,6 +55,13 @@ const SCREENS = [
    (셸 공용 반응형은 css/style.css 에 있다 — 여기는 app.js 가 만드는 요소만 다룬다) */
 const CSS = `
 .hud-brand-btn { cursor:pointer; border-radius:6px; padding:2px 6px; margin:-2px -6px; }
+.cl-body { gap:10px; min-width:min(560px,88vw); max-height:64vh; overflow:auto; }
+.cl-head { padding:8px 10px; border-radius:6px; background:rgba(224,180,74,.10); border:1px solid var(--gold-dim); font-size:13px; }
+.cl-entry { border:1px solid var(--line-soft); border-radius:6px; padding:9px 11px; }
+.cl-list { margin:6px 0 0; padding-left:18px; font-size:12.5px; line-height:1.55; }
+.cl-list li { margin:2px 0; }
+.cl-note { margin-top:6px; font-size:11.5px; color:var(--ink-faint); }
+@media (max-width: 767px) { .cl-list { font-size:13px; } .cl-note { font-size:12px; } }
 .hud-row { display:flex; align-items:baseline; gap:6px; min-width:0; }
 .hud-pen { flex:0 0 auto; font-size:12px; font-style:normal; color:var(--ink-faint); }
 .hud-brand-btn:hover .hud-pen { color:var(--gold); }
@@ -214,6 +222,13 @@ function renderHud() {
         title: '세이브 · 클라우드 · 랭킹',
         onClick: doCloud,
       }, Cloud.isOn() ? '세이브 ●' : '세이브'),
+      /* ★ 세이브 옆이다. 업데이트가 잦은 게임이라 «뭐가 바뀌었지» 를 찾을 자리가 필요하다.
+       *   안 본 게 있으면 점을 붙인다 — 팝업을 닫아 버린 사람도 여기서 다시 볼 수 있다. */
+      el('button', {
+        class: 'btn sm ghost',
+        title: '업데이트 내역',
+        onClick: () => openChangelog(),
+      }, unseenChangelog() ? '업데이트 ●' : '업데이트'),
       el('button', { class: 'btn sm ghost', onClick: () => promptNewGame({ overwrite: hasSave() }) }, '새 게임'),
       el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기')),
     // 모바일 전용 펼치기 버튼. PC 에서는 CSS 가 숨긴다.
@@ -396,6 +411,71 @@ function askLegacyPassword(rawText, fileName, importSaveText) {
     ],
   });
   setTimeout(() => input.focus(), 60);
+}
+
+/* ---------------- 업데이트 내역 ---------------- */
+
+const SEEN_KEY = 'merc_seen_changelog';
+
+const readSeen = () => { try { return localStorage.getItem(SEEN_KEY) || ''; } catch (e) { return ''; } };
+const writeSeen = (v) => { try { localStorage.setItem(SEEN_KEY, v); } catch (e) { /* 사파리 비공개 모드 */ } };
+
+/** 아직 안 본 업데이트가 있는가 */
+export function unseenChangelog() {
+  return !!LATEST_ID && readSeen() !== LATEST_ID;
+}
+
+/**
+ * 업데이트 내역 창.
+ *
+ * ★ **닫는 순간 «봤다» 고 찍는다.** 열어만 두고 새로고침하면 또 뜨는 게 맞다 —
+ *   읽었는지 아닌지는 닫는 행동으로만 알 수 있다.
+ * @param {{auto?:boolean}} [opt] auto 면 «업데이트됐다» 는 머리말을 붙인다
+ */
+export function openChangelog(opt = {}) {
+  const body = el('div', { class: 'col cl-body' });
+  if (opt.auto) {
+    body.appendChild(el('div', { class: 'cl-head' },
+      el('b', { text: '업데이트되었습니다.' }),
+      el('span', { class: 'faint', text: ' 그동안 달라진 것들입니다.' })));
+  }
+  for (const e of CHANGELOG) {
+    const box = el('div', { class: 'cl-entry' },
+      el('div', { class: 'row spread center', style: { gap: '8px' } },
+        el('b', { text: e.title }),
+        el('span', { class: 'faint tiny', text: e.date })));
+    const ul = el('ul', { class: 'cl-list' });
+    for (const line of e.items || []) {
+      /* **굵게** 만 지원한다 — 내역에 강조가 필요한 건 «무엇이 달라졌나» 한 군데뿐이다. */
+      const li = el('li');
+      String(line).split(/\*\*/).forEach((part, i) => {
+        li.appendChild(i % 2 ? el('b', { text: part }) : document.createTextNode(part));
+      });
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    if (e.note) box.appendChild(el('div', { class: 'cl-note', text: e.note }));
+    body.appendChild(box);
+  }
+
+  modal({
+    title: '업데이트 내역',
+    body,
+    wide: true,
+    actions: [{ label: '확인', kind: 'primary' }],
+    onClose: () => { writeSeen(LATEST_ID); renderHud(); },
+  });
+}
+
+/** 갱신 직후 한 번 띄운다. 첫 실행(= 본 적 없음)에는 안 띄운다 — 새 플레이어를 방해하지 않는다. */
+export function maybeShowChangelog() {
+  const seen = readSeen();
+  if (!LATEST_ID) return;
+  // 처음 온 사람 — 조용히 도장만 찍는다. HUD 를 다시 그려야 «●» 가 사라진다
+  // (HUD 는 이 함수보다 먼저 그려진다).
+  if (!seen) { writeSeen(LATEST_ID); renderHud(); return; }
+  if (seen === LATEST_ID) return;
+  openChangelog({ auto: true });
 }
 
 /* ---------------- 용병단 개명 ---------------- */
@@ -973,6 +1053,9 @@ export function boot() {
   }
   if (loaded) {
     go('city');
+    /* ★ 업데이트 내역은 화면이 뜬 뒤에 띄운다 — 부팅을 막지 않는다.
+     *   튜토리얼과 겹치지 않도록 조금 미룬다 (튜토리얼은 새 게임 쪽 경로다). */
+    setTimeout(() => { try { maybeShowChangelog(); } catch (e) { console.warn('[app] 업데이트 내역 실패', e); } }, 600);
     /* ★ boot() 는 동기로 둔다. 복원 확인은 화면이 뜬 **뒤에** 비동기로 붙인다 —
      *   여기서 await 하면 네트워크가 느린 기기에서 첫 화면이 그만큼 늦게 뜬다. */
     setTimeout(() => { maybeReconcile().catch((e) => console.warn('[app] 복원 확인 실패', e)); }, 1200);
