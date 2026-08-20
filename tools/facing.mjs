@@ -30,7 +30,9 @@ const MIN_EYE = 1;                       // 합성 후 남아 있어야 하는 �
 const EYE_X = MID + 1.5 * SCALE;         // 눈 평균 x (중심보다 확실히 앞)
 const MIN_SKIN = 5 * SCALE;              // 보이는 얼굴 픽셀 수 (투구가 얼굴을 통째로 덮으면 안 된다)
 const SKIN_X = MID + 0.8 * SCALE;        // 얼굴 평균 x
-const HAIR_BACK = MID + 0.2 * SCALE;     // 머리카락 평균 x (뒤통수는 뒤쪽에 있어야 한다)
+/* 머리카락이 얼굴 **앞으로 쏠렸는가**. 앞머리는 허용하되 통째로 앞에 있으면 잡는다.
+ * (옛 기준은 중심 뒤였고 그건 앞머리 금지였다 — HANDOFF §55) */
+const HAIR_FRONT = MID + 2.2 * SCALE;
 /* ★ 머리카락이 **머리에 붙어 있나** — 평균 x 만 재면 «뒤에 떠 있는 가발» 을 못 잡는다 */
 const MAX_BARE = 2 * SCALE;              // 정수리가 드러난 열 (조금은 이마·가르마라 허용)
 /* ★ 정수리를 덮을 «의무가 없는» 파츠. 정의상 두피 머리카락이 아니다 —
@@ -72,15 +74,19 @@ function composeHead(names) {
  *   팔레트에 단계를 더할 때 여기도 같이 고쳐야 한다 (HANDOFF §54). */
 const SKIN = new Set(['s', 'S', 'x']);
 const HAIR = new Set(['h', 'H', 'y']);
+/* ★ 눈은 이제 **세 겹**이다 (흰자 q / 홍채 e / 동공 E). 한 글자만 세면
+ *   애니풍으로 다시 그린 눈을 «눈이 없다» 로 읽는다 (HANDOFF §55). */
+const EYE = new Set(['e', 'E', 'q']);
 
 function measure(grid) {
   let eye = 0, eyeX = 0, skin = 0, skinX = 0, hair = 0, hairX = 0;
+  let skinBackX = W, hairBackX = W;          // 각각 가장 **뒤쪽**(x 가 작은) 끝
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const c = grid[y][x];
-      if (c === 'e') { eye++; eyeX += x; }
-      else if (SKIN.has(c)) { skin++; skinX += x; }
-      else if (HAIR.has(c)) { hair++; hairX += x; }
+      if (EYE.has(c)) { eye++; eyeX += x; }
+      else if (SKIN.has(c)) { skin++; skinX += x; if (x < skinBackX) skinBackX = x; }
+      else if (HAIR.has(c)) { hair++; hairX += x; if (x < hairBackX) hairBackX = x; }
     }
   }
   return {
@@ -88,6 +94,8 @@ function measure(grid) {
     eyeX: eye ? eyeX / eye : null,
     skinX: skin ? skinX / skin : null,
     hairX: hair ? hairX / hair : null,
+    skinBackX: skin ? skinBackX : W,
+    hairBackX: hair ? hairBackX : W,
     ...scalp(grid),
   };
 }
@@ -173,7 +181,15 @@ for (const combo of combos) {
   else if (m.eyeX < EYE_X) bad.push(`눈 x ${m.eyeX.toFixed(1)}(≥${EYE_X})`);
   if (m.skin < MIN_SKIN) bad.push(`얼굴 ${m.skin}px(≥${MIN_SKIN})`);
   else if (m.skinX < SKIN_X) bad.push(`얼굴 x ${m.skinX.toFixed(1)}(≥${SKIN_X})`);
-  if (m.hair > 0 && m.hairX > HAIR_BACK) bad.push(`머리 x ${m.hairX.toFixed(1)}(≤${HAIR_BACK})`);
+  /* ★★ 앞머리를 금지하지 않는다.
+   *   예전 규칙은 «머리카락 평균 x 가 중심보다 뒤» 였는데, 그건 **앞머리를 사실상 금지**한다.
+   *   플레이어는 일본풍 애니메이션 얼굴을 원했고 거기서는 앞머리가 기본이다.
+   *   지키려던 것은 «머리카락이 얼굴을 덮어 방향이 죽는 것» 이고, 그건
+   *   눈이 보이는가(위) + 머리카락이 뒤통수를 감싸는가(아래)로 충분히 잡힌다. */
+  if (m.hair > 0 && m.hairBackX > m.skinBackX + SCALE) {
+    bad.push(`머리카락이 뒤통수를 안 감싼다 (머리 뒤끝 x ${m.hairBackX} > 얼굴 뒤끝 ${m.skinBackX})`);
+  }
+  if (m.hair > 0 && m.hairX > HAIR_FRONT) bad.push(`머리카락이 얼굴 앞에 쏠렸다 x ${m.hairX.toFixed(1)}(≤${HAIR_FRONT})`);
   /* 머리카락이 있는데 두피를 안 덮거나 몸에서 떨어져 있으면 «가발이 떠 있는» 그림이다 */
   if (m.hair > 0 && !NO_SCALP.has(combo.names[1]) && m.bare > MAX_BARE) {
     bad.push(`정수리 노출 ${m.bare}칸(≤${MAX_BARE})`);

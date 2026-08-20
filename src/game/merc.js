@@ -500,6 +500,9 @@ export function rollLook(rng = defaultRng) {
     skin: rng.pick(['pale', 'pale', 'tan', 'tan', 'dark']),
     hair: rng.pick(['black', 'brown', 'brown', 'blond', 'white', 'red']),
     hairPart: rng.pick(['hair_short', 'hair_short', 'hair_long', 'hair_pony', 'hair_mohawk', 'hair_beard']),
+    /* ★ 눈동자 색. 예전엔 눈이 고정 검정 한 점이라 얼굴이 다 똑같았다 (HANDOFF §55).
+     *   흔한 색을 여러 번 넣어 «가끔 눈에 띄는» 색이 되게 한다. */
+    eye: rng.pick(['brown', 'brown', 'brown', 'blue', 'blue', 'green', 'amber', 'grey', 'crimson', 'violet']),
   };
 }
 
@@ -971,6 +974,7 @@ export function mercRecipe(merc, itemsById) {
   if (look) {
     if (look.skin) rec.palette.skin = look.skin;
     if (look.hair) rec.palette.hair = look.hair;
+    if (look.eye) rec.palette.eye = look.eye;
     const swappable = ['hair_short', 'hair_long', 'hair_pony', 'hair_mohawk'];
     if (look.hairPart && swappable.includes(rec.hair)) rec.hair = look.hairPart;
   }

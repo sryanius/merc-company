@@ -118,7 +118,7 @@ export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
   return ['F', n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand,
-    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow].join('|');
+    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye].join('|');
 }
 
 function composeFrame(names, tbl, tblFar, dy) {

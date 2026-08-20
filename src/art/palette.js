@@ -77,6 +77,27 @@ const GLOW = {
   none: ['#cfcfe0', '#8a8aa0'],
 };
 
+/**
+ * 눈동자 색.
+ *
+ * ★★ 예전엔 눈이 `e` **한 글자, 고정 검정**이었다. 그러면 어떤 캐릭터든 눈이 점 두 개라
+ *   «애니메이션 얼굴» 이 나올 수가 없다 — 플레이어 지적: *"애들이 전체적으로 얼굴이 못생겼는데
+ *   난 일본풍 애니메이션 좋아하는데"*.
+ *   애니 눈은 **흰자 + 홍채 + 하이라이트** 세 겹이 있어야 산다 (HANDOFF §55).
+ *     q 흰자 / e 홍채 / E 동공·홍채 그늘 / w 하이라이트(눈에도 쓴다)
+ */
+const EYE = {
+  brown: ['#8a5a2e', '#4a2c14'],
+  blue: ['#4a86c8', '#23477a'],
+  green: ['#4a9a5e', '#256036'],
+  amber: ['#d09030', '#8a5a18'],
+  crimson: ['#c04050', '#722030'],
+  violet: ['#8a5ac0', '#4d2f78'],
+  grey: ['#8a90a0', '#4e5464'],
+};
+/** 흰자. 순백이 아니라 살짝 푸른 회백 — 순백은 눈알이 튀어나와 보인다. */
+const SCLERA = '#eef2f8';
+
 const OUTLINE = '#171320';
 
 /* ─────────────────────── 색 보조 ───────────────────────
@@ -156,7 +177,7 @@ const DEEP = '#2a2438';
  *
  * @returns {Record<string,string>} 문자 -> hex
  */
-export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', cloth = 'ash', leather = 'brown', accent = 'gold', glow = 'none', outline = OUTLINE } = {}) {
+export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', cloth = 'ash', leather = 'brown', accent = 'gold', glow = 'none', eye = 'brown', outline = OUTLINE } = {}) {
   const [s, S] = SKIN[skin] || SKIN.pale;
   const [h, H] = HAIR[hair] || HAIR.brown;
   const [m, M] = METAL[metal] || METAL.iron;
@@ -164,8 +185,10 @@ export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', clo
   const [l, L] = LEATHER[leather] || LEATHER.brown;
   const [a, A] = METAL[accent] || CLOTH[accent] || METAL.gold;
   const [g, G] = GLOW[glow] || GLOW.none;
+  const [e, E] = EYE[eye] || EYE.brown;
   return {
-    '.': null, o: outline, w: '#ffffff', e: '#20182c',
+    '.': null, o: outline, w: '#ffffff',
+    q: SCLERA, e, E,          // 눈: 흰자 · 홍채 · 동공
     s, S, h, H, c, C, m, M, l, L, a, A, g, G,
     // 하이라이트 (유도)
     x: lite(s, 0.30),      // 피부는 살짝만 — 많이 밝히면 창백해진다
@@ -181,13 +204,14 @@ export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', clo
 }
 
 /** 도트에서 쓸 수 있는 문자 전부. 파츠 검사기가 이 목록으로 오타를 잡는다. */
-export const PIX_CHARS = ['.', 'o', 'w', 'e', 'd',
+export const PIX_CHARS = ['.', 'o', 'w', 'd', 'q', 'e', 'E',
   's', 'S', 'x', 'h', 'H', 'y', 'c', 'C', 'v', 'm', 'M', 'n',
   'l', 'L', 'k', 'a', 'A', 'b', 'g', 'G', 'f'];
 
 /** 문자 -> 사람 말 (도구가 표를 찍을 때 쓴다) */
 export const CHAR_NAME = {
-  '.': '투명', o: '외곽선', w: '금속 반사광', e: '눈', d: '깊은 그늘',
+  '.': '투명', o: '외곽선', w: '반사광·눈 하이라이트', d: '깊은 그늘',
+  q: '흰자', e: '홍채', E: '동공',
   s: '피부', S: '피부 그늘', x: '피부 하이라이트',
   h: '머리', H: '머리 그늘', y: '머리 하이라이트',
   c: '천', C: '천 그늘', v: '천 하이라이트',
@@ -197,7 +221,7 @@ export const CHAR_NAME = {
   g: '마력광', G: '마력광 그늘', f: '마력광 심지',
 };
 
-export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW };
+export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW, EYE };
 
 /** 등급 색 (F~S) */
 export const GRADE_COLOR = {

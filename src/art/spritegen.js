@@ -488,6 +488,9 @@ export function spriteKey(recipe = {}) {
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand,
     p.skin || 'pale', p.hair || 'brown', p.metal || 'iron', p.cloth || 'ash',
     p.leather || 'brown', p.accent || 'gold', p.glow || 'none',
+    /* ★ 눈 색도 열쇠다. 빼면 «눈만 다른» 두 캐릭터가 같은 캐시를 나눠 써서
+     *   둘 중 먼저 만들어진 눈 색으로 굳는다 — 눈에 안 띄는 종류의 버그다. */
+    p.eye || 'brown',
   ].join('|');
 }
 
