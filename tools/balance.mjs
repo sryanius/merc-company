@@ -106,49 +106,11 @@ function matchedEnemyLevel(level, tier, grade) {
 }
 
 
-/* ─────────────────────── 표준 부대의 «장비» ───────────────────────
- * ★ 예전에는 이 도구의 표준 부대가 **장비를 하나도 안 걸쳤다.**
- *   그래서 랭크별 승률 목표가 전부 «맨몸» 기준이었고, 장비를 갖춘 실제 플레이어에겐
- *   전 구간이 쉬웠다 (실측: 풀장비 2인이 맨몸 7인보다 S+ 를 잘 깬다 — HANDOFF §29).
- *   도시 배율(CITY_POWER, §34)을 넣으면서 이 기준선이 낡았다는 게 확정돼 고친다.
- *
- * ★ «그 레벨대에 보통 갖추는» 만큼만 준다. 풀세트를 주면 이번엔 반대로 너무 쉬워진다.
- *   전직 경계(Lv15/35/55)에 맞춰 칸과 희귀도가 올라간다 — 성장 곡선과 같은 계단이다.
- */
-const GEAR_SLOTS = ['mainhand', 'offhand', 'head', 'body', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
-const gearSlotsFor = (lv) => (lv >= 55 ? 10 : lv >= 35 ? 8 : lv >= 15 ? 5 : 2);
-const gearRarityFor = (lv) => (lv >= 55 ? 2 : lv >= 35 ? 2 : lv >= 15 ? 1 : 0);
-
-/** 같은 (클래스·레벨·등급) 이면 항상 같은 장비를 준다 — 측정이 시드마다 흔들리면 안 된다 */
-/** 문자열 → 32bit (시드용). quest.js 의 것과 같은 계열이면 충분하다. */
-function hashStr(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
-const GEAR_CACHE = new Map();
-function gearedMerc(classId, level, grade) {
-  const key = `${classId}|${level}|${grade}`;
-  if (GEAR_CACHE.has(key)) return GEAR_CACHE.get(key);
-  const rng = new RNG((hashStr(key) >>> 0) || 1);
-  const items = [];
-  const equipment = {};
-  const n = gearSlotsFor(level);
-  const bonus = gearRarityFor(level);
-  for (let k = 0; k < n; k++) {
-    let it = null;
-    try { it = State.rollLoot({ ilvl: Math.min(80, level), rarityBonus: bonus, rng }); } catch (e) { it = null; }
-    if (!it) continue;
-    items.push(it);
-    equipment[it.slot || GEAR_SLOTS[k]] = it.uid;
-  }
-  const idx = {};
-  for (const it of items) idx[it.uid] = it;
-  const out = [{ classId, level, grade, equipment }, { items: idx }];
-  GEAR_CACHE.set(key, out);
-  return out;
-}
+/* ★ 이 도구의 표준 부대는 **맨몸이다.** 한때 장비를 입혔다가 되돌렸다 —
+ * 이 도구가 판정하는 건 §36.5 이후 «1등급 도시의 F/E/D», 즉 **순수 초보 구간**뿐이고
+ * 거기서는 맨몸이 맞는 모델이다 (실측: 장비 2칸만 줘도 D랭크가 70% → 96% 로 튄다).
+ * 장비를 갖춘 부대는 `tools/endgame.mjs` 가 «만렙 풀장비» 로 따로 잰다.
+ * 두 도구가 각각 하나의 모델만 갖는 게 맞다 — 한 도구에 둘을 섞으면 둘 다 못 믿는다. */
 
 function allyDef(classId, level, grade, slotIndex, formationId = 'basic', useForm = false) {
   const cls = getClass(classId);
@@ -162,7 +124,7 @@ function allyDef(classId, level, grade, slotIndex, formationId = 'basic', useFor
     classId,
     arch: cls.arch,
     level, grade,
-    stats: mercStats(...gearedMerc(classId, level, grade)),
+    stats: mercStats({ classId, level, grade, equipment: {} }, null),
     skills: (cls.skills || []).slice(),
     basicFx: cls.basicFx, basicRange: cls.range, basicDmgType: cls.dmgType,
     slot, slotIndex, boss: false,
@@ -495,6 +457,9 @@ function runQuest(quest, squad, seed) {
  * "E등급부터 난이도를 더 올린다. 실패도 자주 해야 클래스·아이템 조합을 바꿀 필요를 느낀다."
  * F 만 초반 보호 구간으로 88~100% 를 지키고, E 부터는 확실히 조인다. C 이상은 세 번 중 한 번은
  * 실패하는 것이 목표다. 단 실패가 진행을 막지 않도록 부상 완화·출전불가 0회 계약은 별도로 지킨다. */
+/** 이 섹션이 «판정» 하는 랭크. 나머지는 표에만 찍고 넘어간다 (endgame.mjs 담당) */
+const JUDGED_RANKS = new Set(['F', 'E', 'D']);
+
 const RANK_TARGET = {
   F: [88, 100], E: [72, 86], D: [62, 78],
   C: [55, 70], B: [48, 64], A: [44, 60], S: [40, 56],
@@ -534,7 +499,7 @@ function collectQuestPool(rounds = 160) {
 }
 
 function sectionQuests(pool) {
-  header('6. 랭크별 의뢰 — **1등급 도시** · 권장 레벨 표준 부대 (F 88~100 / E 72~86 / D 62~78 / C 55~70 / B 48~64 / A 44~60 / S 40~56)');
+  header('6. 랭크별 의뢰 — **1등급 도시의 F/E/D** · 권장 레벨 표준 부대 (F 88~100 / E 72~86 / D 62~78) — C 이상은 tools/endgame.mjs 담당');
   // 공용 대형 풀에서 랭크별로 버킷한다. S 처럼 등장 빈도가 낮고 승률 편차가 큰 랭크는
   // 작은 표본(옛 collectQuests 60라운드)이 서브랭크/구성 운에 따라 ±15%p 흔들려 판정이 뒤집혔다.
   // 서브랭크/정예/4차 섹션과 같은 풀을 써서 측정을 일관되게 만든다.
@@ -581,12 +546,17 @@ function sectionQuests(pool) {
     const avgW = wTimes.reduce((a, b) => a + b, 0) / (wTimes.length || 1);
     rows.push([rk, `${list.length}`, f1(lvl), f2(waveSum / list.length), `${bossN}`, pctS(wr),
       bRun ? pctS(bWin / bRun) : '-', nRun ? pctS(nWin / nRun) : '-', f1(tSum / runs), f1(avgW)]);
+    /* ★ **F/E/D 만 판정한다.** 1등급 도시의 C 이상은 랭크 꼬리(§34)로 «가끔» 뜨는 것이고,
+     *   거긴 도시 배율이 1.00 이라 권장 레벨에 맞춘 장비 부대가 전부 이긴다 —
+     *   그 도시 기준으로 잴 대상이 아니다.
+     *   상위 랭크는 `tools/endgame.mjs` 가 «만렙 부대» 로 판정한다 (HANDOFF §36.5·§39). */
+    if (!JUDGED_RANKS.has(rk)) continue;
     const [lo, hi] = RANK_TARGET[rk] || [60, 80];
     if (wr * 100 < lo || wr * 100 > hi) bad.push(`${rk}랭크 ${pctS(wr)} (목표 ${lo}~${hi}%)`);
   }
   table(['랭크', '의뢰수', '평균Lv', '평균웨이브', '보스전', '승률', '보스전 승률', '일반 승률', '평균초/의뢰', '평균초/전투'],
     rows, ['l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r']);
-  verdict(bad.length === 0, '랭크별 의뢰 승률 (F 88~100 / E 72~86 / D 62~78 / C 55~70 / B 48~64 / A 44~60 / S 40~56)', bad.join(', '));
+  verdict(bad.length === 0, '1등급 도시 랭크별 승률 (F 88~100 / E 72~86 / D 62~78) — C 이상은 endgame.mjs', bad.join(', '));
 }
 
 /* ══════════════════════════ 7. 서브랭크 (설계 D) ══════════════════════════ */
