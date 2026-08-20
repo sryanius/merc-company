@@ -139,21 +139,21 @@ export const CITIES = [
 
   // 태양흉터 황야 (tier 4) — 동쪽 외곽
   {
-    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
+    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 860, y: 620,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
     specialty: ['archer', 'rogue', 'spearman'],
     desc: '사막 대상로의 유일한 우물을 낀 성채. 물값이 곧 통행세이고, 칼이 곧 계약서다. '
       + '대상을 호위하는 낙타 창기와 모래언덕 위의 활잡이, 우물길을 아는 도적이 이곳 주점의 단골이다.',
   },
   {
-    id: 'sandglass', name: '모래시계', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
+    id: 'sandglass', name: '모래시계', regionId: 'sunscar', tier: 4, x: 860, y: 620,
     services: ['tavern', 'shop', 'guild'], links: [],
     specialty: ['archer', 'shieldman', 'rogue'],
-    desc: '대상로가 갈라지는 바위 그늘의 중계 취락. 하루 두 번, 그림자가 길을 가리키는 시각에만 문이 열린다. '
+    desc: '황야가 늪으로 바뀌는 경계의 중계 취락. 하루 두 번, 그림자가 길을 가리키는 시각에만 문이 열린다. '
       + '모래언덕 위에서 먼저 보는 활잡이, 모래바람에 등을 대는 방패병, 다른 길을 아는 도적이 여기서 값을 부른다.',
   },
   {
-    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
+    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 4, x: 860, y: 620,
     services: ['tavern', 'shop', 'guild'], links: [],
     specialty: ['apprentice', 'acolyte', 'swordsman'],
     desc: '땅속에서 불이 새어 나오는 유적 위에 세워진 변경 취락. 유물 사냥꾼들의 마지막 보급지. '
@@ -206,10 +206,10 @@ const EDGES = [
   ['deepdelve', 'dunehold', 4],
   ['dunehold', 'emberwell', 3],
   // 모래시계 — 대상로가 갈라지는 지점이라 사막의 두 도시를 다 문다
-  ['dunehold', 'sandglass', 3],
-  ['sandglass', 'emberwell', 3],
-  ['deepdelve', 'sandglass', 4],
   // 마지막 등불 — 서리관문 **너머**라, 관문을 지나야만 닿는다 (유일한 길)
+  // 모래시계 — 황야가 늪으로 바뀌는 경계라 사막 안쪽과 늪 쪽을 하나씩만 문다
+  ['sandglass', 'emberwell', 2],
+  ['blackreed', 'sandglass', 3],
   ['frostgate', 'lastlamp', 4],
 ];
 

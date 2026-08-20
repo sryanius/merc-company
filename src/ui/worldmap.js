@@ -1061,13 +1061,25 @@ function placeLabel(x, y, nodeR, w, h, force) {
 
   // 아래를 가장 선호하고, 막히면 위 → 좌우 → 더 멀리 순으로 밀어낸다.
   // 후보가 아래/위 둘뿐이면 도시가 붙어 있는 폰에서 금방 자리가 동나 라벨이 사라진다.
+  /* ★ 대각선 4곳을 더했다. 도시가 14 → 16 개가 되면서 폰 폭에서 후보 6곳이 동나
+   *   라벨이 서로 겹치기 시작했다 (실제 화면에서 서리관문·늙은참나무·가시덤불골이 겹쳤다).
+   *   후보를 늘리는 쪽이 «라벨을 숨기는» 쪽보다 낫다 — 폰에서 도시 이름이 안 보이면
+   *   어디로 갈지 고를 수가 없다. */
+  const diag = gap * 0.72;
+  const dside = side * 0.72;
   const cands = [
     { x, y: y + gap },
     { x, y: y - gap - h },
     { x: x + side, y: y - h / 2 },
     { x: x - side, y: y - h / 2 },
+    { x: x + dside, y: y + diag },
+    { x: x - dside, y: y + diag },
+    { x: x + dside, y: y - diag - h },
+    { x: x - dside, y: y - diag - h },
     { x, y: y + gap + h + 5 },
     { x, y: y - gap - h * 2 - 5 },
+    { x: x + side * 1.35, y: y - h / 2 },
+    { x: x - side * 1.35, y: y - h / 2 },
   ];
   const boxAt = (p) => ({ x: p.x - w / 2 - 4 * scale, y: p.y - 1, w: w + 8 * scale, h: h + 3 });
 
