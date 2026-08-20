@@ -25,3 +25,6 @@ node_modules/
 # Supabase CLI 로컬 상태 (프로젝트 연결 정보·임시 파일)
 supabase/.branches
 supabase/.temp
+
+# 조사용 일회성 프로브 (tools/.xxx.mjs) — 저장소에 남길 것이 아니다
+tools/.*
