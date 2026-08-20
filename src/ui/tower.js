@@ -17,6 +17,7 @@ import * as Tower from '../game/tower.js';
 import * as Pet from '../game/pet.js';
 import { getPetSpecies } from '../data/pets.js';
 import { TOWER_FLOORS, zoneOf, floorPower, floorEnemyCount, SWEEP_BACKOFF, REST_EVERY } from '../data/tower.js';
+import { rankNote } from './ranknote.js';
 import { go, refresh, toast } from './app.js';
 
 /** 마지막 등반 결과 — 화면을 나갔다 와도 남는다 */
@@ -181,6 +182,8 @@ function resultPanel(run) {
       stat('구간', `${run.from}층부터`),
       stat('쓴 골드', `${num(run.spent)}G`),
       stat('얻은 펫', `${run.pets.length}마리`)),
+    // 순위 한 줄 (ui/ranknote.js — 나락 결과 화면과 같은 조각을 쓴다)
+    rankNote({ kind: 'tower', value: run.reached, best: state.tower?.best || 0, unit: '층' }),
     run.pets.length
       ? el('div', { class: 'col', style: { gap: '6px' } },
         ...run.pets.map((p) => {
