@@ -53,6 +53,9 @@ const SCREENS = [
 /* HUD 날짜 표기용 소량 CSS. 모듈 안에서 한 번만 주입한다.
    (셸 공용 반응형은 css/style.css 에 있다 — 여기는 app.js 가 만드는 요소만 다룬다) */
 const CSS = `
+.hud-brand-btn { cursor:pointer; border-radius:6px; padding:2px 6px; margin:-2px -6px; }
+.hud-brand-btn:hover { background:rgba(255,255,255,.06); }
+.hud-brand-btn:focus-visible { outline:2px solid var(--gold-dim); outline-offset:2px; }
 .hud-stat .sub { font-size:10px; color:var(--ink-faint); font-variant-numeric:tabular-nums; }
 .hud-stat.date .v { color:var(--gold-dim); letter-spacing:.01em; }
 /* 날짜 전문(일차 + 주차 안내)은 PC 에서 title 툴팁으로 본다. 폰에는 hover 가 없으므로
@@ -163,7 +166,18 @@ function renderHud() {
   hud.className = hudOpen ? 'open' : '';
   hud.innerHTML = '';
   hud.append(
-    el('div', { class: 'hud-brand', title: brand },
+    /* 용병단 이름을 누르면 개명창이 뜬다.
+     * ★ 따로 버튼을 만들지 않았다 — 헤더 버튼을 5개에서 3개로 줄인 참이고,
+     *   "이름을 바꾸려면 이름을 누른다" 가 버튼을 하나 더 다는 것보다 자연스럽다.
+     *   (용병 상세의 이름 옆 수정 아이콘과 같은 결이다.) */
+    el('div', {
+      class: 'hud-brand hud-brand-btn',
+      title: `${brand} — 누르면 이름을 바꾼다`,
+      role: 'button',
+      tabindex: '0',
+      onClick: doRenameCompany,
+      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doRenameCompany(); } },
+    },
       // 긴 이름이 HUD를 밀어내지 않도록 말줄임 처리 (.hud-brand 는 nowrap).
       // 폭 제한은 css/style.css 의 `.hud-brand .hud-name` — 모바일에서 풀어야 해서 클래스로 뺐다.
       el('span', { class: 'hud-name', text: brand }),
@@ -372,6 +386,72 @@ function askLegacyPassword(rawText, fileName, importSaveText) {
     ],
   });
   setTimeout(() => input.focus(), 60);
+}
+
+/* ---------------- 용병단 개명 ---------------- */
+
+/** 용병단 이름을 바꾸는 값 */
+export const RENAME_COST = 50_000;
+
+/**
+ * 용병단 이름 변경.
+ *
+ * ★ 값을 받는 이유: 이름은 **순위표에 그대로 뜬다.** 공짜로 아무 때나 바꿀 수 있으면
+ *   남을 사칭하거나 기록을 세운 뒤 이름만 바꿔 치는 게 가능해진다. 5만 골드면
+ *   초반에는 부담이고 후반에는 부담이 아닌데, 그 정도가 딱 맞다 — 막자는 게 아니라
+ *   "한 번 생각하고 바꾸게" 하려는 것이다.
+ *
+ * ★ 이름은 순수 표시용이다. 세이브·전투·랭킹의 키는 전부 uid / user_id 라 바꿔도 안전하다.
+ */
+function doRenameCompany() {
+  const cur = (state.companyName || '').trim() || DEFAULT_BRAND;
+  const input = el('input', {
+    class: 'co-in', value: cur, maxlength: String(NAME_MAX),
+    onInput: () => { msg.textContent = ''; },
+  });
+  const msg = el('div', { class: 'tiny', style: { minHeight: '16px', color: 'var(--bad)' } });
+  const poor = (state.gold || 0) < RENAME_COST;
+
+  modal({
+    title: '용병단 이름 변경',
+    body: el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(340px, 84vw)' } },
+      el('div', { class: 'row spread center' },
+        el('span', { class: 'muted tiny', text: '비용' }),
+        el('b', { style: { color: poor ? 'var(--bad)' : 'var(--gold)' }, text: `${num(RENAME_COST)}G` })),
+      el('div', { class: 'faint tiny', text: `보유 ${num(state.gold || 0)}G · 현재 이름 ${cur}` }),
+      el('div', { class: 'sep' }),
+      input,
+      el('div', { class: 'faint tiny', text: `1~${NAME_MAX}자. 순위표에도 이 이름으로 뜬다.` }),
+      msg),
+    actions: [
+      { label: '취소', kind: 'ghost' },
+      {
+        label: `바꾼다 (${num(RENAME_COST)}G)`,
+        kind: 'primary',
+        act: async () => {
+          const name = cleanName(input.value).slice(0, NAME_MAX);
+          if (!name) { msg.textContent = '이름을 입력하세요.'; return false; }
+          if (name === cur) { msg.textContent = '지금과 같은 이름입니다.'; return false; }
+          // ★ 골드 검사는 **바꾸기 직전에** 다시 한다. 창을 열어 둔 채 골드를 쓸 수 있다.
+          if ((state.gold || 0) < RENAME_COST) {
+            msg.textContent = `골드가 ${num(RENAME_COST - (state.gold || 0))}G 모자랍니다.`;
+            return false;
+          }
+          state.gold -= RENAME_COST;
+          state.companyName = name;
+          save();
+          renderHud();
+          toast(`${cur} → ${name}`, 'good');
+          /* 순위표에 올라간 이름도 바꿔 준다. 기록이 안 올랐으므로 평소 경로로는
+           * 제출이 안 나가서, 여기서만 강제로 한 번 보낸다. 실패해도 조용히 넘어간다 —
+           * 이름은 이미 바뀌었고 다음 기록 때 어차피 따라간다. */
+          if (Cloud.ready()) Cloud.submitScore({ force: true }).catch(() => {});
+          return true;
+        },
+      },
+    ],
+  });
+  setTimeout(() => { input.focus(); input.select(); }, 60);
 }
 
 /* ---------------- 클라우드 ---------------- */
