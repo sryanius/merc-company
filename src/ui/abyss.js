@@ -19,6 +19,7 @@ import {
   REST_EVERY, VAULT_EVERY, VAULT_MULT, DEPTH_CAP,
 } from '../data/abyss.js';
 import { costRange, TOWER_FLOORS } from '../data/tower.js';
+import * as Cloud from '../net/cloud.js';
 import { go, refresh, toast } from './app.js';
 
 /** 마지막 잠수 결과 — 화면을 나갔다 와도 남는다 */
@@ -207,13 +208,53 @@ function resultPanel(run) {
     }
   }).filter(Boolean);
 
+  /* ★ 순위는 **기록을 세운 직후**에 보여 준다 — 경쟁이 가장 잘 붙는 순간이다.
+   *   로그인 없이도 읽히므로(값만 보내고 누구인지는 안 보낸다) 아직 클라우드를
+   *   안 켠 사람에게도 "이 기록이면 몇 위" 를 알려 줄 수 있다. 그게 켤 이유가 된다.
+   *
+   *   화면을 막지 않는다: 자리만 잡아 두고 값이 오면 갈아 끼운다.
+   *   실패하면 그냥 비운다 — 순위를 못 불러왔다고 잠수 결과를 가릴 이유가 없다. */
+  const rankLine = el('div', { class: 'faint tiny', text: '순위 확인 중…' });
+  if (run.reached > 0) fillRank(rankLine, run.reached);
+  else rankLine.textContent = '';
+
   return el('div', { class: 'panel col', style: { gap: '10px' } },
     el('h3', { text: `잠수 결과 — ${run.reached}심층` }),
     el('div', { class: 'row', style: { gap: '16px', flexWrap: 'wrap' } },
       stat('도달', `${run.reached}심층`),
       stat('구역', run.reached ? zoneOf(run.reached) : '—'),
       stat('캔 골드', `${num(run.gold)}G`)),
+    rankLine,
     rows.length ? el('div', { class: 'ab-log' }, rows) : null);
+}
+
+/**
+ * 순위를 받아 한 줄로 채운다.
+ * ★ 최고 기록(state.abyss.best)이 아니라 **이번에 도달한 심층**으로 묻는다 —
+ *   플레이어가 방금 한 일에 대한 답이어야 한다.
+ */
+async function fillRank(node, depth) {
+  let r = null;
+  try { r = await Cloud.rankOf('abyss', depth); } catch (e) { r = null; }
+  if (!node.isConnected) return;                 // 화면을 이미 떠났다
+  if (!r || !r.ok) { node.textContent = ''; return; }
+
+  const best = state.abyss?.best || 0;
+  const isBest = depth >= best;
+  /* ★ 총원은 `max(등재 인원, 내 순위)` 다.
+   *   `rank_of` 는 "나보다 잘한 사람 + 1" 이라 **아직 안 올라간 사람도 순위가 나온다**.
+   *   그때 등재 인원을 그대로 쓰면 "3위 · 2명 중" 같은 말이 된다 —
+   *   내가 올라가면 3명이 되므로 그 수를 보여 주는 게 맞다. */
+  const total = Math.max(r.total || 0, r.rank || 0);
+  node.innerHTML = '';
+  node.appendChild(el('span', {},
+    el('b', { style: { color: '#f0c05a' }, text: `${num(r.rank)}위` }),
+    total ? ` · ${num(total)}명 중` : '',
+    isBest ? ' · 최고 기록' : ` · 내 최고는 ${num(best)}심층`));
+  if (!Cloud.ready()) {
+    node.appendChild(el('div', { class: 'faint tiny', style: { marginTop: '2px' } },
+      '로그인하면 이 기록이 순위표에 오른다.'));
+  }
 }
 
 const row = (cls, f, text) => el('div', { class: `ab-row ${cls}` },

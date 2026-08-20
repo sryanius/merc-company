@@ -459,6 +459,27 @@ export async function leaderboard(kind = 'abyss', limit = 100) {
   return { ok: true, rows: Array.isArray(res.data) ? res.data : [], error: '' };
 }
 
+/**
+ * 이 값이면 지금 몇 위인가.
+ *
+ * ★ 순위표를 받아 세지 않는다. `leaderboard()` 는 상위 200명까지만 주는데,
+ *   순위를 가장 궁금해하는 건 아직 위에 못 올라간 사람이다.
+ * ★ 로그인 없이도 읽힌다 — 값만 보내고 누구인지는 안 보낸다.
+ *   덕분에 기록을 세운 직후(가장 반응이 좋은 순간)에 바로 보여 줄 수 있다.
+ *
+ * @returns {Promise<{ok:boolean, rank:number, total:number}>}
+ */
+export async function rankOf(kind, value) {
+  const v = Math.max(0, Math.round(Number(value) || 0));
+  if (!v) return { ok: false, rank: 0, total: 0 };
+  const [r, t] = await Promise.all([
+    call(EP.rpc('rank_of'), { method: 'POST', body: { p_kind: kind, p_value: v } }),
+    call(EP.rpc('rank_total'), { method: 'POST', body: { p_kind: kind } }),
+  ]);
+  if (!r.ok) return { ok: false, rank: 0, total: 0 };
+  return { ok: true, rank: Number(r.data) || 0, total: t.ok ? (Number(t.data) || 0) : 0 };
+}
+
 /** 내 최고 기록 (제출된 값 기준) */
 export function mySubmitted() { return readSubmitted(); }
 
