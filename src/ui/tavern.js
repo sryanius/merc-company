@@ -467,13 +467,18 @@ function headerPanel({ city, tier, gate, cap, spec }, offers) {
   const t = repTier(gate.rep);
   const specNames = spec.map((id) => getClass(id)).filter(Boolean);
 
+  /* ★ 상한을 화면에 박아 두면 안 된다. 실제로 상한을 100 → 300 으로 올렸을 때
+   *   여기만 100 으로 남아 «101 / 100» 이라는 말이 안 되는 표시가 나왔다. */
+  const repMax = Number(GameState.REP_MAX) || 300;
+  const pct = (v) => clamp((v / repMax) * 100, 0, 100);
+
   const repRow = el('div', { class: 'tv-repbar', style: { marginTop: '8px' } },
     el('span', { class: 'faint tiny', style: { minWidth: '58px' }, text: '도시 평판' }),
     el('div', { class: 'bar' },
-      el('i', { style: { width: `${clamp(gate.rep, 0, 100)}%` } }),
+      el('i', { style: { width: `${pct(gate.rep)}%` } }),
       // 주점 개방선 표시
-      el('span', { class: 'mark', style: { left: `${clamp(gate.need, 0, 100)}%` }, title: `주점 개방선 ${gate.need}` })),
-    el('span', { class: 'tv-repnum', style: { color: t.color }, text: `${gate.rep} / 100` }),
+      el('span', { class: 'mark', style: { left: `${pct(gate.need)}%` }, title: `주점 개방선 ${gate.need}` })),
+    el('span', { class: 'tv-repnum', style: { color: t.color }, text: `${gate.rep} / ${repMax}` }),
     el('span', { class: 'tag', style: { color: t.color }, text: t.name }),
     gate.ok
       ? el('span', { class: 'tiny', style: { color: 'var(--ok)' }, text: '주점 개방' })
@@ -511,7 +516,7 @@ const kv = (k, v, color) => el('div', { class: 'col', style: { gap: '2px', align
 
 /**
  * 지금 이 도시에서 실제로 굴러가는 확률을 그대로 보여준다.
- * 평판 0 / 현재 / 100 을 나란히 놓아 "평판을 올리면 표가 달라진다"를 눈으로 확인시킨다.
+ * 평판 0 / 현재 / 만점을 나란히 놓아 "평판을 올리면 표가 달라진다"를 눈으로 확인시킨다.
  */
 function oddsPanel({ tier, gate, spec }) {
   const rep = gate.rep;
@@ -519,16 +524,19 @@ function oddsPanel({ tier, gate, spec }) {
   const hasSpec = spec.length > 0;
 
   const zero = oddsOf(tier, { rep: 0 });
+  /* ★ 비교 행은 «상한» 이어야 의미가 있다. 100 을 박아 두면 상한이 300 이 된 뒤로는
+   *   «지금(101)» 보다 낮은 값을 «목표» 라고 보여주게 된다 — 실제로 그랬다. */
+  const repTop = Number(GameState.REP_MAX) || 300;
   const rows = [
     { label: '평판 0', odds: zero, cls: '' },
     { label: `평판 ${rep} (현재)`, odds: now, cls: 'now' },
-    { label: '평판 100', odds: oddsOf(tier, { rep: 100 }), cls: '' },
+    { label: `평판 ${repTop} (만점)`, odds: oddsOf(tier, { rep: repTop }), cls: '' },
   ];
   // 실효 티어는 1 아래로 못 내려간다 — 1등급 도시에서는 저평판 구간이 전부 같은 표가 된다.
   const flatLow = GRADES.every((g) => Math.abs((zero[g] || 0) - (now[g] || 0)) < 0.005);
   if (hasSpec) {
     rows.push({ label: `평판 ${rep} · 명물 클래스`, odds: oddsOf(tier, { rep, specialty: true }), cls: 'spec' });
-    rows.push({ label: '평판 100 · 명물 클래스', odds: oddsOf(tier, { rep: 100, specialty: true }), cls: 'spec' });
+    rows.push({ label: `평판 ${repTop} · 명물 클래스`, odds: oddsOf(tier, { rep: repTop, specialty: true }), cls: 'spec' });
   }
 
   const table = el('table', { class: 'tv-odds' },
@@ -545,11 +553,12 @@ function oddsPanel({ tier, gate, spec }) {
   // 저티어 도시를 순회할 이유 — 5등급 도시의 일반 확률과 직접 비교한다.
   // S 는 **명물 클래스에서만** 나온다. 대도시라도 일반 클래스는 S 가 0% 이므로,
   // 비교 문구는 "대도시 대비"가 아니라 "명물이냐 아니냐"를 알려주는 쪽이 맞다.
-  const bestS = hasSpec ? oddsOf(tier, { rep: 100, specialty: true }).S : 0;
+  const repTop2 = Number(GameState.REP_MAX) || 300;
+  const bestS = hasSpec ? oddsOf(tier, { rep: repTop2, specialty: true }).S : 0;
   const nowSpecS = hasSpec ? oddsOf(tier, { rep, specialty: true }).S : 0;
   const compare = el('div', { class: 'tiny', style: { marginTop: '8px', color: hasSpec ? 'var(--ok)' : 'var(--ink-dim)' } },
     hasSpec
-      ? `S 등급은 명물 클래스에서만 나온다 — 지금 ${pctText(nowSpecS)}, 평판 100이면 ${pctText(bestS)}까지 오른다. 다른 클래스는 여기서 아무리 뽑아도 S가 나오지 않는다.`
+      ? `S 등급은 명물 클래스에서만 나온다 — 지금 ${pctText(nowSpecS)}, 평판 ${repTop2}이면 ${pctText(bestS)}까지 오른다. 다른 클래스는 여기서 아무리 뽑아도 S가 나오지 않는다.`
       : '이 도시에는 명물 클래스가 없어 S 등급이 나오지 않는다. S를 원한다면 그 클래스의 명물 도시로 가야 한다.');
 
   const chips = el('div', { class: 'tv-chances', style: { marginTop: '10px' } },
