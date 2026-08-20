@@ -1337,14 +1337,20 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
     /* ── 클래스 특화 도시 ── */
     const base = new Set(Classes.BASE_CLASSES);
     const specBad = [];
-    /* ★ 규칙: **명물 수 = 도시 등급** (1등급 도시 1종 … 5등급 도시 5종).
+    /* ★ 규칙: 등급별 명물 수는 **1 / 1 / 2 / 3 / 4** 다 (제작자 설계, HANDOFF §31).
+     *   «= 등급» 이 아니다 — 1·2등급을 평평하게 둬서 그 7칸에 7클래스가 정확히
+     *   하나씩 들어가고, 그 결과 «모든 클래스가 초반 거점을 갖는다» 가 규칙이 아니라
+     *   **구조에서 저절로** 나온다. */
+    const SPEC_BY_TIER = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 4 };
+    /* (옛 주석) 도시가 곧 난이도 축이 되는 개편의 일부다.
      *   도시가 곧 난이도 축이 되는 개편의 일부다 (HANDOFF §30) — 상위 도시일수록
      *   좋은 용병을 만날 창구가 넓어야 "위로 갈 이유" 가 생긴다.
      *   예전 규칙은 "1~2종" 이었고 등급과 무관했다. */
     for (const c of World.CITIES) {
       const sp = World.citySpecialty(c.id);
-      if (!Array.isArray(sp) || sp.length !== c.tier) {
-        specBad.push(`${c.id}: ${c.tier}등급인데 명물 ${Array.isArray(sp) ? sp.length : '?'}종`);
+      const want = SPEC_BY_TIER[c.tier];
+      if (!Array.isArray(sp) || sp.length !== want) {
+        specBad.push(`${c.id}: ${c.tier}등급은 명물 ${want}종인데 ${Array.isArray(sp) ? sp.length : '?'}종`);
       }
       const dup = new Set();
       for (const id of sp || []) {
@@ -1353,7 +1359,7 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
         dup.add(id);
       }
     }
-    okAll(specBad, '명물 수가 도시 등급과 같다 (1등급 1종 … 5등급 5종)', World.CITIES.length);
+    okAll(specBad, '등급별 명물 수 (1·2등급 1종 / 3등급 2 / 4등급 3 / 5등급 4)', World.CITIES.length);
 
     const noHome = Classes.BASE_CLASSES.filter((id) => World.citiesForClass(id).length === 0);
     okAll(noHome, '1차 클래스 7종이 전부 특화 도시를 갖는다', Classes.BASE_CLASSES.length);

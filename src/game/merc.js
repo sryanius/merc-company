@@ -151,6 +151,28 @@ export const SPECIALTY_TOP_MULT = 1.5;
  * 실효 티어에 비례해 이 값까지 올라간다. **비특화 도시는 언제나 0%다.**
  */
 export const SPEC_S_MAX = 0.05;
+
+/**
+ * 도시 등급별 S 상한 — **평판 만점일 때** 닿는 값이다.
+ *
+ * ★ 예전에는 상한이 0.05 하나였고 «실효 티어»(도시+평판+특화가 섞인 값)에 비례했다.
+ *   그래서 도시가 좋으면 평판 없이도 거의 상한에 닿았다 — 실측 5등급 명물 도시가
+ *   평판 10 에서 이미 3.6% 였다. 반대로 1등급은 0.8% 라, 초반과 후반의 격차가
+ *   «도시» 로만 벌어지고 «평판» 은 거의 안 먹었다.
+ *
+ * ★ 지금은 **도시 등급이 천장을 정하고, 평판이 그 천장까지 차오른다.**
+ *   시작(평판 기준선)은 천장의 `SPEC_S_START_FRAC` 이다:
+ *
+ *     1·2등급  0.6% → 3.0%
+ *     3등급    0.8% → 4.0%
+ *     4등급    0.9% → 4.5%
+ *     5등급    1.0% → 5.0%
+ *
+ *   «초반엔 어렵고 뒤로 갈수록 수월» 이 도시와 평판 **양쪽**에서 나온다.
+ */
+export const SPEC_S_MAX_BY_TIER = { 1: 0.030, 2: 0.030, 3: 0.040, 4: 0.045, 5: 0.050 };
+/** 평판 기준선에서의 몫 (천장 대비). 평판 만점이면 1.0 */
+export const SPEC_S_START_FRAC = 0.20;
 /** 실효 티어가 가장 낮아도 상한 대비 이 비율만큼은 S가 나온다 (5% × 0.16 = 0.8%) */
 export const SPEC_S_MIN_FRAC = 0.16;
 
@@ -728,9 +750,12 @@ export function gradeWeightsAt(effTier = 1) {
  * 실효 티어에 비례한다. 상한이 8 로 올라가면서 «최대치» 는 그만큼 멀어졌다 —
  * S 는 초반엔 더 어렵고, 평판을 오래 쌓은 뒤라야 예전 수준에 닿는다 (제작자 의도).
  */
-export function specialtySChance(effTier = 1) {
-  const f = clamp((clamp(Number(effTier) || 1, 1, MAX_CITY_TIER) - 1) / (MAX_CITY_TIER - 1), SPEC_S_MIN_FRAC, 1);
-  return SPEC_S_MAX * f;
+export function specialtySChance(cityTier = 1, rep = REP_BASELINE, repMax = 300) {
+  const tier = clamp(Math.round(Number(cityTier) || 1), 1, 5);
+  const cap = SPEC_S_MAX_BY_TIER[tier] ?? SPEC_S_MAX;
+  const span = Math.max(1, (Number(repMax) || 300) - REP_BASELINE);
+  const f = clamp(((Number(rep) || 0) - REP_BASELINE) / span, 0, 1);
+  return cap * (SPEC_S_START_FRAC + (1 - SPEC_S_START_FRAC) * f);
 }
 
 /**
@@ -739,7 +764,7 @@ export function specialtySChance(effTier = 1) {
  *   2) S 를 실효 티어에 비례한 비율(최대 5%)로 **직접 배정**한다.
  *      기본 표의 S 는 전부 0이므로, S 는 오직 여기를 통해서만 생긴다.
  */
-function applySpecialty(w, effTier = 1) {
+function applySpecialty(w, ctx = {}) {
   const total = GRADES.reduce((a, g) => a + (w[g] || 0), 0);
   if (!(total > 0)) return { ...w };
   const isTop = (g) => SPECIALTY_TOP_GRADES.includes(g);
@@ -751,7 +776,7 @@ function applySpecialty(w, effTier = 1) {
   for (const g of GRADES) out[g] = isTop(g) ? (w[g] || 0) * SPECIALTY_TOP_MULT : (w[g] || 0) * k;
 
   // S 배정: 나머지를 (1 - s) 로 눌러 자리를 만들고 그 자리에 S 를 넣는다. 합계는 유지된다.
-  const s = specialtySChance(effTier);
+  const s = specialtySChance(ctx.cityTier, ctx.rep, ctx.repMax);
   const sum = GRADES.reduce((a, g) => a + out[g], 0);
   if (sum > 0 && s > 0) {
     for (const g of GRADES) out[g] *= (1 - s);
@@ -768,7 +793,9 @@ function applySpecialty(w, effTier = 1) {
 export function gradeWeightsFor(cityTier = 1, opts = {}) {
   const eff = effectiveTier(cityTier, opts);
   const w = gradeWeightsAt(eff);
-  return (opts && opts.specialty) ? applySpecialty(w, eff) : w;
+  return (opts && opts.specialty)
+    ? applySpecialty(w, { cityTier, rep: opts.rep, repMax: opts.repMax })
+    : w;
 }
 
 /**

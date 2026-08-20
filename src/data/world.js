@@ -54,9 +54,9 @@ export const CITIES = [
   {
     id: 'greenhold', name: '초록성채', regionId: 'heartland', tier: 1, x: 500, y: 380,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['swordsman'],
+    specialty: ['acolyte'],
     desc: '밀밭 한가운데 선 낮은 성벽의 교역 도시. 이름 없는 용병단이 첫 계약서에 손도장을 찍는 곳이다. '
-      + '성문 앞 검술 훈련장에서 자란 검사들이 첫 계약을 찾아 이 주점에 앉는다.',
+      + '성문 앞 순례길 신전이 성벽보다 오래됐다 — 상처를 꿰매는 수도사는 여기서 구하는 게 가장 낫다.',
   },
   {
     id: 'millford', name: '물방아여울', regionId: 'heartland', tier: 1, x: 395, y: 300,
@@ -66,25 +66,25 @@ export const CITIES = [
       + '물새를 쏘아 맞히는 활잡이들이 곡물 수레의 호위를 맡으려 모인다.',
   },
   {
-    id: 'kingsrest', name: '왕의안식', regionId: 'heartland', tier: 2, x: 610, y: 300,
+    id: 'kingsrest', name: '왕의안식', regionId: 'heartland', tier: 1, x: 610, y: 300,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['spearman', 'shieldman'],
+    specialty: ['shieldman'],
     desc: '옛 왕이 사냥 중 묵었다는 성채 도시. 평야에서 가장 크고, 의뢰도 사람도 값이 비싸다. '
-      + '왕실 상비군의 창벽 대열이 여기서 훈련해, 창병과 방패병만큼은 왕도에 뒤지지 않는다.',
+      + '왕실 상비군의 방패벽이 여기서 훈련해, 방패병만큼은 왕도에 뒤지지 않는다.',
   },
 
   // 속삭임 숲 (tier 2) — 북서
   {
     id: 'thornvale', name: '가시덤불골', regionId: 'whisperwood', tier: 2, x: 330, y: 195,
     services: ['tavern', 'guild', 'smith'], links: [],
-    specialty: ['rogue', 'archer'],
+    specialty: ['rogue'],
     desc: '숲 어귀의 목책 마을. 사냥꾼과 밀렵꾼이 같은 탁자에 앉아 서로를 못 본 척한다. '
-      + '나뭇가지 사이로 화살을 꿰는 활잡이와, 밀렵으로 눈을 익힌 도적이 같은 숲을 걷는다.',
+      + '밀렵으로 눈과 발을 익힌 도적들이, 숲을 아는 값으로 계약을 받는다.',
   },
   {
-    id: 'elderoak', name: '늙은참나무', regionId: 'whisperwood', tier: 3, x: 215, y: 110,
+    id: 'elderoak', name: '늙은참나무', regionId: 'whisperwood', tier: 2, x: 215, y: 110,
     services: ['tavern', 'shop', 'guild'], links: [],
-    specialty: ['apprentice', 'acolyte', 'archer'],
+    specialty: ['apprentice'],
     desc: '천 년 묵은 참나무를 중심으로 지어진 숲속 마을. 나무 위 통로가 곧 거리다. '
       + '뿌리 아래 서고에서 나무의 말을 배우는 견습마법사, 그 곁을 지키는 수도사, 우듬지 길을 달리는 활잡이가 이 마을의 세 기둥이다.',
   },
@@ -93,73 +93,87 @@ export const CITIES = [
   {
     id: 'greymere', name: '잿빛여울', regionId: 'saltmere', tier: 2, x: 300, y: 500,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['apprentice', 'acolyte'],
+    specialty: ['spearman'],
     desc: '늘 잿빛 안개가 깔린 하구 도시. 소금과 절인 생선, 그리고 소문이 주요 수출품이다. '
-      + '안개를 읽는 주문 학당과 물에 빠진 자를 건지는 신전이 같은 골목에 있어, 견습마법사와 수도사가 흔하다.',
+      + '안개 속에서 배를 대려면 긴 장대가 필요하다 — 그 장대를 창처럼 쓰는 자들이 이 부두에 산다.',
   },
   {
-    id: 'gullport', name: '갈매기항', regionId: 'saltmere', tier: 3, x: 170, y: 600,
+    id: 'gullport', name: '갈매기항', regionId: 'saltmere', tier: 2, x: 170, y: 600,
     services: ['tavern', 'shop', 'guild'], links: [],
-    specialty: ['swordsman', 'rogue', 'archer'],
+    specialty: ['swordsman'],
     desc: '서남단 끝의 항구. 해적기를 내린 배들이 정박하고, 부두에서는 아무것도 묻지 않는다. '
-      + '갑판에서 칼질을 배운 검사와, 짐을 세는 척 소매를 터는 도적과, 돛대 위에서 쏘는 활잡이가 같은 배에서 내린다.',
+      + '갑판 위에서 칼질을 배운 검사들이 배를 내려 계약을 찾는다.',
   },
 
   // 검은 수렁 (tier 3) — 남동
   {
     id: 'mirefall', name: '수렁폭포', regionId: 'blackfen', tier: 3, x: 560, y: 560,
     services: ['tavern', 'guild', 'smith'], links: [],
-    specialty: ['spearman', 'acolyte', 'apprentice'],
+    specialty: ['spearman', 'acolyte'],
     desc: '늪으로 쏟아지는 흙탕 폭포 옆에 말뚝을 박아 세운 마을. 바닥은 늘 젖어 있다. '
-      + '작살로 늪을 헤치는 창병, 역병을 돌보는 수도사, 늪불을 다루는 견습마법사가 마을을 지탱한다.',
+      + '작살로 늪을 헤치는 창병과 역병을 돌보는 수도사가 마을을 지탱한다.',
   },
   {
-    id: 'blackreed', name: '검은갈대', regionId: 'blackfen', tier: 4, x: 700, y: 640,
+    id: 'blackreed', name: '검은갈대', regionId: 'blackfen', tier: 3, x: 700, y: 640,
     services: ['tavern', 'shop', 'guild'], links: [],
-    specialty: ['rogue', 'apprentice', 'acolyte', 'archer'],
+    specialty: ['rogue', 'apprentice'],
     desc: '갈대밭 깊숙이 숨은 무법 마을. 늪지 약초와 독, 그리고 사라진 사람들의 유품을 판다. '
-      + '갈대 사이로 소리 없이 다니는 도적, 독을 고는 견습마법사, 그 독을 씻어내는 수도사, 안개 너머를 쏘는 활잡이 — 여기 말고 갈 곳이 없는 자들이다.',
+      + '갈대 사이로 소리 없이 다니는 도적과, 그 갈대로 독을 고는 견습마법사가 함께 산다.',
   },
 
   // 강철척추 산맥 (tier 3) — 북동
   {
     id: 'stonewatch', name: '돌망루', regionId: 'ironspine', tier: 3, x: 700, y: 190,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['shieldman', 'spearman', 'swordsman'],
+    specialty: ['shieldman', 'spearman'],
     desc: '산길 고개를 지키는 요새 도시. 북쪽에서 내려오는 모든 것이 이 관문을 먼저 만난다. '
-      + '고갯길을 몸으로 막아 온 방패병과 그 뒤를 받치는 창병, 성벽을 넘은 적을 베는 검사가 대를 이어 관문을 지킨다.',
+      + '고갯길을 몸으로 막아 온 방패병과 그 뒤를 받치는 창병이 대를 이어 성벽을 지킨다.',
   },
   {
-    id: 'deepdelve', name: '깊은굴', regionId: 'ironspine', tier: 4, x: 820, y: 120,
+    id: 'deepdelve', name: '깊은굴', regionId: 'ironspine', tier: 3, x: 820, y: 120,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['swordsman', 'shieldman', 'spearman', 'apprentice'],
+    specialty: ['swordsman', 'shieldman'],
     desc: '산 속을 파고 들어간 광산 도시. 갱도가 너무 깊어져 아래층 절반은 봉인되어 있다. '
-      + '자기가 두드린 검을 찬 검사, 갱도 입구를 막는 방패병, 좁은 굴에서 찌르는 창병, 어둠을 밝히는 견습마법사가 아래층을 번갈아 지킨다.',
+      + '자기가 두드린 검을 찬 검사와, 갱도 입구를 막아서는 방패병이 아래층을 번갈아 지킨다.',
   },
 
   // 태양흉터 황야 (tier 4) — 동쪽 외곽
   {
-    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 880, y: 400,
+    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
-    specialty: ['spearman', 'archer', 'rogue', 'shieldman'],
+    specialty: ['archer', 'rogue', 'spearman'],
     desc: '사막 대상로의 유일한 우물을 낀 성채. 물값이 곧 통행세이고, 칼이 곧 계약서다. '
-      + '대상을 호위하는 낙타 창기와 모래언덕 위의 활잡이, 우물길을 아는 도적과 모래바람을 막아 서는 방패병이 이곳 주점의 단골이다.',
+      + '대상을 호위하는 낙타 창기와 모래언덕 위의 활잡이, 우물길을 아는 도적이 이곳 주점의 단골이다.',
   },
   {
-    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 5, x: 960, y: 540,
+    id: 'sandglass', name: '모래시계', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
     services: ['tavern', 'shop', 'guild'], links: [],
-    specialty: ['apprentice', 'acolyte', 'swordsman', 'rogue', 'shieldman'],
+    specialty: ['archer', 'shieldman', 'rogue'],
+    desc: '대상로가 갈라지는 바위 그늘의 중계 취락. 하루 두 번, 그림자가 길을 가리키는 시각에만 문이 열린다. '
+      + '모래언덕 위에서 먼저 보는 활잡이, 모래바람에 등을 대는 방패병, 다른 길을 아는 도적이 여기서 값을 부른다.',
+  },
+  {
+    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 4, x: 1000, y: 400,
+    services: ['tavern', 'shop', 'guild'], links: [],
+    specialty: ['apprentice', 'acolyte', 'swordsman'],
     desc: '땅속에서 불이 새어 나오는 유적 위에 세워진 변경 취락. 유물 사냥꾼들의 마지막 보급지. '
-      + '유적 주문을 더듬는 견습마법사, 화상을 돌보는 수도사, 유물을 지키는 검사, 먼저 집는 도적, 무너지는 갱을 받치는 방패병 — 마지막 보급지답게 없는 직종이 없다.',
+      + '유적 주문을 더듬는 견습마법사, 화상을 돌보는 수도사, 유물을 지키는 검사가 마지막 보급지를 채운다.',
   },
 
   // 서리변경 (tier 5) — 북쪽 끝
   {
-    id: 'frostgate', name: '서리관문', regionId: 'frostmarch', tier: 5, x: 520, y: 70,
+    id: 'lastlamp', name: '마지막 등불', regionId: 'frostmarch', tier: 5, x: 300, y: 110,
+    services: ['tavern', 'shop', 'guild', 'smith'], links: [],
+    specialty: ['apprentice', 'archer', 'rogue', 'acolyte'],
+    desc: '서리관문 **너머**, 성벽이 지켜 주지 않는 쪽에 선 마지막 취락. 돌아오지 않는 자들의 이름이 등불 아래 걸린다. '
+      + '얼음을 녹이는 견습마법사, 눈보라 속에서 쏘는 활잡이, 길을 아는 도적, 그리고 그들을 배웅하는 수도사뿐이다.',
+  },
+  {
+    id: 'frostgate', name: '서리관문', regionId: 'frostmarch', tier: 5, x: 300, y: 110,
     services: ['tavern', 'guild', 'smith'], links: [],
-    specialty: ['shieldman', 'acolyte', 'spearman', 'swordsman', 'rogue'],
-    desc: '얼어붙은 성벽 하나가 북쪽 전부를 막아선다. 이곳 주점의 술은 얼지 않는 것만으로 값을 한다. '
-      + '성벽에 붙어 사는 방패병과 언 손을 녹이는 수도사, 총안으로 찌르는 창병, 문을 여는 검사, 성벽 밑을 드나드는 밀수꾼 도적이 이 관문의 전부다.',
+    specialty: ['shieldman', 'acolyte', 'spearman', 'swordsman'],
+    desc: '얼어붙은 성벽 하나가 북쪽 전부를 막아선다 — 성벽 안쪽으로는. 이곳 주점의 술은 얼지 않는 것만으로 값을 한다. '
+      + '성벽에 붙어 사는 방패병과 언 손을 녹이는 수도사, 총안으로 찌르는 창병과 문을 여는 검사가 이 관문을 지킨다.',
   },
 ];
 
@@ -191,6 +205,12 @@ const EDGES = [
   ['stonewatch', 'frostgate', 3],
   ['deepdelve', 'dunehold', 4],
   ['dunehold', 'emberwell', 3],
+  // 모래시계 — 대상로가 갈라지는 지점이라 사막의 두 도시를 다 문다
+  ['dunehold', 'sandglass', 3],
+  ['sandglass', 'emberwell', 3],
+  ['deepdelve', 'sandglass', 4],
+  // 마지막 등불 — 서리관문 **너머**라, 관문을 지나야만 닿는다 (유일한 길)
+  ['frostgate', 'lastlamp', 4],
 ];
 
 for (const [a, b, days] of EDGES) {
