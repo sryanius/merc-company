@@ -55,6 +55,8 @@ const STEPS = [
   {
     id: 'battle',
     screen: 'battle',
+    // ★ 전투 화면은 직접 못 간다 — 기다리는 동안 이 문구를 띄운다 (renderWaiting)
+    wait: '의뢰에 **부대를 출정**시키면 전투가 시작된다.\n그때 안내가 이어진다.',
     text: '전투는 **저절로 진행된다.** 지켜보기만 하면 된다.\n'
       + '급하면 배속을 올리거나 «결과만 보기»를 눌러라.',
     target: '.bt-log, .bt-actions, canvas',
@@ -64,6 +66,7 @@ const STEPS = [
   {
     id: 'result',
     screen: 'battle',
+    wait: '전투가 끝나면 **전과와 전리품**이 나온다.\n그때 안내가 이어진다.',
     text: '전과와 전리품이 나왔다. **얻은 장비는 자동으로 끼울 수 있다.**\n'
       + '다 봤으면 아래 버튼으로 나가자.',
     target: '.bt-actions button',
@@ -86,6 +89,8 @@ const STEPS = [
 /* ─────────────────────────── 상태 ─────────────────────────── */
 
 let idx = -1;
+/** 직접 갈 수 없는 화면을 기다리는 중인가 (renderWaiting 이 켜고 render 가 끈다) */
+let waiting = false;
 let root = null;      // 오버레이 루트
 let hole = null;      // 구멍(강조 테두리)
 let bubble = null;    // 말풍선
@@ -189,8 +194,12 @@ function render() {
   if (!step) { stop(); return; }
 
   /* 이 단계가 요구하는 화면이 아닐 때.
-   * 예전에는 그냥 숨겼는데, 그러면 「다음」을 누른 사람 눈에는 안내가 **그냥 사라진다.**
-   * 갈 수 있는 화면이면 직접 데려가고, 못 가는 화면(전투)이면 숨기고 기다린다. */
+   *
+   * ★ 못 가는 화면(전투)을 기다릴 때 **숨기면 안 된다.**
+   *   3단계에서 「다음」을 누르면 4단계(전투)로 넘어가는데, 전투 화면은 부대를
+   *   출정시켜야 열린다. 예전에는 여기서 그냥 `display:none` 을 걸어 **안내가 통째로
+   *   사라졌다** — 플레이어 눈에는 버튼이 먹통이다(실제 제보로 확인).
+   *   무엇을 해야 이어지는지 말해 주고 계속 떠 있어야 한다. */
   const wrong = step.screen && curScreen() !== step.screen;
   if (wrong) {
     if (step.screen !== 'battle' && typeof navTo === 'function') {
@@ -199,9 +208,10 @@ function render() {
       setTimeout(() => { if (root) render(); }, 320);
       return;
     }
-    root.style.display = 'none';
+    renderWaiting(step);
     return;
   }
+  waiting = false;
   root.style.display = 'block';
 
   bubble.innerHTML = '';
@@ -213,6 +223,28 @@ function render() {
       el('button', { class: 'btn sm primary', onClick: next }, idx === STEPS.length - 1 ? '시작하기' : '다음')),
   );
   place();
+}
+
+/**
+ * 직접 갈 수 없는 화면(전투)을 기다리는 중.
+ * 구멍(강조)은 지우고, **무엇을 하면 이어지는지**만 아래쪽에 띄운다.
+ * 「다음」 버튼은 안 만든다 — 눌러도 갈 수 없는 곳이라 또 먹통처럼 보인다.
+ */
+function renderWaiting(step) {
+  waiting = true;
+  root.style.display = 'block';
+  hole.style.display = 'none';
+  bubble.innerHTML = '';
+  bubble.append(
+    richText(step.wait || '이어서 진행하면 안내가 계속된다.'),
+    el('div', { class: 'r' },
+      el('span', { class: 'n', text: `${idx + 1} / ${STEPS.length}` }),
+      el('button', { class: 'btn sm ghost', onClick: () => { markSeen(); stop(); } }, '건너뛰기')),
+  );
+  // 대상이 없으니 화면 아래 가운데에 둔다 (place() 의 '대상 없음' 경로와 같은 자리)
+  const bw = bubble.offsetWidth || 320;
+  bubble.style.left = `${Math.max(8, (window.innerWidth - bw) / 2)}px`;
+  bubble.style.top = `${Math.max(8, window.innerHeight - (bubble.offsetHeight || 140) - 24)}px`;
 }
 
 /* ─────────────────────────── 진행 ─────────────────────────── */
@@ -227,8 +259,11 @@ function next() {
 function tick() {
   const step = STEPS[idx];
   if (!step || !root) return;
-  // 전투처럼 직접 못 가는 화면을 기다리는 중이면, 도착했을 때 다시 그린다
-  if (root.style.display === 'none') {
+  /* 전투처럼 직접 못 가는 화면을 기다리는 중이면, 도착했을 때 본 내용으로 바꾼다.
+   * ★ 예전에는 `display === 'none'` 일 때만 봤는데, 이제 기다리는 동안에도
+   *   안내를 띄워 두므로(renderWaiting) 그 조건으로는 영영 안 바뀐다 —
+   *   전투 화면에 도착해도 "출정시키면 시작된다"가 그대로 남는다. */
+  if (waiting || root.style.display === 'none') {
     if (!step.screen || curScreen() === step.screen) render();
     return;
   }
