@@ -1801,7 +1801,7 @@ if (State) {
   ok(State.calendar(336).year === 1 && State.calendar(337).year === 2, '336일이 1년, 337일차부터 2년');
   const lbl = State.calendarLabel(245);
   ok(/^\d+년 \d+월 \d+주차 \(245일차\)$/.test(lbl), 'UI 표기 형식 `N년 N월 N주차 (N일차)`', lbl);
-  ok(State.DATA_VERSION === 5, 'DATA_VERSION 이 5', State.DATA_VERSION);
+  ok(State.DATA_VERSION === 6, 'DATA_VERSION 이 6', State.DATA_VERSION);
 
   /* ── 랭킹 리셋 마이그레이션 (DATA_VERSION 5) ────────────────────────────
    * ★ 리셋은 **버전 4 이하에서 올라올 때만** 일어나야 한다.

@@ -48,11 +48,14 @@ export const SAVE_VERSION = 1;
  *       년/월/주 달력(day 파생 — calendar/openDungeonWeek/calendarLabel) 도입.
  *       옛 세이브의 장비는 weapon→weapon / armor→body / accessory→neck 으로 옮겨지고,
  *       의뢰·주점·상점 목록은 새 슬롯·수치로 다시 채워져야 한다.
+ *   6 — 도시 등급이 난이도 축이 됐다 (CITY_POWER) + 전 도시가 F~S 를 다 내보낸다.
+ *       의뢰 목록이 새 규칙으로 다시 채워져야 한다. 랭킹 기록은 **안 건드린다**
+ *       (RANK_RESET_VERSION 은 5 에 고정 — 따라 올리지 마라).
  *   5 — 패주 종료(engine.js) + 실패 경험치 연속화(quest.js). 전투 곡선이 달라졌으므로
  *       **탑·나락 기록을 리셋한다** (제작자 결정: 시즌 병기 없이 그냥 리셋).
  *       옛 곡선에서 세운 기록과 새 기록이 한 순위표에 섞이면 안 된다.
  */
-export const DATA_VERSION = 5;
+export const DATA_VERSION = 6;
 
 /**
  * 랭킹 기록(탑·나락)을 리셋한 버전.

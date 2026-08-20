@@ -276,12 +276,52 @@ const BOSS_CHANCE = [0, 0.04, 0.06, 0.12, 0.35, 0.35, 0.35];
 /** 도시 tier -> 랭크 가중치 */
 // D가 [10,20] → [15,24] 로 올라갔으므로 시작 도시(tier 1)에서 D는 Lv1 부대에게 사실상
 // 손댈 수 없는 의뢰다. 목록 자리만 잡아먹지 않도록 비중을 크게 줄이고 F/E 위주로 띄운다.
+/**
+ * 도시(=지역) 등급별 적 스탯 배율.
+ *
+ * ★ 왜 필요한가 — 지금까지 난이도는 **랭크에만** 실려 있었다. 랭크는 권장 레벨을 맞춰 주지만
+ *   **장비를 전혀 감안하지 않는다** (`balance.mjs` 의 표준 부대는 맨몸이다).
+ *   그래서 장비를 갖춘 플레이어에겐 전 구간이 쉬웠다 — 실측에서 각 등급의 «도착 시점
+ *   기대 스펙» 이 배율 ×1.0 에서 이미 86~100% 였다 (HANDOFF §29·§31.6).
+ *
+ * ★ 실측한 55% 지점: 2등급 ~×1.15 / 3등급 ~×1.5 / 4등급 ~×1.4 / 5등급 ~×1.7.
+ *   노이즈가 있어 단조롭게 다듬었다. 6·7등급 도시를 나중에 얹으면 ~1.95 / ~2.2 자리다.
+ *
+ * ★★ **배율은 제곱으로 먹는다.** hp·atk·def·res 에 전부 곱하면 실효 난이도가 배율² 에
+ *   가깝다 — `ELITE_MULT` 이 1.30 → 1.035 로 내려간 이유가 이것이다. 눈으로 정하지 말고
+ *   반드시 실측해라 (`tools/balance.mjs`, `tools/dangercheck.mjs`).
+ */
+export const CITY_POWER = { 1: 1.00, 2: 1.15, 3: 1.32, 4: 1.50, 5: 1.70 };
+export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) || 1), 1, 5)] || 1;
+
+/**
+ * 보상이 도시 배율을 따라가는 지수.
+ *
+ * ★★ **이걸 빼먹으면 개편 전체가 무의미해진다.** 같은 랭크가 모든 도시에 나오는데
+ *   보상이 같으면 다들 1등급 도시에서 S랭크만 돈다 — 위로 갈 이유가 사라진다.
+ *
+ * 난이도가 배율² 로 오르므로 보상도 같은 지수로 맞춘다 (5등급 = 1.70² ≈ 2.89배).
+ */
+export const CITY_REWARD_POW = 2.0;
+
+/**
+ * 도시 등급별 랭크 분포.
+ *
+ * ★ 예전에는 등급마다 **창이 좁았다** (1등급은 F/E/D 만, 5등급은 C/B/A/S 만).
+ *   그래서 «높은 랭크를 하려면 위로 가야 한다» 였는데, 이제 난이도 축은 `CITY_POWER` 다.
+ *   전 도시가 F~S 를 다 내보내되 **그 등급의 본토 대역이 여전히 압도적**이게 두었다 —
+ *   1등급 도시에서 S랭크가 나오긴 하지만 100건에 1건꼴이고, 그마저 배율 ×1.0 이라
+ *   «어려운 의뢰» 로서 제 역할을 한다.
+ *
+ * 꼬리를 얇게 단 이유: 두껍게 달면 초반 목록이 못 하는 의뢰로 덮인다.
+ * 지금 목록은 4~16건이라 꼬리 가중치가 0.5 면 대략 20건에 한 번 보인다.
+ */
 const RANK_WEIGHT = {
-  1: { F: 6, E: 3, D: 0.5 },
-  2: { F: 3, E: 4, D: 3, C: 1 },
-  3: { E: 3, D: 4, C: 3, B: 1 },
-  4: { D: 2, C: 4, B: 3.5, A: 1 },
-  5: { C: 2, B: 3, A: 3, S: 1.5 },
+  1: { F: 6, E: 3, D: 1.2, C: 0.5, B: 0.25, A: 0.12, S: 0.06 },
+  2: { F: 3, E: 4, D: 3, C: 1.2, B: 0.5, A: 0.25, S: 0.12 },
+  3: { F: 0.8, E: 3, D: 4, C: 3, B: 1.2, A: 0.5, S: 0.25 },
+  4: { F: 0.4, E: 1, D: 2, C: 4, B: 3.5, A: 1.2, S: 0.5 },
+  5: { F: 0.2, E: 0.5, D: 1.2, C: 2, B: 3, A: 3, S: 1.5 },
 };
 /* ── 부상 규칙 (설계 A) ──
  * 전투 중 HP 0 은 "전투불능(다운)"일 뿐이고, 부상은 예외적으로만 발생한다.
@@ -543,7 +583,7 @@ function buildWaves(ctx, r) {
     const level = clamp(wantLevel, 1, MAX_QUEST_LEVEL);
     // 이 웨이브 적 전원에 곱해질 스탯 배율(설계 F): 랭크 난이도(RANK_POWER) × 레벨 초과분.
     // enemyUnitDefs 가 wave.power 를 읽어 전투 스탯에 적용한다.
-    const power = RANK_POWER[idx] * overflowPower(wantLevel) * subPow;
+    const power = RANK_POWER[idx] * overflowPower(wantLevel) * subPow * (ctx.cityPower || 1);
     const hint = {
       id: ctx.id, name: ctx.name, type: ctx.type, cityId: ctx.cityId,
       biome: ctx.biome, rank: ctx.rank, rankIndex: idx, sub, elite, level,
@@ -673,6 +713,9 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
   if (!city) return [];
   const biome = cityBiome(city);
   const tier = clamp(city.tier || 1, 1, 5);
+  // 도시 등급이 곧 난이도 축이다 (설계: HANDOFF §30·§34)
+  const cityPower = cityPowerOf(tier);
+  const rewardMult = cityPower ** CITY_REWARD_POW;
   const squads = resolveSquadCount(squadCount);
   const count = clamp(3 + squads * 2 + r.int(0, 1), QUEST_COUNT_MIN, QUEST_COUNT_MAX);
   const out = [];
@@ -690,7 +733,7 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
     const { type, named } = picked;
     seen.add(named.name);
 
-    const ctx = { id, name: named.name, type, cityId, biome, rank, sub, elite, level };
+    const ctx = { id, name: named.name, type, cityId, biome, rank, sub, elite, level, cityPower };
     const waves = buildWaves(ctx, r);
     if (!waves.length) continue;
 
@@ -712,7 +755,8 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
       level,
       days,
       waves,
-      reward: buildReward(rank, level, type, waves.length, r, { sub, elite }),
+      cityPower,                             // 화면·도구가 «이 도시가 얼마나 험한가» 를 읽는다
+      reward: scaleReward(buildReward(rank, level, type, waves.length, r, { sub, elite }), rewardMult),
       desc: makeDesc(type, { foe: named.foe, place: named.place, city, rank, level, sub, elite }),
       expiresDay: day + 3 + r.int(0, 3),
     });
@@ -1070,6 +1114,29 @@ export function questBattleDefs(quest, waveIndex = 0, st = State.state, squadId 
     waveCount: quest.waves.length,
     squadId: squad.id,
   };
+}
+
+/**
+ * 보상에 도시 배율을 태운다. 전리품은 **개수가 아니라 ilvl** 을 올린다 —
+ * 개수를 늘리면 가방이 터지고, 등급 곡선(gear.js)이 흔들린다.
+ */
+function scaleReward(rew, mult) {
+  if (!rew || !(mult > 0) || Math.abs(mult - 1) < 1e-9) return rew;
+  const out = {
+    ...rew,
+    gold: Math.round((rew.gold || 0) * mult),
+    exp: Math.round((rew.exp || 0) * mult),
+    renown: rew.renown || 0,               // 명성은 랭크가 정한다 — 도시로 부풀리지 않는다
+  };
+  if (Array.isArray(rew.itemRolls)) {
+    // ilvl 은 레벨 상한을 넘지 않는다. 배율의 √ 만큼만 올린다 (ilvl 은 이미 지수적이다).
+    const k = Math.sqrt(mult);
+    out.itemRolls = rew.itemRolls.map((roll) => ({
+      ...roll,
+      ilvl: Math.min(MAX_QUEST_LEVEL, Math.round((roll.ilvl || 1) * k)),
+    }));
+  }
+  return out;
 }
 
 /* ------------------------------------------------- 웨이브 인계 (다웨이브 의뢰) */
