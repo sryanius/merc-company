@@ -80,8 +80,19 @@ console.log('\n  도시등급  배율   의뢰수  평균Lv  완주율   랭크�
 let topS = null;
 for (const [cid, tier] of CITIES) {
   const qs = [];
-  for (let s = 0; s < 12; s++) qs.push(...Q.genQuests(cid, 30 + s * 5, new RNG(4200 + s), 2));
-  const list = qs.filter((q) => !q.elite).slice(0, 24);
+  /* ★ 표본을 넉넉히 뽑는다. 처음에는 12라운드 × 앞에서 24건만 잘라 썼는데,
+   *   그러면 S랭크가 한두 건뿐이라 **판정이 표본 운에 좌우된다** —
+   *   실제로 의뢰 목록 길이를 바꿨더니(난수 소비가 달라져 다른 의뢰가 뽑힘)
+   *   5등급 S가 62% → 100% 로 튀었다. 곡선이 아니라 표본이 바뀐 것이다.
+   *   랭크별로 최대 12건씩 확보한다. */
+  for (let s = 0; s < 40; s++) qs.push(...Q.genQuests(cid, 30 + s * 5, new RNG(4200 + s), 3));
+  const perRank = {};
+  const list = [];
+  for (const q of qs) {
+    if (q.elite) continue;
+    perRank[q.rank] = (perRank[q.rank] || 0) + 1;
+    if (perRank[q.rank] <= 12) list.push(q);
+  }
   if (!list.length) continue;
   let sum = 0; let lv = 0;
   const byRank = {};

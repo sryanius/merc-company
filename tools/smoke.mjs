@@ -1330,7 +1330,13 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
       return Quest.genQuests(World.START_CITY, 1, r, n).length;
     });
     ok(qCount[3] > qCount[0], '부대가 많을수록 의뢰가 많이 뜬다', qCount.join(' / '));
-    ok(qCount.every((v) => v >= 4 && v <= 16), '의뢰 개수가 4~16 범위 안', qCount.join(' / '));
+    /* ★ 범위를 손으로 적지 말고 **상수에서 읽는다.** 예전에는 «4~16» 이 박혀 있어서
+     *   목록 길이를 늘리자마자 이 검사가 거짓말을 했다 — 이번 세션에만 같은 종류의
+     *   하드코딩 버그가 넷 나왔다 (HANDOFF §43). */
+    const qLo = Quest.QUEST_COUNT_MIN ?? 4;
+    const qHi = Quest.QUEST_COUNT_MAX ?? 20;
+    ok(qCount.every((v) => v >= qLo && v <= qHi),
+      `의뢰 개수가 ${qLo}~${qHi} 범위 안`, qCount.join(' / '));
     // state 없이(=순수 함수) 불러도 죽지 않아야 한다 — balance.mjs 가 이 경로를 쓴다
     ok(Quest.genQuests(World.START_CITY, 1, new RngMod.RNG(1)).length >= 4, 'squadCount 생략 호출도 동작한다');
 

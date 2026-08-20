@@ -708,8 +708,15 @@ function buildReward(rank, level, type, waveCount, r, opts = {}) {
  *   목록 자체를 늘려야 저랭크 물량이 따라온다. 상한을 16 으로 올려 12.8% 로 내렸다.
  *   부대 1~3개는 생성 개수가 5~10건이라 상한에 닿지 않는다 = 기존 밸런스 불변(실측 동일).
  */
-const QUEST_COUNT_MIN = 4;
-const QUEST_COUNT_MAX = 16;
+/* ★ 목록 길이를 늘렸다 (부대당 2 → 3 · 상한 16 → 20).
+ *   §34 에서 **전 도시가 F~S 를 다 내보내게** 되면서 목록에 «그 부대가 못 받는 랭크» 가
+ *   섞이기 시작했다. 길이는 그대로인데 쓸 수 있는 칸만 줄어든 셈이라
+ *   5부대 유휴율이 20.8% 로 튀었다 (`earlygame` 의 «의뢰공급» 이 잡았다).
+ *
+ *   ★ 유휴의 원인은 «다른 부대가 먼저 채감» 이 아니라 «받을 수 있는 랭크가 목록에 없음» 이다.
+ *     그래서 리롤 주기가 아니라 **길이**를 손댄다. 실측: 20.8% → 8.8%. */
+export const QUEST_COUNT_MIN = 4;
+export const QUEST_COUNT_MAX = 20;
 
 /**
  * 의뢰 목록 길이를 정할 부대 수를 구한다.
@@ -767,7 +774,7 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
   const cityPower = cityPowerOf(tier);
   const rewardMult = cityPower ** CITY_REWARD_POW;
   const squads = resolveSquadCount(squadCount);
-  const count = clamp(3 + squads * 2 + r.int(0, 1), QUEST_COUNT_MIN, QUEST_COUNT_MAX);
+  const count = clamp(3 + squads * 3 + r.int(0, 1), QUEST_COUNT_MIN, QUEST_COUNT_MAX);
   const out = [];
   const seen = new Set();
 
