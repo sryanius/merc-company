@@ -257,6 +257,7 @@ function injectStyle() {
 
 /* 확률표(조건 + F~S 7열)는 폰 폭을 넘는다. 페이지가 아니라 이 래퍼 안에서만 가로로 민다. */
 .tv-oddswrap{max-width:100%;overflow-x:auto}
+.tv-spinbox{display:flex;justify-content:center;min-height:1px}
 .tv-namerow{margin-top:10px;padding-top:9px;border-top:1px solid var(--line-soft);text-align:left}
 .tv-namein{width:100%;font-size:13px}
 .tv-scrollhint{display:none}
@@ -783,7 +784,15 @@ function openHireModal(cls, merc, city, isSpec) {
     },
   });
 
+  /* 굴림 동안 실루엣이 스쳐 지나갈 자리. 확정되면 통째로 걷어낸다. */
+  const spinBox = el('div', { class: 'tv-spinbox' });
+  detail.appendChild(spinBox);
+  detail.style.opacity = '1';
+  const spinner = silhouetteSpinner(spinBox, merc);
+
   spinGrade(gradeNode, merc.grade, () => {
+    spinner.dispose();
+    spinBox.remove();
     msgNode.textContent = gradeMessage(merc.grade);
     const { box, entry } = makePreview(mercRecipe(merc, state));
     modalPreview = entry;
@@ -799,7 +808,7 @@ function openHireModal(cls, merc, city, isSpec) {
     } else {
       toast(`${merc.name}${josa(merc.name, '을/를')} 고용했다. (${merc.grade}등급)`, merc.grade === 'F' ? 'bad' : '');
     }
-  });
+  }, (i) => spinner.tick(i));
 }
 
 /**
@@ -824,7 +833,7 @@ function nameRow(merc) {
 }
 
 /** 등급 글자를 F부터 주르륵 굴리다가 서서히 멈춘다 */
-function spinGrade(node, finalGrade, onDone) {
+function spinGrade(node, finalGrade, onDone, onTick) {
   const flashy = finalGrade === 'A' || finalGrade === 'S';
   const total = 400 + Math.floor(rng.next() * 500) + (flashy ? 420 : 0);
   let elapsed = 0;
@@ -843,12 +852,59 @@ function spinGrade(node, finalGrade, onDone) {
     const g = GRADES[i++ % GRADES.length];
     node.textContent = g;
     node.style.color = GRADE_COLOR[g];
+    if (onTick) { try { onTick(i); } catch (e) { /* 연출이 게임을 막으면 안 된다 */ } }
     const ratio = elapsed / total;
     const interval = 38 + 150 * ratio * ratio;
     elapsed += interval;
     later(step, interval);
   };
   step();
+}
+
+/**
+ * 등급이 굴러가는 동안 **실루엣도 같이 굴린다.**
+ *
+ * ★ 예전에는 등급 글자만 돌고 캐릭터는 «끝난 뒤 툭» 나타났다 — 정작 주인공인 용병이
+ *   구경꾼이었다 (제작자 지적). 같이 멈춰야 그 순간이 산다.
+ *
+ * ★★ **프레임마다 스프라이트를 만들지 않는다.** 생성기는 32×40 을 파츠로 합성하는데,
+ *   굴림은 20~30 프레임이라 폰에서 그대로 버벅인다.
+ *   **미리 몇 벌 만들어 두고 캔버스만 갈아 끼운다.**
+ *
+ * ★ 같은 클래스 안에서만 외형을 바꾼다 — «무슨 클래스인지» 까지 흔들리면
+ *   기대가 아니라 혼란이 된다. 바뀌는 건 머리·피부·머리색뿐이다.
+ *
+ * @returns {{tick:(i:number)=>void, dispose:()=>void}}
+ */
+function silhouetteSpinner(box, merc) {
+  const VARIANTS = 6;
+  const made = [];
+  try {
+    for (let k = 0; k < VARIANTS; k++) {
+      const fake = { ...merc, look: Merc.rollLook(rng) };
+      const { box: b, entry } = makePreview(mercRecipe(fake, state));
+      b.style.display = 'none';
+      made.push({ b, entry });
+      box.appendChild(b);
+    }
+  } catch (e) {
+    console.warn('[tavern] 실루엣 굴림 준비 실패', e);
+  }
+  let shown = -1;
+  return {
+    tick: (i) => {
+      if (!made.length) return;
+      const next = i % made.length;
+      if (next === shown) return;
+      if (shown >= 0) made[shown].b.style.display = 'none';
+      made[next].b.style.display = '';
+      shown = next;
+    },
+    dispose: () => {
+      for (const m of made) { removePreview(m.entry); m.b.remove(); }
+      made.length = 0;
+    },
+  };
 }
 
 function gradeMessage(g) {
