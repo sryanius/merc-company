@@ -136,7 +136,7 @@ function redirectTarget() {
  * 구글 로그인을 시작한다. **이 함수는 페이지를 떠난다** (리다이렉트).
  * 돌아오면 `completeOAuth()` 가 이어받는다.
  */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(opt = {}) {
   if (!ENABLED) return { ok: false, error: '클라우드가 꺼져 있다' };
   try {
     const verifier = makeVerifier();
@@ -147,6 +147,10 @@ export async function signInWithGoogle() {
     u.searchParams.set('redirect_to', redirectTarget());
     u.searchParams.set('code_challenge', challenge);
     u.searchParams.set('code_challenge_method', 's256');
+    /* ★ 계정 전환에는 이게 **반드시** 필요하다.
+     *   구글이 세션을 기억하므로 그냥 다시 로그인하면 묻지도 않고 같은 계정으로 들어간다.
+     *   `prompt=select_account` 를 넘겨야 계정 고르는 화면이 뜬다. */
+    if (opt.selectAccount) u.searchParams.set('prompt', 'select_account');
     globalThis.location.assign(u.toString());
     return { ok: true, error: '' };            // 여기까지 오면 곧 페이지가 바뀐다
   } catch (e) {

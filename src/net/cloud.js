@@ -35,7 +35,9 @@ import { authed, call } from './rest.js';
 import { SAVE_KEY, onSaved, state } from '../game/state.js';
 import { extractScore } from '../game/rules.js';
 
-const ON_KEY = 'merc_cloud_on_v1';
+/* ★ 예전의 켜기/끄기 스위치(`merc_cloud_on_v1`)는 없앴다.
+ *   로그인했으면 켜진 것이고 아니면 안 켜진 것이다 — 상태를 두 군데서 관리하면
+ *   "켜졌는데 로그인은 안 된" 같은 조합이 생긴다. */
 /** 서버 세이브를 적용하기 직전의 로컬 원본. 되돌릴 유일한 수단이라 반드시 남긴다. */
 const ROLLBACK_KEY = 'merc_cloud_rollback_v1';
 /**
@@ -71,10 +73,17 @@ const writeLS = (k, v) => {
 
 /* ─────────────────────────── 켜기/끄기 ─────────────────────────── */
 
-/** 플레이어가 클라우드를 켰는가 (기기별 설정) */
+/**
+ * 클라우드가 켜져 있는가.
+ *
+ * ★ 이제 **끄는 스위치가 없다.** 로그인만 하면 항상 켜진 것으로 본다 (제작자 결정).
+ *   그렇다고 로그인을 강제하지는 않는다 — 강제하면 오프라인에서 게임이 아예 안 뜨고,
+ *   TWA 앱·iOS PWA 의 오프라인 동작이 이 게임의 장점이라 그걸 버릴 수 없다.
+ *   로그인 안 한 사람은 예전처럼 localStorage 로 돌아간다.
+ */
 export function isOn() {
   if (!ENABLED) return false;
-  return readLS(ON_KEY) === '1';
+  return Auth.signedIn();
 }
 
 /** 이 기기에서 클라우드를 쓸 수 있는 상태인가 */
@@ -87,17 +96,27 @@ export function ready() { return isOn() && Auth.signedIn(); }
  *   이 경우 페이지를 떠나므로 이 함수는 돌아오지 않는다.
  *   돌아온 뒤 `finishLogin()` 이 이어받는다.
  */
-export async function enable() {
+export async function enable(opt = {}) {
   if (!ENABLED) return { ok: false, error: '클라우드 기능이 꺼져 있다' };
-  if (Auth.signedIn()) {
-    writeLS(ON_KEY, '1');
+  if (Auth.signedIn() && !opt.switchAccount) {
     queuePush({ now: true });
     return { ok: true, error: '' };
   }
-  /* 로그인부터 시켜야 한다. ON_KEY 는 **여기서 켜지 않는다** —
-   * 로그인을 취소하고 돌아오면 "켜졌는데 로그인은 안 된" 상태가 남는다. */
+  /* 계정 전환이면 지금 세션을 먼저 버린다 — 안 그러면 돌아왔을 때 옛 세션이 남아
+   * 어느 쪽이 진짜인지 헷갈린다. 구글 쪽에서도 계정 고르는 화면을 띄우게 한다. */
+  if (opt.switchAccount) Auth.signOut();
   writeLS(PENDING_LOGIN_KEY, '1');
-  return Auth.signInWithGoogle();
+  return Auth.signInWithGoogle({ selectAccount: !!opt.switchAccount });
+}
+
+/** 로그아웃. 세이브는 이 기기에 그대로 남는다. */
+export function signOut() {
+  Auth.signOut();
+  cancelTimers();
+  writeOutbox(null);
+  writeLS(SYNCED_KEY, null);
+  writeLS(SUBMITTED_KEY, null);
+  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
 }
 
 /**
@@ -107,26 +126,19 @@ export async function enable() {
 export async function finishLogin() {
   const r = await Auth.completeOAuth();
   if (!r.handled) return { handled: false, ok: false, error: '' };
-  const wanted = readLS(PENDING_LOGIN_KEY) === '1';
   writeLS(PENDING_LOGIN_KEY, null);
   if (!r.ok) return { handled: true, ok: false, error: r.error };
-  // 로그인하러 갔던 것이면 이제 켠다
-  if (wanted) writeLS(ON_KEY, '1');
-  if (isOn()) queuePush({ now: true });
+  /* 계정이 바뀌었을 수 있다 — 앞 계정의 동기화 지점을 그대로 두면
+   * 새 계정에 "이미 올렸다"고 착각해 첫 업로드를 건너뛴다. */
+  writeLS(SYNCED_KEY, null);
+  writeLS(SUBMITTED_KEY, null);
+  writeOutbox(null);
+  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
+  queuePush({ now: true });
   return { handled: true, ok: true, error: '' };
 }
 
-/**
- * 끈다. 세션은 남긴다 — 다시 켤 때 로그인을 또 시키지 않는다.
- * 계정을 완전히 끊으려면 `signOut()` 을 따로 부른다(구글이라 되돌릴 수 있다).
- */
-export function disable() {
-  writeLS(ON_KEY, null);
-  cancelTimers();
-  // 껐다 켰을 때 옛 실패·정체 표시가 되살아나면 안 된다
-  writeOutbox(null);
-  last = { at: 0, ok: false, error: '', rev: 0, seed: 0 };
-}
+
 
 /* ─────────────────────────── 업로드 큐 ───────────────────────────
  * 아웃박스에는 **본문을 안 담는다.** `{rev, tries, nextAt, stalled}` 만 담고
@@ -177,6 +189,13 @@ function cancelTimers() {
   clearTimeout(debounceT); debounceT = 0;
   clearTimeout(maxWaitT); maxWaitT = 0;
   clearTimeout(retryT); retryT = 0;
+}
+
+/** 시각을 ISO 로. 범위를 벗어난 값이면 지금 시각으로 대체한다 (예외를 던지지 않는다) */
+function safeIso(ms) {
+  const n = Number(ms);
+  const d = new Date(Number.isFinite(n) && n > 0 ? n : Date.now());
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
 /** 지금 로컬에 있는 세이브를 그대로 읽는다 (파싱은 메타만 쓰려고 한 번) */
@@ -256,7 +275,9 @@ async function flush(opt = {}) {
       }
       if (chk.meta && chk.meta.seed !== cur.seed) {
         last = { at: Date.now(), ok: false, error: '서버에 다른 용병단이 있다', rev: cur.rev, seed: cur.seed };
-        writeOutbox({ rev: cur.rev, tries: 0, nextAt: 0, stalled: 'other-run' });
+        // ★ tries 를 0 으로 되돌리지 않는다 — 정체가 풀린 뒤 다시 실패하면
+        //   백오프가 처음부터 다시 시작해 짧은 간격으로 재시도한다.
+        writeOutbox({ rev: cur.rev, tries: box?.tries || 0, nextAt: 0, stalled: 'other-run' });
         return;                            // 사람이 고를 때까지 멈춘다
       }
     }
@@ -267,7 +288,9 @@ async function flush(opt = {}) {
         user_id: Auth.userId(),
         seed: cur.seed,
         rev: cur.rev,
-        saved_at: new Date(cur.savedAt).toISOString(),
+        // ★ 기기 시계가 이상하면 new Date(...).toISOString() 이 **예외를 던진다**
+        //   (RangeError). 그러면 업로드가 아니라 flush 자체가 터져 큐가 멎는다.
+        saved_at: safeIso(cur.savedAt),
         day: cur.day,
         payload: cur.raw,
       },
@@ -285,8 +308,8 @@ async function flush(opt = {}) {
      *   이건 네트워크 문제가 아니라 "다른 기기에서 더 진행했다" 는 신호다 —
      *   S7(복원)이 처리할 일이므로 표시만 남기고 큐를 멈춘다. */
     if (/오래된 세이브/.test(res.error) || res.data?.code === 'P0001') {
-      last = { at: Date.now(), ok: false, error: '서버에 더 최신 세이브가 있다', rev: cur.rev };
-      writeOutbox({ rev: cur.rev, tries: 0, nextAt: 0, stalled: 'newer-on-server' });
+      last = { at: Date.now(), ok: false, error: '서버에 더 최신 세이브가 있다', rev: cur.rev, seed: cur.seed };
+      writeOutbox({ rev: cur.rev, tries: box?.tries || 0, nextAt: 0, stalled: 'newer-on-server' });
       return;
     }
 
@@ -575,14 +598,13 @@ export function clearRollback() { writeLS(ROLLBACK_KEY, null); }
 /** 화면에 띄울 상태 요약 */
 export function status() {
   if (!ENABLED) return { on: false, label: '사용 불가', detail: '이 빌드에서는 클라우드가 꺼져 있다.', sync: '' };
-  if (!isOn()) {
+  if (!Auth.signedIn()) {
     return {
-      on: false, label: '꺼짐',
-      detail: Auth.signedIn() ? `${Auth.email()} 으로 로그인됨 — 켜면 바로 이어진다.` : '세이브가 이 기기에만 저장된다.',
+      on: false, label: '로그인 안 됨',
+      detail: '세이브가 이 기기에만 저장된다. 로그인하면 서버에 보관되고 랭킹에 참여한다.',
       sync: '',
     };
   }
-  if (!Auth.signedIn()) return { on: false, label: '로그인 필요', detail: '다시 켜면 구글 로그인으로 이어진다.', sync: '' };
 
   const box = readOutbox();
   const done = readSynced();

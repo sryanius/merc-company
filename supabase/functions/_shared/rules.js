@@ -53,7 +53,10 @@ export function extractScore(st) {
 
   return {
     seed: Number(st.seed) || 0,
-    companyName: String(st.companyName || '용병단').slice(0, 24),
+    /* ★ `slice` 는 UTF-16 단위로 자른다 — 이모지가 든 이름이 24번째에서 걸리면
+     *   서러게이트 쌍이 반으로 쪼개져 깨진 글자가 서버에 저장된다.
+     *   코드포인트 단위로 세야 한다. */
+    companyName: Array.from(String(st.companyName || '용병단')).slice(0, 24).join(''),
     day: Number(st.day) || 1,
     abyssBest: Number(st.abyss?.best) || 0,
     abyssBestDay: Number(st.abyss?.bestDay) || 0,

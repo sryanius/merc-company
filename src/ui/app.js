@@ -175,15 +175,19 @@ function renderHud() {
       stat('단원', `${state.roster.length}명`),
       stat('일일 임금', `${num(upkeep)}G`, 'x'),
       stat('현재 위치', city ? city.name : '—', 'x')),
+    /* ★ 버튼을 셋으로 줄였다.
+     *   · '저장' 은 뺐다 — 게임은 행동마다 자동 저장한다(47곳). 눌러도 더 하는 게 없다.
+     *   · '내보내기/불러오기' 는 지운 게 아니라 **세이브 모달 안으로 옮겼다.**
+     *     로그인 안 한 사람에게는 이게 유일한 백업 수단이라 없애면 안 된다.
+     *   머리에는 계정 상태만 남긴다 — 로그인 여부가 지금 가장 중요한 정보다. */
     el('div', { class: 'hud-actions' },
-      el('button', { class: 'btn sm', onClick: () => { save(); toast('저장했습니다.', 'good'); } }, '저장'),
-      el('button', { class: 'btn sm ghost', title: '세이브를 파일로 내려받는다', onClick: doExport }, '내보내기'),
-      el('button', { class: 'btn sm ghost', title: '세이브 파일을 불러온다', onClick: doImport }, '불러오기'),
+      el('button', {
+        class: `btn sm ${Cloud.isOn() ? 'ghost' : ''}`,
+        title: '세이브 · 클라우드 · 랭킹',
+        onClick: doCloud,
+      }, Cloud.isOn() ? '세이브 ●' : '세이브'),
       el('button', { class: 'btn sm ghost', onClick: () => promptNewGame({ overwrite: hasSave() }) }, '새 게임'),
-      el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기'),
-      // 클라우드는 **선택**이다 — 기본이 꺼짐이라 버튼 문구로 현재 상태를 알려 준다
-      el('button', { class: 'btn sm ghost', title: '클라우드 저장 · 랭킹', onClick: doCloud },
-        `클라우드${Cloud.isOn() ? ' ●' : ''}`)),
+      el('button', { class: 'btn sm ghost', title: '기본 조작을 다시 안내한다', onClick: () => startTutorial(true) }, '따라하기')),
     // 모바일 전용 펼치기 버튼. PC 에서는 CSS 가 숨긴다.
     el('button', {
       class: 'btn sm ghost hud-toggle',
@@ -440,26 +444,39 @@ function doCloud() {
       }, `가져오기 되돌리기 (${num(rollback.day)}일차)`)
       : null,
     el('div', { class: 'sep' }),
-    el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
-      el('b', { text: '랭킹' }), '에 참여한다. 구글 계정으로 로그인한다.'),
-    el('div', { class: 'faint tiny' },
-      '기기를 바꾸거나 앱을 지웠다 깔아도 같은 구글 계정으로 들어오면 그대로 이어진다.'),
+    /* 파일 백업. 헤더에서 뺐지만 지우지는 않았다 —
+     * 로그인 안 한 사람에게는 이게 유일한 백업이고, 로그인한 사람도
+     * 서버 세이브가 잘못 덮였을 때 마지막으로 기댈 곳이다. */
+    el('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap' } },
+      el('button', { class: 'btn sm ghost', onClick: doExport }, '파일로 내보내기'),
+      el('button', { class: 'btn sm ghost', onClick: doImport }, '파일에서 불러오기')),
+    el('div', { class: 'faint tiny', text: '게임은 행동마다 자동 저장된다 — 따로 저장 버튼은 없다.' }),
+    el('div', { class: 'sep' }),
+    st.on
+      ? el('div', { class: 'faint tiny' },
+        '기기를 바꾸거나 앱을 지웠다 깔아도 같은 구글 계정으로 들어오면 그대로 이어진다.')
+      : el('div', { class: 'tiny muted' },
+        '로그인하면 세이브가 서버에도 보관되고 ', el('b', { text: '랭킹' }), '에 참여한다. '
+        + '로그인 안 해도 게임은 그대로 돌아간다.'),
     msg);
 
   modal({
-    title: '클라우드 저장 · 랭킹',
+    title: '세이브 · 클라우드 · 랭킹',
     body,
     actions: [
       { label: '닫기', kind: 'ghost' },
       st.on
         ? {
-          label: '끄기',
+          /* ★ '끄기' 대신 **계정 전환**이다. 끄는 스위치는 없앴다 —
+           *   로그인했으면 켜진 것이고, 상태를 두 군데서 관리하면
+           *   "켜졌는데 로그인은 안 된" 같은 조합이 생긴다. */
+          label: '다른 계정으로',
           kind: 'ghost',
-          act: () => {
-            Cloud.disable();          // ★ 세션은 남긴다. 다시 켤 때 또 로그인시키지 않는다
-            toast('클라우드를 껐습니다. 세이브는 이 기기에 그대로 있습니다.');
-            renderHud();
-            return true;
+          act: async () => {
+            msg.style.color = 'var(--ink-faint)';
+            msg.textContent = '구글 계정 선택으로 넘어갑니다…';
+            await Cloud.enable({ switchAccount: true });
+            return false;             // 리다이렉트 중 — 창을 닫지 않는다
           },
         }
         : {
@@ -468,6 +485,10 @@ function doCloud() {
           act: async () => {
             msg.style.color = 'var(--ink-faint)';
             msg.textContent = Auth.signedIn() ? '연결하는 중…' : '구글 로그인으로 넘어갑니다…';
+            /* ★ 먼저 한 번 저장한다. `rev` 는 나중에 추가한 필드라, 업데이트 뒤
+             *   한 번도 저장 안 한 세이브는 rev 가 없다 — 그러면 첫 업로드가
+             *   조용히 건너뛰어져 "켰는데 안 올라간" 상태가 된다. */
+            save();
             const r = await Cloud.enable();
             // 로그인이 필요하면 여기서 페이지를 떠난다 — 돌아오면 boot() 이 이어받는다
             if (!r.ok) {
@@ -515,6 +536,15 @@ export async function maybeReconcile({ silent = true } = {}) {
     /* ★ `local-newer` 라고 그냥 올리면 안 된다.
      *   rev 는 저장 횟수지 진행도가 아니라서, 서버 쪽이 일수로는 훨씬 앞선 경우가 있다.
      *   그때 조용히 올리면 **묻지도 않고 남의 진행을 덮는다.** divergent 면 무조건 묻는다. */
+    /* ★ 로컬에 세이브가 아예 없으면 물어볼 게 없다. 그냥 가져온다 —
+     *   "이 기기 것을 쓴다 (0일차)" 는 선택지가 아니라 **아무것도 없는 쪽을 고르라는 말**이다.
+     *   게다가 그 모달은 닫기가 없어서 잘못 고르면 빠져나갈 수도 없다. */
+    if (!c.local && c.remote) {
+      const r = await Cloud.adoptRemote((data) => GameState.importState(data));
+      if (r.ok) { save(); toast('서버에 저장된 진행을 불러왔습니다.', 'good'); go('city'); }
+      else if (!silent) toast(r.error || '가져오지 못했습니다.', 'bad');
+      return;
+    }
     if (!c.divergent && (c.status === 'none' || c.status === 'same' || c.status === 'local-newer')) {
       if (!silent) {
         toast(c.status === 'local-newer' ? '이 기기가 더 최신입니다. 올리는 중입니다.' : '서버와 같습니다.', 'good');
