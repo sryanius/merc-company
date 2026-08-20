@@ -48,6 +48,8 @@ export const SAVE_VERSION = 1;
  *       년/월/주 달력(day 파생 — calendar/openDungeonWeek/calendarLabel) 도입.
  *       옛 세이브의 장비는 weapon→weapon / armor→body / accessory→neck 으로 옮겨지고,
  *       의뢰·주점·상점 목록은 새 슬롯·수치로 다시 채워져야 한다.
+ *   8 — 난이도 재조정(§34~§46)으로 도달 가능한 깊이가 달라졌다 (실측: 나락 70 → 47심층).
+ *       **탑·나락 기록을 다시 리셋한다** — 옛 곡선에서 세운 기록과 섞이면 안 된다.
  *   7 — 도시 배율·보스 등장률 재조정(§37) + **평판 곡선 교체분 반영**.
  *       평판 상한이 100 → 300 으로, 효과 계수(REP_PER_TIER)가 60 → 150 으로 바뀌어서
  *       기존 세이브의 평판 수치는 **옛 척도로 쌓인 값**이다 (옛 100 = 옛 최대치,
@@ -59,7 +61,7 @@ export const SAVE_VERSION = 1;
  *       **탑·나락 기록을 리셋한다** (제작자 결정: 시즌 병기 없이 그냥 리셋).
  *       옛 곡선에서 세운 기록과 새 기록이 한 순위표에 섞이면 안 된다.
  */
-export const DATA_VERSION = 7;
+export const DATA_VERSION = 8;
 
 /**
  * 랭킹 기록(탑·나락)을 리셋한 버전.
@@ -67,8 +69,9 @@ export const DATA_VERSION = 7;
  * ★ **이 값은 DATA_VERSION 을 올릴 때 같이 올리면 안 된다.** 여기 고정돼 있어야
  *   "그때 한 번만" 리셋된다. 같이 올리면 수치를 손볼 때마다 남의 기록이 매번 날아간다.
  *   다음에 또 리셋할 일이 생기면 그때 이 값을 그 버전으로 올려라.
+ *   ★ 실제로 5 → 8 로 한 번 올렸다 (§48). 올릴 때 **엣지 함수의 같은 상수도** 고쳐야 한다.
  */
-export const RANK_RESET_VERSION = 5;
+export const RANK_RESET_VERSION = 8;
 
 /**
  * 도시 평판을 초기화한 버전.

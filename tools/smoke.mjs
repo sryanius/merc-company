@@ -1822,7 +1822,7 @@ if (State) {
   ok(State.calendar(336).year === 1 && State.calendar(337).year === 2, '336일이 1년, 337일차부터 2년');
   const lbl = State.calendarLabel(245);
   ok(/^\d+년 \d+월 \d+주차 \(245일차\)$/.test(lbl), 'UI 표기 형식 `N년 N월 N주차 (N일차)`', lbl);
-  ok(State.DATA_VERSION === 7, 'DATA_VERSION 이 7', State.DATA_VERSION);
+  ok(State.DATA_VERSION === 8, 'DATA_VERSION 이 8', State.DATA_VERSION);
 
   /* ── 랭킹 리셋 마이그레이션 (DATA_VERSION 5) ────────────────────────────
    * ★ 리셋은 **버전 4 이하에서 올라올 때만** 일어나야 한다.
@@ -1850,9 +1850,9 @@ if (State) {
       State.load();
       return State.state;
     };
-    const a = mk(4, 120);
+    const a = mk(7, 120);
     ok(a.tower.best === 0 && a.abyss.best === 0,
-      '버전 4 세이브를 열면 탑·나락 기록이 리셋된다', `탑 ${a.tower.best} / 나락 ${a.abyss.best}`);
+      '옛 버전 세이브를 열면 탑·나락 기록이 리셋된다', `탑 ${a.tower.best} / 나락 ${a.abyss.best}`);
     ok(a.stats.questsDone === 37,
       '리셋이 questsDone 은 안 건드린다 (progress.js 관문을 되돌리면 안 된다)', String(a.stats.questsDone));
 
@@ -1953,8 +1953,8 @@ if (State) {
         `평판 ${State.REP_RESET_VERSION} / 랭킹 ${State.RANK_RESET_VERSION}`);
     }
 
-    ok(State.RANK_RESET_VERSION === 5,
-      'RANK_RESET_VERSION 이 5 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
+    ok(State.RANK_RESET_VERSION === 8,
+      'RANK_RESET_VERSION 이 8 이다 (평소엔 고정 — 리셋할 때만 올린다)',
       String(State.RANK_RESET_VERSION));
   }
 }

@@ -23,7 +23,10 @@ import { getSet } from '../data/sets.js';
 import { GRADE_COLOR } from '../art/palette.js';
 import { go, toast, modal } from './app.js';
 
-export function dispose() { /* rAF·타이머 없음 */ }
+export function dispose() {
+  /* rAF·타이머 없음. 캐시만 버린다 — 다음에 들어올 땐 새로 받아야 한다 (위 주석 참고). */
+  cache = null;
+}
 
 /** 부문 — 각각 성격이 다르다 (아래 설명 참고) */
 const KINDS = [
@@ -33,6 +36,12 @@ const KINDS = [
 ];
 
 let kind = 'abyss';
+/* 순위표 캐시.
+ * ★★ **화면을 떠날 때 버린다.** 예전에는 모듈 수명 내내 살아 있어서,
+ *   나락을 등반해 제출까지 끝난 뒤에 순위표를 열어도 **옛 목록이 그대로** 보였다
+ *   (제작자: «나락만 등반했을 땐 안 보이고 날짜 넘기니 보인다»).
+ *   목록은 30KB 라 들어올 때마다 받아도 부담이 없다 — 캐시는 «같은 화면 안의
+ *   다시 그리기» 를 위한 것이지 «다음 방문» 을 위한 게 아니다. */
 let cache = null;
 
 const CSS = `

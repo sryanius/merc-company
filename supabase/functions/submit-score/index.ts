@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
  *
  * ★ `src/game/state.js RANK_RESET_VERSION` 과 같은 값이어야 한다.
  */
-const RANK_RESET_VERSION = 5;
+const RANK_RESET_VERSION = 8;
 
 /**
  * 전 부대 상세를 «모양만» 거른다.
