@@ -3,9 +3,8 @@
  * ════════════════════════════════════════════════════════════════════════════
  *
  * ★ **기본은 꺼짐이다.** 게임을 켜자마자 계정을 만들지 않는다.
- *   · 익명 가입에는 IP 기준 요청 제한이 있다. 통신사 NAT 뒤에서 여러 명이 동시에
- *     처음 켜면 무더기로 실패한다 — 그게 게임 부팅을 막으면 안 된다.
- *   · 계정은 되돌리기 어려운 물건이다. 플레이어가 원할 때 만드는 게 맞다.
+ *   · 켜는 순간 **구글 로그인 화면으로 넘어간다.** 게임을 켜자마자 그러면 안 된다.
+ *   · 로그인은 플레이어가 원할 때 하는 것이다. 랭킹에 관심 없는 사람은 끝까지 안 해도 된다.
  *
  * ★ 이 값은 **세이브가 아니라 기기 설정이다.** localStorage 에 따로 둔다 —
  *   세이브에 넣으면 파일을 주고받을 때 남의 기기 설정까지 따라간다.
@@ -56,6 +55,8 @@ const SYNCED_KEY = 'merc_cloud_synced_v1';
  *   기록이 오르는 일 자체가 드물다.
  */
 const SUBMITTED_KEY = 'merc_cloud_submitted_v1';
+/** 로그인하러 떠난 상태 — 돌아왔을 때 자동으로 켤지 판단한다 */
+const PENDING_LOGIN_KEY = 'merc_cloud_pending_login_v1';
 
 function storage() {
   try { return globalThis.localStorage || null; } catch { return null; }
@@ -80,21 +81,44 @@ export function isOn() {
 export function ready() { return isOn() && Auth.signedIn(); }
 
 /**
- * 켠다. 필요하면 익명 계정을 만든다.
- * @returns {Promise<{ok:boolean, error:string}>}
+ * 켠다.
+ *
+ * ★ 이미 로그인돼 있으면 바로 켜진다. 아니면 **구글 로그인으로 넘어간다** —
+ *   이 경우 페이지를 떠나므로 이 함수는 돌아오지 않는다.
+ *   돌아온 뒤 `finishLogin()` 이 이어받는다.
  */
 export async function enable() {
   if (!ENABLED) return { ok: false, error: '클라우드 기능이 꺼져 있다' };
-  const r = await Auth.signInAnonymously();
-  // ★ 로그인에 실패하면 켜지 않는다. "켜졌는데 안 되는" 상태가 가장 나쁘다.
-  if (!r.ok) return r;
-  writeLS(ON_KEY, '1');
-  queuePush({ now: true });          // 켠 직후 한 번은 바로 올린다
-  return { ok: true, error: '' };
+  if (Auth.signedIn()) {
+    writeLS(ON_KEY, '1');
+    queuePush({ now: true });
+    return { ok: true, error: '' };
+  }
+  /* 로그인부터 시켜야 한다. ON_KEY 는 **여기서 켜지 않는다** —
+   * 로그인을 취소하고 돌아오면 "켜졌는데 로그인은 안 된" 상태가 남는다. */
+  writeLS(PENDING_LOGIN_KEY, '1');
+  return Auth.signInWithGoogle();
 }
 
 /**
- * 끈다. **계정도 세션도 지우지 않는다** — 다시 켜면 같은 계정으로 이어진다.
+ * 로그인에서 돌아왔을 때 부팅이 부른다.
+ * @returns {Promise<{handled:boolean, ok:boolean, error:string}>}
+ */
+export async function finishLogin() {
+  const r = await Auth.completeOAuth();
+  if (!r.handled) return { handled: false, ok: false, error: '' };
+  const wanted = readLS(PENDING_LOGIN_KEY) === '1';
+  writeLS(PENDING_LOGIN_KEY, null);
+  if (!r.ok) return { handled: true, ok: false, error: r.error };
+  // 로그인하러 갔던 것이면 이제 켠다
+  if (wanted) writeLS(ON_KEY, '1');
+  if (isOn()) queuePush({ now: true });
+  return { handled: true, ok: true, error: '' };
+}
+
+/**
+ * 끈다. 세션은 남긴다 — 다시 켤 때 로그인을 또 시키지 않는다.
+ * 계정을 완전히 끊으려면 `signOut()` 을 따로 부른다(구글이라 되돌릴 수 있다).
  */
 export function disable() {
   writeLS(ON_KEY, null);
@@ -551,8 +575,14 @@ export function clearRollback() { writeLS(ROLLBACK_KEY, null); }
 /** 화면에 띄울 상태 요약 */
 export function status() {
   if (!ENABLED) return { on: false, label: '사용 불가', detail: '이 빌드에서는 클라우드가 꺼져 있다.', sync: '' };
-  if (!isOn()) return { on: false, label: '꺼짐', detail: '세이브가 이 기기에만 저장된다.', sync: '' };
-  if (!Auth.signedIn()) return { on: false, label: '연결 끊김', detail: '다시 켜면 연결된다.', sync: '' };
+  if (!isOn()) {
+    return {
+      on: false, label: '꺼짐',
+      detail: Auth.signedIn() ? `${Auth.email()} 으로 로그인됨 — 켜면 바로 이어진다.` : '세이브가 이 기기에만 저장된다.',
+      sync: '',
+    };
+  }
+  if (!Auth.signedIn()) return { on: false, label: '로그인 필요', detail: '다시 켜면 구글 로그인으로 이어진다.', sync: '' };
 
   const box = readOutbox();
   const done = readSynced();
@@ -568,5 +598,5 @@ export function status() {
   else if (done && cur && done.seed === cur.seed && done.rev >= cur.rev) sync = '서버와 같다';
   else if (done) sync = '올릴 것이 남아 있다';
 
-  return { on: true, label: '켜짐', detail: `계정 ${Auth.userId().slice(0, 8)}…`, sync };
+  return { on: true, label: '켜짐', detail: Auth.email() || Auth.displayName() || '로그인됨', sync };
 }

@@ -441,10 +441,9 @@ function doCloud() {
       : null,
     el('div', { class: 'sep' }),
     el('div', { class: 'tiny muted' }, '켜면 세이브가 서버에도 보관되고 ',
-      el('b', { text: '랭킹' }), '에 참여한다. 로그인 화면은 없다 — 계정이 자동으로 만들어진다.'),
-    el('div', { class: 'tiny', style: { color: '#e8c27a' } },
-      '⚠ 지금은 계정 복구 수단이 없다. 브라우저 저장소를 지우거나 앱을 삭제하면 '
-      + '랭킹 기록과의 연결이 끊긴다. (세이브 파일 내보내기는 그대로 쓸 수 있다.)'),
+      el('b', { text: '랭킹' }), '에 참여한다. 구글 계정으로 로그인한다.'),
+    el('div', { class: 'faint tiny' },
+      '기기를 바꾸거나 앱을 지웠다 깔아도 같은 구글 계정으로 들어오면 그대로 이어진다.'),
     msg);
 
   modal({
@@ -457,27 +456,27 @@ function doCloud() {
           label: '끄기',
           kind: 'ghost',
           act: () => {
-            Cloud.disable();          // ★ 계정은 안 지운다. 다시 켜면 이어진다
+            Cloud.disable();          // ★ 세션은 남긴다. 다시 켤 때 또 로그인시키지 않는다
             toast('클라우드를 껐습니다. 세이브는 이 기기에 그대로 있습니다.');
             renderHud();
             return true;
           },
         }
         : {
-          label: '켜기',
+          label: Auth.signedIn() ? '켜기' : '구글로 로그인',
           kind: 'primary',
           act: async () => {
             msg.style.color = 'var(--ink-faint)';
-            msg.textContent = '연결하는 중…';
+            msg.textContent = Auth.signedIn() ? '연결하는 중…' : '구글 로그인으로 넘어갑니다…';
             const r = await Cloud.enable();
+            // 로그인이 필요하면 여기서 페이지를 떠난다 — 돌아오면 boot() 이 이어받는다
             if (!r.ok) {
               msg.style.color = 'var(--bad)';
               msg.textContent = r.error || '연결에 실패했습니다.';
               return false;
             }
-            toast('클라우드를 켰습니다.', 'good');
-            renderHud();
-            return true;
+            if (Auth.signedIn()) { toast('클라우드를 켰습니다.', 'good'); renderHud(); return true; }
+            return false;             // 리다이렉트 중 — 창을 닫지 않는다
           },
         },
     ],
@@ -830,6 +829,16 @@ export function boot() {
   bus.on('change', () => { renderHud(); });
   // 저장 훅을 꽂고 밀려 있던 업로드를 이어 간다. 꺼져 있으면 아무 일도 안 한다.
   try { Cloud.init(); } catch (e) { console.warn('[app] 클라우드 초기화 실패', e); }
+  /* ★ 구글 로그인에서 돌아온 길인지 본다. 주소에 `?code=` 가 붙어 있으면
+   *   그걸 토큰으로 바꾸고 주소를 청소한다 (코드가 남으면 새로고침 때 재사용 오류가 난다).
+   *   로그인 흔적이 없으면 아무 일도 안 하므로 부팅을 지연시키지 않는다. */
+  Cloud.finishLogin()
+    .then((r) => {
+      if (!r.handled) return;
+      toast(r.ok ? '로그인했습니다. 클라우드를 켰습니다.' : (r.error || '로그인하지 못했습니다.'), r.ok ? 'good' : 'bad');
+      renderHud();
+    })
+    .catch((e) => console.warn('[app] 로그인 마무리 실패', e));
   window.addEventListener('beforeunload', () => { try { save(); } catch {} });
 
   let loaded = false;
