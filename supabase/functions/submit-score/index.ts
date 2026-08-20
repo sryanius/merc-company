@@ -125,6 +125,35 @@ Deno.serve(async (req) => {
  */
 const RANK_RESET_VERSION = 5;
 
+/**
+ * 전 부대 상세를 «모양만» 거른다.
+ * ★ DB 에도 pg_column_size < 8192 제약이 있다. 여기서 부대 5 · 인원 7 · 세트 3 으로 자른다.
+ */
+function sanitizeSquadsFull(raw: unknown) {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const cut = (v: unknown, n: number) => Array.from(String(v ?? '')).slice(0, n).join('');
+  const out = raw.slice(0, 5).map((sq) => {
+    const x = (sq && typeof sq === 'object' ? sq : {}) as Record<string, unknown>;
+    const mems = Array.isArray(x.m) ? x.m : [];
+    return {
+      n: cut(x.n, 16),
+      f: cut(x.f, 24),
+      m: mems.slice(0, 7).map((m) => {
+        const y = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
+        const sets = Array.isArray(y.s) ? y.s.slice(0, 3).map((v) => cut(v, 28)) : undefined;
+        return {
+          c: cut(y.c, 24),
+          l: Math.max(1, Math.min(80, Math.round(Number(y.l) || 1))),
+          g: cut(y.g, 1),
+          e: Math.max(0, Math.min(10, Math.round(Number(y.e) || 0))),
+          s: sets && sets.length ? sets : undefined,
+        };
+      }).filter((m) => m.c),
+    };
+  }).filter((sq) => sq.m.length);
+  return out.length ? out : null;
+}
+
 /** 부대 스냅샷을 «모양만» 거른다. 내용은 못 믿으므로 크기와 타입만 본다. */
 function sanitizeSquad(raw: unknown) {
   if (!raw || typeof raw !== 'object') return null;
@@ -181,6 +210,8 @@ function sanitizeSquad(raw: unknown) {
      *   여기서는 **모양만** 거른다: 배열이고, 7명 이하고, 필드가 예상한 것뿐인가.
      *   DB 에도 pg_column_size < 2048 제약이 걸려 있다. */
     squad: sanitizeSquad(score.squad),
+    /* 전 부대 상세 — 순위표 «목록» 이 아니라 눌렀을 때만 읽는다 (squads_at RPC). */
+    squads_full: sanitizeSquadsFull(score.squadsFull),
     status,
     submitted_at: new Date().toISOString(),
   };

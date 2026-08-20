@@ -81,7 +81,57 @@ export function extractScore(st) {
     petsN: Array.isArray(st.pets) ? st.pets.length : 0,
     itemsN: Array.isArray(st.items) ? st.items.length : 0,
     squad: topSquadOf(st),
+    squadsFull: allSquadsOf(st),
   };
+}
+
+/**
+ * **모든 부대**의 상세 — 순위표에서 «눌렀을 때» 만 쓴다.
+ *
+ * ★★ 목록에 실으면 안 된다. 순위표는 200행을 한 번에 주는데
+ *   전 부대 상세가 1인당 ~2KB 라 **400KB** 가 된다 (요약은 150B → 30KB).
+ *   그래서 `squad`(요약)는 목록에, 이건 **누른 한 사람 것만** 따로 받는다.
+ *
+ * ★ 장비를 낱개로 담지 않는다 — 1인당 5.8KB(200행 1.1MB)가 되고,
+ *   빌드에서 정작 의미 있는 건 «무슨 세트를 맞췄나» 다. 세트 id 만 담는다.
+ */
+function allSquadsOf(st) {
+  const squads = Array.isArray(st?.squads) ? st.squads : [];
+  const roster = Array.isArray(st?.roster) ? st.roster : [];
+  const items = Array.isArray(st?.items) ? st.items : [];
+  if (!squads.length) return null;
+  const byUid = new Map(roster.filter((m) => m && m.uid).map((m) => [m.uid, m]));
+  const itemById = new Map(items.filter((i) => i && i.uid).map((i) => [i.uid, i]));
+  const cut = (v, n) => Array.from(String(v ?? '')).slice(0, n).join('');
+
+  const out = [];
+  for (const sq of squads.slice(0, MAX_SQUADS)) {
+    const mems = (sq?.memberUids || []).map((u) => byUid.get(u)).filter(Boolean).slice(0, 7);
+    if (!mems.length) continue;
+    out.push({
+      n: cut(sq.name || '부대', 16),
+      f: cut(sq.formationId || 'basic', 24),
+      m: mems.map((m) => {
+        /* 그 사람이 맞춘 세트 — 같은 세트 id 가 몇 칸인지까지 담아야 «몇 세트» 가 읽힌다 */
+        const setCount = {};
+        for (const iid of Object.values(m.equipment || {})) {
+          const it = itemById.get(iid);
+          if (it && it.setId) setCount[it.setId] = (setCount[it.setId] || 0) + 1;
+        }
+        const sets = Object.entries(setCount)
+          .sort((a, b) => b[1] - a[1]).slice(0, 3)
+          .map(([id, n]) => `${cut(id, 24)}:${n}`);
+        return {
+          c: cut(m.classId, 24),
+          l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
+          g: cut(m.grade, 1),
+          e: Object.keys(m.equipment || {}).length,     // 착용 칸 수
+          s: sets.length ? sets : undefined,
+        };
+      }),
+    });
+  }
+  return out.length ? out : null;
 }
 
 /**

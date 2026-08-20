@@ -18,8 +18,10 @@ import * as Cloud from '../net/cloud.js';
 import { ABYSS_NAME, zoneOf } from '../data/abyss.js';
 import { getCity } from '../data/world.js';
 import { getClass } from '../data/classes.js';
+import { getFormation } from '../data/formations.js';
+import { getSet } from '../data/sets.js';
 import { GRADE_COLOR } from '../art/palette.js';
-import { go, toast } from './app.js';
+import { go, toast, modal } from './app.js';
 
 export function dispose() { /* rAF·타이머 없음 */ }
 
@@ -38,6 +40,12 @@ const CSS = `
 .rk-row { display:grid; grid-template-columns:38px 1fr auto; gap:10px; align-items:center;
   padding:7px 8px; border-radius:6px; }
 .rk-row + .rk-row { border-top:1px solid rgba(255,255,255,.05); }
+.rk-clickable { cursor:pointer; }
+.rk-clickable:hover { background:rgba(255,255,255,.05); }
+.rk-sqbox { border:1px solid var(--line-soft); border-radius:6px; padding:8px 10px; }
+.rk-sqgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:6px 10px; margin-top:6px; }
+.rk-sqmem { font-size:12px; line-height:1.35; }
+@media (max-width: 767px) { .rk-sqgrid { grid-template-columns:1fr 1fr; } }
 .rk-squad { display:flex; flex-wrap:wrap; gap:3px 6px; margin-top:3px; }
 .rk-mem { font-size:10.5px; white-space:nowrap; }
 .rk-mem i { font-style:normal; opacity:.55; }
@@ -114,7 +122,12 @@ async function load(list) {
     //   동명이인이면 둘 다 표시되지만, 남의 계정을 알아낼 수 없는 쪽이 낫다.
     const mine = me && r.company_name === me;
     list.appendChild(el('div', {
-      class: `rk-row${rank <= 3 ? ` top${rank}` : ''}${mine ? ' me' : ''}`,
+      class: `rk-row rk-clickable${rank <= 3 ? ` top${rank}` : ''}${mine ? ' me' : ''}`,
+      role: 'button',
+      tabindex: '0',
+      title: '눌러서 이 용병단의 모든 부대 보기',
+      onClick: () => openSquads(kind, rank, r.company_name),
+      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSquads(kind, rank, r.company_name); } },
     },
       el('div', { class: 'rk-no', text: String(rank) }),
       el('div', { class: 'col', style: { gap: '1px', minWidth: '0' } },
@@ -162,6 +175,63 @@ function squadLine(squad) {
   }
   if (!row.childNodes.length) return null;
   return row;
+}
+
+/**
+ * 그 순위의 **모든 부대** 를 띄운다.
+ *
+ * ★ 목록에는 대표 부대 요약만 실려 있다 (§40). 전 부대 상세는 1인당 ~2KB 라
+ *   200행에 실으면 400KB 가 된다 — **누를 때만** 따로 받는다.
+ * ★ 서버가 `user_id` 를 안 주므로 **순위**로 찾는다. 목록과 같은 정렬이라 같은 사람이다.
+ */
+async function openSquads(kind, rank, name) {
+  const body = el('div', { class: 'col', style: { gap: '10px', minWidth: 'min(520px, 86vw)' } },
+    el('div', { class: 'faint tiny', text: '불러오는 중…' }));
+  modal({ title: `${name || '용병단'} — 부대 편성`, body, wide: true, actions: [{ label: '닫기', kind: 'ghost' }] });
+
+  let res = null;
+  try { res = await Cloud.squadsAt(kind, rank); } catch (e) { res = null; }
+  if (!body.isConnected) return;
+  body.innerHTML = '';
+
+  const squads = res && res.ok ? res.squads : null;
+  if (!Array.isArray(squads) || !squads.length) {
+    body.appendChild(el('div', { class: 'muted tiny' },
+      res && res.ok
+        ? '아직 부대 정보가 올라오지 않았다. 그 사람이 다음에 기록을 올릴 때 채워진다.'
+        : '부대 정보를 불러오지 못했다.'));
+    return;
+  }
+
+  /* ★ «본인이 신고한 값» 이라는 걸 화면에 남긴다 — 서버가 편성을 검증하지는 않는다 (§40.2). */
+  body.appendChild(el('div', { class: 'faint tiny', text: '본인이 올린 기록이다 — 서버가 편성을 검증하지는 않는다.' }));
+
+  for (const sq of squads) {
+    const f = sq.f ? getFormation(sq.f) : null;
+    const box = el('div', { class: 'rk-sqbox' },
+      el('div', { class: 'row spread center', style: { gap: '8px' } },
+        el('b', { text: sq.n || '부대' }),
+        el('span', { class: 'faint tiny', text: `${f ? f.name : sq.f || '기본진'} · ${(sq.m || []).length}명` })));
+    const grid = el('div', { class: 'rk-sqgrid' });
+    for (const m of sq.m || []) {
+      const cls = m && m.c ? getClass(m.c) : null;
+      if (!cls) continue;
+      const sets = Array.isArray(m.s) ? m.s.map((v) => {
+        const [id, n] = String(v).split(':');
+        const set = getSet ? getSet(id) : null;
+        return `${set?.name || id} ${n}`;
+      }) : [];
+      grid.appendChild(el('div', { class: 'rk-sqmem' },
+        el('div', {},
+          el('b', { style: { color: GRADE_COLOR[m.g] || 'var(--ink)' }, text: cls.name }),
+          el('span', { class: 'faint', text: ` ${m.g || ''}${m.l || ''}` })),
+        el('div', { class: 'faint tiny' },
+          m.e ? `장비 ${m.e}칸` : '장비 없음',
+          sets.length ? ` · ${sets.join(' · ')}` : '')));
+    }
+    box.appendChild(grid);
+    body.appendChild(box);
+  }
 }
 
 /** 내 기록 — 서버에 마지막으로 올라간 값 */

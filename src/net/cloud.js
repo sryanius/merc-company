@@ -470,6 +470,22 @@ export async function leaderboard(kind = 'abyss', limit = 100) {
 }
 
 /**
+ * 순위 N 번인 사람의 **모든 부대** 상세.
+ *
+ * ★★ 목록(`leaderboard`)에 안 싣고 **누를 때만** 받는다. 전 부대 상세는 1인당 ~2KB 라
+ *   200행에 실으면 400KB 가 된다 (요약은 150B → 30KB).
+ * ★ `user_id` 가 아니라 **순위**로 찾는다 — 순위표와 같은 정렬을 그대로 쓰므로
+ *   «3위의 부대» 가 되고, 남의 계정은 여전히 알 수 없다.
+ */
+export async function squadsAt(kind = 'abyss', rank = 1) {
+  const res = await call(
+    `${EP.rpc('squads_at')}?p_kind=${encodeURIComponent(kind)}&p_rank=${Math.max(1, Math.round(rank))}`, {});
+  if (!res.ok) return { ok: false, squads: null, error: res.error };
+  const row = Array.isArray(res.data) ? res.data[0] : null;
+  return { ok: true, name: row?.company_name || '', squads: row?.squads_full || null, error: '' };
+}
+
+/**
  * 이 값이면 지금 몇 위인가.
  *
  * ★ 순위표를 받아 세지 않는다. `leaderboard()` 는 상위 200명까지만 주는데,
