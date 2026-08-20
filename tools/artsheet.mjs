@@ -144,6 +144,32 @@ if (partsArg) {
   const rec = mercRecipe({ classId: id, grade: 'A', level: 40 }, {});
   cells = FRAMES.map((f) => ({ w: SPRITE_W, h: SPRITE_H, rgba: frameRgba(rec, f) }));
   label = `${id} 전 프레임 (${FRAMES.length}장)`;
+} else if (flag('front')) {
+  /* ★ 정면 초상 (art/portrait.js). 옆모습과 **같은 레시피**를 쓰되 정면 파츠로 조립된다.
+   *   아직 안 그린 파츠가 있으면 canDraw 가 거짓이라 그 자리는 건너뛴다 —
+   *   반쯤 그린 것을 세워 놓으면 «머리 없는 몸통» 이 나와 진단이 안 된다. */
+  const Portrait = await import('../src/art/portrait.js');
+  const list = (arg('class', '') || SHOWCASE.join(',')).split(',');
+  const skipped = [];
+  for (const id of list) {
+    const rec = mercRecipe({ classId: id, grade: 'A', level: 40 }, {});
+    if (!Portrait.canDraw(rec)) { skipped.push(id); continue; }
+    const p = Portrait.buildPortrait(rec);
+    const img = p.canvas.img;
+    const f = p.frames[arg('frame', 'idle0')] || p.frames.idle0;
+    const out = new Uint8ClampedArray(Portrait.PORTRAIT_W * Portrait.PORTRAIT_H * 4);
+    for (let y = 0; y < Portrait.PORTRAIT_H; y++) {
+      for (let x = 0; x < Portrait.PORTRAIT_W; x++) {
+        const si = (y * img.width + f.sx + x) * 4;
+        const di = (y * Portrait.PORTRAIT_W + x) * 4;
+        out[di] = img.data[si]; out[di + 1] = img.data[si + 1];
+        out[di + 2] = img.data[si + 2]; out[di + 3] = img.data[si + 3];
+      }
+    }
+    cells.push({ w: Portrait.PORTRAIT_W, h: Portrait.PORTRAIT_H, rgba: out });
+  }
+  label = `정면 초상 — ${list.filter((id) => !skipped.includes(id)).join(' · ') || '(그릴 수 있는 것이 없다)'}`;
+  if (skipped.length) console.error(`  정면 파츠가 없어 건너뜀: ${skipped.join(' ')}`);
 } else {
   const list = (arg('class', '') || SHOWCASE.join(',')).split(',');
   cells = list.map((id) => ({ w: SPRITE_W, h: SPRITE_H, rgba: frameRgba(mercRecipe({ classId: id, grade: 'A', level: 40 }, {}), arg('frame', 'idle0')) }));
