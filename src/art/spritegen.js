@@ -9,6 +9,7 @@
 import { getPart } from './parts.js';
 import { SCALE, BASE_W, BASE_H, BASE_FOOT_Y } from './scale.js';
 import { makePalette } from './palette.js';
+import { colorTable, shadeTable, blitInto, blitFrameInto, makeCanvas } from './pixel.js';
 
 /* 해상도 배율은 `art/scale.js` 가 갖는다 — parts.js 도 필요로 해서 순환을 피하려고 뺐다. */
 export { SCALE, BASE_W, BASE_H } from './scale.js';
@@ -374,52 +375,11 @@ function armAngle(sx, sy, hx, hy) {
 
 // ── 색 테이블 ───────────────────────────────────────────────────
 
-function hexToRgb(hex) {
-  if (!hex) return null;
-  let s = String(hex).replace('#', '');
-  if (s.length === 3) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
-  const n = parseInt(s, 16);
-  if (!Number.isFinite(n)) return null;
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function colorTable(pal) {
-  const t = Object.create(null);
-  for (const k in pal) t[k] = hexToRgb(pal[k]);
-  t['.'] = null;
-  return t;
-}
-
-/** 먼쪽(back) 파츠용 어두운 테이블 */
-function shadeTable(t, f) {
-  const o = Object.create(null);
-  for (const k in t) {
-    const c = t[k];
-    o[k] = c ? [Math.round(c[0] * f), Math.round(c[1] * f), Math.round(c[2] * f)] : null;
-  }
-  return o;
-}
-
 // ── 합성 ────────────────────────────────────────────────────────
 
+/** 파츠 한 장 찍기 — 크기는 이 모듈의 규격(SPRITE_W/H)으로 고정한 얇은 껍데기다. */
 function blit(buf, part, jx, jy, tbl) {
-  if (!part || !part.px) return;
-  const { w, h, ax, ay, px } = part;
-  for (let r = 0; r < h; r++) {
-    const y = jy - ay + r;
-    if (y < 0 || y >= SPRITE_H) continue;
-    const row = px[r];
-    for (let c = 0; c < w; c++) {
-      const ch = row[c];
-      if (ch === '.' || ch === ' ') continue;
-      const col = tbl[ch];
-      if (!col) continue;
-      const x = jx - ax + c;
-      if (x < 0 || x >= SPRITE_W) continue;
-      const i = (y * SPRITE_W + x) * 4;
-      buf[i] = col[0]; buf[i + 1] = col[1]; buf[i + 2] = col[2]; buf[i + 3] = 255;
-    }
-  }
+  blitInto(buf, SPRITE_W, SPRITE_H, part, jx, jy, tbl);
 }
 
 const ARM_BY_BODY = { body_slim: 'arm_slim', body_normal: 'arm_normal', body_heavy: 'arm_heavy', body_hulk: 'arm_heavy' };
@@ -516,32 +476,9 @@ function rotateBuffer(buf, deg) {
 
 /** 프레임 버퍼를 아틀라스 ImageData 에 복사 (dx/dy 평행이동 + alpha, white=실루엣) */
 function blitFrame(dst, atlasW, buf, ox, dx, dy, alpha, white) {
-  for (let y = 0; y < SPRITE_H; y++) {
-    const ty = y + dy;
-    if (ty < 0 || ty >= SPRITE_H) continue;
-    for (let x = 0; x < SPRITE_W; x++) {
-      const si = (y * SPRITE_W + x) * 4;
-      const sa = buf[si + 3];
-      if (!sa) continue;
-      const tx = x + dx;
-      if (tx < 0 || tx >= SPRITE_W) continue;
-      const di = (ty * atlasW + ox + tx) * 4;
-      if (white) { dst[di] = 255; dst[di + 1] = 255; dst[di + 2] = 255; }
-      else { dst[di] = buf[si]; dst[di + 1] = buf[si + 1]; dst[di + 2] = buf[si + 2]; }
-      dst[di + 3] = alpha >= 1 ? sa : Math.round(sa * alpha);
-    }
-  }
+  blitFrameInto(dst, atlasW, SPRITE_W, SPRITE_H, buf, ox, dx, dy, alpha, white);
 }
 
-function makeCanvas(w, h) {
-  if (typeof document !== 'undefined' && document.createElement) {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    return c;
-  }
-  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
-  throw new Error('spritegen: 캔버스를 만들 수 없는 환경 (buildSprite 는 브라우저 전용)');
-}
 
 /** 레시피 -> 캐시 키 */
 export function spriteKey(recipe = {}) {

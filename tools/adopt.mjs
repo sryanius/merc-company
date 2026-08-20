@@ -15,6 +15,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PIX_CHARS } from '../src/art/palette.js';
+import { BODY_PARTS } from '../src/art/parts_body.js';
+import { GEAR_PARTS } from '../src/art/parts_gear.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -33,6 +35,10 @@ for (const pair of (arg('map', '') || '').split(',').filter(Boolean)) {
   const [k, v] = pair.split(':');
   if (k && v) MAP[k.trim()] = v.trim();
 }
+/* ★ 열쇠가 이미 진짜 파츠 이름(helm_hood 처럼)이면 그대로 쓴다.
+ *   69개를 한꺼번에 옮길 때 --map 을 69줄 적게 만들 이유가 없다. */
+const KNOWN = new Set([...Object.keys(BODY_PARTS), ...Object.keys(GEAR_PARTS)]);
+const resolveName = (slot) => (KNOWN.has(slot) ? slot : MAP[slot]);
 
 const cand = JSON.parse(fs.readFileSync(path.resolve(ROOT, file), 'utf8'));
 /* ★ 이 파츠가 몇 배로 그려졌나 = 후보 캔버스 폭 ÷ 32 (64→2, 96→3). */
@@ -43,7 +49,7 @@ const ALLOWED = new Set(PIX_CHARS);
 const bad = [];
 const out = [];
 for (const [slot, p] of Object.entries(cand.parts || {})) {
-  const name = MAP[slot];
+  const name = resolveName(slot);
   if (!name) { bad.push(`${slot}: 어떤 파츠로 넣을지 모르겠다 (--map 으로 알려줘라)`); continue; }
   if (!p || !Array.isArray(p.px)) { bad.push(`${slot}: px 없음`); continue; }
   if (p.px.length !== p.h) bad.push(`${slot}: 행 개수 ${p.px.length} ≠ h ${p.h}`);
