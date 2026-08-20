@@ -759,11 +759,21 @@ function drawLinks() {
       // 겹침도 줄고 읽기도 쉽다 (계측: 뱃지가 도시 이름을 가리는 겹침이 360px에서 3쌍).
       if (narrowMap()) continue;
 
-      const mx = lerp(sx(c.x), sx(b.x), 0.5);
-      const my = lerp(sy(c.y), sy(b.y), 0.5);
       const br = 8.5 * scale;
-      // 뱃지가 놓인 자리를 먼저 찜해 둔다 — 도시 라벨이 이 위에 겹치지 않도록.
-      placedLabels.push({ x: mx - br, y: my - br, w: br * 2, h: br * 2 });
+      /* ★ 뱃지도 **placeLabel 로 자리를 잡는다.**
+       *   예전에는 간선 중점에 **고정**이라 피할 방법이 자체가 없었다 —
+       *   짧은 간선이 몰린 곳(사막)에서 뱃지끼리 뭉쳐 124쌍이 겹쳤다.
+       *   이제 중점을 기준으로 빈자리를 찾고, 없으면 **안 그린다.**
+       *   겹쳐서 둘 다 못 읽느니 하나를 지우는 편이 낫고,
+       *   같은 정보가 도시 라벨 둘째 줄("3일")에 이미 있다. */
+      const p = placeLabel(
+        lerp(sx(c.x), sx(b.x), 0.5),
+        lerp(sy(c.y), sy(b.y), 0.5) - br,
+        0, br * 2, br * 2, false,
+      );
+      if (!p) continue;
+      const mx = p.x;
+      const my = p.y + br;
       ctx.save();
       ctx.beginPath();
       ctx.arc(mx, my, br, 0, Math.PI * 2);

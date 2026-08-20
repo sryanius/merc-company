@@ -37,6 +37,43 @@ function neighborsOf(id) {
  * @param {string} here   현재 도시 id
  * @param {{regions:boolean, linkDays:boolean}} opt  각 라벨군을 그리는지
  */
+
+/**
+ * `worldmap.js placeLabel` 과 같은 후보 순서로 빈자리를 찾는다.
+ * ★ 후보 목록이 저기와 어긋나면 도구가 거짓말을 한다 — 실제로 한 번 어긋났다(§31).
+ * @returns {{x:number,y:number}|null} 왼쪽위 좌표. 자리가 없으면 null
+ */
+function placeBox(taken, cx, cy, w, h, scale) {
+  const gap = 4 * scale;
+  const side = w / 2 + 6 * scale;
+  const diag = gap * 0.72;
+  const dside = side * 0.72;
+  const cands = [
+    { x: cx, y: cy + gap },
+    { x: cx, y: cy - gap - h },
+    { x: cx + side, y: cy - h / 2 },
+    { x: cx - side, y: cy - h / 2 },
+    { x: cx + dside, y: cy + diag },
+    { x: cx - dside, y: cy + diag },
+    { x: cx + dside, y: cy - diag - h },
+    { x: cx - dside, y: cy - diag - h },
+    { x: cx, y: cy + gap + h + 5 },
+    { x: cx, y: cy - gap - h * 2 - 5 },
+    { x: cx + side * 1.35, y: cy - h / 2 },
+    { x: cx - side * 1.35, y: cy - h / 2 },
+  ];
+  for (const p of cands) {
+    const box = { x: p.x - w / 2 - 4 * scale, y: p.y - 1, w: w + 8 * scale, h: h + 3 };
+    const hit = taken.some((o) => {
+      const ox = Math.min(box.x + box.w, o.x + o.w) - Math.max(box.x, o.x);
+      const oy = Math.min(box.y + box.h, o.y + o.h) - Math.max(box.y, o.y);
+      return ox > 1 && oy > 1;
+    });
+    if (!hit) return { x: box.x + 4 * scale, y: box.y + 1 };
+  }
+  return null;
+}
+
 function layoutLabels(viewW, here, opt) {
   const scale = viewW / MAP_W;
   const thin = viewW < 560;
@@ -73,7 +110,12 @@ function layoutLabels(viewW, here, opt) {
         const my = (sy(c.y) + sy(b.y)) / 2;
         const fs = Math.max(8, Math.round(9.5 * scale));
         const r = Math.max(1, 8.5 * scale);
-        out.push({ kind: 'day', t: String(lk.days), x: mx - r, y: my - r, w: r * 2, h: r * 2, fs });
+        /* ★ 뱃지도 worldmap.js 처럼 **자리를 찾아** 놓는다 (간선 중점 고정이 아니다).
+         *   자리가 없으면 안 그린다 — 저쪽도 그렇게 한다. 여기만 고정으로 두면
+         *   도구가 «겹친다» 고 보고하는데 게임은 안 겹치는 상태가 된다. */
+        const spot = placeBox(out, mx, my - r, r * 2, r * 2, scale);
+        if (!spot) continue;
+        out.push({ kind: 'day', t: String(lk.days), x: spot.x, y: spot.y, w: r * 2, h: r * 2, fs });
       }
     }
   }
