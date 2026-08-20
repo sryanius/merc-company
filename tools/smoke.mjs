@@ -279,7 +279,14 @@ if (PartsBody && PartsGear) {
       if (p.px[i].length !== p.w) { bad.push(`${name}: ${i}행 길이 ${p.px[i].length} ≠ w=${p.w}`); break; }
     }
     if (!isNum(p.ax) || !isNum(p.ay)) bad.push(`${name}: 앵커(ax,ay) 없음/비숫자`);
-    else if (p.ax < 0 || p.ax > p.w || p.ay < 0 || p.ay > p.h) bad.push(`${name}: 앵커(${p.ax},${p.ay}) 범위 밖 (w=${p.w},h=${p.h})`);
+    /* ★ 앵커는 «그림 안의 한 점» 이 아니라 **조인트에 맞출 기준 오프셋**이다.
+     *   파츠 밖에 있어도 된다 — 예를 들어 짧은 머리카락은 목(앵커)보다 위에서 끝나므로
+     *   ay 가 h 보다 크다. 그래야 «턱 위에서 끝나는 머리» 를 표현할 수 있다.
+     *   다만 완전히 엉뚱한 값(수백 px)은 대개 크기를 바꾸고 앵커를 안 고친 실수라
+     *   파츠 크기의 두 배까지만 허용한다. */
+    else if (p.ax < -p.w || p.ax > p.w * 2 || p.ay < -p.h || p.ay > p.h * 2) {
+      bad.push(`${name}: 앵커(${p.ax},${p.ay})가 파츠(${p.w}×${p.h})에서 너무 멀다 — 크기를 바꾸고 앵커를 안 고쳤나`);
+    }
   }
   okAll(bad, '파츠 행렬/앵커 무결성', names.length);
 

@@ -33,6 +33,8 @@ const SKIN_X = MID + 0.8 * SCALE;        // 얼굴 평균 x
 /* 머리카락이 얼굴 **앞으로 쏠렸는가**. 앞머리는 허용하되 통째로 앞에 있으면 잡는다.
  * (옛 기준은 중심 뒤였고 그건 앞머리 금지였다 — HANDOFF §55) */
 const HAIR_FRONT = MID + 2.2 * SCALE;
+/** 앞머리가 얼굴 앞끝을 넘어도 되는 여유. 이마 위 몇 픽셀이면 충분하다. */
+const BANG_OVERHANG = 1 * SCALE;
 /* ★ 머리카락이 **머리에 붙어 있나** — 평균 x 만 재면 «뒤에 떠 있는 가발» 을 못 잡는다 */
 const MAX_BARE = 2 * SCALE;              // 정수리가 드러난 열 (조금은 이마·가르마라 허용)
 /* ★ 정수리를 덮을 «의무가 없는» 파츠. 정의상 두피 머리카락이 아니다 —
@@ -81,12 +83,20 @@ const EYE = new Set(['e', 'E', 'q']);
 function measure(grid) {
   let eye = 0, eyeX = 0, skin = 0, skinX = 0, hair = 0, hairX = 0;
   let skinBackX = W, hairBackX = W;          // 각각 가장 **뒤쪽**(x 가 작은) 끝
+  let skinFrontX = -1, hairFrontX = -1;      // 가장 **앞쪽**(x 가 큰) 끝
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const c = grid[y][x];
       if (EYE.has(c)) { eye++; eyeX += x; }
-      else if (SKIN.has(c)) { skin++; skinX += x; if (x < skinBackX) skinBackX = x; }
-      else if (HAIR.has(c)) { hair++; hairX += x; if (x < hairBackX) hairBackX = x; }
+      else if (SKIN.has(c)) {
+        skin++; skinX += x;
+        if (x < skinBackX) skinBackX = x;
+        if (x > skinFrontX) skinFrontX = x;
+      } else if (HAIR.has(c)) {
+        hair++; hairX += x;
+        if (x < hairBackX) hairBackX = x;
+        if (x > hairFrontX) hairFrontX = x;
+      }
     }
   }
   return {
@@ -96,6 +106,8 @@ function measure(grid) {
     hairX: hair ? hairX / hair : null,
     skinBackX: skin ? skinBackX : W,
     hairBackX: hair ? hairBackX : W,
+    skinFrontX: skin ? skinFrontX : -1,
+    hairFrontX: hair ? hairFrontX : -1,
     ...scalp(grid),
   };
 }
@@ -190,6 +202,13 @@ for (const combo of combos) {
     bad.push(`머리카락이 뒤통수를 안 감싼다 (머리 뒤끝 x ${m.hairBackX} > 얼굴 뒤끝 ${m.skinBackX})`);
   }
   if (m.hair > 0 && m.hairX > HAIR_FRONT) bad.push(`머리카락이 얼굴 앞에 쏠렸다 x ${m.hairX.toFixed(1)}(≤${HAIR_FRONT})`);
+  /* ★ 머리카락이 **얼굴보다 앞으로 흘러내리면** 옆모습에서 커튼이 된다.
+   *   실제로 hair_long 이 55px 짜리 백발 커튼이 되어 얼굴과 상체를 덮었는데,
+   *   위 지표(평균 x·뒤끝)는 전부 통과했다 — 앞끝을 안 쟀기 때문이다 (HANDOFF §55).
+   *   앞머리는 이마까지라 얼굴 앞끝을 크게 넘지 않는다. 넘으면 얼굴을 덮는 것이다. */
+  if (m.hair > 0 && m.hairFrontX > m.skinFrontX + BANG_OVERHANG) {
+    bad.push(`머리카락이 얼굴 앞으로 넘어왔다 (머리 앞끝 ${m.hairFrontX} > 얼굴 앞끝 ${m.skinFrontX}+${BANG_OVERHANG})`);
+  }
   /* 머리카락이 있는데 두피를 안 덮거나 몸에서 떨어져 있으면 «가발이 떠 있는» 그림이다 */
   if (m.hair > 0 && !NO_SCALP.has(combo.names[1]) && m.bare > MAX_BARE) {
     bad.push(`정수리 노출 ${m.bare}칸(≤${MAX_BARE})`);
