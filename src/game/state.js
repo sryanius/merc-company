@@ -48,8 +48,20 @@ export const SAVE_VERSION = 1;
  *       년/월/주 달력(day 파생 — calendar/openDungeonWeek/calendarLabel) 도입.
  *       옛 세이브의 장비는 weapon→weapon / armor→body / accessory→neck 으로 옮겨지고,
  *       의뢰·주점·상점 목록은 새 슬롯·수치로 다시 채워져야 한다.
+ *   5 — 패주 종료(engine.js) + 실패 경험치 연속화(quest.js). 전투 곡선이 달라졌으므로
+ *       **탑·나락 기록을 리셋한다** (제작자 결정: 시즌 병기 없이 그냥 리셋).
+ *       옛 곡선에서 세운 기록과 새 기록이 한 순위표에 섞이면 안 된다.
  */
-export const DATA_VERSION = 4;
+export const DATA_VERSION = 5;
+
+/**
+ * 랭킹 기록(탑·나락)을 리셋한 버전.
+ *
+ * ★ **이 값은 DATA_VERSION 을 올릴 때 같이 올리면 안 된다.** 여기 고정돼 있어야
+ *   "그때 한 번만" 리셋된다. 같이 올리면 수치를 손볼 때마다 남의 기록이 매번 날아간다.
+ *   다음에 또 리셋할 일이 생기면 그때 이 값을 그 버전으로 올려라.
+ */
+export const RANK_RESET_VERSION = 5;
 /** 도시 목록(주점/상점/의뢰) 리롤 주기 */
 export const REFRESH_DAYS = 3;
 
@@ -445,7 +457,25 @@ function migrateDataVersion(st) {
   for (const m of st.roster || []) {
     if (m && Number.isFinite(m.maxHp) && Number.isFinite(m.hp)) m.hp = Math.min(m.hp, m.maxHp);
   }
+  /* ── 랭킹 리셋 (DATA_VERSION 5, HANDOFF §27) ────────────────────────────
+   * ★ **버전을 찍어 가둔다.** 여기에 조건 없이 두면 앞으로 수치를 바꿀 때마다
+   *   (= DATA_VERSION 을 올릴 때마다) 남의 기록이 매번 날아간다.
+   *
+   * ★ `stats.questsDone` 은 **안 건드린다.** 그건 순위 지표이기도 하지만
+   *   `progress.js` 의 튜토리얼·진행 관문을 구동한다 — 0 으로 내리면
+   *   한참 진행한 사람에게 「첫 의뢰를 받아라」가 다시 뜬다.
+   *   탑·나락 기록은 순수한 기록이라 지워도 그런 부작용이 없다. */
+  let rankReset = false;
+  if (cur > 0 && cur < RANK_RESET_VERSION) {
+    if (st.tower) { st.tower.best = 0; st.tower.bestDay = 0; }
+    if (st.abyss) { st.abyss.best = 0; st.abyss.bestDay = 0; }
+    rankReset = true;
+  }
+
   st.dataVersion = DATA_VERSION;
+  if (rankReset && Array.isArray(st.log)) {
+    st.log.push({ day: st.day, text: '전장의 규칙이 달라졌다. 탑과 나락의 기록은 처음부터 다시 센다.' });
+  }
   if (had && Array.isArray(st.log)) {
     st.log.push({ day: st.day, text: '세상이 달라졌다. 의뢰·주점·상점 목록이 새로 채워진다.' });
     if (st.log.length > LOG_MAX) st.log.splice(0, st.log.length - LOG_MAX);

@@ -1134,7 +1134,25 @@ function isWin(result) {
 export function questRewards(quest, result, r = rng) {
   const base = quest?.reward || { gold: 0, exp: 0, renown: 0, itemRolls: [] };
   if (!isWin(result)) {
-    return { gold: 0, exp: Math.round((base.exp || 0) * 0.25), renown: 0, items: [] };
+    /* ★ 실패해도 **간 만큼은** 경험치를 준다 (설계 3b, HANDOFF §27).
+     *   예전에는 진행도와 무관하게 일괄 25% 였다. 그래서 1웨이브에서 전멸한 판과
+     *   마지막 웨이브를 코앞에서 놓친 판이 똑같았다 — 이 게임에서 승패가
+     *   사실상 이진이라(§24) 플레이어가 실력 차이를 느낄 창구가 없었던 이유 중 하나다.
+     *
+     *   보수·명성·전리품은 그대로 0 이다. **제작자 결정: 경험치만.**
+     *   골드를 주면 수급이 늘어 earlygame 경제·나락 수입표·랭킹 골드 상한을
+     *   전부 다시 재야 하는데, 「헛되지 않았다」는 느낌은 경험치만으로도 난다.
+     *
+     *   상수는 **총량이 예전과 같도록** 실측으로 잡았다 (`tools/.expcurve` 로 확인).
+     *   경험치 가중 평균 진행도가 0.146 이라 0.17 + 0.55 × 0.146 = 0.250 = 예전과 같다.
+     *   처음에 0.15 로 뒀더니 총량이 -7.9% 였다 — 일찍 지는 의뢰일수록 기본 경험치가
+     *   커서, 단순 평균 진행도(0.175)로 계산하면 어긋난다.
+     *   경제 총량은 그대로 두고 **폭만** 만든 것이다: 1웨 전멸 0.17 → 막판 석패 0.72.
+     *
+     *   `progress` 가 없으면 예전 값(0.25)을 쓴다 — 옛 세이브·다른 호출자 보호. */
+    const p = result && result.progress != null ? clamp(Number(result.progress) || 0, 0, 1) : null;
+    const share = p == null ? 0.25 : LOSS_EXP_FLOOR + LOSS_EXP_SPAN * p;
+    return { gold: 0, exp: Math.round((base.exp || 0) * share), renown: 0, items: [] };
   }
   const gold = Math.round((base.gold || 0) * r.float(0.94, 1.14));
   const exp = Math.round((base.exp || 0) * r.float(0.96, 1.08));
@@ -1145,6 +1163,39 @@ export function questRewards(quest, result, r = rng) {
     if (it) items.push(it);
   }
   return { gold, exp, renown, items };
+}
+
+/** 실패 경험치 하한 (1웨이브에서 바로 전멸) */
+export const LOSS_EXP_FLOOR = 0.17;
+/** 진행도 1.0 일 때 더해지는 몫 — 막판 석패는 0.15+0.55 = 승리의 70% */
+export const LOSS_EXP_SPAN = 0.55;
+
+/**
+ * 의뢰를 **얼마나 해냈나** (0 = 1웨이브에서 바로 전멸, 1 = 완주).
+ *
+ *     진행도 = (넘긴 웨이브 수 + 마지막 전투에서 남은 아군 전력) / 전체 웨이브 수
+ *
+ * ★ "남은 아군 전력" 은 인원과 체력을 반씩 본다. `engine.js result.margin` 과 같은 정의다 —
+ *   7명이 다 살았지만 빈사인 것과 4명이 멀쩡한 것을 같게 볼 수 없다.
+ *
+ * ★ 처음에는 마지막 전투의 margin 만 봤는데 **비단조**가 나왔다.
+ *   2웨이브에서 진 판이 1웨이브에서 진 판보다 낮게 찍혔다 — 어디까지 갔는지가 빠져서다
+ *   (`tools/margin.mjs` 에서 같은 함정을 밟았다. HANDOFF §25.3).
+ *
+ * ★ margin 이 없는 결과도 있다 (옛 세이브, `ui/battle.js` 의 후퇴 경로가 만드는 빈 결과).
+ *   그때는 남은 전력을 0 으로 본다 — 없는 정보를 후하게 쳐주지 않는다.
+ */
+export function questProgress(quest, list) {
+  const total = ((quest && quest.waves) || []).length || 1;
+  let won = 0;
+  let left = 0;
+  for (const res of list || []) {
+    if (winnerOf(res) === 'ally') { won++; continue; }
+    const m = res && res.margin;
+    left = m && m.allyCount > 0 ? 0.5 * (m.allyAlive / m.allyCount) + 0.5 * m.allyHp : 0;
+    break;                                  // 처음 진 웨이브에서 끝난다
+  }
+  return clamp((won + left) / total, 0, 1);
 }
 
 /* ------------------------------------------------------------------ 정산 */
@@ -1215,7 +1266,8 @@ export function applyQuestResult(quest, results) {
     if (guess) squad = (st.squads || []).find((s) => s.id === guess) || null;
   }
 
-  const rew = questRewards(quest, win ? { winner: 'ally' } : { winner: 'enemy' }, rng);
+  const progress = questProgress(quest, list);
+  const rew = questRewards(quest, win ? { winner: 'ally' } : { winner: 'enemy', progress }, rng);
 
   // 전투 통계
   for (const res of list) {

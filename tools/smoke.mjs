@@ -1774,7 +1774,57 @@ if (State) {
   ok(State.calendar(336).year === 1 && State.calendar(337).year === 2, '336일이 1년, 337일차부터 2년');
   const lbl = State.calendarLabel(245);
   ok(/^\d+년 \d+월 \d+주차 \(245일차\)$/.test(lbl), 'UI 표기 형식 `N년 N월 N주차 (N일차)`', lbl);
-  ok(State.DATA_VERSION === 4, 'DATA_VERSION 이 4', State.DATA_VERSION);
+  ok(State.DATA_VERSION === 5, 'DATA_VERSION 이 5', State.DATA_VERSION);
+
+  /* ── 랭킹 리셋 마이그레이션 (DATA_VERSION 5) ────────────────────────────
+   * ★ 리셋은 **버전 4 이하에서 올라올 때만** 일어나야 한다.
+   *   조건 없이 두면 앞으로 수치를 바꿀 때마다 남의 기록이 매번 날아간다. */
+  {
+    /* 마이그레이션은 `load()` 경로에서만 돈다 — 세이브를 만들어 두고 다시 읽는다.
+       localStorage 는 이 파일 뒤쪽에서 이미 흉내 내고 있지만 여기서는 아직이라 직접 심는다. */
+    const store = {};
+    const prevLs = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => { store[k] = String(v); },
+      removeItem: (k) => { delete store[k]; },
+    };
+    const mk = (ver, best) => {
+      State.newGame(4242, '마이그레이션');
+      State.save();                                  // 표식이 찍힌 정상 세이브를 만든다
+      const raw = JSON.parse(globalThis.localStorage.getItem(State.SAVE_KEY));
+      const body = raw && raw.data ? raw.data : raw;  // 봉인 형식이면 본문을 꺼낸다
+      body.dataVersion = ver;
+      body.tower = { ...(body.tower || {}), best, bestDay: 10 };
+      body.abyss = { ...(body.abyss || {}), best, bestDay: 12 };
+      body.stats = { ...(body.stats || {}), questsDone: 37 };
+      globalThis.localStorage.setItem(State.SAVE_KEY, JSON.stringify(raw));
+      State.load();
+      return State.state;
+    };
+    const a = mk(4, 120);
+    ok(a.tower.best === 0 && a.abyss.best === 0,
+      '버전 4 세이브를 열면 탑·나락 기록이 리셋된다', `탑 ${a.tower.best} / 나락 ${a.abyss.best}`);
+    ok(a.stats.questsDone === 37,
+      '리셋이 questsDone 은 안 건드린다 (progress.js 관문을 되돌리면 안 된다)', String(a.stats.questsDone));
+
+    globalThis.localStorage = prevLs;
+
+    /* ★ 위 두 검사는 이빨이 있다 (리셋을 지우면 첫 번째가, questsDone 을 같이 지우면
+     *   두 번째가 터진다). 그런데 **정작 위험한 건 미래**다 —
+     *   DATA_VERSION 을 6 으로 올릴 때 리셋 관문이 같이 따라 올라가면
+     *   그때 또 남의 기록이 날아간다.
+     *
+     *   그건 실행으로는 못 잰다. `cur === DATA_VERSION` 이면 마이그레이션이
+     *   맨 위에서 반환하므로, 관문을 지워도 지금은 아무 검사도 안 터진다
+     *   (실제로 지워 보고 확인했다). 그래서 값으로 못 박아 둔다. */
+    ok(State.RANK_RESET_VERSION <= State.DATA_VERSION,
+      '랭킹 리셋 기준 버전이 DATA_VERSION 을 넘지 않는다',
+      `${State.RANK_RESET_VERSION} vs ${State.DATA_VERSION}`);
+    ok(State.RANK_RESET_VERSION === 5,
+      'RANK_RESET_VERSION 이 5 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
+      String(State.RANK_RESET_VERSION));
+  }
 }
 
 section('10슬롯 · 세트 · 던전 진행도 세이브 왕복');
