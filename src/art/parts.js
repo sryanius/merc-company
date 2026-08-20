@@ -2,6 +2,7 @@
 // SPEC §4.3~4.4 참고.
 import { BODY_PARTS } from './parts_body.js';
 import { upscalePart } from './upscale.js';
+import { SCALE } from './scale.js';
 import { GEAR_PARTS } from './parts_gear.js';
 
 export const PARTS = { ...BODY_PARTS, ...GEAR_PARTS };
@@ -12,10 +13,14 @@ export const EMPTY_PART = { w: 1, h: 1, ax: 0, ay: 0, px: ['.'] };
 const warned = new Set();
 
 /** 파츠 조회. 없거나 `*_none` 이면 빈 파츠를 돌려준다 (렌더 중단 방지). */
-/* ★ 파츠는 **32×40 시절 좌표로 적혀 있다.** 스프라이트를 64×80 으로 올리면서
- *   여기서 2배로 승격한다 (`art/upscale.js`, HANDOFF §50).
- *   손으로 64×80 에 맞춰 다시 찍은 파츠는 `hd: true` 를 달면 그대로 통과한다 —
- *   그래야 한 번에 다 갈아엎지 않고 **하나씩** 옮길 수 있다. */
+/* ★ 옛 파츠는 **32×40 시절 좌표로 적혀 있다.** 스프라이트 해상도(SCALE)까지 여기서 승격한다
+ *   (`art/upscale.js`, HANDOFF §50).
+ *
+ * ★★ 파츠는 **자기가 몇 배로 그려졌는지 `scale` 로 밝힌다** (없으면 1 = 32×40 기준).
+ *   그래야 한 번에 다 갈아엎지 않고 **하나씩** 옮길 수 있고,
+ *   나중에 해상도를 또 올려도 «먼저 옮긴 파츠만 작게 남는» 일이 안 생긴다.
+ *
+ * ★ 캐시 열쇠에 SCALE 을 넣는다 — 안 넣으면 배율을 바꿔도 옛 결과가 그대로 나온다. */
 const upCache = new Map();
 
 export function getPart(name) {
@@ -25,9 +30,10 @@ export function getPart(name) {
     if (!warned.has(name)) { warned.add(name); console.warn('[parts] 정의되지 않은 파츠:', name); }
     return EMPTY_PART;
   }
-  if (p.hd) return p;
-  let up = upCache.get(name);
-  if (!up) { up = upscalePart(p); upCache.set(name, up); }
+  if ((p.scale || 1) === SCALE) return p;
+  const key = name + '@' + SCALE;
+  let up = upCache.get(key);
+  if (!up) { up = upscalePart(p, SCALE); upCache.set(key, up); }
   return up;
 }
 

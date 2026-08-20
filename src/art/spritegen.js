@@ -7,24 +7,16 @@
 //    즉 wpn_* 파츠는 날 끝이 위를 향하고 그립(ax,ay)이 아래쪽에 있도록 그려야 한다.
 //  - 이 모듈은 최상위에서 document/window를 건드리지 않는다 (node import 가능).
 import { getPart } from './parts.js';
+import { SCALE, BASE_W, BASE_H, BASE_FOOT_Y } from './scale.js';
 import { makePalette } from './palette.js';
 
-/**
- * 논리 캔버스 배율.
- *
- * ★★ 파츠 픽셀과 아래 좌표들은 전부 **32×40 시절 숫자로 적혀 있다.**
- *   해상도를 올릴 때 그 숫자를 전부 손으로 고치면 반드시 몇 개를 빠뜨린다
- *   (조인트 10개 · 포즈 오프셋 수십 개 · 방패 오프셋 · 회전축…).
- *   대신 **여기 하나로 곱한다.** `art/parts.js` 가 파츠를 같은 배율로 승격한다.
- *
- * ★ 1 로 되돌리면 옛 해상도로 즉시 돌아간다 — 비교할 때 쓴다.
- */
-export const SCALE = 2;
+/* 해상도 배율은 `art/scale.js` 가 갖는다 — parts.js 도 필요로 해서 순환을 피하려고 뺐다. */
+export { SCALE, BASE_W, BASE_H } from './scale.js';
 const S = SCALE;
 
-export const SPRITE_W = 32 * S;
-export const SPRITE_H = 40 * S;
-export const FOOT_Y = 38 * S; // 지면에 닿는 y (아틀라스 픽셀)
+export const SPRITE_W = BASE_W * S;
+export const SPRITE_H = BASE_H * S;
+export const FOOT_Y = BASE_FOOT_Y * S; // 지면에 닿는 y (아틀라스 픽셀)
 
 /**
  * 발밑에서 정수리까지 **화면 px**. 밖에서 스프라이트 높이를 잴 때는 반드시 이걸 쓴다.
@@ -46,23 +38,36 @@ export const ROT_PIVOT = { x: 16 * S, y: 26 * S };
  */
 export const SHIELD_OFFSET = { x: 8 * S, y: -1 * S };
 
-/** SPEC §4.2 조인트 좌표 (스프라이트 로컬, 기본 포즈) */
-export const JOINTS = scaleJoints({
-  head: { x: 16, y: 14 },      // 목 (머리/헤어/투구 앵커)
-  chest: { x: 16, y: 14 },     // 몸통 상단 중앙
-  pelvis: { x: 16, y: 26 },
-  shBack: { x: 13, y: 16 },    // 먼쪽 어깨
-  shFront: { x: 19, y: 16 },   // 가까운쪽 어깨
-  handBack: { x: 11, y: 24 },
-  handFront: { x: 21, y: 24 },
-  hipBack: { x: 14, y: 26 },
-  hipFront: { x: 18, y: 26 },
-});
+/**
+ * SPEC §4.2 조인트 좌표 (스프라이트 로컬, 기본 포즈)
+ *
+ * ★★ 숫자는 **32×40 기준**이고 SCALE 배로 곱해진다. 분수가 섞여 있는데 의도한 것이다 —
+ *   96×120 으로 다시 그린 파츠에 맞춰 목을 세우고(머리 y 14→14⅔) 다리를 길게 뽑았는데
+ *   (골반 y 26→25), 그 값이 32×40 에서는 정수로 안 떨어진다.
+ *   여기서 반올림하지 말고 **곱한 뒤에** 반올림해야 파츠와 어긋나지 않는다.
+ *
+ * ★ 손이 어깨 바로 아래로 내려왔다 (handBack x 11→13 = shBack x).
+ *   팔이 몸에 붙어 내려오는 자세라 옆모습에서 실루엣이 깔끔하다.
+ */
+/** 32×40 기준 원본 값. 스모크가 «전부 같은 배율을 탔는가» 를 이걸로 검산한다. */
+export const JOINT_BASE = {
+  head: { x: 16, y: 44 / 3 },      // 목 (머리/헤어/투구 앵커)
+  chest: { x: 16, y: 44 / 3 },     // 몸통 상단 중앙
+  pelvis: { x: 16, y: 25 },
+  shBack: { x: 13, y: 16 },        // 먼쪽 어깨
+  shFront: { x: 19, y: 16 },       // 가까운쪽 어깨
+  handBack: { x: 13, y: 80 / 3 },
+  handFront: { x: 19, y: 80 / 3 },
+  hipBack: { x: 44 / 3, y: 25 },
+  hipFront: { x: 52 / 3, y: 25 },
+};
 
-/** 조인트 좌표를 SCALE 배로. 숫자는 32×40 기준으로 적혀 있다. */
+export const JOINTS = scaleJoints(JOINT_BASE);
+
+/** 조인트 좌표를 SCALE 배로. ★ 곱한 **뒤에** 반올림한다 (위 주석 참고). */
 function scaleJoints(j) {
   const out = {};
-  for (const k of Object.keys(j)) out[k] = { x: j[k].x * S, y: j[k].y * S };
+  for (const k of Object.keys(j)) out[k] = { x: Math.round(j[k].x * S), y: Math.round(j[k].y * S) };
   return out;
 }
 
@@ -588,18 +593,24 @@ export function buildSprite(recipe = {}) {
 /**
  * 스프라이트 캐시.
  *
- * ★★ **상한이 있어야 한다.** 아틀라스 한 장이 SPRITE_W×SPRITE_H×24프레임 이고
- *   기본·발광 두 장을 들고 있다. 32×40 시절엔 한 벌에 약 0.25MB 라 무제한이어도 티가 안 났지만
- *   64×80(SCALE=2)이 되면서 **4배인 약 1MB** 가 됐다 — 적 외형까지 쌓이면 수백 벌이라
- *   휴대폰에서 먼저 죽는다. 여기서 막는다 (HANDOFF §50).
+ * ★★ 상한을 **개수가 아니라 바이트**로 잡는다.
+ *   한 벌 크기가 해상도에 따라 네 배씩 뛴다 (32×40 0.24MB → 64×80 0.94MB → 96×120 2.11MB).
+ *   «120벌» 로 못박아 두면 해상도를 올리는 순간 조용히 253MB 가 되고 휴대폰이 먼저 죽는다.
+ *   실제로 SCALE 을 3 으로 올리다 겪었다 (HANDOFF §52).
  *
  * ★ 버리는 순서는 **가장 오래 안 쓴 것**(LRU). Map 은 넣은 순서를 지키므로
  *   꺼낼 때 다시 넣어 «최근» 으로 올리면 별도 자료구조 없이 LRU 가 된다.
  */
 const spriteCache = new Map();
 
-/** 대략 1MB × 이 값 = 최대 캔버스 메모리. 한 판에 등장하는 외형 수보다 넉넉하다. */
-export const SPRITE_CACHE_MAX = 120;
+/** 캔버스에 쓸 수 있는 대략의 상한. 한 판에 등장하는 외형 수보다 넉넉해야 한다. */
+export const SPRITE_CACHE_BYTES = 72 * 1024 * 1024;
+
+/** 스프라이트 한 벌이 차지하는 대략의 바이트 (기본 + 발광 두 장). */
+export const spriteBytes = () => SPRITE_W * FRAMES.length * SPRITE_H * 4 * 2;
+
+/** 바이트 예산으로 환산한 최대 벌 수. 최소 12벌은 보장한다 — 한 전투가 안 돌면 소용없다. */
+export const SPRITE_CACHE_MAX = Math.max(12, Math.floor(SPRITE_CACHE_BYTES / spriteBytes()));
 
 /** 캐시된 스프라이트 조회 (없으면 생성) */
 export function getSprite(recipe = {}) {

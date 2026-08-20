@@ -150,7 +150,9 @@ for (const f of files) {
   const problems = [];
   const grid = compose(json, problems);
   const m = judge(grid, json);
-  cands.push({ name: json.name || path.basename(f, '.json'), note: json.note || '', grid, problems, m });
+  /* ★ canvas 를 **같이 들고 다녀야 한다.** 예전엔 grid 만 넘겼더니 아래 배치 계산이
+   *   후보의 캔버스를 못 읽고 기본값(64×80)으로 쳐서, 96×120 후보가 셀 밖으로 잘려 나갔다. */
+  cands.push({ name: json.name || path.basename(f, '.json'), note: json.note || '', grid, problems, m, canvas: canvasOf(json) });
 }
 if (!cands.length) { console.error('읽은 후보가 없다.'); process.exit(1); }
 

@@ -4,8 +4,8 @@
 //
 // ★ 왜 도구인가
 //   후보는 JSON 이고 파츠 파일은 JS 다. 손으로 옮기면 따옴표·쉼표·앵커를 반드시 한 번은 틀린다.
-//   그리고 **hd: true 를 빼먹으면** parts.js 가 그 파츠를 또 2배로 늘려 혼자만 거대해진다.
-//   여기서 항상 붙인다.
+//   그리고 **scale 을 빼먹으면** parts.js 가 그 파츠를 32×40 원본으로 알고 또 늘려
+//   혼자만 거대해진다. 여기서 후보의 캔버스에서 배수를 구해 항상 적어 준다.
 //
 // 실행
 //   node tools/adopt.mjs 후보.json --map=head:head_human,body:body_normal
@@ -35,6 +35,9 @@ for (const pair of (arg('map', '') || '').split(',').filter(Boolean)) {
 }
 
 const cand = JSON.parse(fs.readFileSync(path.resolve(ROOT, file), 'utf8'));
+/* ★ 이 파츠가 몇 배로 그려졌나 = 후보 캔버스 폭 ÷ 32 (64→2, 96→3). */
+const PART_SCALE = Math.round(((cand.canvas && cand.canvas.w) || 64) / 32);
+if (!Number.isInteger(PART_SCALE) || PART_SCALE < 1) { console.error('캔버스 폭이 32 의 정수배가 아니다'); process.exit(1); }
 const ALLOWED = new Set(PIX_CHARS);
 
 const bad = [];
@@ -48,9 +51,11 @@ for (const [slot, p] of Object.entries(cand.parts || {})) {
   for (const r of p.px) for (const ch of r) if (!ALLOWED.has(ch)) bad.push(`${slot}: 모르는 문자 '${ch}'`);
   const rows = p.px.map((r) => `      '${r}',`).join('\n');
   out.push(
-    `  // ${cand.name || '후보'} — 64×80 네이티브\n`
+    `  // ${cand.name || '후보'} — ${32 * PART_SCALE}×${40 * PART_SCALE} 네이티브
+`
     + `  ${name}: {\n`
-    + `    w: ${p.w}, h: ${p.h}, ax: ${p.ax || 0}, ay: ${p.ay || 0}, hd: true,\n`
+    + `    w: ${p.w}, h: ${p.h}, ax: ${p.ax || 0}, ay: ${p.ay || 0}, scale: ${PART_SCALE},
+`
     + `    px: [\n${rows}\n    ],\n`
     + `  },`);
 }
@@ -66,4 +71,6 @@ if (args.includes('--apply')) {
   console.error('--apply 는 아직 없다. 아래를 parts_body.js 에 직접 넣어라 (덮어쓸 항목을 눈으로 확인하는 편이 안전하다).');
 }
 console.log(js);
-console.error(`\n  ${out.length}개 파츠. ★ hd: true 가 붙어 있다 — 이게 없으면 parts.js 가 또 2배로 늘린다.`);
+console.error(`
+  ${out.length}개 파츠 · scale: ${PART_SCALE} (${32 * PART_SCALE}×${40 * PART_SCALE} 로 그렸다는 뜻)`);
+console.error('  ★ scale 이 없으면 parts.js 가 32×40 원본으로 알고 또 늘려 혼자만 거대해진다.');

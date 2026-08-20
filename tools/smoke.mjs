@@ -364,9 +364,17 @@ if (Spritegen) {
   ok(Spritegen.FOOT_Y === 38 * S && Spritegen.ROT_PIVOT.y === 26 * S && Spritegen.SHIELD_OFFSET.x === 8 * S,
     '발밑·회전축·방패도 같은 배율을 탄다',
     `FOOT_Y=${Spritegen.FOOT_Y} pivot.y=${Spritegen.ROT_PIVOT.y} shield.x=${Spritegen.SHIELD_OFFSET.x}`);
-  ok(Spritegen.JOINTS.head.x === 16 * S && Spritegen.JOINTS.handFront.y === 24 * S,
-    '조인트도 같은 배율을 탄다',
-    `head.x=${Spritegen.JOINTS.head.x} handFront.y=${Spritegen.JOINTS.handFront.y}`);
+  /* ★ 조인트 값을 못박지 않는다 — 파츠를 다시 그리면서 목을 세우고 다리를 뽑느라 실제로 바뀌었다.
+   *   지켜야 할 것은 «**전부** 같은 배율을 탔는가» 다. 하나만 안 곱해지면 팔이 몸에서 떨어진다. */
+  {
+    const jbad = Object.keys(Spritegen.JOINT_BASE).filter((k) => {
+      const b = Spritegen.JOINT_BASE[k], j = Spritegen.JOINTS[k];
+      return !j || j.x !== Math.round(b.x * S) || j.y !== Math.round(b.y * S);
+    }).map((k) => `JOINTS.${k} 가 배율을 안 탔다`);
+    okAll(jbad, '조인트가 전부 같은 배율을 탄다', Object.keys(Spritegen.JOINT_BASE).length);
+    ok(Spritegen.JOINTS.head.x === Spritegen.SPRITE_W / 2, '머리 조인트가 가로 중심에 있다',
+      `head.x=${Spritegen.JOINTS.head.x} 중심=${Spritegen.SPRITE_W / 2}`);
+  }
   // 발밑 높이는 화면 좌표라 SCALE 과 무관해야 한다 — 여기가 어긋나면 체력바가 머리 위로 날아간다
   ok(Spritegen.spriteFootPx(3) === 38 * 3, '발밑 높이는 SCALE 과 무관하게 논리 좌표를 지킨다',
     `spriteFootPx(3)=${Spritegen.spriteFootPx(3)} (기대 ${38 * 3})`);
@@ -1498,7 +1506,13 @@ if (Spritegen) {
   /* ★ 해상도를 4배로 올리면서 아틀라스 한 벌이 약 0.25MB → 1MB 가 됐다.
    *   무제한 캐시는 그때부터 휴대폰을 죽이는 장치가 된다 (HANDOFF §50). */
   const MAX = Spritegen.SPRITE_CACHE_MAX;
-  ok(MAX > 0 && MAX <= 400, '캐시 상한이 있고 상식적인 크기다', `SPRITE_CACHE_MAX=${MAX}`);
+  const bytes = Spritegen.spriteBytes();
+  /* ★ 개수가 아니라 **바이트**를 지켜야 한다. 한 벌 크기가 해상도에 따라 네 배씩 뛰므로
+   *   개수로 못박으면 해상도를 올리는 순간 조용히 몇백 MB 가 된다 (HANDOFF §52). */
+  ok(MAX * bytes <= Spritegen.SPRITE_CACHE_BYTES * 1.05,
+    '캐시가 바이트 예산 안에 있다',
+    `${MAX}벌 × ${(bytes / 1048576).toFixed(2)}MB = ${(MAX * bytes / 1048576).toFixed(0)}MB (예산 ${Spritegen.SPRITE_CACHE_BYTES / 1048576}MB)`);
+  ok(MAX >= 12, '한 전투가 돌 만큼은 담는다 (최소 12벌)', `SPRITE_CACHE_MAX=${MAX}`);
 
   Spritegen.clearSpriteCache();
   ok(Spritegen.spriteCacheSize() === 0, '캐시를 비울 수 있다', Spritegen.spriteCacheSize());
