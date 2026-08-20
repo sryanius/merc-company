@@ -1385,7 +1385,17 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
     ok(Math.abs(sum1 - 1) < 1e-6, 'gradeOdds 합 = 1', sum1);
 
     // 실효 티어 보간
-    ok(Math.abs(Merc.effectiveTier(1, { rep: 100 }) - 2.5) < 1e-9, '평판 100 = 실효 티어 +1.5', Merc.effectiveTier(1, { rep: 100 }));
+    /* ★ 값을 박지 말고 **상수에서 유도**한다. 예전에는 «평판 100 = +1.5» 를 손으로 적어 둬서
+     *   REP_MAX/REP_PER_TIER 를 바꾸자 바로 거짓말이 됐다. */
+    const expTier = (rep) => 1 + (rep - Merc.REP_BASELINE) / Merc.REP_PER_TIER;
+    ok(Math.abs(Merc.effectiveTier(1, { rep: 100 }) - expTier(100)) < 1e-9,
+      '평판 보정이 REP_PER_TIER 를 그대로 따른다', Merc.effectiveTier(1, { rep: 100 }));
+    ok(Math.abs(Merc.effectiveTier(1, { rep: State.REP_MAX }) - expTier(State.REP_MAX)) < 1e-9,
+      '평판 만점도 상한(MAX_CITY_TIER)에 안 걸린다', Merc.effectiveTier(1, { rep: State.REP_MAX }));
+    // 최고 도시 + 특화 + 만점이 천장에 눌리면 평판이 무의미해진다 — 그게 옛 버그였다
+    const top = Merc.effectiveTier(5, { rep: State.REP_MAX, specialty: true });
+    ok(top < Merc.MAX_CITY_TIER - 1e-9,
+      '5등급 명물 도시 + 평판 만점이 실효 티어 천장에 안 눌린다', `${top} / ${Merc.MAX_CITY_TIER}`);
     ok(Math.abs(Merc.effectiveTier(1, { rep: 10, specialty: true }) - 2) < 1e-9, '특화 = 실효 티어 +1.0', Merc.effectiveTier(1, { rep: 10, specialty: true }));
     ok(Merc.effectiveTier(5, { rep: 100, specialty: true }) <= Merc.MAX_CITY_TIER, `실효 티어 상한 ${Merc.MAX_CITY_TIER}`);
     const mono = [0, 25, 50, 75, 100].map((rep) => Merc.gradeOdds(3, { rep }).S);

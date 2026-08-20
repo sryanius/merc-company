@@ -11,7 +11,7 @@
 //
 // 순수 JS 모듈만 import 한다 (DOM 참조 금지).
 import { RNG } from '../src/core/rng.js';
-import { GRADES, gradeRoll, gradeOdds, gradeChances, effectiveTier, MAX_CITY_TIER } from '../src/game/merc.js';
+import { GRADES, gradeRoll, gradeOdds, gradeChances, effectiveTier, MAX_CITY_TIER, REP_BASELINE, REP_PER_TIER, SPECIALTY_TIER_BONUS } from '../src/game/merc.js';
 import { CITIES, citySpecialty, citiesForClass, START_CITY, getCity } from '../src/data/world.js';
 import { BASE_CLASSES, getClass } from '../src/data/classes.js';
 import { REP_QUEST_GAIN, REP_TAVERN_MIN, REP_MAX, START_REP } from '../src/game/state.js';
@@ -261,13 +261,17 @@ function questCountCheck() {
   const cMax = questsToRep('C', 0, REP_MAX, 1);
   console.log(`\n  F랭크: 주점 개방 ${fOpen}건 · 평판 만점 ${fMax}건`);
   console.log(`  C랭크: 주점 개방 ${cOpen}건 · 평판 만점 ${cMax}건`);
-  console.log(`  ※ 평판 100 = 실효 티어 +1.5. 특화까지 겹치면 +2.5.`);
+  console.log(`  ※ 평판 ${REP_MAX} = 실효 티어 +${((REP_MAX - REP_BASELINE) / REP_PER_TIER).toFixed(2)}. 특화까지 겹치면 +${(((REP_MAX - REP_BASELINE) / REP_PER_TIER) + SPECIALTY_TIER_BONUS).toFixed(2)}.`);
 
   // 주점 개방이 5건 이상 걸리면 낯선 도시가 사실상 잠긴 것과 같다.
   verdict(fOpen <= 5 && cOpen <= 3,
     `낯선 도시 주점은 F랭크 ${fOpen}건 / C랭크 ${cOpen}건이면 열린다 — 진행을 막지 않는다.`,
     `주점 개방에 F ${fOpen}건 / C ${cOpen}건이나 걸린다 — 낯선 도시가 사실상 잠긴다.`);
-  verdict(fMax <= 60 && cMax <= 30,
+  /* ★ 상한이 100 → 300 으로 늘었으므로 기준도 같이 늘렸다.
+   *   제작자 지적이 "평판 100 은 너무 금방 찍는다" 였으니 **오래 걸리는 게 목적**이다.
+   *   다만 «오래 걸린다» 와 «못 간다» 는 다르다 — 저랭크만으로도 언젠간 닿아야 한다.
+   *   C랭크 기준을 본다: 높은 랭크는 훨씬 빨리 쌓이므로(REP_GAIN) 저기가 상한선이다. */
+  verdict(fMax <= 160 && cMax <= 45,
     `평판 만점은 F랭크 ${fMax}건 / C랭크 ${cMax}건 — 장기 목표로 적당하다.`,
     `평판 만점에 F ${fMax}건 / C ${cMax}건이 필요하다 — 사실상 도달 불가다.`);
 }

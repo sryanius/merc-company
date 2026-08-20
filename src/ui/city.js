@@ -472,10 +472,15 @@ const openDungeonAt = (day = state.day) => dungeonOfWeek(dungeonWeekOf(day));
    전부 나중에 붙은 API라 "있으면 쓰고 없으면 필드를 직접 읽는" 형태로 감싼다. */
 
 /** 평판 구간 이름 — 주점 화면과 같은 어휘를 쓴다 */
+/* ★ 상한이 100 → 300 으로 늘면서 구간도 다시 잡았다 (state.js REP_MAX).
+ *   구간을 5개 그대로 두면 한 칸이 60점이라 한참을 올려도 이름이 안 바뀐다 —
+ *   길어진 여정일수록 이정표가 더 촘촘해야 한다. */
 const REP_TIERS = [
-  { min: 75, name: '전설의 이름', color: 'var(--gold)' },
-  { min: 50, name: '명망 높음', color: 'var(--leaf)' },
-  { min: 25, name: '믿을 만함', color: 'var(--steel)' },
+  { min: 280, name: '살아있는 전설', color: 'var(--gold)' },
+  { min: 220, name: '전설의 이름', color: 'var(--gold)' },
+  { min: 150, name: '이름이 팔린다', color: 'var(--leaf)' },
+  { min: 90, name: '명망 높음', color: 'var(--leaf)' },
+  { min: 40, name: '믿을 만함', color: 'var(--steel)' },
   { min: 10, name: '얼굴은 안다', color: 'var(--ink-dim)' },
   { min: 0, name: '무명', color: 'var(--ink-faint)' },
 ];
@@ -488,8 +493,10 @@ function repKnob(name, fallback) {
 }
 /** 주점이 열리는 최소 평판 */
 const repNeed = () => repKnob('REP_TAVERN_MIN', 10);
+/** 평판 상한 — 화면에 100 을 박아 두면 상한을 바꿀 때 조용히 거짓말이 된다 */
+const repMax = () => repKnob('REP_MAX', 300);
 
-/** 도시 평판 (0~100). 기록이 없으면 0 */
+/** 도시 평판 (0~REP_MAX). 기록이 없으면 0 */
 function repOf(cityId) {
   if (typeof GameState.getRep === 'function') {
     try {
@@ -1071,7 +1078,7 @@ function heroPanel(city, gate = tavernGate(city.id), repDelta = 0) {
         el('div', { class: 'muted tiny' }, `${region ? region.name : '알 수 없는 지역'} · ${biome} · ${city.tier || 1}등급 도시`),
         fold
           ? el('div', { class: 'faint tiny', style: { marginTop: '6px' } },
-            `시설: ${services}${specialtyNames(city) ? ` · 명물 ${specialtyNames(city)}` : ''} · 평판 ${gate.rep}/100`)
+            `시설: ${services}${specialtyNames(city) ? ` · 명물 ${specialtyNames(city)}` : ''} · 평판 ${gate.rep}/${repMax()}`)
           : [
             el('p', { class: 'muted desc', style: { margin: '10px 0 0' }, text: city.desc || '' }),
             el('div', { class: 'faint tiny', style: { marginTop: '6px' } }, `시설: ${services}`),
@@ -1085,7 +1092,7 @@ function heroPanel(city, gate = tavernGate(city.id), repDelta = 0) {
         kv('보유 골드', `${num(state.gold)} G`, 'var(--gold)'),
         kv('일일 임금', `${num(totalUpkeep())} G`),
         kv('단원', capText),
-        kv('평판', `${gate.rep} / 100`, repTier(gate.rep).color),
+        kv('평판', `${gate.rep} / ${repMax()}`, repTier(gate.rep).color),
         kv('명성', num(state.renown)))));
 }
 
@@ -1107,7 +1114,7 @@ function specialtyBlock(city) {
 }
 
 /**
- * 도시 평판 0~100. 주점 개방선(REP_TAVERN_MIN)을 바 위에 표시하고,
+ * 도시 평판 0~REP_MAX. 주점 개방선(REP_TAVERN_MIN)을 바 위에 표시하고,
  * 의뢰를 마치고 돌아왔을 때의 변동분을 배지로 한 번 보여준다.
  */
 function repBlock(city, gate, delta) {
@@ -1117,7 +1124,7 @@ function repBlock(city, gate, delta) {
   const short = Math.max(0, gate.need - gate.rep);
 
   const hint = gate.ok
-    ? `주점이 열려 있다. 평판이 오를수록 고등급 용병이 굴러 나온다 (100이면 실효 주점 등급 +1.5).`
+    ? `주점이 열려 있다. 평판이 오를수록 고등급 용병이 굴러 나온다 (${repMax()}이면 실효 주점 등급 +1.9).`
     : `주점 잠김 — 평판 ${gate.need}부터 고용할 수 있다. ${short} 더 필요하다 (F랭크 의뢰 성공 +${fGain}).`;
 
   return el('div', { class: 'city-rep' },

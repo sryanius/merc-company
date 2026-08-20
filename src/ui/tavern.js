@@ -1,7 +1,7 @@
 // 주점 — 클래스를 지정해서 고용한다. 등급은 계약하는 그 순간에 무작위로 결정된다.
 // 도박성이 이 화면의 핵심이므로 등급 추첨 연출에 힘을 준다.
 //
-// ★ 이 화면은 도시 평판(0~100)에 묶여 있다.
+// ★ 이 화면은 도시 평판(0~REP_MAX, 지금 300)에 묶여 있다.
 //   - 평판 REP_TAVERN_MIN(10) 미만이면 고용 자체가 잠긴다 → 낯선 도시에서는 의뢰부터 받아야 한다.
 //   - 평판이 오르면 등급 확률표가 실제로 좋아진다 (merc.gradeOdds 의 opts.rep).
 //   - 도시마다 특화 클래스가 있고, 그 클래스는 S·A 확률이 크게 뛴다 (opts.specialty).
@@ -76,7 +76,7 @@ function knob(name, fallback) {
 /** 주점이 열리는 최소 평판 */
 const repNeed = () => knob('REP_TAVERN_MIN', 10);
 
-/** 이 도시의 평판 (0~100). 기록이 없으면 0 */
+/** 이 도시의 평판 (0~REP_MAX). 기록이 없으면 0 */
 function repOf(cityId) {
   if (typeof GameState.getRep === 'function') {
     try {
