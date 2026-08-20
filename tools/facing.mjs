@@ -6,26 +6,37 @@
 //   2) 얼굴이 머리 중앙에 있어 옆얼굴로 읽히지 않는다 → 이 스크립트가 검사하는 항목
 //
 // 옆모습에서 방향을 만드는 건 결국 **비대칭**이다. 얼굴·눈은 앞쪽(x가 큰 쪽)에,
-// 뒤통수·머리카락은 뒤쪽에 있어야 한다. 캔버스 중심은 x=16, 머리 조인트도 x=16이다.
+// 뒤통수·머리카락은 뒤쪽에 있어야 한다. 가로 중심과 머리 조인트 x 는 같은 값이다(SPRITE_W/2).
 //
 // 캔버스를 쓰지 않고 파츠 문자 행렬을 그대로 합성해서 재므로 node에서 바로 돌아간다.
+//
+// ★★ 좌표를 **직접 적지 않는다.** 예전엔 W=32,H=40 과 «중심 16» 을 박아 놨는데,
+//   해상도를 64×80 으로 올리자 조인트만 2배가 돼 71/71 전부 낙제로 뒤집혔다.
+//   측정기가 고장난 것을 «캐릭터가 다 잘못됐다» 로 읽을 뻔했다 (HANDOFF §50).
+//   파츠는 parts.js 의 getPart() 로 받고(배율 승격을 거친다), 규격은 spritegen 에서 읽는다.
+import { getPart } from '../src/art/parts.js';
+import { JOINTS, SPRITE_W, SPRITE_H, SCALE } from '../src/art/spritegen.js';
 import { BODY_PARTS } from '../src/art/parts_body.js';
 import { GEAR_PARTS } from '../src/art/parts_gear.js';
-import { JOINTS } from '../src/art/spritegen.js';
 import { CLASSES } from '../src/data/classes.js';
 import { ENEMIES } from '../src/data/enemies.js';
 
 const PARTS = { ...BODY_PARTS, ...GEAR_PARTS };
-const W = 32, H = 40;
+const W = SPRITE_W, H = SPRITE_H;
+const MID = W / 2;                       // 가로 중심 = 머리 조인트 x
 
-/** 합격선 */
-const MIN_EYE = 1;          // 합성 후 남아 있어야 하는 눈 픽셀 수
-const EYE_X = 17.5;         // 눈 평균 x (중심 16보다 확실히 앞)
-const MIN_SKIN = 5;         // 보이는 얼굴 픽셀 수 (투구가 얼굴을 통째로 덮으면 안 된다)
-const SKIN_X = 16.8;        // 얼굴 평균 x
-const HAIR_BACK = 16.2;     // 머리카락 평균 x (뒤통수는 뒤쪽에 있어야 한다)
+/** 합격선. 거리 기준은 «중심에서 몇 논리 픽셀» 이라 배율을 탄다. */
+const MIN_EYE = 1;                       // 합성 후 남아 있어야 하는 눈 픽셀 수
+const EYE_X = MID + 1.5 * SCALE;         // 눈 평균 x (중심보다 확실히 앞)
+const MIN_SKIN = 5 * SCALE;              // 보이는 얼굴 픽셀 수 (투구가 얼굴을 통째로 덮으면 안 된다)
+const SKIN_X = MID + 0.8 * SCALE;        // 얼굴 평균 x
+const HAIR_BACK = MID + 0.2 * SCALE;     // 머리카락 평균 x (뒤통수는 뒤쪽에 있어야 한다)
 
-const get = (n) => (!n || n.endsWith('_none') ? null : PARTS[n] || null);
+const get = (n) => {
+  if (!n || n.endsWith('_none')) return null;
+  if (!PARTS[n]) return null;
+  return getPart(n);                     // ★ 승격된 파츠 (배율이 조인트와 맞는다)
+};
 
 /** 파츠들을 문자 격자에 순서대로 합성한다 (뒤에 오는 것이 덮어쓴다). */
 function composeHead(names) {
@@ -95,7 +106,7 @@ for (const combo of combos) {
   if (bad.length) fails.push({ combo, bad });
 }
 
-console.log('\n캐릭터 방향 가독성 — 얼굴·눈은 앞(x>16)에, 뒤통수는 뒤(x<16)에\n');
+console.log(`\n캐릭터 방향 가독성 — 얼굴·눈은 앞(x>${MID})에, 뒤통수는 뒤(x<${MID})에  ·  캔버스 ${W}×${H}\n`);
 console.log('조합 (머리 / 헤어 / 투구)                            눈  눈x   얼굴  얼굴x  머리x  판정');
 console.log('─'.repeat(96));
 for (const { combo, m, bad } of rows) {

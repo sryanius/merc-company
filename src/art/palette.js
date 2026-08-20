@@ -12,7 +12,6 @@
 //  w  하이라이트      e  눈
 //  g  마력광   G 마력광 그림자
 
-export const PIX_CHARS = ['.', 'o', 's', 'S', 'h', 'H', 'c', 'C', 'm', 'M', 'l', 'L', 'a', 'A', 'w', 'e', 'g', 'G'];
 
 const SKIN = {
   pale: ['#f2cda6', '#cfa073'],
@@ -80,8 +79,81 @@ const GLOW = {
 
 const OUTLINE = '#171320';
 
+/* ─────────────────────── 색 보조 ───────────────────────
+ * ★ 하이라이트를 **손으로 60개 더 적지 않는다.** 스와치가 60가지가 넘는데
+ *   한 벌씩 적으면 새 색을 넣을 때마다 세 곳을 고쳐야 하고 반드시 하나를 빠뜨린다.
+ *   기본색에서 **유도**하면 어떤 스와치든 자동으로 3단계가 된다.
+ *
+ * ★ 순백으로 밝히면 색이 빠져 분필처럼 된다. 채도를 지키려고
+ *   «따뜻한 흰색» 쪽으로 당기고, 원색을 일부 남긴다. */
+const hex2rgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const rgb2hex = (c) => '#' + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+
+/** RGB(0~255) ↔ HSL(0~1). 명도만 따로 만지려고 거친다. */
+function rgb2hsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  const L = (mx + mn) / 2;
+  if (!d) return [0, 0, L];
+  const S = L > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let H;
+  if (mx === r) H = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (mx === g) H = ((b - r) / d + 2) / 6;
+  else H = ((r - g) / d + 4) / 6;
+  return [H, S, L];
+}
+function hsl2rgb([H, S, L]) {
+  if (!S) { const v = L * 255; return [v, v, v]; }
+  const q = L < 0.5 ? L * (1 + S) : L + S - L * S;
+  const p = 2 * L - q;
+  const f = (t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [f(H + 1 / 3) * 255, f(H) * 255, f(H - 1 / 3) * 255];
+}
+
+/**
+ * 하이라이트 = **명도만** 올린다.
+ *
+ * ★ 흰색과 섞으면 안 된다. 어두운 색일수록 채도가 통째로 빠져
+ *   갈색 머리(#7a5230)가 분필색(#a78a6f)이 된다 — 실제로 첫 판이 그랬다.
+ *   HSL 로 L 만 남은 여유의 t 만큼 올리고, 채도는 살짝만 낮춘다.
+ *   빛이 따뜻하다는 느낌은 색조를 노랑 쪽으로 아주 조금(2°) 밀어 낸다.
+ */
+function lite(h, t) {
+  const [H, S, L] = rgb2hsl(hex2rgb(h));
+  const nH = (H + 0.006) % 1;                 // 살짝 따뜻하게
+  const nS = S * (1 - t * 0.22);              // 너무 유지하면 형광이 된다
+  const nL = L + (1 - L) * t;
+  return rgb2hex(hsl2rgb([nH, nS, nL]));
+}
+
+/**
+ * 깊은 그늘 = 재질과 **무관한** 어두운 중성색.
+ * ★ 피부에서 유도하면 갑옷 틈이 갈색으로 뜬다. 맞닿아 생긴 그늘은 재질색이 아니라
+ *   «빛이 안 드는 곳» 이므로 외곽선보다 조금 밝은 한 가지 색이면 충분하다.
+ */
+const DEEP = '#2a2438';
+
 /**
  * 팔레트 조립. 각 인자는 위 사전의 키.
+ *
+ * ★★ 재질마다 **3단계 + 깊은 그늘** 이다. 2단계로는 입체가 안 나온다 —
+ *   실제로 옛 파츠가 «기본 + 왼쪽 그림자 한 줄» 뿐이라 전부 납작했다 (HANDOFF §51).
+ *     피부   x 하이라이트 / s 기본 / S 그림자
+ *     머리   y            / h      / H
+ *     천     v            / c      / C
+ *     금속   n            / m      / M
+ *     가죽   k            / l      / L
+ *     강조   b            / a      / A
+ *     마력광 f            / g      / G
+ *   `w` 는 **금속 반사광 전용 순백**이다. 피부·천에 쓰면 분필처럼 뜬다.
+ *   `d` 는 재질과 무관한 깊은 그늘(맞닿은 틈).
+ *
  * @returns {Record<string,string>} 문자 -> hex
  */
 export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', cloth = 'ash', leather = 'brown', accent = 'gold', glow = 'none', outline = OUTLINE } = {}) {
@@ -92,8 +164,38 @@ export function makePalette({ skin = 'pale', hair = 'brown', metal = 'iron', clo
   const [l, L] = LEATHER[leather] || LEATHER.brown;
   const [a, A] = METAL[accent] || CLOTH[accent] || METAL.gold;
   const [g, G] = GLOW[glow] || GLOW.none;
-  return { '.': null, o: outline, s, S, h, H, c, C, m, M, l, L, a, A, w: '#ffffff', e: '#20182c', g, G };
+  return {
+    '.': null, o: outline, w: '#ffffff', e: '#20182c',
+    s, S, h, H, c, C, m, M, l, L, a, A, g, G,
+    // 하이라이트 (유도)
+    x: lite(s, 0.30),      // 피부는 살짝만 — 많이 밝히면 창백해진다
+    y: lite(h, 0.34),
+    v: lite(c, 0.28),      // 천은 반사가 약하다
+    n: lite(m, 0.42),      // 금속은 세게
+    k: lite(l, 0.30),
+    b: lite(a, 0.40),
+    f: lite(g, 0.50),      // 마력광은 심지가 밝다
+    // 깊은 그늘 (재질 공용, 피부 기준으로 하나만 둔다)
+    d: DEEP,
+  };
 }
+
+/** 도트에서 쓸 수 있는 문자 전부. 파츠 검사기가 이 목록으로 오타를 잡는다. */
+export const PIX_CHARS = ['.', 'o', 'w', 'e', 'd',
+  's', 'S', 'x', 'h', 'H', 'y', 'c', 'C', 'v', 'm', 'M', 'n',
+  'l', 'L', 'k', 'a', 'A', 'b', 'g', 'G', 'f'];
+
+/** 문자 -> 사람 말 (도구가 표를 찍을 때 쓴다) */
+export const CHAR_NAME = {
+  '.': '투명', o: '외곽선', w: '금속 반사광', e: '눈', d: '깊은 그늘',
+  s: '피부', S: '피부 그늘', x: '피부 하이라이트',
+  h: '머리', H: '머리 그늘', y: '머리 하이라이트',
+  c: '천', C: '천 그늘', v: '천 하이라이트',
+  m: '금속', M: '금속 그늘', n: '금속 하이라이트',
+  l: '가죽', L: '가죽 그늘', k: '가죽 하이라이트',
+  a: '강조', A: '강조 그늘', b: '강조 하이라이트',
+  g: '마력광', G: '마력광 그늘', f: '마력광 심지',
+};
 
 export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW };
 
