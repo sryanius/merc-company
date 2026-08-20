@@ -9,6 +9,7 @@
 //
 // 주의: 순수 JS 모듈만 import 한다 (DOM 참조 금지).
 import { RNG } from '../src/core/rng.js';
+import * as State from '../src/game/state.js';
 import { clamp } from '../src/core/util.js';
 import { simulate, createBattle, setSkillResolver, TIME_LIMIT } from '../src/battle/engine.js';
 import { CLASSES, getClass } from '../src/data/classes.js';
@@ -104,6 +105,51 @@ function matchedEnemyLevel(level, tier, grade) {
   return clamp(Math.round(1 + (mult - 1) / GROWTH_RATE), 1, MAX_LEVEL);
 }
 
+
+/* ─────────────────────── 표준 부대의 «장비» ───────────────────────
+ * ★ 예전에는 이 도구의 표준 부대가 **장비를 하나도 안 걸쳤다.**
+ *   그래서 랭크별 승률 목표가 전부 «맨몸» 기준이었고, 장비를 갖춘 실제 플레이어에겐
+ *   전 구간이 쉬웠다 (실측: 풀장비 2인이 맨몸 7인보다 S+ 를 잘 깬다 — HANDOFF §29).
+ *   도시 배율(CITY_POWER, §34)을 넣으면서 이 기준선이 낡았다는 게 확정돼 고친다.
+ *
+ * ★ «그 레벨대에 보통 갖추는» 만큼만 준다. 풀세트를 주면 이번엔 반대로 너무 쉬워진다.
+ *   전직 경계(Lv15/35/55)에 맞춰 칸과 희귀도가 올라간다 — 성장 곡선과 같은 계단이다.
+ */
+const GEAR_SLOTS = ['mainhand', 'offhand', 'head', 'body', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
+const gearSlotsFor = (lv) => (lv >= 55 ? 10 : lv >= 35 ? 8 : lv >= 15 ? 5 : 2);
+const gearRarityFor = (lv) => (lv >= 55 ? 2 : lv >= 35 ? 2 : lv >= 15 ? 1 : 0);
+
+/** 같은 (클래스·레벨·등급) 이면 항상 같은 장비를 준다 — 측정이 시드마다 흔들리면 안 된다 */
+/** 문자열 → 32bit (시드용). quest.js 의 것과 같은 계열이면 충분하다. */
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+const GEAR_CACHE = new Map();
+function gearedMerc(classId, level, grade) {
+  const key = `${classId}|${level}|${grade}`;
+  if (GEAR_CACHE.has(key)) return GEAR_CACHE.get(key);
+  const rng = new RNG((hashStr(key) >>> 0) || 1);
+  const items = [];
+  const equipment = {};
+  const n = gearSlotsFor(level);
+  const bonus = gearRarityFor(level);
+  for (let k = 0; k < n; k++) {
+    let it = null;
+    try { it = State.rollLoot({ ilvl: Math.min(80, level), rarityBonus: bonus, rng }); } catch (e) { it = null; }
+    if (!it) continue;
+    items.push(it);
+    equipment[it.slot || GEAR_SLOTS[k]] = it.uid;
+  }
+  const idx = {};
+  for (const it of items) idx[it.uid] = it;
+  const out = [{ classId, level, grade, equipment }, { items: idx }];
+  GEAR_CACHE.set(key, out);
+  return out;
+}
+
 function allyDef(classId, level, grade, slotIndex, formationId = 'basic', useForm = false) {
   const cls = getClass(classId);
   if (!cls) throw new Error(`알 수 없는 클래스: ${classId}`);
@@ -116,7 +162,7 @@ function allyDef(classId, level, grade, slotIndex, formationId = 'basic', useFor
     classId,
     arch: cls.arch,
     level, grade,
-    stats: mercStats({ classId, level, grade, equipment: {} }, null),
+    stats: mercStats(...gearedMerc(classId, level, grade)),
     skills: (cls.skills || []).slice(),
     basicFx: cls.basicFx, basicRange: cls.range, basicDmgType: cls.dmgType,
     slot, slotIndex, boss: false,

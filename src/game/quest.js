@@ -291,7 +291,7 @@ const BOSS_CHANCE = [0, 0.04, 0.06, 0.12, 0.35, 0.35, 0.35];
  *   가깝다 — `ELITE_MULT` 이 1.30 → 1.035 로 내려간 이유가 이것이다. 눈으로 정하지 말고
  *   반드시 실측해라 (`tools/balance.mjs`, `tools/dangercheck.mjs`).
  */
-export const CITY_POWER = { 1: 1.00, 2: 1.15, 3: 1.32, 4: 1.50, 5: 1.70 };
+export const CITY_POWER = { 1: 1.00, 2: 1.13, 3: 1.28, 4: 1.44, 5: 1.63 };
 export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) || 1), 1, 5)] || 1;
 
 /**
