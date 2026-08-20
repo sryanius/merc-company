@@ -107,16 +107,26 @@ function layoutLabels(viewW, here, opt) {
   queue.sort((a, b) => a.prio - b.prio);
 
   for (const q of queue) {
-    // worldmap.js 의 placeLabel 과 같은 후보 순서: 아래 → 위 → 우 → 좌 → 더 아래 → 더 위
+    /* ★ `worldmap.js placeLabel` 의 후보 목록을 그대로 옮겨 적은 곳이다.
+     *   실제로 한 번 어긋났다 — 게임 쪽 후보를 6 → 12 로 늘렸는데 여기가 6 그대로라
+     *   개선이 측정에 전혀 안 잡혔다. **저기를 고치면 여기도 고쳐야 한다.** */
     const gap = q.r + 4 * scale;
     const side = q.w / 2 + q.r + 6 * scale;
+    const diag = gap * 0.72;
+    const dside = side * 0.72;
     const cands = [
       { x: q.x, y: q.y + gap },
       { x: q.x, y: q.y - gap - q.h },
       { x: q.x + side, y: q.y - q.h / 2 },
       { x: q.x - side, y: q.y - q.h / 2 },
+      { x: q.x + dside, y: q.y + diag },
+      { x: q.x - dside, y: q.y + diag },
+      { x: q.x + dside, y: q.y - diag - q.h },
+      { x: q.x - dside, y: q.y - diag - q.h },
       { x: q.x, y: q.y + gap + q.h + 5 },
       { x: q.x, y: q.y - gap - q.h * 2 - 5 },
+      { x: q.x + side * 1.35, y: q.y - q.h / 2 },
+      { x: q.x - side * 1.35, y: q.y - q.h / 2 },
     ];
     const boxAt = (p) => ({ x: p.x - q.w / 2 - 4 * scale, y: p.y - 1, w: q.w + 8 * scale, h: q.h + 3 });
     const canvasH = MAP_H * scale;
