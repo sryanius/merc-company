@@ -54,6 +54,10 @@ const SCREENS = [
    (셸 공용 반응형은 css/style.css 에 있다 — 여기는 app.js 가 만드는 요소만 다룬다) */
 const CSS = `
 .hud-brand-btn { cursor:pointer; border-radius:6px; padding:2px 6px; margin:-2px -6px; }
+.hud-row { display:flex; align-items:baseline; gap:6px; min-width:0; }
+.hud-pen { flex:0 0 auto; font-size:12px; font-style:normal; color:var(--ink-faint); }
+.hud-brand-btn:hover .hud-pen { color:var(--gold); }
+@media (max-width: 767px) { .hud-pen { font-size:13px; } }
 .hud-brand-btn:hover { background:rgba(255,255,255,.06); }
 .hud-brand-btn:focus-visible { outline:2px solid var(--gold-dim); outline-offset:2px; }
 .hud-stat .sub { font-size:10px; color:var(--ink-faint); font-variant-numeric:tabular-nums; }
@@ -180,7 +184,13 @@ function renderHud() {
     },
       // 긴 이름이 HUD를 밀어내지 않도록 말줄임 처리 (.hud-brand 는 nowrap).
       // 폭 제한은 css/style.css 의 `.hud-brand .hud-name` — 모바일에서 풀어야 해서 클래스로 뺐다.
-      el('span', { class: 'hud-name', text: brand }),
+      /* ★ 아이콘이 없으면 **마우스를 올려 보기 전엔 누를 수 있는 줄 모른다** (제작자 지적).
+       *   폰에는 hover 가 아예 없으니 더 그렇다.
+       *   ★ `.hud-name` **밖에** 둔다 — 저기엔 말줄임(text-overflow)이 걸려 있어서
+       *     안에 넣으면 이름이 긴 용병단은 연필이 잘려 사라진다. */
+      el('span', { class: 'hud-row' },
+        el('span', { class: 'hud-name', text: brand }),
+        el('i', { class: 'hud-pen', title: '용병단 이름 바꾸기', text: '✎' })),
       el('small', { text: 'MERCENARY COMPANY' })),
     // 모바일에서 접히는 항목은 `x` 를 단다 (css/style.css 의 `.hud-stat.x`).
     // 폰에서 항상 보이는 건 골드·날짜·단원 셋뿐이다.

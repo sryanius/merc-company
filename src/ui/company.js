@@ -37,6 +37,7 @@ import * as ItemsAPI from '../data/items.js';
 import * as SetsAPI from '../data/sets.js';
 // 임금은 대기 인원 할인이 걸리므로 state.js 의 dailyUpkeep/upkeepOfMerc 를 쓴다 (유일한 출처)
 import * as GameState from '../game/state.js';
+import * as Pet from '../game/pet.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -1139,7 +1140,16 @@ function squadBar() {
     el('div', { class: 'row center', style: { gap: '6px', flex: '0 0 auto' } },
       addSquadButton(),
       sel ? el('button', { class: 'btn sm ghost', onClick: () => renameSquad(sel) }, '이름') : null,
-      sel ? el('button', { class: 'btn sm ghost danger', onClick: () => askDisband(sel) }, '해산') : null)));
+      sel ? el('button', { class: 'btn sm ghost danger', onClick: () => askDisband(sel) }, '해산') : null,
+      /* ★ 펫 화면은 라우팅에 있었지만 **들어갈 길이 사실상 없었다** —
+       *   용병 상세 모달 안쪽 장비 칸의 작은 버튼과 탑 화면뿐이라 아무도 못 찾았다
+       *   (제작자가 "펫은 어디서 확인하지?" 라고 물었다).
+       *   부대 편성 옆이 제자리다 — 펫은 부대에 배치하는 것이니까. */
+      el('button', {
+        class: 'btn sm ghost',
+        title: '펫을 배치하고 관리한다',
+        onClick: () => go('pets'),
+      }, `펫 ${petCountLabel()}`))));
 
   const chk = addSquadCheck();
   const free = state.roster.filter((m) => !m.squadId).length;
@@ -1156,6 +1166,16 @@ function squadBar() {
       : el('span', { text: `다음 부대 창설비 ${num(chk.cost)}G` })));
 
   return bar;
+}
+
+/** 보유 펫 수 — 버튼에 붙여 "펫이 있다"는 걸 화면에서 바로 알게 한다 */
+function petCountLabel() {
+  try {
+    const all = Pet.allPets(state) || [];
+    if (!all.length) return '';
+    const placed = state.squads.reduce((a, sq) => a + (Pet.petUidsOf(sq) || []).filter(Boolean).length, 0);
+    return placed < all.length ? `${placed}/${all.length}` : `${all.length}`;
+  } catch (e) { return ''; }
 }
 
 /** ＋부대 버튼 — 다음 부대 비용을 그대로 붙이고, 못 사면 사유를 title 에 담아 비활성화한다 */
