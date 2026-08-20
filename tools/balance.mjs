@@ -17,7 +17,7 @@ import '../src/data/enemies.js';                       // 적 전용 스킬 등�
 import { getEnemy } from '../src/data/enemies.js';
 import { FORMATIONS, getFormation, formationMods } from '../src/data/formations.js';
 import { mercStats, GRADE_MULT, TIER_MULT, GROWTH_RATE, MAX_LEVEL } from '../src/game/merc.js';
-import { enemyStats, enemyUnitDefs, genQuests, RANK_LEVEL, RANKS, subLevelRange, SUB_LABEL, SUB_POWER } from '../src/game/quest.js';
+import { enemyStats, enemyUnitDefs, genQuests, RANK_LEVEL, RANKS, subLevelRange, SUB_LABEL, SUB_POWER, applyWaveCarry, readWaveCarry } from '../src/game/quest.js';
 import { CITIES } from '../src/data/world.js';
 
 setSkillResolver(getSkill);
@@ -424,14 +424,10 @@ function runQuest(quest, squad, seed) {
   let time = 0;
   const waveTimes = [];
   for (let w = 0; w < quest.waves.length; w++) {
-    let allies = squad.map((d) => ({ ...d }));
-    if (carry) {
-      allies = allies.map((d) => {
-        const c = carry[d.uid];
-        if (!c || c.hp <= 0) return null;
-        return { ...d, hp: clamp(Math.round(c.hp + c.maxHp * 0.15), 1, c.maxHp) };
-      }).filter(Boolean);
-    }
+    /* ★ 인계 규칙은 game/quest.js 가 유일한 출처다. 예전에는 여기에 사본이 있었는데
+     *   (15% 회복을 손으로 적어 뒀다) 그러면 게임 쪽을 고쳤을 때 이 도구만 옛 규칙으로
+     *   재게 된다 — 이 저장소가 반복해서 밟은 함정이다. */
+    const allies = applyWaveCarry(squad.map((d) => ({ ...d })), carry);
     if (!allies.length) return { win: false, wave: w, time, waveTimes };
     const enemies = waveEnemyDefs(quest.waves[w], w, quest);
     if (!enemies.length) continue;
@@ -443,8 +439,7 @@ function runQuest(quest, squad, seed) {
     const res = b.run();
     time += res.time;
     waveTimes.push(res.time);
-    carry = {};
-    for (const u of b.units) if (u.side === 'ally') carry[u.uid] = { hp: u.alive ? u.hp : 0, maxHp: u.maxHp };
+    carry = readWaveCarry(b.units, carry || {});
     if (res.winner !== 'ally') return { win: false, wave: w, time, waveTimes };
   }
   return { win: true, wave: quest.waves.length, time, waveTimes };

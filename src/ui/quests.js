@@ -18,7 +18,7 @@ import * as GameState from '../game/state.js';
 import * as Quest from '../game/quest.js';
 import { isWounded } from '../game/merc.js';
 import { josa } from '../game/gear.js';
-import { forecastSample, squadStamp, dangerLevelByWinRate, DEFAULT_SAMPLES, REFINE_SAMPLES, isMixed } from '../game/forecast.js';
+import { forecastSample, summarize, squadStamp, DEFAULT_SAMPLES, REFINE_SAMPLES, isMixed, WIN_LIKELY, LOSS_LIKELY } from '../game/forecast.js';
 import { go, toast } from './app.js';
 
 export const meta = { id: 'quests', title: '의뢰소' };
@@ -173,6 +173,8 @@ function injectStyle() {
 .qs-diff{display:inline-flex;align-items:center;gap:5px;font-weight:700}
 .qs-diff .dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
 .qs-diff b{font-weight:800}
+/* 예상 손실 한 줄 — 색 옆에 붙는다. 색만으로는 「적정」의 뜻을 알 수 없다 (설계 3c) */
+.qs-cost{color:var(--ink-faint);font-size:11px}
 .qs-rew .elite-x{color:var(--bad);font-weight:800}
 
 /* ══════════════════ 모바일 대응 ══════════════════
@@ -224,7 +226,7 @@ function injectStyle() {
 
 @media (max-width:767px){
   /* 11px 이하는 폰에서 안 읽힌다 */
-  .qs-meta,.qs-wave,.qs-note,.qs-assess,.qs-elite-badge,.qs-champ{font-size:12px}
+  .qs-meta,.qs-wave,.qs-note,.qs-assess,.qs-cost,.qs-elite-badge,.qs-champ{font-size:12px}
   .qs-send-risk{font-size:12px}
   .qs-screen .btn.sm{min-height:40px;padding:8px 12px;font-size:12px}
   .qs-sortsel{min-height:40px;font-size:16px}
@@ -556,15 +558,17 @@ function fcPump() {
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   for (const [key, job] of fcJobs) {
     if (fcCache.has(key)) { fcJobs.delete(key); continue; }
-    if (forecastSample(state, job.quest, job.squadId, job.done)) job.wins++;
+    const r = forecastSample(state, job.quest, job.squadId, job.done);
+    job.samplesOut.push(r);
+    if (r && r.win) job.wins++;
     job.done++;
     // 갈린 판이면 표본을 늘린다 (forecast.js 와 같은 규칙 — 만장일치면 안 늘린다)
     if (job.done >= job.samples && job.samples < REFINE_SAMPLES && isMixed(job.wins, job.done)) {
       job.samples = REFINE_SAMPLES;
     }
     if (job.done >= job.samples) {
-      const winRate = job.wins / job.samples;
-      fcPut(key, { level: dangerLevelByWinRate(winRate), winRate, wins: job.wins, samples: job.samples });
+      // 합치는 규칙은 forecast.js 가 유일한 출처다 — 카드와 도구가 다른 말을 하면 안 된다
+      fcPut(key, summarize(job.samplesOut));
       fcJobs.delete(key);
       const subs = fcSubs.get(key);
       fcSubs.delete(key);
@@ -611,15 +615,42 @@ function dangerFor(quest, squadId) {
 
   const key = fcKey(quest, squadId);
   const hit = fcCache.get(key);
-  if (hit) {
+  if (hit && hit.ok !== false) {
     const d = DANGER[clamp(hit.level, 1, 5) - 1];
-    return { label: d.label, color: d.color, level: hit.level, elite, key, winRate: hit.winRate };
+    return {
+      label: d.label, color: d.color, level: hit.level, elite, key,
+      winRate: hit.winRate, down: hit.down, alive: hit.alive, total: hit.total, hp: hit.hp,
+      cost: costText(hit),
+    };
   }
+  if (hit) return { label: '판정 불가', color: 'var(--ink-faint)', level: 0, elite };
   if (!fcJobs.has(key)) {
-    fcJobs.set(key, { quest, squadId, done: 0, wins: 0, samples: DEFAULT_SAMPLES });
+    fcJobs.set(key, { quest, squadId, done: 0, wins: 0, samples: DEFAULT_SAMPLES, samplesOut: [] });
     fcSchedule();
   }
   return { label: '재는 중', color: 'var(--ink-faint)', level: 0, elite, pending: true, key };
+}
+
+/**
+ * 「이 의뢰가 얼마짜리인가」 한 줄.
+ *
+ * ★ 「부상」 이라고 쓰면 안 된다. 부상은 **실패했을 때만** 난다 (`quest.js` 부상 판정).
+ *   이기면 쓰러진 사람도 낮은 체력으로 그냥 돌아온다. 그래서 「쓰러짐」 이라고 쓴다.
+ *
+ * ★ 승률을 숫자로 안 보여 준다. 실제 전투는 이미 결정론이라(같은 부대·같은 의뢰면
+ *   결과가 항상 같다) 「62%」 는 정직한 표현이 아니다. 여기서 재는 건 **여유**다.
+ */
+function costText(f) {
+  if (!f || f.ok === false) return '';
+  const down = Math.round((f.down || 0) * 10) / 10;
+  const hp = Math.round((f.hp || 0) * 100);
+  if (f.winRate < WIN_LIKELY) {
+    return f.winRate < LOSS_LIKELY
+      ? '이 부대로는 못 이긴다'
+      : '이길지 질지 반반이다';
+  }
+  if (down < 0.5) return `무손실로 끝낸다 · 체력 ${hp}% 남음`;
+  return `${down < 1 ? '한 명쯤' : `${down}명쯤`} 쓰러진다 · 체력 ${hp}% 남음`;
 }
 
 /**
@@ -914,9 +945,13 @@ function questCard(q, root) {
   const diffText = el('b', { text: diff.label });
   const diffLine = el('span', { class: 'qs-diff', style: { color: diff.color } },
     el('span', { class: 'dot' }), '예상 난이도 ', diffText);
+  /* ★ 색 옆에 «얼마짜리인가» 를 같이 쓴다. 색만으로는 「적정」이 무슨 뜻인지 알 수 없다 —
+   *   이제 색이 손실 축에서 갈리므로(설계 3c) 그 근거를 보여 줘야 말이 된다. */
+  const costLine = el('span', { class: 'qs-cost', text: diff.cost || '' });
   bindDanger(diff, q, ref ? ref.id : null, (now) => {
     diffLine.style.color = now.color;
     diffText.textContent = now.label;
+    costLine.textContent = now.cost || '';
   });
 
   return el('div', {
@@ -949,6 +984,7 @@ function questCard(q, root) {
       foldButton(q)),
     el('div', { class: 'qs-assess' },
       diffLine,
+      costLine,
       ref
         ? el('span', { class: 'faint', text: `${ref.name} 평균 Lv${avg || 0} 기준 · 권장 Lv${q.level}` })
         : el('span', { class: 'faint', text: '부대를 골라야 난이도를 가늠할 수 있다' }),
@@ -1203,9 +1239,11 @@ function squadCard(sq, quest, root) {
   const away = isAway(sq);
 
   const dangerTag = el('span', { class: 'tag', style: { color: danger.color }, text: danger.label });
+  const dangerCost = el('span', { class: 'qs-cost', text: danger.cost || '' });
   bindDanger(danger, quest, sq.id, (now) => {
     dangerTag.style.color = now.color;
     dangerTag.textContent = now.label;
+    dangerCost.textContent = now.cost || '';
   });
 
   const roleLine = members.map((m) => {
@@ -1245,6 +1283,7 @@ function squadCard(sq, quest, root) {
       away
         ? el('span', { class: 'tag', style: { color: 'var(--ember)' }, text: '원정 중' })
         : dangerTag),
+    away ? null : dangerCost,
     el('div', { class: 'qs-meta' },
       el('span', {}, '인원 ', el('b', { text: `${members.length}/7` })),
       el('span', {}, '출전 ', el('b', { style: { color: dep.benched.length ? 'var(--gold)' : 'var(--ink)' }, text: `${dep.fit}명` })),

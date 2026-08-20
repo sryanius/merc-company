@@ -22,7 +22,7 @@ import '../src/data/classes_t4.js';
 import { createBattle, setSkillResolver } from '../src/battle/engine.js';
 import { getSkill } from '../src/data/skills.js';
 import { genQuests, questBattleDefs, applyWaveCarry, readWaveCarry } from '../src/game/quest.js';
-import { forecastQuest, dangerLevelByWinRate, BANDS, DEFAULT_SAMPLES } from '../src/game/forecast.js';
+import { forecastQuest, dangerLevelOf, DEFAULT_SAMPLES, WIN_LIKELY, LOSS_LIKELY, DOWN_LIGHT, DOWN_SOME, DOWN_HEAVY } from '../src/game/forecast.js';
 import { RNG } from '../src/core/rng.js';
 
 setSkillResolver(getSkill);
@@ -33,12 +33,25 @@ const arg = (k, d) => {
 };
 const N = parseInt(arg('n', '200'), 10);
 
-/* ★ 부대 하나로만 재면 아무것도 검사하지 못한다.
- *   A등급 Lv80 은 모든 도시의 의뢰를 100% 로 이겨서 전부 「식은 죽 먹기」로 나온다.
- *   밴드가 실제로 갈리는 지점을 지나가야 검증이 된다 — 그래서 부대를 훑는다. */
-const SQUADS = [
-  ['F', 20], ['E', 30], ['D', 40], ['C', 50], ['B', 60], ['A', 70], ['S', 80],
-];
+/* ★ **부대를 의뢰의 권장 레벨에 맞춘다.**
+ *   처음에는 고정 부대(F Lv20 … S Lv80)를 전 도시에 붙였는데, 그러면 조합 대부분이
+ *   압승 아니면 압패라 밴드가 두 개밖에 안 나온다 — 도구가 "중간 색이 없다" 고
+ *   보고하게 되는데 **그건 도구가 만든 착시다.**
+ *
+ *   실제 플레이어는 자기 수준에 맞는 도시의 의뢰를 본다. 권장 레벨로 맞춰 재면
+ *   E~A 랭크에서 실제로 중간이 나온다 (HANDOFF §28). `balance.mjs` 도 같은 방식이다.
+ *
+ *   등급만 훑어 "같은 레벨인데 용병 질이 다른" 상황을 만든다. */
+const GRADES = ['F', 'D', 'C', 'B', 'A', 'S'];
+
+/* balance.mjs SQUADS 와 같은 표준 부대 — 잣대가 갈리면 두 도구가 다른 말을 한다 */
+const TIER_SQUADS = {
+  1: ['shieldman', 'swordsman', 'spearman', 'rogue', 'archer', 'apprentice', 'acolyte'],
+  2: ['knight', 'berserker', 'dragoon', 'assassin', 'sniper', 'elementalist', 'priest'],
+  3: ['bulwark', 'swordgod', 'dragoonlord', 'shadowblade', 'masterarcher', 'archmage', 'highpriest'],
+  4: ['bulwark_abyss', 'swordgod_apex', 'dragoonlord_apex', 'shadowblade_apex', 'masterarcher_apex', 'archmage_apex', 'highpriest_abyss'],
+};
+const squadForLevel = (lv) => TIER_SQUADS[lv >= 55 ? 4 : lv >= 35 ? 3 : lv >= 15 ? 2 : 1];
 
 const LABEL = ['-', '식은 죽 먹기', '여유', '적정', '위험', '무모'];
 const SQUAD = ['gatewarden', 'madgeneral', 'dragoonlord', 'shadowarcher', 'masterarcher', 'archmage', 'oathshield'];
@@ -50,9 +63,11 @@ function mkState(grade, level, seed = 4242) {
   st.items = [];
   const sq = st.squads[0];
   sq.memberUids = new Array(7).fill(null);
-  SQUAD.forEach((classId, i) => {
+  squadForLevel(level).forEach((classId, i) => {
+    const cls = getClass(classId);
+    if (!cls) throw new Error(`클래스 ${classId} 없음`);
     st.roster.push({
-      uid: `d_${i}`, name: getClass(classId).name, classId, level, grade,
+      uid: `d_${i}`, name: cls.name, classId, level, grade,
       equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0,
     });
     sq.memberUids[i] = `d_${i}`;
@@ -97,7 +112,12 @@ const ci95 = (p, n) => 1.96 * Math.sqrt(Math.max(p * (1 - p), 1e-9) / n);
 console.log(`난이도 색 검증 — 예보(${DEFAULT_SAMPLES}판)가 참 승률(${N}판)을 맞히는가`);
 console.log('='.repeat(78));
 console.log('\n색 기준 (game/forecast.js — 유일한 출처)');
-for (const b of BANDS) console.log(`  승률 ${String(b.min).padStart(5)} 이상 → ${LABEL[b.level]}`);
+console.log(`  승률 ${LOSS_LIKELY} 미만                  → ${LABEL[5]}`);
+console.log(`  승률 ${WIN_LIKELY} 미만                  → ${LABEL[4]}`);
+console.log(`  이기고 쓰러짐 ${DOWN_HEAVY}명 이상       → ${LABEL[4]}`);
+console.log(`  이기고 쓰러짐 ${DOWN_SOME}명 이상        → ${LABEL[3]}`);
+console.log(`  이기고 쓰러짐 ${DOWN_LIGHT}명 이상        → ${LABEL[2]}`);
+console.log(`  이기고 무손실                    → ${LABEL[1]}`);
 
 /* ── 1. 예보가 참 승률을 맞히는가 ──
  * 부대 강도를 훑어 밴드 5개를 전부 지나가게 한다. */
@@ -108,24 +128,25 @@ const CITIES = [['greenhold', 30], ['kingsrest', 60], ['elderoak', 120], ['deepd
 const rows = [];
 const seen = new Map();          // 밴드별 검사 건수 — 다 지나갔는지 확인용
 
-for (const [grade, level] of SQUADS) {
-  const st = mkState(grade, level);
-  const sqId = st.squads[0].id;
-  for (const [city, day] of CITIES) {
-    for (const q of genQuests(city, day, new RNG(1000 + day), 1)) {
+for (const [city, day] of CITIES) {
+  for (const q of genQuests(city, day, new RNG(1000 + day), 1)) {
+    const lv = Math.max(1, Math.min(80, q.level || 1));
+    for (const grade of GRADES) {
+      const st = mkState(grade, lv);
+      const sqId = st.squads[0].id;
       const fc = forecastQuest(st, q, sqId);
       if (!fc.ok) continue;
       const truth = trueWinRate(st, q, sqId, N);
       const half = ci95(truth, N);
-      const wantLv = dangerLevelByWinRate(truth);
-      seen.set(wantLv, (seen.get(wantLv) || 0) + 1);
+      const wantLv = dangerLevelOf(truth, fc.down || 0);
+      seen.set(fc.level, (seen.get(fc.level) || 0) + 1);
       /* 예보는 표본 5판이라 참값과 한 칸 어긋날 수 있다 — 그건 정상이다.
        * 문제로 치는 건 **두 칸 이상** 어긋나거나, 이긴다/진다가 뒤집힌 경우다. */
       const flipped = (truth >= 0.5) !== (fc.winRate >= 0.5);
       const bad = Math.abs(fc.level - wantLv) >= 2 || (flipped && Math.abs(truth - 0.5) > half + 0.1);
-      rows.push({ tag: `${grade}Lv${level}`, id: q.id, fc, truth, bad, wantLv });
+      rows.push({ tag: `${grade}Lv${lv}`, id: q.id, fc, truth, bad, wantLv });
       if (bad || fc.level !== wantLv) {
-        console.log(`  ${`${grade}Lv${level}`.padEnd(9)} ${q.id.slice(0, 20).padEnd(20)} ${String(q.waves.length).padStart(2)}  ${LABEL[fc.level].padEnd(11)} ${(truth * 100).toFixed(1).padStart(5)}%±${(half * 100).toFixed(1).padStart(4)} → ${LABEL[wantLv].padEnd(11)} ${bad ? '✗' : '~'}`);
+        console.log(`  ${`${grade}Lv${lv}`.padEnd(9)} ${q.id.slice(0, 20).padEnd(20)} ${String(q.waves.length).padStart(2)}  ${LABEL[fc.level].padEnd(11)} ${(truth * 100).toFixed(1).padStart(5)}%±${(half * 100).toFixed(1).padStart(4)} → ${LABEL[wantLv].padEnd(11)} ${bad ? '✗' : '~'}`);
       }
     }
   }

@@ -2428,6 +2428,32 @@ section('서버 공유 규칙');
   const r2 = run(777).result.margin;
   ok(JSON.stringify(r1) === JSON.stringify(r2), '같은 시드면 margin 도 같다');
 
+  /* -- 인계 누적 (쓰러진 사람이 되살아나면 안 된다) --------------------------
+   * ★ `readWaveCarry(units, {})` 로 매 웨이브 새 객체를 주면 1웨이브에서 쓰러진 단원이
+   *   3웨이브에 만피로 되살아난다. 실제로 balance.mjs 를 공용 함수로 합치다 밟았고
+   *   3웨이브 의뢰가 쉬워져 랭크 목표가 깨졌다. 계약을 검사로 굳혀 둔다. */
+  {
+    const defs = [{ uid: 'x', hp: 100, maxHp: 100 }, { uid: 'y', hp: 100, maxHp: 100 }];
+    const w1 = [{ uid: 'x', side: 'ally', alive: true, hp: 40, maxHp: 100 },
+      { uid: 'y', side: 'ally', alive: false, hp: 0, maxHp: 100 }];
+    let carry = Q.readWaveCarry(w1, {});
+    const a2 = Q.applyWaveCarry(defs, carry);
+    ok(a2.length === 1 && a2[0].uid === 'x', '쓰러진 단원은 다음 웨이브 편성에서 빠진다',
+      a2.map((u) => u.uid).join(','));
+
+    // 2웨이브는 x 만 싸운다. 여기서 **누적**해야 y 가 계속 빠져 있다.
+    const w2 = [{ uid: 'x', side: 'ally', alive: true, hp: 20, maxHp: 100 }];
+    carry = Q.readWaveCarry(w2, carry);
+    const a3 = Q.applyWaveCarry(defs, carry);
+    ok(a3.length === 1 && a3[0].uid === 'x', '누적하면 쓰러진 단원이 계속 빠져 있다',
+      a3.map((u) => `${u.uid}:${u.hp}`).join(','));
+
+    // 새 객체를 주면 되살아난다 — 이 검사가 «그래서 누적해야 한다» 를 못 박는다
+    const wrong = Q.applyWaveCarry(defs, Q.readWaveCarry(w2, {}));
+    ok(wrong.length === 2, '새 객체로 인계를 만들면 되살아난다 (그래서 누적해야 한다)',
+      wrong.map((u) => `${u.uid}:${u.hp}`).join(','));
+  }
+
   /* ── 패주 (설계 3a) ────────────────────────────────────────────────────
    * 패주는 **승자를 바꾸면 안 된다.** 전투를 일찍 끝내 남은 사람을 살려 보낼 뿐이다.
    * (실측: 3744 전투에서 승패가 달라진 판 0건 — HANDOFF §26) */
@@ -2516,12 +2542,36 @@ section('서버 공유 규칙');
   const b = FC.forecastQuest(st2, qs[0], st2.squads[0].id);
   ok(a.wins === b.wins && a.level === b.level, '예보는 결정론이다', `${a.wins} vs ${b.wins}`);
 
-  // 밴드 경계가 승률과 어긋나지 않는가
+  /* 색은 이제 **승률과 손실 둘 다** 본다 (설계 3c).
+   * 승률만으로는 색이 두 개밖에 안 나온다 — 중간 색은 손실 축에서 나온다. */
   const badBand = [];
-  for (const [wr, want] of [[1, 1], [0.96, 1], [0.8, 2], [0.7, 2], [0.6, 3], [0.3, 3], [0.2, 4], [0.1, 4], [0.05, 5], [0, 5]]) {
-    if (FC.dangerLevelByWinRate(wr) !== want) badBand.push(`승률 ${wr} → ${FC.dangerLevelByWinRate(wr)} (기대 ${want})`);
+  const cases = [
+    // [승률, 이겼을 때 쓰러지는 평균 인원, 기대 등급]
+    [1.00, 0,   1],   // 이기고 아무도 안 쓰러진다
+    [1.00, 1,   2],   // 이기지만 한 명 쓰러진다
+    [1.00, 2.5, 3],   // 이기지만 두셋 쓰러진다
+    [1.00, 5,   4],   // 이겨도 절반이 쓰러진다 — 위험하다
+    [0.80, 0,   1],
+    [0.74, 0,   4],   // 승률이 문턱 아래면 손실과 무관하게 위험
+    [0.40, 0,   4],
+    [0.14, 0,   5],   // 거의 진다
+    [0,    0,   5],
+  ];
+  for (const [wr, down, want] of cases) {
+    const got = FC.dangerLevelOf(wr, down);
+    if (got !== want) badBand.push(`승률 ${wr}·쓰러짐 ${down} → ${got} (기대 ${want})`);
   }
-  okAll(badBand, '승률 → 색 경계가 표와 일치한다', 10);
+  okAll(badBand, '승률+손실 → 색 경계가 표와 일치한다', cases.length);
+
+  // 단조성: 손실이 늘면 색이 좋아지지 않는다
+  const mono = [];
+  let prev = 0;
+  for (const d of [0, 0.5, 1, 2, 3, 4, 6]) {
+    const lv = FC.dangerLevelOf(1, d);
+    if (lv < prev) mono.push(`쓰러짐 ${d} 에서 색이 좋아졌다 (${prev} → ${lv})`);
+    prev = lv;
+  }
+  okAll(mono, '쓰러지는 인원이 늘수록 색이 나빠진다', 7);
 
   // 부대가 강해지면 색이 나빠지지 않는다 (단조성)
   const target = qs.slice().sort((x, y) => y.waves.length - x.waves.length)[0];

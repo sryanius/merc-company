@@ -1106,8 +1106,19 @@ export function applyWaveCarry(allyDefs, carry) {
  * 전투가 끝난 시점의 아군 체력을 인계 형태로 읽는다.
  * 쓰러진 단원은 `hp: 0` 으로 남긴다 — 다음 웨이브에서 빼야 하므로 지우면 안 된다.
  *
+ * ★★ **반드시 앞 인계에 누적해라.** `readWaveCarry(units, {})` 처럼 매 웨이브
+ *    새 객체를 주면 **쓰러진 단원이 되살아난다.**
+ *
+ *      1웨이브에서 쓰러짐 → 2웨이브 편성에서 빠짐 → 2웨이브 `units` 에 없음
+ *      → 새 인계에 그 사람 항목이 없음 → 3웨이브에서 `applyWaveCarry` 가
+ *        "인계에 없으니 처음 나온 사람" 으로 보고 **만피로 세운다**
+ *
+ *    실제로 `tools/balance.mjs` 를 공용 함수로 합치면서 이 실수를 했고,
+ *    3웨이브 의뢰가 쉬워져 B·A 랭크 승률이 목표를 넘겼다 (HANDOFF §28.2).
+ *    올바른 쓰임은 `carry = readWaveCarry(b.units, carry || {})` 다.
+ *
  * @param {Array<object>} units  battle.units
- * @param {Object<string,{hp:number,maxHp:number}>} [into]  기존 인계에 덮어쓴다
+ * @param {Object<string,{hp:number,maxHp:number}>} [into]  **앞 웨이브의 인계**를 넘겨라
  */
 export function readWaveCarry(units, into = {}) {
   for (const u of units || []) {

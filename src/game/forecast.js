@@ -61,31 +61,52 @@ export const REFINE_SAMPLES = 11;
 export const isMixed = (wins, done) => wins > 0 && wins < done;
 
 /**
- * 승률 → 위험도 등급 (1 식은 죽 먹기 ~ 5 무모).
+ * 위험도 등급 (1 식은 죽 먹기 ~ 5 무모).
  *
- * ★ 여기가 **유일한 출처**다. `ui/quests.js` 도 `tools/dangercheck.mjs` 도 이걸 import 한다.
- *   예전에는 도구가 경계를 손으로 베껴 적어 뒀는데, 그러면 한쪽만 고쳐졌을 때
- *   도구가 거짓말을 한다.
+ * ★ **승률만으로는 색이 두 개밖에 안 나온다.** 이 게임의 전투는 사실상 이진이라
+ *   (§24) "확실히 이긴다" 아니면 "확실히 진다" 로 갈린다 — 실측에서 175건 중
+ *   중간 색이 1건뿐이었다.
  *
- * 기본 표본 5판이면 이렇게 갈린다:
- *   5/5 → 식은 죽 먹기 · 4/5 → 여유 · 2~3/5 → 적정 · 1/5 → 위험 · 0/5 → 무모
+ *   그래서 **값을 같이 본다.** 이기더라도 몇 명이 쓰러지느냐로 갈라 준다.
+ *   권장 레벨 부대로 실측한 결과가 근거다 (HANDOFF §28):
  *
- * ★ 경계는 **판수가 아니라 승률**에 걸어 뒀다. 표본 수를 바꿔도(도구는 더 많이 돌린다)
- *   같은 뜻이 유지된다.
+ *     F랭크  승률 100% · 무손실 100%          → 식은 죽 먹기
+ *     E랭크  승률  77% · 1명 쓰러짐 35%        → 여유
+ *     D랭크  승률  81% · 2~3명 쓰러짐 47%      → 적정
+ *     A랭크  승률  66% · 4명 이상 40%          → 위험
+ *     S랭크  승률   0%                         → 무모
+ *
+ *   즉 중간 색은 **손실 축에서** 나온다. 승패 축에는 원래 없었다.
+ *
+ * @param {number} winRate 0~1
+ * @param {number} down    이겼을 때 쓰러지는 평균 인원
  */
-export const BANDS = [
-  { min: 0.95, level: 1 },   // 사실상 전승
-  { min: 0.70, level: 2 },   // 4/5 = 0.80
-  { min: 0.30, level: 3 },   // 2/5 = 0.40 · 3/5 = 0.60
-  { min: 0.10, level: 4 },   // 1/5 = 0.20
-  { min: 0, level: 5 },      // 전패
-];
+export function dangerLevelOf(winRate, down = 0) {
+  const wr = Number(winRate);
+  if (!(wr >= 0)) return 0;
+  if (wr < LOSS_LIKELY) return 5;               // 거의 진다
+  if (wr < WIN_LIKELY) return 4;                // 반반 — 값이 얼마든 위험하다
+  const d = Math.max(0, Number(down) || 0);
+  if (d >= DOWN_HEAVY) return 4;                // 이겨도 절반이 쓰러진다
+  if (d >= DOWN_SOME) return 3;
+  if (d >= DOWN_LIGHT) return 2;
+  return 1;                                     // 이기고 아무도 안 쓰러진다
+}
 
-/** 승률(0~1) → 위험도 등급 1~5 */
+/** 이 밑이면 「무모」 — 이길 가망이 거의 없다 */
+export const LOSS_LIKELY = 0.15;
+/** 이 위라야 «이긴다» 고 친다. 그 아래는 손실을 따질 것 없이 「위험」 */
+export const WIN_LIKELY = 0.75;
+/** 이겨도 이만큼 쓰러지면 「위험」 (7인 부대의 절반) */
+export const DOWN_HEAVY = 3.5;
+/** 「적정」 문턱 */
+export const DOWN_SOME = 1.5;
+/** 「여유」 문턱 — 이 밑이면 사실상 무손실 */
+export const DOWN_LIGHT = 0.5;
+
+/** 옛 이름 — 손실을 모를 때(도구·구버전 호출)는 승률만 본다 */
 export function dangerLevelByWinRate(wr) {
-  const v = Number(wr);
-  if (!(v >= 0)) return 0;
-  return (BANDS.find((b) => v >= b.min) || BANDS[BANDS.length - 1]).level;
+  return dangerLevelOf(wr, 0);
 }
 
 /* ------------------------------------------------------------------ 시드 */
@@ -115,13 +136,15 @@ function sampleSeed(base, i) {
  */
 function runOnce(st, quest, squadId, sampleIndex) {
   const waves = (quest && quest.waves) || [];
-  if (!waves.length) return false;
+  if (!waves.length) return { win: false, alive: 0, total: 0, hp: 0 };
   let carry = null;
+  let total = 0;
 
   for (let w = 0; w < waves.length; w++) {
     const cfg = questBattleDefs(quest, w, st, squadId);
     const allies = applyWaveCarry(cfg.allies, carry);
-    if (!allies.length) return false;             // 남은 사람이 없다
+    if (w === 0) total = (cfg.allies || []).filter((u) => !u.pet).length;
+    if (!allies.length) return { win: false, alive: 0, total, hp: 0 };
 
     const b = createBattle({
       ...cfg,
@@ -129,10 +152,32 @@ function runOnce(st, quest, squadId, sampleIndex) {
       seed: sampleSeed(cfg.seed >>> 0, sampleIndex),
     });
     b.run();
-    if (!b.finished || b.result.winner !== 'ally') return false;
     carry = readWaveCarry(b.units, carry || {});
+    if (!b.finished || b.result.winner !== 'ally') return { win: false, ...tally(carry, total) };
   }
-  return true;
+  return { win: true, ...tally(carry, total) };
+}
+
+/**
+ * 인계 상태에서 "몇 명이 서 있고 체력이 얼마나 남았나" 를 센다.
+ *
+ * ★ `hp <= 0` 은 **쓰러진** 것이다. 이기면 부상 없이 낮은 체력으로 돌아오고,
+ *   지면 그 사람만 부상 판정을 받는다 (`quest.js` — 부상은 실패했을 때만 난다).
+ *   그래서 화면에 「쓰러짐」 이라고 써야 한다. 「부상」 은 사실이 아니다.
+ */
+function tally(carry, total) {
+  const uids = Object.keys(carry || {});
+  if (!uids.length) return { alive: 0, total, hp: 0 };
+  let alive = 0;
+  let cur = 0;
+  let max = 0;
+  for (const u of uids) {
+    const c = carry[u];
+    if (c.hp > 0) alive++;
+    cur += Math.max(0, c.hp);
+    max += c.maxHp || 0;
+  }
+  return { alive, total: total || uids.length, hp: max > 0 ? cur / max : 0 };
 }
 
 /**
@@ -142,14 +187,42 @@ function runOnce(st, quest, squadId, sampleIndex) {
  *   프레임을 넘긴다 — 목록을 열 때 화면이 걸린다. 한 판씩 나눠 돌리면
  *   판당 ~7ms 라 프레임 예산 안에 들어간다.
  *
- * @returns {boolean} 이 표본에서 완주했는가
+ * @returns {{win:boolean, alive:number, total:number, hp:number}|null}
  */
 export function forecastSample(st, quest, squadId, sampleIndex) {
   try {
     return runOnce(st, quest, squadId, sampleIndex);
   } catch (e) {
-    return false;
+    return null;
   }
+}
+
+/**
+ * 표본들을 모아 예보로 만든다. 화면과 `forecastQuest` 가 같이 쓴다 —
+ * 두 곳이 다른 식으로 합치면 카드와 도구가 다른 말을 하게 된다.
+ */
+export function summarize(samples) {
+  const list = (samples || []).filter(Boolean);
+  if (!list.length) return { ok: false, level: 0, winRate: 0, wins: 0, samples: 0 };
+  const wins = list.filter((r) => r.win).length;
+  const winRate = wins / list.length;
+  /* ★ 손실은 **이긴 판만** 평균낸다. 화면이 묻는 건 "이기면 몇 명 남나" 인데
+   *   진 판을 섞으면 그 답이 안 된다. 이길 가망이 아예 없으면 전체로 센다. */
+  const src = wins ? list.filter((r) => r.win) : list;
+  const avg = (f) => src.reduce((a, r) => a + f(r), 0) / src.length;
+  const total = src[0].total || 7;
+  const alive = avg((r) => r.alive);
+  return {
+    ok: true,
+    level: dangerLevelOf(winRate, Math.max(0, total - alive)),
+    winRate,
+    wins,
+    samples: list.length,
+    total,
+    alive,
+    down: Math.max(0, total - alive),
+    hp: avg((r) => r.hp),
+  };
 }
 
 /* ------------------------------------------------------------------ 예보 */
@@ -171,20 +244,18 @@ export function forecastSample(st, quest, squadId, sampleIndex) {
 export function forecastQuest(st, quest, squadId, opt = {}) {
   const base = Math.max(1, Math.round(opt.samples ?? DEFAULT_SAMPLES));
   const max = opt.refine === false ? base : Math.max(base, REFINE_SAMPLES);
-  let wins = 0;
-  let done = 0;
+  const out = [];
   try {
-    while (done < base) { if (runOnce(st, quest, squadId, done)) wins++; done++; }
+    while (out.length < base) out.push(runOnce(st, quest, squadId, out.length));
     // 갈렸으면 더 굴린다. 만장일치면 여기서 끝 — 대부분이 그렇다.
-    if (isMixed(wins, done)) {
-      while (done < max) { if (runOnce(st, quest, squadId, done)) wins++; done++; }
+    if (isMixed(out.filter((r) => r.win).length, out.length)) {
+      while (out.length < max) out.push(runOnce(st, quest, squadId, out.length));
     }
   } catch (e) {
     // 편성이 비었거나 의뢰 자료가 깨졌다 — 예보 없이 넘어간다. 카드는 그려야 한다.
     return { ok: false, level: 0, winRate: 0, wins: 0, samples: 0 };
   }
-  const winRate = wins / done;
-  return { ok: true, level: dangerLevelByWinRate(winRate), winRate, wins, samples: done };
+  return summarize(out);
 }
 
 /* ------------------------------------------------------------------ 캐시 키 */
