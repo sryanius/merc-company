@@ -467,14 +467,19 @@ export function openChangelog(opt = {}) {
   });
 }
 
-/** 갱신 직후 한 번 띄운다. 첫 실행(= 본 적 없음)에는 안 띄운다 — 새 플레이어를 방해하지 않는다. */
+/**
+ * 갱신 직후 한 번 띄운다.
+ *
+ * ★ **«본 적 없음» 도 띄운다.** 처음에는 새 플레이어를 보호한다고 조용히 도장만 찍었는데,
+ *   그러면 **이 기능이 처음 배포된 날 아무도 첫 팝업을 못 본다** — 그때는 모두가
+ *   «본 적 없음» 이기 때문이다 (제작자가 «새로고침했는데 팝업 안 뜬다» 로 잡아 줬다).
+ *
+ *   그 예외 자체가 불필요했다: 이 함수는 `boot()` 의 **세이브를 불러온 뒤** 가지에서만
+ *   불린다. 진짜 새 플레이어는 여기 도달하지도 않는다.
+ */
 export function maybeShowChangelog() {
-  const seen = readSeen();
   if (!LATEST_ID) return;
-  // 처음 온 사람 — 조용히 도장만 찍는다. HUD 를 다시 그려야 «●» 가 사라진다
-  // (HUD 는 이 함수보다 먼저 그려진다).
-  if (!seen) { writeSeen(LATEST_ID); renderHud(); return; }
-  if (seen === LATEST_ID) return;
+  if (readSeen() === LATEST_ID) return;
   openChangelog({ auto: true });
 }
 
