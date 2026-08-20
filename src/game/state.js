@@ -113,9 +113,32 @@ export const REP_MAX = 300;
 /** 시작 도시의 초기 평판 */
 export const START_REP = 10;
 /** 주점 고용이 열리는 최소 평판 */
-export const REP_TAVERN_MIN = 10;
+/**
+ * 주점이 열리는 최소 평판.
+ *
+ * ★ 10 이었는데 평판 획득량을 절반으로 줄이면서(F 2→1) **낯선 도시가 F랭크 10건**이 됐다.
+ *   그건 «천천히 쌓인다» 가 아니라 «막힌다» 다 — 처음 간 도시에서 사람을 못 뽑으면
+ *   그 도시에서 할 수 있는 게 없다. 획득량에 맞춰 같이 내렸다 (전과 같은 5건 안팎).
+ */
+export const REP_TAVERN_MIN = 5;
 /** 의뢰 성공 시 랭크별 평판 상승량. 실패는 이 값의 절반(최소 1)만큼 하락한다. */
-export const REP_QUEST_GAIN = { F: 2, E: 3, D: 5, C: 8, B: 12, A: 18, S: 26 };
+export const REP_QUEST_GAIN = { F: 2, E: 3, D: 4, C: 6, B: 8, A: 11, S: 14 };
+
+/**
+ * 평판 감쇠 — **자리를 비우면 하루 1씩 준다.**
+ *
+ * ★★ 왜 필요한가 — 예보 색이 정확해진 뒤로(§24) 플레이어가 «질 의뢰» 를 아예 안 받는다.
+ *   그래서 실패 페널티가 있어도 평판은 사실상 **한 방향으로만 올라가는 톱니바퀴**가 됐고,
+ *   상한을 300 으로 올려도 «순식간에 차서 신경 안 쓰는» 값이 됐다 (제작자 지적).
+ *   속도만 늦추면 여전히 톱니바퀴다 — **유지해야 하는 것**으로 만들어야 의미가 생긴다.
+ *
+ * ★ `REP_DECAY_FLOOR` 아래로는 **안 내려간다.** 한 번 다진 도시가 영영 잠기는 일
+ *   (주점 재잠금)을 막고, «기본은 영구 · 정점은 관리» 가 되게 한다.
+ *
+ * ★ **지금 있는 도시는 안 깎인다.** 거기서 일하고 있다는 뜻이니까.
+ */
+export const REP_DECAY_PER_DAY = 1;
+export const REP_DECAY_FLOOR = 50;
 
 /* ─────────────────────────── 단원 정원 노브 ───────────────────────────
  * 정원은 골드로 산다. 체증 비용이라 무한 확장은 못 하고, 확장할 때마다 의뢰를 더 돌아야 한다. */
@@ -1355,6 +1378,18 @@ export function advanceDays(n = 1) {
       sq.returnDay = 0;
       out.returned.push(sq.name);
       addLog(`${sq.name}이(가) 원정에서 복귀했다.`);
+    }
+
+    /* 평판 감쇠 — 지금 있는 도시만 빼고 하루 1씩, 바닥(REP_DECAY_FLOOR)까지.
+     * ★ 도시가 16곳이라 전부 만점으로 유지하는 건 불가능하다 — 그게 목적이다.
+     *   «어느 도시를 거점으로 삼을까» 라는 선택이 생긴다. */
+    if (REP_DECAY_PER_DAY > 0 && state.reputation) {
+      for (const cid of Object.keys(state.reputation)) {
+        if (cid === state.cityId) continue;
+        const v = Number(state.reputation[cid]);
+        if (!Number.isFinite(v) || v <= REP_DECAY_FLOOR) continue;
+        state.reputation[cid] = Math.max(REP_DECAY_FLOOR, v - REP_DECAY_PER_DAY);
+      }
     }
 
     // 임금

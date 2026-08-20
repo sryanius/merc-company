@@ -480,6 +480,16 @@ function headerPanel({ city, tier, gate, cap, spec }, offers) {
       el('span', { class: 'mark', style: { left: `${pct(gate.need)}%` }, title: `주점 개방선 ${gate.need}` })),
     el('span', { class: 'tv-repnum', style: { color: t.color }, text: `${gate.rep} / ${repMax}` }),
     el('span', { class: 'tag', style: { color: t.color }, text: t.name }),
+    /* ★ 감쇠를 안 알려 주면 «왜 줄었지?» 가 된다. 평판이 바닥보다 높을 때만 쓴다 —
+     *   바닥 아래는 안 깎이므로 경고할 게 없다. */
+    (Number(GameState.REP_DECAY_PER_DAY) || 0) > 0 && gate.rep > (Number(GameState.REP_DECAY_FLOOR) || 0)
+      ? el('span', {
+        class: 'tiny',
+        style: { color: 'var(--ember)' },
+        title: `이 도시를 떠나 있으면 하루 ${GameState.REP_DECAY_PER_DAY}씩 준다. ${GameState.REP_DECAY_FLOOR} 아래로는 안 내려간다.`,
+        text: `자리를 비우면 하루 −${GameState.REP_DECAY_PER_DAY} (${GameState.REP_DECAY_FLOOR}까지)`,
+      })
+      : null,
     gate.ok
       ? el('span', { class: 'tiny', style: { color: 'var(--ok)' }, text: '주점 개방' })
       : el('span', { class: 'tiny', style: { color: 'var(--bad)' }, text: `주점 잠김 (${gate.need} 필요)` }));

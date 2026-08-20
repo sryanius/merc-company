@@ -1863,6 +1863,28 @@ if (State) {
     ok(State.RANK_RESET_VERSION <= State.DATA_VERSION,
       '랭킹 리셋 기준 버전이 DATA_VERSION 을 넘지 않는다',
       `${State.RANK_RESET_VERSION} vs ${State.DATA_VERSION}`);
+    /* ── 평판 감쇠 ──────────────────────────────────────────────────────
+     * ★ 평판을 «유지해야 하는 값» 으로 만드는 장치다. 세 가지가 다 맞아야 한다:
+     *   머무는 도시는 안 깎이고 · 바닥 아래로는 안 내려가고 · 하루 1씩만 깎인다. */
+    {
+      State.newGame(4242, '감쇠');
+      const st = State.state;
+      st.cityId = 'greenhold';
+      st.reputation = { greenhold: 300, kingsrest: 300, frostgate: 55, millford: 40 };
+      State.advanceDays(10);
+      ok(st.reputation.greenhold === 300, '머무는 도시는 안 깎인다', String(st.reputation.greenhold));
+      ok(st.reputation.kingsrest === 300 - 10 * State.REP_DECAY_PER_DAY,
+        '자리를 비운 도시는 하루 REP_DECAY_PER_DAY 씩 깎인다', String(st.reputation.kingsrest));
+      ok(st.reputation.frostgate === State.REP_DECAY_FLOOR,
+        '바닥에서 멈춘다', String(st.reputation.frostgate));
+      ok(st.reputation.millford === 40,
+        '바닥보다 낮은 도시는 안 건드린다 (주점이 다시 잠기면 안 된다)', String(st.reputation.millford));
+
+      State.advanceDays(1000);
+      const lo = Math.min(...Object.values(st.reputation).filter((v) => v !== 40));
+      ok(lo >= State.REP_DECAY_FLOOR, '아무리 오래 둬도 바닥 아래로 안 간다', String(lo));
+    }
+
     /* ── 평판 초기화 (DATA_VERSION 7) ──────────────────────────────────── */
     {
       const store2 = {};
@@ -1896,7 +1918,20 @@ if (State) {
       /* ★ 미래 위험 — DATA_VERSION 을 8 로 올릴 때 이 관문이 따라 올라가면
        *   그때 또 남의 평판이 날아간다. 실행으로는 못 잰다 (cur===DATA_VERSION 이면
        *   마이그레이션이 맨 위에서 반환한다) — §27.5 에서 겪었다. 값으로 못 박는다. */
-      ok(State.REP_RESET_VERSION === 7,
+      /* 실패 페널티가 성공 보상과 같은가 — «실패 한 번 = 성공 한 번을 통째로 날림» */
+    {
+      const Qm = await import('../src/game/quest.js');
+      const bad = [];
+      for (const rk of ['F', 'E', 'D', 'C', 'B', 'A', 'S']) {
+        const g = Qm.REP_GAIN[rk];
+        if (!(g > 0)) bad.push(`${rk} 획득 ${g}`);
+      }
+      okAll(bad, '랭크별 평판 획득이 전부 양수다', 7);
+      ok(Qm.REP_GAIN.S > Qm.REP_GAIN.F, '고랭크가 저랭크보다 평판을 많이 준다',
+        `F ${Qm.REP_GAIN.F} / S ${Qm.REP_GAIN.S}`);
+    }
+
+    ok(State.REP_RESET_VERSION === 7,
         'REP_RESET_VERSION 이 7 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
         String(State.REP_RESET_VERSION));
       ok(State.REP_RESET_VERSION !== State.RANK_RESET_VERSION,
