@@ -79,9 +79,8 @@ export function render(root, params = {}) {
 
 function header() {
   return el('div', { class: 'panel col', style: { gap: '8px' } },
-    el('div', { class: 'row spread center', style: { flexWrap: 'wrap', gap: '8px' } },
-      el('h3', { text: '순위표', style: { margin: '0' } }),
-      el('button', { class: 'btn sm', onClick: () => go('city') }, '도시로')),
+    // ★ '도시로' 버튼은 뺐다 — 이제 하단 탭에 걸려 있어서 아무 때나 돌아갈 수 있다.
+    el('h3', { text: '순위표', style: { margin: '0' } }),
     el('div', { class: 'faint tiny', text: '기록이 오르면 자동으로 올라간다. 따로 제출할 필요는 없다.' }));
 }
 
