@@ -84,10 +84,21 @@ end $$;
 
 delete from public.scores;
 
+/* ★★ **`ledger` 도 같이 지운다.** 여기가 다섯 번째 겹이다.
+ *   ledger 는 «기록이 줄지 않았는가» 를 보는 롤백 방지 원장이라, scores 만 지우면
+ *   여기 남은 옛 최고치와 비교돼 **모든 제출이 거절된다**:
+ *     rejections: "탑 기록이 줄었다 379 → 0"
+ *   실제로 리셋 뒤 순위표가 영영 비어 있었고, 원인이 이것이었다 (HANDOFF §44).
+ *
+ *   ledger 는 «이 사람이 예전에 뭘 올렸나» 의 기록일 뿐이고, 시즌이 바뀌면
+ *   비교 기준도 새로 시작해야 맞다. 보관은 scores_history 가 한다. */
+delete from public.ledger;
+
 commit;
 
 -- 확인
 select
   (select count(*) from public.scores)          as 현재_등재,
+  (select count(*) from public.ledger)          as 원장,
   (select count(*) from public.scores_history)  as 보관본,
   (select coalesce(max(season_id), 0) from public.scores_history) as 지난_시즌;
