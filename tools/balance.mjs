@@ -534,15 +534,24 @@ function collectQuestPool(rounds = 160) {
 }
 
 function sectionQuests(pool) {
-  header('6. 랭크별 의뢰 — 권장 레벨 표준 부대 (F 88~100 / E 72~86 / D 62~78 / C 55~70 / B 48~64 / A 44~60 / S 40~56)');
+  header('6. 랭크별 의뢰 — **1등급 도시** · 권장 레벨 표준 부대 (F 88~100 / E 72~86 / D 62~78 / C 55~70 / B 48~64 / A 44~60 / S 40~56)');
   // 공용 대형 풀에서 랭크별로 버킷한다. S 처럼 등장 빈도가 낮고 승률 편차가 큰 랭크는
   // 작은 표본(옛 collectQuests 60라운드)이 서브랭크/구성 운에 따라 ±15%p 흔들려 판정이 뒤집혔다.
   // 서브랭크/정예/4차 섹션과 같은 풀을 써서 측정을 일관되게 만든다.
   // 정예(설계 E)는 §8 에서 따로 측정한다. 여기서는 정예를 제외한 **기본 난이도**만 잰다
   //  — 정예를 섞으면 기본 대역(설계 F)이 정예 하락분에 오염돼 실제보다 쉬워 보인다.
+  /* ★★ **1등급 도시만 본다.** (제작자 결정, HANDOFF §36.5)
+   *   이 섹션은 부대를 «퀘스트 권장 레벨에 맞춰» 만든다. 그건 진짜 초보의 경험이고,
+   *   2등급쯤부터는 만렙 파티에 한두 명 끼워 키우는 게 실제 플레이 양상이다.
+   *   전 도시를 한 대역으로 재면 **존재하지 않는 플레이어를 위해 튜닝하게 된다.**
+   *   2등급 이상은 `tools/endgame.mjs` 가 «만렙 부대» 로 판정한다. */
+  const T1 = new Set(CITIES.filter((c) => (c.tier || 1) === 1).map((c) => c.id));
   const byRank = {};
   for (const rk of RANKS) byRank[rk] = [];
-  for (const q of pool) if (!q.elite && byRank[q.rank] && byRank[q.rank].length < N_QUEST) byRank[q.rank].push(q);
+  for (const q of pool) {
+    if (q.elite || !T1.has(q.cityId)) continue;
+    if (byRank[q.rank] && byRank[q.rank].length < N_QUEST) byRank[q.rank].push(q);
+  }
   const rows = [];
   const bad = [];
   for (const rk of RANKS) {

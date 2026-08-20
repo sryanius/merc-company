@@ -273,6 +273,25 @@ function overflowPower(wantLevel) {
 // 목표 대역을 맞추는 것 자체가 불안정했다(B·A 가 6% 배율에 ±30%p 씩 흔들림). 노출 빈도를
 // 0.35 로 낮춰 보스전을 "가끔 나오는 도전"으로 되돌리고, 세 난이도 축을 안정적으로 튜닝한다.
 const BOSS_CHANCE = [0, 0.04, 0.06, 0.12, 0.35, 0.35, 0.35];
+
+/**
+ * 도시 등급별 보스 등장 배수.
+ *
+ * ★★ **만렙 부대를 죽이는 건 보스 공격력뿐이다.** 실측 (HANDOFF §37):
+ *   같은 Lv72·같은 배율에서 A랭크(보스 없음)는 적 HP 19만인데도 완주 100%,
+ *   S랭크(보스 있음)는 0% 였다. 차이는 HP 가 아니라 **공격 합 6,221 vs 15,779** 이었다.
+ *
+ *   만렙 풀장비 부대는 HP 풀이 커서 일반 적은 `CITY_POWER` 를 ×2.8 까지 올려도
+ *   위협이 안 된다 — HP 를 같이 올리면 전투만 길어지고 위험은 안 오른다.
+ *   그래서 배율이 아니라 **보스 등장률**이 상위 도시의 레버다.
+ *
+ * ★ F랭크는 원래 0 이라 곱해도 0 이다 — 첫 전투에서 보스를 만나는 일은 없다.
+ */
+const CITY_BOSS_MULT = { 1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 2.8 };
+const bossChanceAt = (idx, tier) => clamp(
+  (BOSS_CHANCE[idx] || 0) * (CITY_BOSS_MULT[clamp(Math.round(tier || 1), 1, 5)] || 1),
+  0, 1,
+);
 /** 도시 tier -> 랭크 가중치 */
 // D가 [10,20] → [15,24] 로 올라갔으므로 시작 도시(tier 1)에서 D는 Lv1 부대에게 사실상
 // 손댈 수 없는 의뢰다. 목록 자리만 잡아먹지 않도록 비중을 크게 줄이고 F/E 위주로 띄운다.
@@ -291,7 +310,7 @@ const BOSS_CHANCE = [0, 0.04, 0.06, 0.12, 0.35, 0.35, 0.35];
  *   가깝다 — `ELITE_MULT` 이 1.30 → 1.035 로 내려간 이유가 이것이다. 눈으로 정하지 말고
  *   반드시 실측해라 (`tools/balance.mjs`, `tools/dangercheck.mjs`).
  */
-export const CITY_POWER = { 1: 1.00, 2: 1.13, 3: 1.28, 4: 1.44, 5: 1.63 };
+export const CITY_POWER = { 1: 1.00, 2: 1.18, 3: 1.38, 4: 1.62, 5: 1.90 };
 export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) || 1), 1, 5)] || 1;
 
 /**
@@ -303,6 +322,25 @@ export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) ||
  * 난이도가 배율² 로 오르므로 보상도 같은 지수로 맞춘다 (5등급 = 1.70² ≈ 2.89배).
  */
 export const CITY_REWARD_POW = 2.0;
+
+/**
+ * 도시 등급별 **권장 레벨 하한.**
+ *
+ * ★ `CITY_POWER` 는 적 «스탯» 만 올린다. 권장 레벨은 랭크가 정하므로 5등급 도시에서도
+ *   A랭크는 Lv45~54 짜리다 — 상한을 찍은 부대에겐 스탯을 1.63배 곱해도 한참 아래고,
+ *   실제로 **5등급 도시 의뢰가 전부 「식은 죽 먹기」** 였다 (HANDOFF §36).
+ *
+ * ★★ 판정 잣대가 도시 등급마다 다르다 (제작자 결정, §36.5):
+ *     1등급   = `tools/balance.mjs`  — 레벨 맞춘 부대 (진짜 초보)
+ *     2등급~  = `tools/endgame.mjs`  — **만렙 부대**
+ *   2등급쯤부터는 만렙 파티에 한두 명 끼워 키우는 게 실제 플레이 양상이라,
+ *   «레벨 맞춘 부대» 로 재면 존재하지 않는 플레이어를 위해 튜닝하게 된다.
+ *
+ * ★ 하한이라 랭크 대역을 위로만 민다. 5등급 도시의 F랭크는 Lv55 짜리 잡일이 된다 —
+ *   험한 땅에서는 잡일도 만만치 않다는 쪽이 오히려 말이 된다.
+ */
+export const CITY_LEVEL_FLOOR = { 1: 1, 2: 8, 3: 20, 4: 36, 5: 55 };
+export const cityLevelFloorOf = (tier) => CITY_LEVEL_FLOOR[clamp(Math.round(Number(tier) || 1), 1, 5)] || 1;
 
 /**
  * 도시 등급별 랭크 분포.
@@ -564,7 +602,8 @@ function buildWaves(ctx, r) {
     const baseSize = idx === 0 ? 3
       : idx === 1 ? 3 + r.int(0, 1)
       : clamp(3 + Math.round(idx * 0.7) + r.int(0, 1) + (isLast && idx >= 4 ? 1 : 0), 3, 7);
-    const boss = isLast && r.chance(BOSS_CHANCE[idx]);
+    const bossP = bossChanceAt(idx, ctx.cityTier);
+    const boss = isLast && r.chance(bossP);
     // 보스는 한 기가 아니라 여러 기 몫이다. 낮은 랭크에서는 호위까지 정원대로 세우면
     // 적 총 HP가 아군의 2.2배가 되어(실측) 이길 방법이 없다. F~C에서만 호위를 줄인다.
     // B 이상은 원래 보스전 승률이 60~80%로 정상이었으므로 건드리지 않는다
@@ -588,7 +627,7 @@ function buildWaves(ctx, r) {
       id: ctx.id, name: ctx.name, type: ctx.type, cityId: ctx.cityId,
       biome: ctx.biome, rank: ctx.rank, rankIndex: idx, sub, elite, level,
       tier: tierForRank(ctx.rank),
-      waveIndex: w, waveCount, isLast, size, count: size, boss, bossChance: BOSS_CHANCE[idx],
+      waveIndex: w, waveCount, isLast, size, count: size, boss, bossChance: bossP,
     };
     let sq = null;
     try { sq = buildEnemySquad(hint, r); } catch (e) { console.warn('[quest] buildEnemySquad 실패', e); }
@@ -725,7 +764,7 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
     const rank = pickRank(tier, r);
     const sub = pickSub(rank, r);            // 서브랭크 -1|0|1 (설계 D)
     const elite = rollElite(rank, sub, r);   // 정예 여부 (설계 E)
-    const level = pickLevel(rank, sub, r);
+    const level = clamp(Math.max(pickLevel(rank, sub, r), cityLevelFloorOf(tier)), 1, MAX_QUEST_LEVEL);
     const id = `q_${cityId}_${day}_${i}`;
 
     const picked = uniqueName(r.pick(QUEST_TYPES), { city, biome, rank }, r, seen);
@@ -733,7 +772,7 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
     const { type, named } = picked;
     seen.add(named.name);
 
-    const ctx = { id, name: named.name, type, cityId, biome, rank, sub, elite, level, cityPower };
+    const ctx = { id, name: named.name, type, cityId, biome, rank, sub, elite, level, cityPower, cityTier: tier };
     const waves = buildWaves(ctx, r);
     if (!waves.length) continue;
 

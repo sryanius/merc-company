@@ -77,7 +77,7 @@ console.log(`엔드게임 잣대 — 4차 Lv80 A등급 · 10칸 전설 (전투�
 console.log('='.repeat(72));
 console.log('\n  도시등급  배율   의뢰수  평균Lv  완주율   랭크별 완주율');
 
-let tier5 = null;
+let topS = null;
 for (const [cid, tier] of CITIES) {
   const qs = [];
   for (let s = 0; s < 12; s++) qs.push(...Q.genQuests(cid, 30 + s * 5, new RNG(4200 + s), 2));
@@ -91,20 +91,23 @@ for (const [cid, tier] of CITIES) {
     (byRank[q.rank] ||= []).push(r);
   }
   const avg = sum / list.length;
-  if (tier === 5) tier5 = avg;
+  // ★ 평균이 아니라 그 도시의 «최고 랭크» 로 판정한다 — 저랭크는 만렙 부대에게
+  //   어떤 배율을 곱해도 안 위험하다 (HP 풀 차이, HANDOFF §37). 평균을 목표에 맞추려면
+  //   저랭크까지 죽을 만큼 올려야 하고 그러면 «제때 도착한 플레이어» 가 못 논다.
+  if (tier === 5 && byRank.S && byRank.S.length) topS = byRank.S.reduce((a, b) => a + b, 0) / byRank.S.length;
   const rk = Object.keys(byRank).sort().map((k) => `${k} ${(byRank[k].reduce((a, b) => a + b, 0) / byRank[k].length * 100).toFixed(0)}%`).join(' · ');
   console.log(`  ${tier}등급     ${(list[0].cityPower || 1).toFixed(2)}    ${String(list.length).padStart(3)}    ${(lv / list.length).toFixed(0).padStart(4)}   ${(avg * 100).toFixed(0).padStart(4)}%   ${rk}`);
 }
 
 console.log('\n' + '─'.repeat(72));
-if (tier5 == null) { console.log('❌ 5등급 도시를 재지 못했다.'); process.exit(1); }
-const pct = (tier5 * 100).toFixed(0);
-if (tier5 >= 0.40 && tier5 <= 0.70) {
-  console.log(`✅ 5등급 도시 완주율 ${pct}% — 엔드게임 부대에게도 도전이 된다 (목표 40~70%).`);
+if (topS == null) { console.log('❌ 5등급 도시의 S랭크를 재지 못했다.'); process.exit(1); }
+const pct = (topS * 100).toFixed(0);
+if (topS >= 0.40 && topS <= 0.70) {
+  console.log(`✅ 5등급 S랭크 완주율 ${pct}% — 엔드게임 부대에게도 도전이 된다 (목표 40~70%).`);
   process.exit(0);
 }
-console.log(`❌ 5등급 도시 완주율 ${pct}% (목표 40~70%).`);
-console.log(tier5 > 0.70
-  ? '   상한을 찍은 부대에게 상위 도시가 너무 쉽다 — HANDOFF §36 의 (가)/(나)/(다) 를 봐라.'
-  : '   상위 도시가 엔드게임 부대에게도 과하다 — CITY_POWER 를 낮춰라.');
+console.log(`❌ 5등급 S랭크 완주율 ${pct}% (목표 40~70%).`);
+console.log(topS > 0.70
+  ? '   상한을 찍은 부대에게 너무 쉽다 — CITY_POWER[5] 나 보스 등장률을 올려라.'
+  : '   과하다 — CITY_POWER[5] 를 낮춰라.');
 process.exit(1);
