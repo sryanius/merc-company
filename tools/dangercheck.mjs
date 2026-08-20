@@ -1,24 +1,29 @@
 /**
  * 난이도 색이 실제 승률을 맞히는가
  * ────────────────────────────────────────────────────────────────
- * 의뢰 카드의 색(식은 죽 먹기 / 여유 / 적정 / 위험 / 무모)은
- * **전투력 비율** 하나로 정해진다 (`ui/quests.js dangerLevelByPower`).
+ * 의뢰 카드의 색은 이제 **실제 전투를 돌려 본 승률**로 정한다
+ * (`src/game/forecast.js`). 이 도구는 그게 정말 맞는지 재확인한다.
  *
- * ★ 그런데 등급 격차는 전투력 비율보다 훨씬 가파르다 —
- *   `tools/gradegap.mjs` 실측에서 전투력 1.12배(한 등급) 차이가 **승률 0%** 로 나왔다.
- *   그렇다면 "여유"(비율 1.22~1.60)라고 뜨는 판이 실제로는 확실한 패배일 수 있다.
- *   색이 그 낭떠러지를 전달하는지 재는 것이 이 도구의 목적이다.
+ * ★ 이 도구는 예전에 두 가지로 거짓말을 했다. 둘 다 고쳤다:
  *
- * 실행: node tools/dangercheck.mjs [--n=20]
+ *   1. **경계를 손으로 베껴 적어 뒀다.** 게임 쪽 경계를 고치면 도구는 옛 경계로
+ *      채점했다. 지금은 `forecast.js` 에서 import 한다 — 사본이 없다.
+ *   2. **표본이 20판이고 시드가 산술수열(9001+i*7919)이었다.**
+ *      그 조합이 거울전(같은 부대끼리) 승률을 80% 로 보고했다.
+ *      잘 섞은 시드로 2000판을 돌리면 50.0% 다. 전환 구간에서는
+ *      n=20 의 95% 신뢰구간이 ±22%p 라 아무것도 판정할 수 없었다.
+ *
+ * 실행: node tools/dangercheck.mjs [--n=200] [--grade=A] [--level=80]
+ * 종료 코드: 예보가 실제와 어긋나면 1
  */
 import * as State from '../src/game/state.js';
-import * as Merc from '../src/game/merc.js';
 import { getClass } from '../src/data/classes.js';
 import '../src/data/classes_t4.js';
 import { createBattle, setSkillResolver } from '../src/battle/engine.js';
 import { getSkill } from '../src/data/skills.js';
-import * as Abyss from '../src/game/abyss.js';
-import { questBattleDefs } from '../src/game/quest.js';
+import { genQuests, questBattleDefs, applyWaveCarry, readWaveCarry } from '../src/game/quest.js';
+import { forecastQuest, dangerLevelByWinRate, BANDS, DEFAULT_SAMPLES } from '../src/game/forecast.js';
+import { RNG } from '../src/core/rng.js';
 
 setSkillResolver(getSkill);
 
@@ -26,22 +31,19 @@ const arg = (k, d) => {
   const a = process.argv.find((x) => x.startsWith(`--${k}=`));
   return a ? a.slice(k.length + 3) : d;
 };
-const N = parseInt(arg('n', '20'), 10);
+const N = parseInt(arg('n', '200'), 10);
 
-/* ★ ui/quests.js 의 경계값을 그대로 옮겨 적었다. 저기를 고치면 여기도 고쳐야 한다 —
- *   두 벌이 어긋나면 이 도구가 거짓말을 하게 된다. */
-const BANDS = [
-  { min: 1.60, label: '식은 죽 먹기' },
-  { min: 1.22, label: '여유' },
-  { min: 0.92, label: '적정' },
-  { min: 0.70, label: '위험' },
-  { min: 0, label: '무모' },
+/* ★ 부대 하나로만 재면 아무것도 검사하지 못한다.
+ *   A등급 Lv80 은 모든 도시의 의뢰를 100% 로 이겨서 전부 「식은 죽 먹기」로 나온다.
+ *   밴드가 실제로 갈리는 지점을 지나가야 검증이 된다 — 그래서 부대를 훑는다. */
+const SQUADS = [
+  ['F', 20], ['E', 30], ['D', 40], ['C', 50], ['B', 60], ['A', 70], ['S', 80],
 ];
-const bandOf = (r) => (BANDS.find((b) => r >= b.min) || BANDS[BANDS.length - 1]).label;
 
+const LABEL = ['-', '식은 죽 먹기', '여유', '적정', '위험', '무모'];
 const SQUAD = ['gatewarden', 'madgeneral', 'dragoonlord', 'shadowarcher', 'masterarcher', 'archmage', 'oathshield'];
 
-function setup(grade, level, seed) {
+function mkState(grade, level, seed = 4242) {
   State.newGame(seed, `${grade}${level}`);
   const st = State.state;
   st.roster = [];
@@ -49,139 +51,124 @@ function setup(grade, level, seed) {
   const sq = st.squads[0];
   sq.memberUids = new Array(7).fill(null);
   SQUAD.forEach((classId, i) => {
-    const m = {
+    st.roster.push({
       uid: `d_${i}`, name: getClass(classId).name, classId, level, grade,
       equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0,
-    };
-    st.roster.push(m);
-    sq.memberUids[i] = m.uid;
+    });
+    sq.memberUids[i] = `d_${i}`;
   });
-  for (const m of st.roster) m.hp = 0;
   return st;
 }
 
-const powerOf = (st) => {
-  const idx = State.itemsById(st.items);
-  return st.roster.reduce((a, m) => a + Merc.mercPower(m, { items: idx }), 0);
-};
-
-/**
- * 부대 하나를 만들고 **즉시** UnitDef 로 뽑아 둔다.
- *
- * ★ `State.state` 는 **싱글턴**이다. `setup()` 을 두 번 부르고 나서 두 결과를 쓰면
- *   둘 다 마지막 것을 가리킨다 — 이 프로젝트에서 이미 한 번 밟은 함정이고
- *   이 도구를 처음 쓸 때 또 밟았다(A vs A 가 80% 로 나왔다).
- *   만든 직후에 값으로 꺼내 두는 것만이 안전하다.
- */
-function unitsOf(grade, level, seed) {
-  const st = setup(grade, level, seed);
-  const sqId = st.squads[0].id;
-  const allies = questBattleDefs(Abyss.abyssQuest(st, 1, sqId), 0, st, sqId).allies;
-  return { allies: allies.map((u) => ({ ...u })), power: powerOf(st) };
+/** 잘 섞은 시드 (splitmix32). 산술수열은 xorshift 와 상관이 생긴다. */
+function mixSeed(i) {
+  let z = (i + 0x9e3779b9) >>> 0;
+  z = Math.imul(z ^ (z >>> 16), 0x21f0aaad) >>> 0;
+  z = Math.imul(z ^ (z >>> 15), 0x735a2d97) >>> 0;
+  return ((z ^ (z >>> 15)) >>> 0) || 1;
 }
 
-/** A 부대 vs B 부대 승률 */
-function duel(A, B, n) {
+/**
+ * 의뢰 하나의 **참 승률**. 예보(표본 5판)와 달리 시드를 훨씬 많이 굴린다.
+ * 예보가 이 값을 얼마나 잘 맞히는지가 이 도구의 질문이다.
+ */
+function trueWinRate(st, quest, squadId, n) {
   let win = 0;
   for (let i = 0; i < n; i++) {
-    const b = createBattle({
-      allies: A.map((u) => ({ ...u })),
-      enemies: B.map((u, k) => ({ ...u, uid: `e_${k}`, side: 'enemy', slotIndex: k })),
-      allyFormationId: 'basic', enemyFormationId: 'basic',
-      seed: (9001 + i * 7919) >>> 0,
-    });
-    let t = 0;
-    while (!b.finished && t < 90) { b.step(1 / 60); t += 1 / 60; }
-    if (b.result.winner === 'ally') win++;
+    let carry = null;
+    let ok = true;
+    for (let w = 0; w < quest.waves.length; w++) {
+      const cfg = questBattleDefs(quest, w, st, squadId);
+      const allies = applyWaveCarry(cfg.allies, carry);
+      if (!allies.length) { ok = false; break; }
+      const b = createBattle({ ...cfg, allies, seed: mixSeed((cfg.seed >>> 0) + i * 1013904223) });
+      b.run();
+      if (!b.finished || b.result.winner !== 'ally') { ok = false; break; }
+      carry = readWaveCarry(b.units, carry || {});
+    }
+    if (ok) win++;
   }
   return win / n;
 }
 
-console.log(`난이도 색이 실제 승률을 맞히는가 — 각 ${N}판`);
+/** 95% 신뢰구간 반폭 */
+const ci95 = (p, n) => 1.96 * Math.sqrt(Math.max(p * (1 - p), 1e-9) / n);
+
+console.log(`난이도 색 검증 — 예보(${DEFAULT_SAMPLES}판)가 참 승률(${N}판)을 맞히는가`);
 console.log('='.repeat(78));
-console.log('\n색 기준 (ui/quests.js): 전투력 비율만 본다');
-for (const b of BANDS) console.log(`  ${String(b.min).padStart(4)} 이상 → ${b.label}`);
+console.log('\n색 기준 (game/forecast.js — 유일한 출처)');
+for (const b of BANDS) console.log(`  승률 ${String(b.min).padStart(5)} 이상 → ${LABEL[b.level]}`);
 
-/* ── 1. 등급 차이로 만든 판 — 색이 뭐라고 하고 실제는 어떤가 ── */
-console.log('\n── 1. 등급만 다른 상대 (양쪽 Lv80)');
-console.log('  아군    적    전투력비  색           실제승률   판정');
-const GR = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
-const rowsG = [];
-const ME = unitsOf('A', 80, 1000);          // ★ 한 번만 만들어 값으로 들고 있는다
-for (const foe of GR) {
-  const EN = unitsOf(foe, 80, 2000);
-  const ratio = ME.power / EN.power;
-  const band = bandOf(ratio);
-  const wr = duel(ME.allies, EN.allies, N);
-  // 색이 약속하는 승률 대역 (사람이 보통 그렇게 읽는다)
-  const promise = { '식은 죽 먹기': '거의 확실', 여유: '유리', 적정: '반반', 위험: '불리', 무모: '거의 진다' }[band];
-  const bad = (band === '식은 죽 먹기' && wr < 0.9) || (band === '여유' && wr < 0.6)
-    || (band === '적정' && (wr < 0.25 || wr > 0.75)) || (band === '위험' && wr > 0.5)
-    || (band === '무모' && wr > 0.2);
-  rowsG.push({ foe, ratio, band, wr, bad });
-  console.log(`   A     ${foe}    ${ratio.toFixed(2)}배  ${band.padEnd(11)} ${(wr * 100).toFixed(0).padStart(4)}%     ${bad ? '✗ 어긋남' : '✓'}   (${promise})`);
-}
+/* ── 1. 예보가 참 승률을 맞히는가 ──
+ * 부대 강도를 훑어 밴드 5개를 전부 지나가게 한다. */
+console.log('\n── 1. 예보 vs 실제');
+console.log('  부대       의뢰                  웨  예보         참승률(95%CI)      맞나');
 
-/* ── 2. 같은 전투력 비율인데 원인이 다르면? ──
- * 인원수로 만든 1.2배와 등급으로 만든 1.2배가 같은 결과를 내는지 본다.
- * 색은 둘을 구분하지 못한다 — 비율만 보기 때문이다. */
-console.log('\n── 2. 같은 비율, 다른 원인 (색은 둘을 구분 못 한다)');
-{
-  const cases = [];
-  const b80 = unitsOf('B', 80, 1000);
-  const c80 = unitsOf('C', 80, 2000);
-  const b68 = unitsOf('B', 68, 3000);
-  cases.push({ tag: '등급 B vs C', ratio: b80.power / c80.power, wr: duel(b80.allies, c80.allies, N) });
-  cases.push({ tag: '레벨 80 vs 68', ratio: b80.power / b68.power, wr: duel(b80.allies, b68.allies, N) });
+const CITIES = [['greenhold', 30], ['kingsrest', 60], ['elderoak', 120], ['deepdelve', 200], ['frostgate', 300]];
+const rows = [];
+const seen = new Map();          // 밴드별 검사 건수 — 다 지나갔는지 확인용
 
-  console.log('  구성              전투력비  색          실제승률');
-  for (const c of cases) {
-    console.log(`  ${c.tag.padEnd(16)}  ${c.ratio.toFixed(2)}배  ${bandOf(c.ratio).padEnd(10)} ${(c.wr * 100).toFixed(0).padStart(4)}%`);
+for (const [grade, level] of SQUADS) {
+  const st = mkState(grade, level);
+  const sqId = st.squads[0].id;
+  for (const [city, day] of CITIES) {
+    for (const q of genQuests(city, day, new RNG(1000 + day), 1)) {
+      const fc = forecastQuest(st, q, sqId);
+      if (!fc.ok) continue;
+      const truth = trueWinRate(st, q, sqId, N);
+      const half = ci95(truth, N);
+      const wantLv = dangerLevelByWinRate(truth);
+      seen.set(wantLv, (seen.get(wantLv) || 0) + 1);
+      /* 예보는 표본 5판이라 참값과 한 칸 어긋날 수 있다 — 그건 정상이다.
+       * 문제로 치는 건 **두 칸 이상** 어긋나거나, 이긴다/진다가 뒤집힌 경우다. */
+      const flipped = (truth >= 0.5) !== (fc.winRate >= 0.5);
+      const bad = Math.abs(fc.level - wantLv) >= 2 || (flipped && Math.abs(truth - 0.5) > half + 0.1);
+      rows.push({ tag: `${grade}Lv${level}`, id: q.id, fc, truth, bad, wantLv });
+      if (bad || fc.level !== wantLv) {
+        console.log(`  ${`${grade}Lv${level}`.padEnd(9)} ${q.id.slice(0, 20).padEnd(20)} ${String(q.waves.length).padStart(2)}  ${LABEL[fc.level].padEnd(11)} ${(truth * 100).toFixed(1).padStart(5)}%±${(half * 100).toFixed(1).padStart(4)} → ${LABEL[wantLv].padEnd(11)} ${bad ? '✗' : '~'}`);
+      }
+    }
   }
 }
+console.log(`  (같은 색이면 안 찍는다 — ${rows.length}건 중 ${rows.filter((r) => r.fc.level !== r.wantLv).length}건만 어긋남, 그중 ✗ 는 두 칸 이상)`);
+console.log('\n  밴드별 검사 건수:');
+for (let l = 1; l <= 5; l++) console.log(`    ${LABEL[l].padEnd(11)} ${seen.get(l) || 0}건${seen.get(l) ? '' : '  ← 이 색은 검사되지 않았다'}`);
 
-/* ── 3. 전환점은 어디인가 (적 레벨을 조금씩 올려 가며) ──
- * ★ 구간 경계를 다시 잡으려면 "승률 50% 가 되는 전투력 비율"과
- *   "그 전환이 얼마나 좁은 구간에서 일어나는가"를 알아야 한다. */
-console.log('\n── 3. 승률 전환점 (아군 B Lv80 고정, 적을 조금씩 강하게)');
-console.log('  적Lv  전투력비   색          승률');
-const sweep = [];
+/* ── 2. 거울전 — 도구 자신이 편향돼 있지 않은가 ──
+ * 같은 부대끼리는 정확히 50% 여야 한다. 여기가 틀어지면 위의 숫자를 믿을 수 없다. */
+console.log(`\n── 2. 자기 검사: 같은 부대끼리 (${N * 4}판)`);
 {
-  const me = unitsOf('B', 80, 1000);
-  for (let lv = 60; lv <= 96; lv += 4) {
-    const en = unitsOf('B', Math.min(80, lv), 4000 + lv);
-    /* 레벨 상한이 80 이라 그 위는 못 만든다 — 대신 적 등급을 올려 비율을 낮춘다 */
-    const use = lv <= 80 ? en : unitsOf(lv <= 88 ? 'A' : 'S', 80, 4000 + lv);
-    const ratio = me.power / use.power;
-    const wr = duel(me.allies, use.allies, N);
-    sweep.push({ lv, ratio, wr });
-    const bar = '█'.repeat(Math.round(wr * 16)).padEnd(16, '·');
-    console.log(`  ${String(lv <= 80 ? lv : `80+${lv - 80}등급`).padStart(6)}  ${ratio.toFixed(2)}배  ${bandOf(ratio).padEnd(10)} ${bar} ${(wr * 100).toFixed(0).padStart(4)}%`);
+  const a = mkState('B', 60, 1000);
+  const q = genQuests('greenhold', 30, new RNG(1030), 1)[0];
+  const units = questBattleDefs(q, 0, a, a.squads[0].id).allies.map((u) => ({ ...u }));
+  let win = 0;
+  const n = N * 4;
+  for (let i = 0; i < n; i++) {
+    const b = createBattle({
+      allies: units.map((u) => ({ ...u })),
+      enemies: units.map((u, k) => ({ ...u, uid: `e_${k}`, side: 'enemy', slotIndex: k })),
+      allyFormationId: 'basic', enemyFormationId: 'basic', seed: mixSeed(i),
+    });
+    b.run();
+    if (b.result.winner === 'ally') win++;
   }
-  // 50% 를 지나는 구간을 찾는다
-  let lo = null;
-  let hi = null;
-  for (const s2 of sweep) {
-    if (s2.wr >= 0.5) lo = s2;          // 마지막으로 이기던 지점
-    if (s2.wr < 0.5 && !hi) hi = s2;    // 처음으로 지는 지점
-  }
-  if (lo && hi) {
-    console.log(`
-  승률 50% 는 전투력비 **${Math.min(lo.ratio, hi.ratio).toFixed(2)} ~ ${Math.max(lo.ratio, hi.ratio).toFixed(2)}** 사이에 있다`);
-    console.log(`  → 그 폭이 ${Math.abs(lo.ratio - hi.ratio).toFixed(2)} 밖에 안 된다. '적정'(0.92~1.22) 은 폭 0.30 이라 **10배 넓다.**`);
-  }
+  const wr = win / n;
+  const half = ci95(wr, n);
+  const fair = Math.abs(wr - 0.5) <= half + 0.02;
+  console.log(`  거울전 승률 ${(wr * 100).toFixed(1)}% ±${(half * 100).toFixed(1)}  ${fair ? '✓ 공평' : '✗ 편향 — 아래 숫자를 믿지 마라'}`);
+  if (!fair) rows.push({ id: '거울전', bad: true });
 }
 
 /* ── 결론 ── */
 console.log('\n' + '─'.repeat(78));
-const wrong = rowsG.filter((r) => r.bad);
+const wrong = rows.filter((r) => r.bad);
 if (!wrong.length) {
-  console.log('✅ 색이 실제 승률과 어긋나는 구간이 없다.');
-} else {
-  console.log(`⚠ 색이 실제와 어긋나는 구간 ${wrong.length}개:`);
-  for (const r of wrong) {
-    console.log(`   적 ${r.foe}등급 — 화면은 "${r.band}"(비율 ${r.ratio.toFixed(2)}) 인데 실제 승률 ${(r.wr * 100).toFixed(0)}%`);
-  }
-  console.log('\n   원인: 색은 **전투력 비율 하나**로 정하는데, 등급 격차는 그 비율보다 훨씬 가파르다.');
-  console.log('   같은 1.2배라도 등급에서 온 것과 레벨에서 온 것의 결과가 다르다 (§2 참고).');
+  console.log(`✅ 예보가 실제 승률과 어긋나는 의뢰가 없다 (${rows.length}건 검사).`);
+  process.exit(0);
 }
+console.log(`❌ 어긋난 의뢰 ${wrong.length}건 / ${rows.length}건:`);
+for (const r of wrong) {
+  if (!r.fc) { console.log(`   ${r.id}`); continue; }
+  console.log(`   ${r.id} — 화면은 「${LABEL[r.fc.level]}」(${r.fc.wins}/${r.fc.samples}) 인데 실제 ${(r.truth * 100).toFixed(1)}% → 「${LABEL[r.wantLv]}」`);
+}
+process.exit(1);

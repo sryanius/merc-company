@@ -9,7 +9,7 @@ import { getSkill } from '../data/skills.js';
 import { getClass } from '../data/classes.js';
 import { createBattle, setSkillResolver } from '../battle/engine.js';
 import { state, addGold, addLog, save, getMerc, itemsById } from '../game/state.js';
-import { questBattleDefs, applyQuestResult } from '../game/quest.js';
+import { questBattleDefs, applyWaveCarry, readWaveCarry, WAVE_HEAL, applyQuestResult } from '../game/quest.js';
 import { canPromote, gainExp, mercStats, mercPower, promoteOptionsFor } from '../game/merc.js';
 import { autoEquipAll, SLOT_NAME, isSellable, sellItem } from '../game/gear.js';
 import { go, toast, confirmDlg } from './app.js';
@@ -19,8 +19,6 @@ export const meta = { id: 'battle', title: '전투' };
 
 const STAGE_W = 960;
 const STAGE_H = 576;
-/** 웨이브 사이 회복량 (최대 체력 비율) */
-const WAVE_HEAL = 0.15;
 const SPRITE_SCALE = 3;
 const LOG_MAX = 90;
 /** 이 폭 이하를 "폰"으로 본다. 아래 @media 와 반드시 같은 값이어야 한다 (레이아웃/JS 분기 일치).
@@ -602,15 +600,9 @@ function buildCfg(i) {
   cfg.getSkill = getSkill;
   if (!cfg.seed) cfg.seed = ((Date.now() >>> 0) ^ (i * 2654435761)) >>> 0;
 
-  const carried = Object.keys(S.carry).length > 0;
-  if (carried) {
-    cfg.allies = (cfg.allies || []).map((d) => {
-      const c = S.carry[d.uid];
-      if (!c) return d;
-      if (c.hp <= 0) return null;
-      return { ...d, hp: clamp(Math.round(c.hp + c.maxHp * WAVE_HEAL), 1, c.maxHp) };
-    }).filter(Boolean);
-  }
+  // 인계 규칙은 game/quest.js 가 유일한 출처다 — game/forecast.js 도 같은 걸 쓴다.
+  // 여기에 사본을 다시 만들면 예보와 실제 전투가 갈라진다 (smoke 가 검사한다).
+  cfg.allies = applyWaveCarry(cfg.allies, S.carry);
   return cfg;
 }
 
@@ -714,11 +706,10 @@ function consumeEvents(evs) {
 function recordWave(b) {
   if (S.recorded) return;   // 웨이브당 정확히 한 번만 집계한다 (대기 중 '결과만 보기' 로 중복 호출될 수 있다)
   S.recorded = true;
+  readWaveCarry(b.units, S.carry);
   for (const u of b.units) {
     if (u.side !== 'ally') continue;
-    const hp = u.alive ? Math.max(1, Math.round(u.hp)) : 0;
-    S.carry[u.uid] = { hp, maxHp: u.maxHp };
-    S.finalHp[u.uid] = hp;
+    S.finalHp[u.uid] = S.carry[u.uid].hp;
   }
   S.totalTime += (b.result && b.result.time) || b.time || 0;
   S.results.push({ ...b.result, finalHp: { ...S.finalHp }, squadId: S.squadId });
@@ -857,11 +848,10 @@ function askRetreat() {
     const b = S.battle;
     if (b && !b.finished) {
       b.drainEvents();
+      readWaveCarry(b.units, S.carry);
       for (const u of b.units) {
         if (u.side !== 'ally') continue;
-        const hp = u.alive ? Math.max(1, Math.round(u.hp)) : 0;
-        S.carry[u.uid] = { hp, maxHp: u.maxHp };
-        S.finalHp[u.uid] = hp;
+        S.finalHp[u.uid] = S.carry[u.uid].hp;
       }
       S.totalTime += b.time;
       S.results.push({

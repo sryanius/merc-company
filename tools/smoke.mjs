@@ -2303,6 +2303,105 @@ section('서버 공유 규칙');
     '규칙이 쓰는 데이터 모듈은 의존성 0 을 유지한다', pure.length);
 }
 
+/* ─────────────────────── 난이도 예보 (game/forecast.js) ─────────────────────── */
+{
+  section('난이도 예보');
+  const FC = await import('../src/game/forecast.js');
+  const Q = await import('../src/game/quest.js');
+  const { rng } = await import('../src/core/rng.js');
+  const St = await import('../src/game/state.js');
+  const { getClass } = await import('../src/data/classes.js');
+
+  const SQ = ['gatewarden', 'madgeneral', 'dragoonlord', 'shadowarcher', 'masterarcher', 'archmage', 'oathshield'];
+  const mkSquad = (grade, level) => {
+    St.newGame(4242, '예보');
+    const st = St.state;
+    st.roster = []; st.items = [];
+    const sq = st.squads[0];
+    sq.memberUids = new Array(7).fill(null);
+    SQ.forEach((c, i) => {
+      st.roster.push({ uid: `f_${i}`, name: getClass(c).name, classId: c, level, grade,
+        equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0 });
+      sq.memberUids[i] = `f_${i}`;
+    });
+    return st;
+  };
+
+  // ★ 가장 중요한 성질: 예보가 **전역 rng 를 안 민다.**
+  //   밀면 예보를 볼 때마다 전리품·부상 판정이 달라진다 —
+  //   화면을 보기만 해도 게임이 바뀌는, 재현 불가능한 버그가 된다.
+  const st1 = mkSquad('B', 60);
+  const qs = Q.genQuests('frostgate', 300, new (await import('../src/core/rng.js')).RNG(781), 1);
+  const draw = (n) => { const o = []; for (let i = 0; i < n; i++) o.push(rng.next()); return o; };
+  rng.s = 987654321;
+  const before = draw(6);
+  rng.s = 987654321;
+  for (const q of qs) FC.forecastQuest(st1, q, st1.squads[0].id, { samples: 2 });
+  const after = draw(6);
+  ok(before.join(',') === after.join(','),
+    '예보는 전역 rng 스트림을 건드리지 않는다',
+    `before ${before[0]} / after ${after[0]}`);
+
+  // 같은 입력이면 같은 답이 나온다 (캐시가 성립하려면 필요하다)
+  const st2 = mkSquad('B', 60);
+  const a = FC.forecastQuest(st2, qs[0], st2.squads[0].id);
+  const b = FC.forecastQuest(st2, qs[0], st2.squads[0].id);
+  ok(a.wins === b.wins && a.level === b.level, '예보는 결정론이다', `${a.wins} vs ${b.wins}`);
+
+  // 밴드 경계가 승률과 어긋나지 않는가
+  const badBand = [];
+  for (const [wr, want] of [[1, 1], [0.96, 1], [0.8, 2], [0.7, 2], [0.6, 3], [0.3, 3], [0.2, 4], [0.1, 4], [0.05, 5], [0, 5]]) {
+    if (FC.dangerLevelByWinRate(wr) !== want) badBand.push(`승률 ${wr} → ${FC.dangerLevelByWinRate(wr)} (기대 ${want})`);
+  }
+  okAll(badBand, '승률 → 색 경계가 표와 일치한다', 10);
+
+  // 부대가 강해지면 색이 나빠지지 않는다 (단조성)
+  const target = qs.slice().sort((x, y) => y.waves.length - x.waves.length)[0];
+  const lv = [];
+  for (const g of ['F', 'D', 'B', 'A', 'S']) {
+    const st = mkSquad(g, 60);
+    lv.push(FC.forecastQuest(st, target, st.squads[0].id).winRate);
+  }
+  okAll(lv.slice(1).map((v, i) => (v + 1e-9 < lv[i] ? `${['F', 'D', 'B', 'A', 'S'][i + 1]} 가 ${['F', 'D', 'B', 'A', 'S'][i]} 보다 낮다` : null)).filter(Boolean),
+    '등급을 올리면 예보 승률이 내려가지 않는다', 4);
+
+  // 지문이 결과를 바꾸는 요소를 빠짐없이 잡는가
+  const base = mkSquad('B', 60);
+  const stamp0 = FC.squadStamp(base, base.squads[0].id);
+  const misses = [];
+  {
+    const s = mkSquad('B', 60); s.roster[0].level = 59;
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('레벨');
+  }
+  {
+    const s = mkSquad('B', 60); s.roster[0].grade = 'A';
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('등급');
+  }
+  {
+    const s = mkSquad('B', 60); s.roster[0].equipment = { mainhand: 'zz' };
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('장비');
+  }
+  {
+    const s = mkSquad('B', 60); s.squads[0].memberUids[6] = null;
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('인원');
+  }
+  {
+    const s = mkSquad('B', 60); s.squads[0].formationId = 'wedge';
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('진형');
+  }
+  {
+    const s = mkSquad('B', 60); s.roster[0].woundUntil = s.day + 3;
+    if (FC.squadStamp(s, s.squads[0].id) === stamp0) misses.push('부상');
+  }
+  okAll(misses.map((m) => `${m} 변화를 못 잡는다`), '부대 지문이 예보를 바꾸는 요소를 전부 잡는다', 6);
+
+  // 웨이브 인계 규칙이 한 벌인가 — ui/battle.js 가 자기 사본을 다시 만들면 안 된다
+  const fsq = await import('node:fs');
+  const bsrc = fsq.readFileSync('src/ui/battle.js', 'utf8');
+  ok(!/const\s+WAVE_HEAL\s*=/.test(bsrc),
+    'ui/battle.js 가 WAVE_HEAL 사본을 두지 않는다 (quest.js 가 유일한 출처)');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

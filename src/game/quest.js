@@ -1068,6 +1068,55 @@ export function questBattleDefs(quest, waveIndex = 0, st = State.state, squadId 
   };
 }
 
+/* ------------------------------------------------- 웨이브 인계 (다웨이브 의뢰) */
+
+/**
+ * 웨이브 사이 회복량 (최대 체력 대비).
+ *
+ * ★ 예전에는 `ui/battle.js` 안에만 있었다. 그런데 `game/forecast.js` 가
+ *   "이 의뢰를 실제로 돌리면 어떻게 되나"를 재려면 **같은 규칙**을 써야 한다.
+ *   상수와 인계 함수를 여기로 올려 두 경로가 한 벌만 보게 했다 —
+ *   이 저장소는 같은 규칙이 두 곳에 복사돼 한쪽만 고쳐진 사고가 반복됐다.
+ */
+export const WAVE_HEAL = 0.15;
+
+/**
+ * 앞 웨이브의 체력을 다음 웨이브 편성에 얹는다.
+ *
+ * - `carry` 에 없는 단원은 그대로(만피) 둔다 — 첫 웨이브가 그렇다.
+ * - `hp <= 0` 인 단원은 **편성에서 뺀다.** 1 로 clamp 하면 쓰러진 사람이 되살아난다.
+ * - 살아남은 단원은 `WAVE_HEAL` 만큼 회복하되 최대 체력을 넘지 않는다.
+ *
+ * @param {Array<object>} allyDefs  questBattleDefs().allies
+ * @param {Object<string,{hp:number,maxHp:number}>|null} carry
+ * @returns {Array<object>}
+ */
+export function applyWaveCarry(allyDefs, carry) {
+  const list = allyDefs || [];
+  if (!carry || !Object.keys(carry).length) return list;
+  return list.map((d) => {
+    const c = carry[d.uid];
+    if (!c) return d;
+    if (c.hp <= 0) return null;
+    return { ...d, hp: clamp(Math.round(c.hp + c.maxHp * WAVE_HEAL), 1, c.maxHp) };
+  }).filter(Boolean);
+}
+
+/**
+ * 전투가 끝난 시점의 아군 체력을 인계 형태로 읽는다.
+ * 쓰러진 단원은 `hp: 0` 으로 남긴다 — 다음 웨이브에서 빼야 하므로 지우면 안 된다.
+ *
+ * @param {Array<object>} units  battle.units
+ * @param {Object<string,{hp:number,maxHp:number}>} [into]  기존 인계에 덮어쓴다
+ */
+export function readWaveCarry(units, into = {}) {
+  for (const u of units || []) {
+    if (u.side !== 'ally') continue;
+    into[u.uid] = { hp: u.alive ? Math.max(1, Math.round(u.hp)) : 0, maxHp: u.maxHp };
+  }
+  return into;
+}
+
 /* ------------------------------------------------------------------ 보상 */
 
 const winnerOf = (res) => res?.winner ?? res?.result?.winner ?? (res?.win === true ? 'ally' : null);

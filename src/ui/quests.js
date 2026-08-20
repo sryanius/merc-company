@@ -18,6 +18,7 @@ import * as GameState from '../game/state.js';
 import * as Quest from '../game/quest.js';
 import { isWounded } from '../game/merc.js';
 import { josa } from '../game/gear.js';
+import { forecastSample, squadStamp, dangerLevelByWinRate, DEFAULT_SAMPLES, REFINE_SAMPLES, isMixed } from '../game/forecast.js';
 import { go, toast } from './app.js';
 
 export const meta = { id: 'quests', title: '의뢰소' };
@@ -80,8 +81,10 @@ function isNarrow() {
 }
 
 export function dispose() {
-  /* 타이머·rAF 없음. 화면을 떠나면 모바일 시트는 닫힌 상태로 되돌린다. */
+  /* 화면을 떠나면 모바일 시트는 닫힌 상태로 되돌리고, 예보 일감도 버린다.
+     (캐시는 남긴다 — 다시 들어왔을 때 또 재면 그만큼 또 걸린다.) */
   sheetOpen = false;
+  fcReset();
 }
 
 /* ─────────────────────────── 스타일 ─────────────────────────── */
@@ -488,48 +491,10 @@ const DANGER = [
   { label: '위험', color: 'var(--ember)' },           // 4
   { label: '무모', color: 'var(--bad)' },             // 5
 ];
-/**
- * `merc.js mercPower` 와 **같은 가중치**. 아군·적을 같은 자로 재야 비교가 성립한다.
- * (merc.js 의 가중치를 바꾸면 여기도 같이 고쳐야 한다)
- */
-function statPower(s) {
-  if (!s) return 0;
-  return s.hp * 0.14 + s.atk * 2.6 + s.def * 1.5 + s.res * 1.3 + s.spd * 1.6
-    + s.crit * 2.2 + s.critDmg * 0.5 + s.eva * 1.8;
-}
-
-/** 의뢰별 적 전투력 캐시 (의뢰 목록은 3일마다만 갈리므로 id 로 캐시해도 안전하다) */
-const foePowerCache = new Map();
-
-/**
- * 의뢰의 적 전투력.
- *
- * `enemyUnitDefs` 로 **실제 전투에 나가는 스탯**을 받아 계산한다 — 웨이브 배율·정예·보스 감쇠가
- * 전부 반영된 값이라, 직접 다시 계산하면 실제 게임과 어긋난다(예전에 balance.mjs 가 그래서
- * 난이도 노브를 바꿔도 측정값이 안 움직였다).
- *
- * 웨이브 사이에는 HP가 이어지므로 "가장 센 웨이브"만으로는 모자란다. 최고 웨이브를 기준으로
- * 웨이브 수만큼 가산해 누적 소모를 반영한다.
- */
-function questFoePower(q) {
-  if (!q) return 0;
-  if (q.id && foePowerCache.has(q.id)) return foePowerCache.get(q.id);
-  const waves = q.waves || [];
-  let peak = 0;
-  let total = 0;
-  waves.forEach((w, i) => {
-    let p = 0;
-    try {
-      const defs = typeof Quest.enemyUnitDefs === 'function' ? Quest.enemyUnitDefs(w, q, i) : [];
-      p = (defs || []).reduce((a, u) => a + statPower(u && u.stats), 0);
-    } catch (e) { p = 0; }
-    peak = Math.max(peak, p);
-    total += p;
-  });
-  const v = Math.round(peak * (1 + 0.18 * Math.max(0, waves.length - 1)) + total * 0.05);
-  if (q.id) foePowerCache.set(q.id, v);
-  return v;
-}
+/* ★ 여기 있던 `statPower` · `questFoePower` · `foePowerCache` 는 지웠다.
+ *   의뢰의 적 전투력을 재서 아군 전투력과 비교하는 방식 자체를 버렸기 때문이다
+ *   (docs/HANDOFF.md §24 — 그 비율은 승률 50% 지점을 못 맞혔다).
+ *   지금은 `game/forecast.js` 가 실제로 돌려 보고 정한다. */
 
 /** 실제로 출전할 인원(부상자 제외)의 전투력 합 */
 function deployablePower(squadId) {
@@ -541,35 +506,135 @@ function deployablePower(squadId) {
   return ms.reduce((a, m) => a + mercPower(m, state), 0);
 }
 
-/** 전투력 비율 → 위험도 등급 (1 매우 여유 ~ 5 무모) */
-function dangerLevelByPower(ratio) {
-  if (!(ratio > 0)) return 0;
-  if (ratio >= 1.60) return 1;
-  if (ratio >= 1.22) return 2;
-  if (ratio >= 0.92) return 3;
-  if (ratio >= 0.70) return 4;
-  return 5;
+/* ────────────────────────── 예상 난이도 ──────────────────────────
+ *
+ * ★ 옛날에는 **전투력 비율 하나**로 색을 정했다. 왜 버렸는지는 실측에 남아 있다
+ *   (docs/HANDOFF.md §24): 승률이 100% → 0% 로 뒤집히는 데 전투력비 0.025 밖에
+ *   안 걸리는데 「적정」 밴드 하나가 0.30 이었다. 게다가 승률 50% 지점이
+ *   실제 의뢰마다 0.633~0.873 로 흩어져서, 경계를 어떻게 옮겨도 맞힐 수 없었다.
+ *
+ *   지금은 `game/forecast.js` 가 **실제 전투를 몇 판 돌려** 이긴 비율로 정한다.
+ *   전투 코드는 안 건드렸으므로 밸런스 곡선은 그대로다.
+ *
+ * ★ 비용을 화면 밖으로 뺀다. 의뢰 한 건 = 표본 5판 × 웨이브 수 라 3웨이브짜리가
+ *   ~20ms 다. 목록에 16건이면 320ms — 여는 순간 걸린다. 그래서
+ *   **표본 한 판씩** 쪼개 프레임 예산 안에서 돌리고, 다 되면 그 카드만 갈아 끼운다.
+ *   재는 동안 카드는 「재는 중」 으로 뜬다.
+ */
+
+/** 예보 캐시. 키 = 의뢰 + 부대 + 부대 지문 (지문이 같으면 답도 같다) */
+const fcCache = new Map();
+const FC_CACHE_MAX = 400;
+/** 아직 안 잰 일감 */
+const fcJobs = new Map();
+/** 키 → 다 되면 부를 함수들 (카드 DOM 을 그 자리에서 고친다) */
+const fcSubs = new Map();
+let fcTimer = 0;
+
+function fcKey(quest, squadId) {
+  return `${quest.id}@@${squadId}@@${squadStamp(state, squadId)}`;
+}
+
+/** 캐시에 넣는다. 오래된 것부터 버린다 (Map 은 삽입 순서를 지킨다). */
+function fcPut(key, val) {
+  fcCache.set(key, val);
+  if (fcCache.size > FC_CACHE_MAX) {
+    const drop = fcCache.size - FC_CACHE_MAX;
+    let n = 0;
+    for (const k of fcCache.keys()) { if (n++ >= drop) break; fcCache.delete(k); }
+  }
 }
 
 /**
- * 예상 난이도.
+ * 일감을 조금씩 소화한다.
  *
- * 예전에는 **평균 레벨 차이만** 봤다. 그래서 3명짜리 Lv43 부대(전투력 9,971)가
- * 7명짜리 Lv31 부대(전투력 15,570)보다 "여유"로 뜨는 역전이 났다 —
- * 오토배틀러에서 인원수는 곧 화력인데 그걸 통째로 무시한 것이다.
- * 지금은 **출전 인원의 전투력 합 vs 의뢰의 적 전투력** 비율로 잰다.
+ * ★ 프레임 예산(10ms)을 **넘기 전에** 멈추는 게 아니라, 한 판 돌리고 나서
+ *   넘었으면 멈춘다. 한 판(≈7ms)은 쪼갤 수 없으므로 이게 가장 잘게 나눈 것이다.
+ */
+function fcPump() {
+  fcTimer = 0;
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  for (const [key, job] of fcJobs) {
+    if (fcCache.has(key)) { fcJobs.delete(key); continue; }
+    if (forecastSample(state, job.quest, job.squadId, job.done)) job.wins++;
+    job.done++;
+    // 갈린 판이면 표본을 늘린다 (forecast.js 와 같은 규칙 — 만장일치면 안 늘린다)
+    if (job.done >= job.samples && job.samples < REFINE_SAMPLES && isMixed(job.wins, job.done)) {
+      job.samples = REFINE_SAMPLES;
+    }
+    if (job.done >= job.samples) {
+      const winRate = job.wins / job.samples;
+      fcPut(key, { level: dangerLevelByWinRate(winRate), winRate, wins: job.wins, samples: job.samples });
+      fcJobs.delete(key);
+      const subs = fcSubs.get(key);
+      fcSubs.delete(key);
+      if (subs) for (const fn of subs) { try { fn(); } catch (e) { console.error(e); } }
+    }
+    if ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0 >= 10) break;
+  }
+  if (fcJobs.size) fcSchedule();
+}
+
+function fcSchedule() {
+  if (fcTimer) return;
+  /* ★ setTimeout 이다. 처음에는 rAF 를 썼는데 **화면이 합성되지 않는 동안 영영 안 온다** —
+   *   그러면 카드가 「재는 중」에 갇힌 채 영원히 안 바뀐다 (브라우저 검증에서 잡혔다).
+   *   숨은 탭에서 setTimeout 이 1초로 늘어지는 건 상관없다. 느려질 뿐 멈추지는 않고,
+   *   프레임을 지키는 일은 아래 10ms 예산이 이미 하고 있다. */
+  fcTimer = setTimeout(fcPump, 0);
+}
+
+/** 예보가 끝나면 부를 함수를 건다 */
+function onForecast(key, fn) {
+  if (!fcSubs.has(key)) fcSubs.set(key, []);
+  fcSubs.get(key).push(fn);
+}
+
+/** 화면을 떠날 때 일감을 버린다 — 안 보는 화면 때문에 프레임을 쓸 이유가 없다 */
+function fcReset() {
+  fcJobs.clear();
+  fcSubs.clear();
+  if (fcTimer) { clearTimeout(fcTimer); fcTimer = 0; }
+}
+
+/**
+ * 예상 난이도. 캐시에 있으면 바로, 없으면 「재는 중」 을 돌려주고 뒤에서 잰다.
+ *
+ * @returns {{label:string, color:string, level:number, elite:boolean,
+ *            pending?:boolean, key?:string, winRate?:number}}
  */
 function dangerFor(quest, squadId) {
   const elite = isElite(quest);
-  if (!squadId) return { label: '부대 없음', color: 'var(--ink-faint)', level: 0, elite, ratio: 0 };
-  const ally = deployablePower(squadId);
-  const foe = questFoePower(quest);
-  if (!ally) return { label: '출전 인원 없음', color: 'var(--bad)', level: 5, elite, ratio: 0 };
-  if (!foe) return { label: '판정 불가', color: 'var(--ink-faint)', level: 0, elite, ratio: 0 };
-  const ratio = ally / foe;
-  const lv = clamp(dangerLevelByPower(ratio), 1, 5);
-  const d = DANGER[lv - 1];
-  return { label: d.label, color: d.color, level: lv, elite, ratio, ally, foe };
+  if (!squadId) return { label: '부대 없음', color: 'var(--ink-faint)', level: 0, elite };
+  if (!deployablePower(squadId)) return { label: '출전 인원 없음', color: 'var(--bad)', level: 5, elite };
+  if (!quest || !(quest.waves || []).length) return { label: '판정 불가', color: 'var(--ink-faint)', level: 0, elite };
+
+  const key = fcKey(quest, squadId);
+  const hit = fcCache.get(key);
+  if (hit) {
+    const d = DANGER[clamp(hit.level, 1, 5) - 1];
+    return { label: d.label, color: d.color, level: hit.level, elite, key, winRate: hit.winRate };
+  }
+  if (!fcJobs.has(key)) {
+    fcJobs.set(key, { quest, squadId, done: 0, wins: 0, samples: DEFAULT_SAMPLES });
+    fcSchedule();
+  }
+  return { label: '재는 중', color: 'var(--ink-faint)', level: 0, elite, pending: true, key };
+}
+
+/**
+ * 예보가 끝나면 이미 그려진 카드를 **그 자리에서** 고친다.
+ *
+ * ★ 화면을 통째로 다시 그리지 않는 이유: 목록 스크롤과 펼침 상태를 잃는다.
+ *   (`rerender` 를 쓰면 예보 5건이 끝날 때마다 화면이 튄다.)
+ *   `apply` 는 최신 `dangerFor` 결과를 받는다 — 캐시에 들어간 뒤라 즉시 나온다.
+ */
+function bindDanger(risk, quest, squadId, apply) {
+  if (!risk || !risk.pending || !risk.key) return;
+  onForecast(risk.key, () => {
+    const now = dangerFor(quest, squadId);
+    if (!now.pending) apply(now);
+  });
 }
 
 /**
@@ -709,6 +774,8 @@ function mobileBar(quest, root) {
     const dep = sq && !away ? deployInfo(sq.id) : null;
     const okay = !!dep && dep.ok && dep.fit > 0;
     const risk = okay && sq ? dangerFor(quest, sq.id) : null;
+    // 예보가 끝나면 이 줄만 다시 그린다 (버튼 글씨가 «출정» → «출정 · 여유» 로 바뀐다)
+    if (risk && sq) bindDanger(risk, quest, sq.id, () => { if (goBtn.isConnected) sync(); });
     goBtn.disabled = !okay;
     goBtn.textContent = !sq ? '부대 없음'
       : away ? `${awayLeft(sq)}일 뒤 복귀`
@@ -844,6 +911,14 @@ function questCard(q, root) {
 
   const open = expandedQuests.has(q.id);
 
+  const diffText = el('b', { text: diff.label });
+  const diffLine = el('span', { class: 'qs-diff', style: { color: diff.color } },
+    el('span', { class: 'dot' }), '예상 난이도 ', diffText);
+  bindDanger(diff, q, ref ? ref.id : null, (now) => {
+    diffLine.style.color = now.color;
+    diffText.textContent = now.label;
+  });
+
   return el('div', {
     class: `card qs-card ${selected ? 'selected' : ''}${elite ? ' elite' : ''}${open ? ' open' : ''}`,
     onClick: () => {
@@ -873,8 +948,7 @@ function questCard(q, root) {
           el('span', { class: daysLeft <= 1 ? '' : 'faint', style: daysLeft <= 1 ? { color: 'var(--bad)' } : {}, text: daysLeft <= 0 ? '오늘 마감' : `${daysLeft}일 남음` }))),
       foldButton(q)),
     el('div', { class: 'qs-assess' },
-      el('span', { class: 'qs-diff', style: { color: diff.color } },
-        el('span', { class: 'dot' }), '예상 난이도 ', el('b', { text: diff.label })),
+      diffLine,
       ref
         ? el('span', { class: 'faint', text: `${ref.name} 평균 Lv${avg || 0} 기준 · 권장 Lv${q.level}` })
         : el('span', { class: 'faint', text: '부대를 골라야 난이도를 가늠할 수 있다' }),
@@ -941,17 +1015,21 @@ function sendRow(q, root) {
     // 버튼 색 = **그 부대의** 위험도. 부대마다 난이도가 다르므로 버튼마다 색이 달라야
     // "어느 부대로 보내야 하나"가 한눈에 읽힌다. 카드 상단 라벨과 같은 색 체계를 쓴다.
     const risk = ok ? dangerFor(q, sq.id) : null;
-    return el('button', {
+    const riskStyle = (r) => (r && r.level
+      ? { color: r.color, borderColor: r.color, background: `color-mix(in srgb, ${r.color} 14%, var(--bg-3))` }
+      : {});
+    const riskTitle = (r) => (away
+      ? `원정 중 — ${num(returnDayOf(sq))}일차 복귀 (남은 ${awayLeft(sq)}일)`
+      : ok
+        ? `${r && r.label ? `예상 난이도 ${r.label} · ` : ''}${q.days}일간 묶인다 — ${num(state.day + q.days)}일차 복귀`
+        : (dep && dep.reason) || '출전할 수 없다');
+    // 색만으로는 색각 이상이 있으면 못 읽는다. 라벨을 같이 박아 둔다.
+    const riskTag = risk && risk.level ? el('i', { class: 'qs-send-risk', text: risk.label }) : null;
+    const btn = el('button', {
       class: `btn sm qs-send-btn${ok ? ' on' : ''}`,
-      style: risk && risk.level
-        ? { color: risk.color, borderColor: risk.color, background: `color-mix(in srgb, ${risk.color} 14%, var(--bg-3))` }
-        : {},
+      style: riskStyle(risk),
       disabled: !ok,
-      title: away
-        ? `원정 중 — ${num(returnDayOf(sq))}일차 복귀 (남은 ${awayLeft(sq)}일)`
-        : ok
-          ? `${risk && risk.label ? `예상 난이도 ${risk.label} · ` : ''}${q.days}일간 묶인다 — ${num(state.day + q.days)}일차 복귀`
-          : (dep && dep.reason) || '출전할 수 없다',
+      title: riskTitle(risk),
       onClick: (e) => {
         e.stopPropagation();
         selectedQuestId = q.id;
@@ -965,10 +1043,20 @@ function sendRow(q, root) {
       },
     }, away
       ? `${sq.name} · ${num(returnDayOf(sq))}일차 복귀`
-      : el('span', {},
+      : el('span', { class: 'qs-send-in' },
         `${sq.name}${josa(sq.name, '으로/로')} 출정`,
-        // 색만으로는 색각 이상이 있으면 못 읽는다. 라벨을 같이 박아 둔다.
-        risk && risk.level ? el('i', { class: 'qs-send-risk', text: risk.label }) : null));
+        riskTag));
+
+    bindDanger(risk, q, sq.id, (now) => {
+      Object.assign(btn.style, riskStyle(now));
+      btn.title = riskTitle(now);
+      const host = btn.querySelector('.qs-send-in');
+      if (!host) return;
+      let tag = host.querySelector('.qs-send-risk');
+      if (!tag) { tag = el('i', { class: 'qs-send-risk' }); host.appendChild(tag); }
+      tag.textContent = now.label;
+    });
+    return btn;
   });
 
   return el('div', { class: 'qs-send' },
@@ -1114,6 +1202,12 @@ function squadCard(sq, quest, root) {
   const selected = sq.id === selectedSquadId;
   const away = isAway(sq);
 
+  const dangerTag = el('span', { class: 'tag', style: { color: danger.color }, text: danger.label });
+  bindDanger(danger, quest, sq.id, (now) => {
+    dangerTag.style.color = now.color;
+    dangerTag.textContent = now.label;
+  });
+
   const roleLine = members.map((m) => {
     const c = getClass(m.classId);
     const name = c ? c.name : '?';
@@ -1150,7 +1244,7 @@ function squadCard(sq, quest, root) {
       el('span', { style: { fontWeight: '700', color: away ? 'var(--ember)' : '' } }, sq.name),
       away
         ? el('span', { class: 'tag', style: { color: 'var(--ember)' }, text: '원정 중' })
-        : el('span', { class: 'tag', style: { color: danger.color }, text: danger.label })),
+        : dangerTag),
     el('div', { class: 'qs-meta' },
       el('span', {}, '인원 ', el('b', { text: `${members.length}/7` })),
       el('span', {}, '출전 ', el('b', { style: { color: dep.benched.length ? 'var(--gold)' : 'var(--ink)' }, text: `${dep.fit}명` })),
