@@ -1,0 +1,110 @@
+/**
+ * 엔드게임 잣대 — 「Lv80 풀장비 고정 부대」로 도시 등급별 의뢰를 잰다
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★ 왜 따로 필요한가 — `balance.mjs` 는 부대를 **퀘스트 권장 레벨에 맞춰** 만든다.
+ *   그건 «제때 도착한 플레이어» 의 경험이고, **«레벨 상한을 찍은 플레이어» 는 거기 안 잡힌다.**
+ *   실제로 balance 가 전 랭크 통과인데도 제작자의 Lv80 풀장비 부대에겐
+ *   5등급 도시 의뢰가 전부 「식은 죽 먹기」였다 (HANDOFF §36).
+ *
+ * ★ 목표: 5등급 도시라면 엔드게임 부대에게도 **완주율 40~70%** 여야 한다.
+ *   1등급 도시가 쉬운 건 정상이다 — 거긴 이미 지나온 곳이다.
+ *
+ * 실행: node tools/endgame.mjs [--n=7]
+ * 종료 코드: 5등급 도시가 목표 대역을 벗어나면 1
+ */
+import * as St from '../src/game/state.js';
+import { getClass } from '../src/data/classes.js';
+import '../src/data/classes_t4.js';
+import * as E from '../src/battle/engine.js';
+import { getSkill } from '../src/data/skills.js';
+import * as Q from '../src/game/quest.js';
+import * as Merc from '../src/game/merc.js';
+import { RNG } from '../src/core/rng.js';
+
+E.setSkillResolver(getSkill);
+const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : d; };
+const N = parseInt(arg('n', '7'), 10);
+
+const SQUAD4 = ['bulwark_abyss', 'swordgod_apex', 'dragoonlord_apex', 'shadowblade_apex', 'masterarcher_apex', 'archmage_apex', 'highpriest_abyss'];
+const SLOTS = ['mainhand', 'offhand', 'head', 'body', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
+
+/** 제작자 실제 스펙에 맞춘 부대: 4차 · Lv80 · 10칸 전설급 */
+function endgameSquad(grade = 'A') {
+  St.newGame(4242, '엔드게임');
+  const st = St.state;
+  st.roster = []; st.items = [];
+  const sq = st.squads[0];
+  sq.memberUids = new Array(7).fill(null);
+  const rng = new RNG(20260731);
+  SQUAD4.forEach((c, i) => {
+    const m = { uid: `x_${i}`, name: getClass(c).name, classId: c, level: 80, grade, equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0 };
+    for (const s of SLOTS) {
+      const it = St.rollLoot({ ilvl: 80, rarityBonus: 3, rng });
+      if (it) { st.items.push(it); m.equipment[it.slot || s] = it.uid; }
+    }
+    st.roster.push(m);
+    sq.memberUids[i] = `x_${i}`;
+  });
+  return st;
+}
+const powerOf = (st) => { const idx = St.itemsById(st.items); return Math.round(st.roster.reduce((a, m) => a + Merc.mercPower(m, { items: idx }), 0)); };
+function mix(i) { let z = (i + 0x9e3779b9) >>> 0; z = Math.imul(z ^ (z >>> 16), 0x21f0aaad) >>> 0; z = Math.imul(z ^ (z >>> 15), 0x735a2d97) >>> 0; return (z ^ (z >>> 15)) >>> 0 || 1; }
+
+/** 의뢰를 끝까지 (웨이브 인계 포함) */
+function clear(st, q, n) {
+  const id = st.squads[0].id;
+  let w = 0;
+  for (let i = 0; i < n; i++) {
+    let carry = null; let ok = true;
+    for (let k = 0; k < q.waves.length; k++) {
+      const cfg = Q.questBattleDefs(q, k, st, id);
+      const a = Q.applyWaveCarry(cfg.allies, carry);
+      if (!a.length) { ok = false; break; }
+      const b = E.createBattle({ ...cfg, allies: a, seed: mix(i * 31 + k) });
+      b.run();
+      if (b.result.winner !== 'ally') { ok = false; break; }
+      carry = Q.readWaveCarry(b.units, carry || {});
+    }
+    if (ok) w++;
+  }
+  return w / n;
+}
+
+const CITIES = [['greenhold', 1], ['gullport', 2], ['stonewatch', 3], ['dunehold', 4], ['frostgate', 5]];
+const st = endgameSquad('A');
+console.log(`엔드게임 잣대 — 4차 Lv80 A등급 · 10칸 전설 (전투력 ${powerOf(st)})`);
+console.log('='.repeat(72));
+console.log('\n  도시등급  배율   의뢰수  평균Lv  완주율   랭크별 완주율');
+
+let tier5 = null;
+for (const [cid, tier] of CITIES) {
+  const qs = [];
+  for (let s = 0; s < 12; s++) qs.push(...Q.genQuests(cid, 30 + s * 5, new RNG(4200 + s), 2));
+  const list = qs.filter((q) => !q.elite).slice(0, 24);
+  if (!list.length) continue;
+  let sum = 0; let lv = 0;
+  const byRank = {};
+  for (const q of list) {
+    const r = clear(st, q, N);
+    sum += r; lv += q.level;
+    (byRank[q.rank] ||= []).push(r);
+  }
+  const avg = sum / list.length;
+  if (tier === 5) tier5 = avg;
+  const rk = Object.keys(byRank).sort().map((k) => `${k} ${(byRank[k].reduce((a, b) => a + b, 0) / byRank[k].length * 100).toFixed(0)}%`).join(' · ');
+  console.log(`  ${tier}등급     ${(list[0].cityPower || 1).toFixed(2)}    ${String(list.length).padStart(3)}    ${(lv / list.length).toFixed(0).padStart(4)}   ${(avg * 100).toFixed(0).padStart(4)}%   ${rk}`);
+}
+
+console.log('\n' + '─'.repeat(72));
+if (tier5 == null) { console.log('❌ 5등급 도시를 재지 못했다.'); process.exit(1); }
+const pct = (tier5 * 100).toFixed(0);
+if (tier5 >= 0.40 && tier5 <= 0.70) {
+  console.log(`✅ 5등급 도시 완주율 ${pct}% — 엔드게임 부대에게도 도전이 된다 (목표 40~70%).`);
+  process.exit(0);
+}
+console.log(`❌ 5등급 도시 완주율 ${pct}% (목표 40~70%).`);
+console.log(tier5 > 0.70
+  ? '   상한을 찍은 부대에게 상위 도시가 너무 쉽다 — HANDOFF §36 의 (가)/(나)/(다) 를 봐라.'
+  : '   상위 도시가 엔드게임 부대에게도 과하다 — CITY_POWER 를 낮춰라.');
+process.exit(1);
