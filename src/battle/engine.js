@@ -141,6 +141,9 @@ export function createBattle(cfg = {}) {
   const result = {
     winner: null, time: 0, survivors: [],
     damageDealt: {}, healDone: {}, kills: {}, mvpUid: null,
+    /* 얼마나 이겼나 / 얼마나 졌나 — `finish()` 에서 채운다. 자세한 건 거기 주석 참고.
+     * 지금은 **기록만** 한다. 아무도 안 읽는다. */
+    margin: null,
   };
   for (const u of units) { result.damageDealt[u.uid] = 0; result.healDone[u.uid] = 0; result.kills[u.uid] = 0; }
 
@@ -776,6 +779,40 @@ export function createBattle(cfg = {}) {
       if (s > bestScore) { bestScore = s; best = u; }
     }
     result.mvpUid = best ? best.uid : null;
+
+    /* ── 승패의 "폭" ──────────────────────────────────────────────────────
+     * ★ 지금은 **기록만** 한다. 읽는 곳이 하나도 없다 — 일부러 그렇게 뒀다.
+     *
+     *   이유: 이 게임의 전투는 사실상 이진이다. 승률이 100%→0% 로 뒤집히는 데
+     *   전투력비 0.025 밖에 안 걸린다 (docs/HANDOFF.md §24). 그래서 난이도 색을
+     *   정직하게 고쳐 놔도 「이긴다」/「진다」 둘밖에 안 나온다.
+     *   그걸 풀려면 승패를 연속량으로 바꿔야 하는데(부분 승·부분 패), 그건
+     *   던전/탑/나락 인계·보상·랭킹까지 건드리는 큰 변경이다.
+     *
+     *   착수하기 전에 **먼저 재야 한다**: "손실" 이 전투력비에 대해 정말 매끈한가?
+     *   여기서 값을 기록해 두면 `tools/margin.mjs` 가 그걸 잰다.
+     *
+     * ★ 난수를 쓰지 않는다. 이미 정해진 상태를 읽기만 하므로 rng 소비가 안 늘고,
+     *   따라서 기존 측정치(WAVE_POWER·탑·나락·세트)가 전부 그대로 유효하다.
+     *
+     * `score` 는 -1(전멸패) ~ +1(무손실 완승). 0 근처가 신승·석패다.
+     * 인원과 체력을 반씩 본다 — 7명이 다 살았지만 빈사인 것과 4명이 멀쩡한 것을
+     * 같게 볼 수는 없다.
+     */
+    const countOf = (side) => { let n = 0; for (const u of units) if (u.side === side && !u.pet) n++; return n; };
+    const aTot = countOf('ally');
+    const eTot = countOf('enemy');
+    const aAlive = aliveFighters('ally');
+    const eAlive = aliveFighters('enemy');
+    const aHp = hpRatioOf('ally');
+    const eHp = hpRatioOf('enemy');
+    const strength = (alive, tot, hp) => (tot > 0 ? 0.5 * (alive / tot) + 0.5 * hp : 0);
+    result.margin = {
+      allyAlive: aAlive, allyCount: aTot, allyHp: aHp,
+      enemyAlive: eAlive, enemyCount: eTot, enemyHp: eHp,
+      score: strength(aAlive, aTot, aHp) - strength(eAlive, eTot, eHp),
+    };
+
     push({ type: 'end', winner });
   }
 

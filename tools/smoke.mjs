@@ -2303,6 +2303,89 @@ section('서버 공유 규칙');
     '규칙이 쓰는 데이터 모듈은 의존성 0 을 유지한다', pure.length);
 }
 
+/* ─────────────────────── 전투 손실 기록 (result.margin) ─────────────────────── */
+{
+  section('전투 손실 기록');
+  const E = await import('../src/battle/engine.js');
+  const Q = await import('../src/game/quest.js');
+  const St = await import('../src/game/state.js');
+  const { getClass } = await import('../src/data/classes.js');
+  const { rng, RNG } = await import('../src/core/rng.js');
+
+  const SQ = ['gatewarden', 'madgeneral', 'dragoonlord', 'shadowarcher', 'masterarcher', 'archmage', 'oathshield'];
+  St.newGame(4242, '손실');
+  const st = St.state;
+  st.roster = []; st.items = [];
+  const sq = st.squads[0];
+  sq.memberUids = new Array(7).fill(null);
+  SQ.forEach((c, i) => {
+    st.roster.push({ uid: `m_${i}`, name: getClass(c).name, classId: c, level: 60, grade: 'B',
+      equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0 });
+    sq.memberUids[i] = `m_${i}`;
+  });
+  const quest = Q.genQuests('frostgate', 300, new RNG(4242), 1)[0];
+  const cfg = Q.questBattleDefs(quest, 0, st, sq.id);
+
+  const run = (seed, enemyMult = 1) => {
+    const b = E.createBattle({
+      ...cfg,
+      enemies: cfg.enemies.map((u) => ({ ...u, stats: { ...u.stats,
+        hp: u.stats.hp * enemyMult, atk: u.stats.atk * enemyMult, def: u.stats.def * enemyMult } })),
+      seed,
+    });
+    b.run();
+    return b;
+  };
+
+  const b1 = run(12345);
+  const m = b1.result.margin;
+  ok(!!m, 'result.margin 이 채워진다');
+  if (m) {
+    // 살아남은 전투원 수와 어긋나면 안 된다 (펫은 양쪽 다 빼고 센다)
+    const aliveAllies = b1.units.filter((u) => u.side === 'ally' && u.alive && !u.pet).length;
+    ok(m.allyAlive === aliveAllies, 'margin.allyAlive 가 실제 생존자와 일치한다', `${m.allyAlive} vs ${aliveAllies}`);
+    const okRange = m.allyHp >= 0 && m.allyHp <= 1 && m.enemyHp >= 0 && m.enemyHp <= 1
+      && m.score >= -1.0001 && m.score <= 1.0001;
+    ok(okRange, 'margin 값이 정의 범위 안에 있다', JSON.stringify(m));
+    ok(m.allyCount === 7, 'margin.allyCount 가 출전 인원과 같다', String(m.allyCount));
+  }
+
+  // 이긴 판의 score 는 양수, 진 판은 음수여야 한다
+  const won = run(12345, 1);
+  const lost = run(12345, 40);
+  ok(won.result.winner === 'ally' && won.result.margin.score > 0,
+    '이긴 판의 margin.score 는 양수다', `${won.result.winner} ${won.result.margin.score.toFixed(3)}`);
+  ok(lost.result.winner !== 'ally' && lost.result.margin.score < 0,
+    '진 판의 margin.score 는 음수다', `${lost.result.winner} ${lost.result.margin.score.toFixed(3)}`);
+
+  // 더 센 적을 만나면 덜 온전하게 끝난다 (단조성)
+  const scores = [1, 2, 4, 8].map((k) => run(12345, k).result.margin.score);
+  okAll(scores.slice(1).map((v, i) => (v > scores[i] + 1e-9 ? `x${[2, 4, 8][i]} 가 더 높다` : null)).filter(Boolean),
+    '적이 세질수록 margin.score 가 내려간다', 3);
+
+  /* ★ 가장 중요한 것: **기록이 난수를 안 먹는다.**
+   *   먹으면 기존 밸런스 측정치(WAVE_POWER·탑·나락·세트)가 전부 무효가 된다.
+   *   margin 은 이미 정해진 상태를 읽기만 하므로 전역 rng 도, 전투 rng 도 안 움직인다. */
+  rng.s = 24680;
+  const before = [rng.next(), rng.next(), rng.next()];
+  rng.s = 24680;
+  for (let i = 0; i < 5; i++) run(9000 + i);
+  const after = [rng.next(), rng.next(), rng.next()];
+  ok(before.join(',') === after.join(','), '손실 기록이 전역 rng 를 안 먹는다');
+
+  // 같은 시드면 margin 도 같다 (전투 rng 소비가 안 늘었다는 뜻)
+  const r1 = run(777).result.margin;
+  const r2 = run(777).result.margin;
+  ok(JSON.stringify(r1) === JSON.stringify(r2), '같은 시드면 margin 도 같다');
+
+  // 아직 아무도 안 읽는다 — 읽기 시작하면 DATA_VERSION·인계·보상을 같이 봐야 한다
+  const fsm2 = await import('node:fs');
+  const readers = ['src/game/quest.js', 'src/game/dungeon.js', 'src/game/tower.js', 'src/game/abyss.js', 'src/ui/battle.js']
+    .filter((f) => /\.margin/.test(fsm2.readFileSync(f, 'utf8')));
+  okAll(readers.map((f) => `${f} 가 margin 을 읽기 시작했다 — HANDOFF §25 를 읽어라`),
+    'margin 은 아직 기록 전용이다 (읽는 곳 없음)', 5);
+}
+
 /* ─────────────────────── 난이도 예보 (game/forecast.js) ─────────────────────── */
 {
   section('난이도 예보');
