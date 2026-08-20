@@ -40,189 +40,430 @@ export const GEAR_PARTS = {
   // 앞(x17~)은 통째로 비운다. 챙만 x21~x22 까지 앞으로 튀어나온다.
   /** 철투구: 돔 + 이마 챙 + 귀를 덮는 뺨가리개. y7 부터 앞이 트여 눈·뺨·턱이 드러나고,
    *  뒤쪽 x11~x12 도 비워 뒷머리 한 줌이 투구 밖으로 삐져나온다. */
+  // 96×120 네이티브
   helm_iron: {
-    w: 13, h: 12, ax: 6, ay: 11,
+    w: 39, h: 36, ax: 18, ay: 33, scale: 3,
     px: [
-      '....ooooooo..',  // y3  정수리
-      '....ommwwmmo.',  // y4
-      '...ommmmmmmo.',  // y5
-      '...oMmmmmmmwo',  // y6  이마 챙 — 얼굴보다 1px 앞(x22)까지
-      '...oMmo......',  // y7  ← x17 부터 트임. 눈이 여기로 보인다
-      '...oMmo......',  // y8
-      '...oMwo......',  // y9
-      '....oMo......',  // y10 뺨가리개가 좁아지며
-      '....oMo......',  // y11 귀 뒤에서 끝난다
-      '.............',
-      '.............',
-      '.............',
+      '................ooooooooooo............',
+      '..............ooMMmmmnnwwnmoo..........',
+      '............oMMMmmmmnnnwwnnmmMo........',
+      '...........oMMMMmmmmmnnnnwwnnmmMo......',
+      '..........oMMMMMmmmmmmnnnnnwwnnmmMo....',
+      '..........oMMMMMmmmmmmmnnnnnnwnnmmMo...',
+      '.........oMMMMMMmmmmmmmnnnnnnnnnmmmMo..',
+      '.........oMMMMMmmmmmmmmnnnnnnnnnmmMMo..',
+      '.........oMMMnMMMMMnMMMMMnMMMMMnMMMMMo.',
+      '.........oMMMMMMMmmmmmmmmnnnnnnnmmmMMo.',
+      '.........oMMMMMMmmmmmmmmmnnnnnnnnmmMMo.',
+      '.........oMMMMMmmmmmmmmmmnnnnnnnnmmmMo.',
+      '........oMMMMMmmmmmmmmmmmnnnnnnnnnmmmMo',
+      '........oMMMMMMmmmmmmmmmmmnnnnnnnnmmMMo',
+      '........ooooooooooooooooooooooooooooooo',
+      '........oMMMmmno.......................',
+      '........oMMMmmdo.......................',
+      '........oMMmmmdo.......................',
+      '.........oMMmmdo.......................',
+      '.........oMMmmdo.......................',
+      '.........oMnmmdo.......................',
+      '.........oMmmmdo.......................',
+      '..........oMmmdo.......................',
+      '..........oMmmdo.......................',
+      '..........oMmndo.......................',
+      '..........oMmmdo.......................',
+      '..........oooooo.......................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
     ],
   },
 
   /** 뿔투구: 앞뿔(x21~x23)이 뒤뿔(x10~x12)보다 훨씬 크고 앞으로 뻗는다 —
    *  뿔의 좌우 비대칭 자체가 방향 신호다. 얼굴 앞면은 전부 트여 있다. */
+  // 96×120 네이티브
   helm_horned: {
-    w: 16, h: 13, ax: 8, ay: 12,
+    w: 48, h: 39, ax: 24, ay: 36, scale: 3,
     px: [
-      '.............aa.',  // y2  앞뿔 끝
-      '...a..oooooooaAo',  // y3  뒤뿔 끝(x11) / 앞뿔
-      '..oAo.ommwwmmoaA',  // y4
-      '....AommmmmmmoAo',  // y5
-      '.....ommmmmmmmwo',  // y6  이마 챙
-      '....oMMmo.......',  // y7  ← 앞이 트임
-      '....oMMmo.......',  // y8
-      '....oMMwo.......',  // y9
-      '....oMMmo.......',  // y10
-      '.....oMmo.......',  // y11
-      '.....oMmo.......',  // y12 목덜미
-      '......oMo.......',  // y13
-      '......ooo.......',  // y14
+      '......ooo...................................ooo.',
+      '.....obaAo.................................obaAo',
+      '.....obaAo................................obaAo.',
+      '......obaaAo..........oooooooooooo........obaAo.',
+      '.......obaaAo.......ooMMmmmnnwwnnmoo.....obaaAo.',
+      '.........obaaAAo..oMMMmmmmnnnnwwnnmmMo..obaaAo..',
+      '..........obaaaAooMMMMmmmmmnnnnnwwnnmmMoobaaAAo.',
+      '...........obaaAoMMMMMmmmmmmnnnnnnwnnmmMMobaaAAo',
+      '...............oMMMMMMmmmmmmmnnnnnnnnnmmmMMo....',
+      '...............oMMMMMmmmmmmmmmnnnnnnnnnmmmMMo...',
+      '...............oMMMnMMMMMnMMMMMnMMMMMnMMMMMno...',
+      '...............oMMMMMMMmmmmmmmmnnnnnnnnmmmMMo...',
+      '...............oMMMMMmmmmmmmmmmnnnnnnnnnmmmMo...',
+      '..............oMMMMMmmmmmmmmmmmnnnnnnnnnmmmMo...',
+      '..............oMMMMMMmmmmmmmmmmmnnnnnnnnmmMMo...',
+      '..............ooooooooooooooooooooooooooooooo...',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMnmmmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMmmnmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '..............oMMMmmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMnmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '...............oMMMmmmmdo.......................',
+      '................oMMmmmmdo.......................',
+      '................oMMmmmmdo.......................',
+      '................oMMmmmmdo.......................',
+      '................oMMmmmmdo.......................',
+      '................oMMmmmmdo.......................',
+      '................oooooooo........................',
     ],
   },
 
   /** 대형 투구: 목까지 내려오는 통짜 투구. 앞쪽 x19~x22 에 부리 모양 코가리개를
    *  띄워 붙였다. 그 사이(x17~x18)가 세로 바이저 슬릿이 되어 눈과 뺨이 비친다. */
+  // 96×120 네이티브
   helm_great: {
-    w: 13, h: 13, ax: 6, ay: 12,
+    w: 39, h: 39, ax: 18, ay: 36, scale: 3,
     px: [
-      '.....ooooo...',  // y2  머리보다 한 칸 높은 돔
-      '....ommwwmo..',  // y3
-      '....ommmmmmo.',  // y4
-      '...ommmmmmmo.',  // y5
-      '...oMmmmmmmwo',  // y6  이마 챙
-      '..oMMmo..omMo',  // y7  ← x17~x18 슬릿 / 앞은 부리
-      '..oMMmo..oMMo',  // y8
-      '..oMMmo..oMMo',  // y9
-      '..oMMmo..ooo.',  // y10 부리 끝
-      '..oMMmo......',  // y11
-      '...oMmo......',  // y12
-      '...oMwo......',  // y13 목덜미
-      '...oooo......',  // y14
+      '..............ooooooooooo..............',
+      '............oMMmmmnnwwnnmmMo...........',
+      '...........oMMMmmmmnnnnwwnnmmMo........',
+      '..........oMMMMmmmmmnnnnnwwnnmmmMo.....',
+      '.........oMMMMMmmmmmmnnnnnnwnnmmmMMo...',
+      '........oMMMMMMmmmmmmmnnnnnnnnnmmmMMo..',
+      '........oMMMMMmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMMmmmmmmmmnnnnnnnnnmmmMMMo.',
+      '.......oMMMnMMMMMnMMMMMnMMMMMnMMMMMnMo.',
+      '.......oMMMMMMMmmmmmmmmnnnnnnnnmmmMMMo.',
+      '.......oMMMMMMmmmmmmmmmnnnnnnnnnmmMMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMMmmmmmmmmmmnnnnnnnnmmmMMo.',
+      '.......oMMMMMMmmmMMMMMMnnnMMMMMnnnMMMo.',
+      '.......oMMMMMmmmmmmmmmmmnnnnnnnnmmmMMo.',
+      '.......oMMMMdddddddddddddddddddddddMMo.',
+      '.......oMMMMdSSSSSSSSSSSSeexxSSddddMMo.',
+      '.......oMMMMddSSSSSSSSSSSeeSSSdddddMMo.',
+      '.......oMMMMdddddddddddddddddddddddMMo.',
+      '.......oMMMMMMmmmmmmmmmnnnnnnnnnmmMMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnddnndnnmmmMo.',
+      '.......oMMMMMMmmmmmmmmmnnnnnnnnnmmMMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnddnndnnmmmMo.',
+      '.......oMMMMMMmmmmmmmmmnnnnnnnnnmmMMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnddnndnnmmmMo.',
+      '........oMMMMMmmmmmmmmnnnnnnnnnmmMMo...',
+      '........oMMMMMMmmmmmmmnnnnnnnnmmmMMo...',
+      '........oMMMnMMMMMnMMMMMnMMMMMnMMMMo...',
+      '........oMMMMMmmmmmmmmnnnnnnnnnmmMMo...',
+      '..........oMMMMmmmmmnnnnnnnnmmMMo......',
+      '..........oMMMMMmmmmmnnnnnnnmmmMo......',
+      '..........oMMMMmmmmmmnnnnnnnmmMMo......',
+      '............oMMMmmmmnnnnnmmMo..........',
+      '............oMMMmmmmnnnnnmmMo..........',
+      '............oMMMMmmmnnnnnmMMo..........',
+      '............oMMMdmmmnnnndmMMo..........',
+      '............ooooooooooooooooo..........',
     ],
   },
 
   /** 서클릿: 이마를 두르는 가는 띠 + 앞쪽 보석. 띠가 뒤(x13~x16)로만 한 단 더
    *  내려가 뒤통수를 물고, 앞은 눈 위에서 끊긴다. */
+  // 96×120 네이티브
   helm_circlet: {
-    w: 13, h: 12, ax: 6, ay: 11,
+    w: 39, h: 36, ax: 18, ay: 33, scale: 3,
     px: [
-      '.............',
-      '..........ag.',  // y4  앞 보석이 이마 위로 솟는다
-      '...ooooooooGo',  // y5
-      '...oaaaaaaawo',  // y6  띠
-      '...oAAo......',  // y7  뒤테 — x17 앞은 비운다
-      '.............',
-      '.............',
-      '.............',
-      '.............',
-      '.............',
-      '.............',
-      '.............',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '..............................ooo......',
+      '.............................oGgfo.....',
+      '............................oGggffgo...',
+      '............................oGGgffggo..',
+      '.........ooooooooooooooooooooGGggooooo.',
+      '.........oAAAaaagaaaabbbaaaagaaaaaaaAo.',
+      '.........oAAAAaaaaaaabbbbbaaaaaaaaaAAo.',
+      '.........oAAAAaagaaaabbbbaaaagaaaaAAAo.',
+      '.........oAAAAAaaaaaaaaaaaaaaaaaaaAAAo.',
+      '.........ooooooooooooooooooooooooooooo.',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
     ],
   },
 
   /** 후드: 천이 뒤통수·목덜미를 덮고 앞(x17~)이 통째로 트여 옆얼굴이 드러난다.
    *  트인 가장자리를 x16 에 세로로 딱 맞춰 얼굴선이 곧게 선다. */
+  // 96×120 네이티브
   helm_hood: {
-    w: 13, h: 12, ax: 6, ay: 11,
+    w: 39, h: 36, ax: 18, ay: 33, scale: 3,
     px: [
-      '....ooooooo..',  // y3
-      '...occwwccco.',  // y4
-      '..occcccccco.',  // y5
-      '..oCcccccccco',  // y6  이마까지 덮는다
-      '..oCcco......',  // y7  ← 후드 앞단. 여기부터 얼굴
-      '..oCcco......',  // y8
-      '..oCCco......',  // y9
-      '..oCcco......',  // y10
-      '..oCCco......',  // y11
-      '...oCco......',  // y12
-      '...oCCo......',  // y13
-      '...oooo......',  // y14 어깨로 떨어진다
+      '................ooooooooooo............',
+      '..............ooCCcccvvvcccoo..........',
+      '............oCCCcccccvvvvvcccCo........',
+      '...........oCCCCccccccvvvvvvcccCo......',
+      '..........oCCCCCccccccvvvvvvvcccCCo....',
+      '..........oCCCCCcccccccvvvvvvvcccCCo...',
+      '.........oCCCCCCcccccccvvvvvvvvcccCCo..',
+      '.........oCCCCCcccccccccvvvvvvvcccCCo..',
+      '.........oCCCCCCcccccccccvvvvvvvcccCCo.',
+      '.........oCCCCCcccccccccccvvvvvvcccCCo.',
+      '.........oCCCCcccccccccccccvvvvvcccCCo.',
+      '.........oCCCCCcccccccccccccvvvvcccCCo.',
+      '........oCCCCCcccccccccccccccvvvvcccCCo',
+      '........oCCCCCCCcccccccccccccvvvcccCCCo',
+      '........ooooooooooooooooooooooooooooooo',
+      '........oCCCcccvvdoddddddddddddodCCccvo',
+      '........oCCCcccvvdoddddddddddddodCCccvo',
+      '........oCCCcccvvdo............odCCccvo',
+      '........oCCCccvvvdo............odCCccvo',
+      '........oCCCcccvvdo............odCCccvo',
+      '........oCCCcccvvdo............odCCccvo',
+      '........oCCCcccvvdo............odCCccvo',
+      '........oCCccccvvdo.............odCcvvo',
+      '........oCCCcccvvdo.............odCcvvo',
+      '........oCCCcccvvdo.............odCcvvo',
+      '........oCCCcccvvdo.............odCcvvo',
+      '........oCCCcvvvvdo.............ooooooo',
+      '........oCCCcccvvdo....................',
+      '........oCCCcccvvdo....................',
+      '........oCCCcccvvdo....................',
+      '........oCCCcccvvdo....................',
+      '..........oCCcvvvdo....................',
+      '..........oCCcvvvdo....................',
+      '..........oCCcvvvdo....................',
+      '..........oCCcvvvdo....................',
+      '..........ooooooooo....................',
     ],
   },
 
   /** 마법사 고깔모자: 앞으로 살짝 기운 고깔 + 챙. 챙은 y6(눈 위)에서만 앞으로 뻗고
    *  뒤로는 어깨까지 늘어져 뒤통수를 덮는다 — 이 비대칭이 방향 신호다. */
+  // 96×120 네이티브
   helm_wizard: {
-    w: 18, h: 15, ax: 10, ay: 14,
+    w: 54, h: 45, ax: 30, ay: 42, scale: 3,
     px: [
-      '..........oo......',  // y0
-      '.........occo.....',  // y1
-      '.........oCco.....',  // y2
-      '........oCccco....',  // y3
-      '........oCccco....',  // y4
-      '.......oCcgGcco...',  // y5  마력석
-      '.....ooCcccccccwo.',  // y6  챙 — 앞은 여기서 끝(눈 위)
-      '......oCCCo.......',  // y7  ← x17 부터 트임
-      '......oCcCo.......',  // y8  뒤로 늘어진 자락
-      '......oCcCo.......',  // y9
-      '......oCcCo.......',  // y10
-      '.......oCCo.......',  // y11
-      '.......oCCo.......',  // y12
-      '.......oCCo.......',  // y13
-      '.......oooo.......',  // y14
+      '...............................oooo...................',
+      '..............................oCccvo..................',
+      '..............................oCCcvo..................',
+      '.............................oCCcccvo.................',
+      '.............................oCCcccvo.................',
+      '............................oCCccccvvo................',
+      '............................oCCccccvvo................',
+      '...........................oCCCcccccvvo...............',
+      '..........................oCCCccccccvvvo..............',
+      '..........................oCCCccccccvvvo..............',
+      '.........................oCCCCccccccvvvvo.............',
+      '........................oCCCCcccccccvvvvvo............',
+      '........................oCCCCcccccccvvvvvo............',
+      '.......................oCCCCCcccccccvvvvvvo...........',
+      '......................oCCCCCccccccccvvvvvvvo..........',
+      '.....................oCCCCCCccccccccoggovvvvo.........',
+      '....................oCCCCCCccccccccoGffgovvvvo........',
+      '...................oCCCCCCCccccccccoGGggovvvvvo.......',
+      '.............oCCCCCCCCccccccccccccccvvvvvvvvvvvvvvvvo.',
+      '............oCCCCCCCCCcccccccccccccccvvvvvvvvvvvvvvvvo',
+      '............oCCCCCCCCCCCCCCCCCCCCccccccccccccvvvvvvvvo',
+      '............oooooooooooooooooooooooooooooooooooooooooo',
+      '..................oCCCcccvvcdoddddddddddddddd.........',
+      '..................oCCCcccvvcdoddddddddddd.............',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCccccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCccvvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '..................oCCCcccvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCccvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oCCcvvvcdo........................',
+      '....................oooooooooo........................',
     ],
   },
 
   /** 왕관: 앞 첨두가 가장 높고 뒤로 갈수록 낮아진다. 띠가 뒤쪽(x13~x16)으로만
    *  두 단 더 내려와 뒤통수를 물기 때문에 앞얼굴만 남아 방향이 읽힌다. */
+  // 96×120 네이티브
   helm_crown: {
-    w: 13, h: 12, ax: 6, ay: 11,
+    w: 39, h: 36, ax: 18, ay: 33, scale: 3,
     px: [
-      '..........a..',  // y3  앞 첨두
-      '....a..a..ag.',  // y4  첨두 셋 + 보석
-      '...oaooaooawo',  // y5
-      '...oaaaaaaaAo',  // y6  띠
-      '...oAAo......',  // y7  뒤테 — x17 앞은 비운다
-      '...oAAo......',  // y8
-      '....ooo......',  // y9
-      '.............',
-      '.............',
-      '.............',
-      '.............',
-      '.............',
+      '............oo......oo......oo.....oo..',
+      '...........oao.....oao.....oao....oao..',
+      '...........oabo....oabo....oabo...oabo.',
+      '..........oabAo...oabAo...oabAo..ogbAo.',
+      '..........oabbAo..oabbAo..oabbAo.oggbAo',
+      '.........oaaabAo.oaaabAo.oaaabAooaaabAo',
+      '.........oaaabAo.oaaabAo.oaaabAooaaabAo',
+      '.........ooooooooooooooooooooooooooooo.',
+      '.........oAAAaaagaaaabbbaaaagaaaaaaaAo.',
+      '.........oAAAAaaaaaaabbbbbaaaaaaaaaAAo.',
+      '.........oAAAAaagaaaabbbbaaaagaaaaAAAo.',
+      '.........oAAAAAaaaaaaaaaaaaaaaaaaaAAAo.',
+      '.........ooooooooooooooooooooooooooooo.',
+      '.........oAAAaado......................',
+      '.........oAAAaado......................',
+      '.........oAAAaado......................',
+      '.........oAAAaado......................',
+      '.........oAAAaado......................',
+      '.........oooooooo......................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
     ],
   },
 
   /** 깃털 투구: 정수리에 볏이 솟고 꽁지가 뒤로 흐른다. 철투구와 같은 규칙 —
    *  y7 부터 앞이 트여 눈·뺨·수염이 드러난다. */
+  // 96×120 네이티브
   helm_plume: {
-    w: 13, h: 14, ax: 6, ay: 13,
+    w: 39, h: 42, ax: 18, ay: 39, scale: 3,
     px: [
-      '....aaaa.....',  // y1  볏
-      '..aAAAAAAa...',  // y2
-      '..aAooooooo..',  // y3  꽁지가 뒤로
-      '.aAAommwwmmo.',  // y4
-      '..Aommmmmmmo.',  // y5
-      '...oMmmmmmmwo',  // y6  이마 챙
-      '...oMmo......',  // y7  ← 앞이 트임
-      '...oMmo......',  // y8
-      '...oMwo......',  // y9
-      '....oMo......',  // y10
-      '....oMo......',  // y11
-      '.............',
-      '.............',
-      '.............',
+      '..............oaaabbbbaaao.............',
+      '..........oaaAabbbbbaaaao..............',
+      '.......oaAAaabbbbaaaaAo................',
+      '.....oAAaaaabbbaaaAAo..................',
+      '...oAAaaaaabbaaAAo.....................',
+      '..oAAAaaaaaabaaaAo.....................',
+      '..oAAAaaaAAo....ooooooooooo............',
+      '...oAAaAAo....ooMMmmmnnwwnmoo..........',
+      '....oAAAo...oMMMmmmmnnnwwnnmmMo........',
+      '.....oAAo..oMMMMmmmmmnnnnwwnnmmMo......',
+      '......ooo.oMMMMMmmmmmmnnnnnwwnnmmMo....',
+      '..........oMMMMMmmmmmmmnnnnnnwnnmmMo...',
+      '.........oMMMMMMmmmmmmmnnnnnnnnnmmmMo..',
+      '.........oMMMMMmmmmmmmmnnnnnnnnnmmMMo..',
+      '.........oMMMnMMMMMnMMMMMnMMMMMnMMMMMo.',
+      '.........oMMMMMMMmmmmmmmmnnnnnnnmmmMMo.',
+      '.........oMMMMMMmmmmmmmmmnnnnnnnnmmMMo.',
+      '.........oMMMMMmmmmmmmmmmnnnnnnnnmmmMo.',
+      '........oMMMMMmmmmmmmmmmmnnnnnnnnnmmmMo',
+      '........oMMMMMMmmmmmmmmmmmnnnnnnnnmmMMo',
+      '........ooooooooooooooooooooooooooooooo',
+      '........oMMMmmno.......................',
+      '........oMMMmmdo.......................',
+      '........oMMmmmdo.......................',
+      '.........oMMmmdo.......................',
+      '.........oMMmmdo.......................',
+      '.........oMnmmdo.......................',
+      '.........oMmmmdo.......................',
+      '..........oMmmdo.......................',
+      '..........oMmmdo.......................',
+      '..........oMmndo.......................',
+      '..........oMmmdo.......................',
+      '..........oooooo.......................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
+      '.......................................',
     ],
   },
 
   /** 가면 투구: 금속 가면 + 뒤통수를 감싸는 두정판. 가면 앞판(x19~x22)과 뒤통수 사이의
    *  세로 틈(x17~x18)으로 눈과 뺨이 번득인다. 턱 끝이 앞으로 뾰족하다. */
+  // 96×120 네이티브
   helm_mask: {
-    w: 13, h: 13, ax: 6, ay: 12,
+    w: 39, h: 39, ax: 18, ay: 36, scale: 3,
     px: [
-      '.....ooooo...',  // y2  머리보다 한 칸 높은 돔
-      '....ommwwmo..',  // y3
-      '....ommmmmmo.',  // y4
-      '...ommmmmmmo.',  // y5
-      '...oMmmmmmaao',  // y6  이마 — 앞에 강조 문양
-      '..oMMmo..oaAo',  // y7  ← 눈이 보이는 틈
-      '..oMMmo..oaAo',  // y8  가면 앞판
-      '..oMMmo..oAAo',  // y9
-      '..oMMmo..oao.',  // y10
-      '..oMMmo..oo..',  // y11 턱 끝
-      '...oMmo......',  // y12
-      '...oMwo......',  // y13
-      '...oooo......',  // y14
+      '..............ooooooooooo..............',
+      '............oMMmmmnnwwnnmmMo...........',
+      '...........oMMMmmmmnnnnwwnnmmMo........',
+      '..........oMMMMmmmmmnnnnnwwnnmmmMo.....',
+      '.........oMMMMMmmmmmmnnnnnnwnnmmmMMo...',
+      '........oMMMMMMmmmmmmmnnnnnnnnnmmmMMo..',
+      '........oMMMMMmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMMmmmmmmmmnnnnnnnnnmmmMMMo.',
+      '.......oMMMnMMMMMnMMMMMnMMMMMnMMMMMnMo.',
+      '.......oMMMMMMMmmmmmmmmnnnnnnnnmmmMMMo.',
+      '.......oMMMMMMmmmmmmmmmnnnnnnnnnmmMMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMmmmmmmmmmmnnnnnnnnnmmmMMo.',
+      '.......oMMMMMMmmmmmmmmmmnnnnnnnnmmmMMo.',
+      '.......oMMMMMMMMMMMMMaaabbbaaaaaaaAAAo.',
+      '.......oMMMMMmmmmmmmmAAaaaabbbaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmddddddddddddaAAAo.',
+      '.......oMMMMMmmmmmmmmdSSSeexxSSddaAAAo.',
+      '.......oMMMMMmmmmmmmmddSSeeSSSdddaAAAo.',
+      '.......oMMMMMmmmmmmmmddddddddddddaAAAo.',
+      '.......oMMMMMmmmmmmmmAAaaaabbbaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaaaabbaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaadbbdaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaaabbbaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaadbbdaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaaabbbaaaaaAAo.',
+      '.......oMMMMMmmmmmmmmAAaaadbbdaaaaaAAo.',
+      '........oMMMMMmmmmmAAaaabbbaaaaAAAAo...',
+      '........oMMMMMMmmmmAAaaaabbbaaaaAAAo...',
+      '........oMMMnMMMMMnAAAaaaabbaaaaAAAo...',
+      '........oMMMMMmmmmmAAaaaabbbaaaAAAAo...',
+      '..........oMMMMmmmmmnnnnnnnnmmMMo......',
+      '..........oMMMMMmmmmmnnnnnnnmmmMo......',
+      '..........oMMMMmmmmmmnnnnnnnmmMMo......',
+      '............oMMMmmmmnnnnnmmMo..........',
+      '............oMMMmmmmnnnnnmmMo..........',
+      '............oMMMMmmmnnnnnmMMo..........',
+      '............oMMMdmmmnnnndmMMo..........',
+      '............ooooooooooooooooo..........',
     ],
   },
 

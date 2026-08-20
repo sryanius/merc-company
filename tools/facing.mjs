@@ -33,6 +33,10 @@ const SKIN_X = MID + 0.8 * SCALE;        // 얼굴 평균 x
 const HAIR_BACK = MID + 0.2 * SCALE;     // 머리카락 평균 x (뒤통수는 뒤쪽에 있어야 한다)
 /* ★ 머리카락이 **머리에 붙어 있나** — 평균 x 만 재면 «뒤에 떠 있는 가발» 을 못 잡는다 */
 const MAX_BARE = 2 * SCALE;              // 정수리가 드러난 열 (조금은 이마·가르마라 허용)
+/* ★ 정수리를 덮을 «의무가 없는» 파츠. 정의상 두피 머리카락이 아니다 —
+ *   턱수염은 턱에 나고 대머리는 정수리가 드러난 게 그림의 내용이다.
+ *   이걸 안 빼면 «턱수염이 정수리를 안 덮는다» 로 낙제시킨다 (실제로 4건 그랬다). */
+const NO_SCALP = new Set(['hair_beard', 'hair_bald', 'hair_none']);
 const MAX_FLOAT = 3 * SCALE;             // 피부에 한 칸도 안 닿는 머리카락 덩어리
 
 const get = (n) => {
@@ -171,7 +175,9 @@ for (const combo of combos) {
   else if (m.skinX < SKIN_X) bad.push(`얼굴 x ${m.skinX.toFixed(1)}(≥${SKIN_X})`);
   if (m.hair > 0 && m.hairX > HAIR_BACK) bad.push(`머리 x ${m.hairX.toFixed(1)}(≤${HAIR_BACK})`);
   /* 머리카락이 있는데 두피를 안 덮거나 몸에서 떨어져 있으면 «가발이 떠 있는» 그림이다 */
-  if (m.hair > 0 && m.bare > MAX_BARE) bad.push(`정수리 노출 ${m.bare}칸(≤${MAX_BARE})`);
+  if (m.hair > 0 && !NO_SCALP.has(combo.names[1]) && m.bare > MAX_BARE) {
+    bad.push(`정수리 노출 ${m.bare}칸(≤${MAX_BARE})`);
+  }
   if (m.floating > MAX_FLOAT) bad.push(`뜬 머리카락 ${m.floating}px(≤${MAX_FLOAT})`);
   rows.push({ combo, m, bad });
   if (bad.length) fails.push({ combo, bad });
