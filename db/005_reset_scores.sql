@@ -51,9 +51,23 @@ alter table public.scores_history enable row level security;
 -- 보관본은 아무도 못 읽는다. 순위표에 안 쓰이고, 남의 기록이므로 열어 둘 이유가 없다.
 -- (필요하면 대시보드에서 service_role 로 본다.)
 
--- 지금 것을 통째로 옮긴다
-insert into public.scores_history
-  select s.*, now() from public.scores s;
+-- ★ 보관함이 scores 보다 먼저 만들어졌으면 나중에 생긴 컬럼이 없다.
+--   `select s.*` 가 «INSERT has more expressions than target columns» 로 죽는다.
+--   실제로 squad 컬럼(006)을 더한 뒤 이 파일을 다시 돌리다 겪었다. 여기서 따라가게 한다.
+alter table public.scores_history add column if not exists squad jsonb;
+
+-- 지금 것을 통째로 옮긴다 — 컬럼을 **명시**한다 (s.* 는 순서·개수에 취약하다)
+insert into public.scores_history (
+  user_id, season_id, company_name, seed,
+  abyss_best, abyss_best_day, tower_best, tower_best_day, quests_done,
+  day, city_id, city_tier, roster_n, roster_cap, top_level, squads_n, pets_n,
+  squad, status, submitted_at, archived_at)
+select
+  s.user_id, s.season_id, s.company_name, s.seed,
+  s.abyss_best, s.abyss_best_day, s.tower_best, s.tower_best_day, s.quests_done,
+  s.day, s.city_id, s.city_tier, s.roster_n, s.roster_cap, s.top_level, s.squads_n, s.pets_n,
+  s.squad, s.status, s.submitted_at, now()
+from public.scores s;
 
 -- 새 시즌 번호 = 지금까지 중 가장 큰 것 + 1
 --

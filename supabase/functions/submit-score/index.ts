@@ -109,6 +109,22 @@ Deno.serve(async (req) => {
   }
 
   // ── 6) 기록. 같은 판이면 최고치만 올린다 (greatest)
+/**
+ * 랭킹 기록을 리셋한 클라이언트 버전.
+ *
+ * ★★ **이 값보다 낮은 세이브가 올린 탑·나락 기록은 0 으로 본다.**
+ *   리셋을 했는데 서비스워커에 캐시된 옛 클라이언트가 그대로 돌면서 옛 기록을
+ *   다시 올려 리셋을 통째로 되돌린 일이 있었다 (HANDOFF §41).
+ *   배포와 리셋 사이의 시차는 **없앨 수 없다** — 열려 있는 탭까지 강제로 갱신할 방법이 없다.
+ *   그래서 서버가 막는다.
+ *
+ * ★ 거절이 아니라 **0 처리**다. 거절하면 옛 클라이언트가 아무것도 못 올리는데,
+ *   그 사람은 잘못한 게 없다. 새로고침하면 저절로 정상값이 올라간다.
+ *
+ * ★ `src/game/state.js RANK_RESET_VERSION` 과 같은 값이어야 한다.
+ */
+const RANK_RESET_VERSION = 5;
+
 /** 부대 스냅샷을 «모양만» 거른다. 내용은 못 믿으므로 크기와 타입만 본다. */
 function sanitizeSquad(raw: unknown) {
   if (!raw || typeof raw !== 'object') return null;
@@ -133,6 +149,16 @@ function sanitizeSquad(raw: unknown) {
 
   const keepMax = (a: number, b: number) => (a > b ? a : b);
   const same = compareTo !== null;
+
+  /* 리셋 이전 버전의 세이브가 올린 기록은 0 으로 본다 (위 상수 주석 참고). */
+  const stale = (Number(score.dataVersion) || 0) < RANK_RESET_VERSION;
+  if (stale) {
+    score.abyssBest = 0;
+    score.abyssBestDay = 0;
+    score.towerBest = 0;
+    score.towerBestDay = 0;
+    if (compareTo) { compareTo.abyssBest = 0; compareTo.towerBest = 0; }
+  }
 
   const row = {
     user_id: userId,

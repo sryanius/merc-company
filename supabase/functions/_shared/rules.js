@@ -53,6 +53,10 @@ export function extractScore(st) {
 
   return {
     seed: Number(st.seed) || 0,
+    /* ★ 세이브의 데이터 버전. 서버가 «이 세이브가 리셋을 거쳤나» 를 판단하는 데 쓴다.
+     *   실제로 필요했다 — 랭킹을 리셋했는데 **서비스워커에 캐시된 옛 클라이언트**가
+     *   그대로 돌면서 옛 기록을 다시 올려 리셋을 되돌렸다 (HANDOFF §41). */
+    dataVersion: Number(st.dataVersion) || 0,
     /* ★ `slice` 는 UTF-16 단위로 자른다 — 이모지가 든 이름이 24번째에서 걸리면
      *   서러게이트 쌍이 반으로 쪼개져 깨진 글자가 서버에 저장된다.
      *   코드포인트 단위로 세야 한다. */
