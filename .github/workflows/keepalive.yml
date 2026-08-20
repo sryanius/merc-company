@@ -1,0 +1,42 @@
+# Supabase 프로젝트가 잠들지 않게 매일 한 번 두드린다.
+#
+# ★ 무료 티어는 일정 기간 요청이 없으면 프로젝트를 **일시정지**한다.
+#   그러면 순위표가 조용히 죽고, 플레이어에게는 "순위표를 불러오지 못했다"만 보인다.
+#   게임 자체는 localStorage 로 돌아가므로 아무도 눈치채지 못한 채 며칠이 간다.
+#
+# ★ 이 워크플로만 믿으면 안 된다. GitHub Actions 의 schedule 은
+#   **저장소가 60일간 비활성이면 자동으로 꺼진다.** 커밋이 뜸해지는 시기가
+#   정확히 프로젝트가 잠들 위험이 큰 시기라, 하필 그때 같이 멈춘다.
+#   장기 운영을 하려면 외부 크론(cron-job.org 등)을 하나 더 걸어 두는 편이 안전하다.
+#
+# ★ 여기 쓰는 키는 **공개 키(anon)** 다. 이미 브라우저 코드에 실려 있어서
+#   secrets 로 감출 이유가 없다. secret 키는 절대 여기 넣지 마라.
+
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 3 * * *'      # 매일 03:17 UTC (정각은 러너가 몰려 지연된다)
+  workflow_dispatch:           # 수동 실행도 가능하게 (설정 직후 확인용)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Supabase 두드리기
+        env:
+          URL: https://peilvwrqgauwlaqojttq.supabase.co
+          # 공개 키 (JWT role=anon). RLS 가 방어선이라 노출돼도 안전하다.
+          KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlaWx2d3JxZ2F1d2xhcW9qdHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTU0MTEsImV4cCI6MjEwMjczMTQxMX0.ks353ZYcf79woaMNBCRLo4W5tRJgGiYyJKjMT3PS0pM
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            --retry 3 --retry-delay 20 --max-time 30 \
+            -X POST "$URL/rest/v1/rpc/ping" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H 'Content-Type: application/json' -d '{}')
+          echo "HTTP $code — $(cat /tmp/out.txt)"
+          # ★ 실패를 조용히 넘기지 않는다. 여기가 초록불인데 프로젝트가 자고 있으면
+          #   이 워크플로는 존재 이유가 없다.
+          test "$code" = "200"
