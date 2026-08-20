@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>도트 실험실</title>
+<style>
+  body { background:#14161c; color:#cfd4de; font:13px/1.5 system-ui, sans-serif; margin:20px; }
+  h2 { font-size:14px; color:#8fa; margin:24px 0 8px; }
+  .row { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; }
+  .cell { text-align:center; }
+  .cell b { display:block; font-weight:500; color:#7d8698; font-size:11px; margin-top:4px; }
+  canvas { background:#20242e; image-rendering:pixelated; }
+  #meta { color:#7d8698; }
+</style>
+<div id="meta">읽는 중…</div>
+<div id="out"></div>
+<script type="module">
+import * as SG from '../src/art/spritegen.js';
+import { mercRecipe } from '../src/game/merc.js';
+
+const out = document.getElementById('out');
+const meta = document.getElementById('meta');
+
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+function cell(label, canvas) {
+  const d = document.createElement('div'); d.className = 'cell';
+  d.appendChild(canvas);
+  const b = document.createElement('b'); b.textContent = label; d.appendChild(b);
+  return d;
+}
+
+function section(title) {
+  const h = document.createElement('h2'); h.textContent = title; out.appendChild(h);
+  const r = document.createElement('div'); r.className = 'row'; out.appendChild(r);
+  return r;
+}
+
+const KINDS = [
+  ['swordsman', 'F'], ['shieldman', 'E'], ['archer', 'D'], ['apprentice', 'C'],
+  ['knight', 'B'], ['assassin', 'A'], ['swordgod', 'S'], ['archmage', 'S'],
+];
+
+const t0 = performance.now();
+const sprites = KINDS.map(([cls, grade]) => {
+  const merc = { id: 'lab_' + cls + grade, classId: cls, grade, level: 40, name: cls };
+  return { merc, sprite: SG.getSprite(mercRecipe(merc, {})) };
+});
+const t1 = performance.now();
+
+meta.textContent =
+  `아틀라스 ${sprites[0].sprite.canvas.width}×${sprites[0].sprite.canvas.height} · ` +
+  `스프라이트 ${SG.SPRITE_W}×${SG.SPRITE_H} (SCALE=${SG.SCALE}) · ` +
+  `${KINDS.length}종 생성 ${(t1 - t0).toFixed(1)}ms (개당 ${((t1 - t0) / KINDS.length).toFixed(2)}ms)`;
+
+// 게임에서 실제로 쓰는 크기
+{
+  const r = section(`게임 화면 크기 (scale=3 → 96×120 CSS px)`);
+  for (const { merc, sprite } of sprites) {
+    const c = mk(32 * 3, 40 * 3);
+    SG.drawSpriteFrame(c.getContext('2d'), sprite, 'idle0', 16 * 3, 38 * 3, { scale: 3 });
+    r.appendChild(cell(`${merc.classId} ${merc.grade}`, c));
+  }
+}
+
+// 아틀라스 원본 픽셀 그대로 (1:1) — EPX 가 뭘 했는지 보는 용도
+{
+  const r = section(`아틀라스 1:1 (${SG.SPRITE_W}×${SG.SPRITE_H}, CSS 로만 4배 확대)`);
+  for (const { merc, sprite } of sprites) {
+    const c = mk(SG.SPRITE_W, SG.SPRITE_H);
+    c.style.width = (SG.SPRITE_W * 4) + 'px';
+    c.style.height = (SG.SPRITE_H * 4) + 'px';
+    const f = sprite.frames.idle0;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite.canvas, f.sx, f.sy, SG.SPRITE_W, SG.SPRITE_H, 0, 0, SG.SPRITE_W, SG.SPRITE_H);
+    r.appendChild(cell(`${merc.classId} ${merc.grade}`, c));
+  }
+}
+
+// 정수배로 그렸을 때 (비교용)
+{
+  const r = section(`정수배 비교 — 왼쪽 ${SG.SCALE}배 정수(깔끔), 오른쪽 게임 크기(비정수)`);
+  const { sprite, merc } = sprites[1];
+  for (const s of [SG.SCALE * 2, 3]) {
+    const px = s / SG.SCALE;
+    const c = mk(Math.round(32 * s), Math.round(40 * s));
+    SG.drawSpriteFrame(c.getContext('2d'), sprite, 'idle0', 16 * s, 38 * s, { scale: s });
+    r.appendChild(cell(`scale=${s} → 아틀라스 ${px}배`, c));
+  }
+}
+
+// 모든 프레임
+{
+  const r = section('전 프레임 (scale=3)');
+  const { sprite } = sprites[6];
+  for (const f of SG.FRAMES) {
+    const c = mk(32 * 3, 40 * 3);
+    SG.drawSpriteFrame(c.getContext('2d'), sprite, f, 16 * 3, 38 * 3, { scale: 3 });
+    r.appendChild(cell(f, c));
+  }
+}
+</script>

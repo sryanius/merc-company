@@ -8,7 +8,7 @@
 import { clamp, lerp, TAU } from '../core/util.js';
 import { RNG } from '../core/rng.js';
 import { GRADE_COLOR } from '../art/palette.js';
-import { getSprite, drawSpriteFrame, FOOT_Y } from '../art/spritegen.js';
+import { getSprite, drawSpriteFrame, spriteFootPx } from '../art/spritegen.js';
 import { createFxSystem } from '../art/fx.js';
 import { getSkill } from '../data/skills.js';
 
@@ -801,7 +801,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       GY1 = Math.round(GY0 + 60 * slope);
       // 지평선은 "가장 뒤 유닛의 머리 위"에 둔다 — 안 그러면 뒷줄이 하늘에 떠 보인다.
       const topFeet = GY0 + 10 * slope;
-      horizonY = Math.round(clamp(topFeet - FOOT_Y * SPRITE_SCALE - 14, H * 0.08, H * 0.30));
+      horizonY = Math.round(clamp(topFeet - spriteFootPx(SPRITE_SCALE) - 14, H * 0.08, H * 0.30));
       // 가로: 진영 사이를 눌러 담고 남는 폭을 진영 띠에 전부 준다.
       const edge = Math.round(W * P_EDGE);
       PGAP = Math.round(W * P_GAPH);
@@ -1012,8 +1012,8 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   const facing = (u) => (u.side === 'ally' ? 1 : -1);
   const posX = (v) => homeX(v.u) + v.ox + v.kx;
   const posY = (v) => homeY(v.u) + v.oy + v.ky;
-  const chestY = (v) => posY(v) - FOOT_Y * SPRITE_SCALE * 0.55;
-  const headTop = (v) => posY(v) - FOOT_Y * SPRITE_SCALE;
+  const chestY = (v) => posY(v) - spriteFootPx(SPRITE_SCALE) * 0.55;
+  const headTop = (v) => posY(v) - spriteFootPx(SPRITE_SCALE);
 
   /* ── 로그 ──────────────────────────────────────────── */
   /**

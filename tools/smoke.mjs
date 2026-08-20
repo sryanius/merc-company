@@ -353,8 +353,36 @@ if (Spritegen) {
   const bad = [];
   for (const f of Spritegen.FRAMES) if (!Spritegen.POSES[f]) bad.push(`POSES['${f}'] 없음`);
   okAll(bad, 'FRAMES 전부에 대응하는 POSE 존재', Spritegen.FRAMES.length);
-  ok(Spritegen.SPRITE_W === 32 && Spritegen.SPRITE_H === 40, '스프라이트 규격 32x40',
-    `${Spritegen.SPRITE_W}x${Spritegen.SPRITE_H}`);
+  /* ★ 숫자를 못박지 않는다 — 해상도는 SCALE 로 올린다(HANDOFF §50).
+   *   못박으면 배율을 올릴 때마다 여기만 고쳐 «통과» 시키게 돼 아무것도 안 지킨다.
+   *   지켜야 할 것은 **좌표계가 한 배율로 같이 움직였는가** 다:
+   *   조인트 하나만 안 곱해져도 팔이 몸에서 떨어지는데, 그건 눈으로 봐야 보인다. */
+  const S = Spritegen.SCALE;
+  ok(S >= 1 && Number.isInteger(S), '스프라이트 배율은 정수배다 (반 픽셀이 생기면 안 된다)', `SCALE=${S}`);
+  ok(Spritegen.SPRITE_W === 32 * S && Spritegen.SPRITE_H === 40 * S,
+    '스프라이트 규격이 배율을 따른다', `${Spritegen.SPRITE_W}x${Spritegen.SPRITE_H} (기대 ${32 * S}x${40 * S})`);
+  ok(Spritegen.FOOT_Y === 38 * S && Spritegen.ROT_PIVOT.y === 26 * S && Spritegen.SHIELD_OFFSET.x === 8 * S,
+    '발밑·회전축·방패도 같은 배율을 탄다',
+    `FOOT_Y=${Spritegen.FOOT_Y} pivot.y=${Spritegen.ROT_PIVOT.y} shield.x=${Spritegen.SHIELD_OFFSET.x}`);
+  ok(Spritegen.JOINTS.head.x === 16 * S && Spritegen.JOINTS.handFront.y === 24 * S,
+    '조인트도 같은 배율을 탄다',
+    `head.x=${Spritegen.JOINTS.head.x} handFront.y=${Spritegen.JOINTS.handFront.y}`);
+  // 발밑 높이는 화면 좌표라 SCALE 과 무관해야 한다 — 여기가 어긋나면 체력바가 머리 위로 날아간다
+  ok(Spritegen.spriteFootPx(3) === 38 * 3, '발밑 높이는 SCALE 과 무관하게 논리 좌표를 지킨다',
+    `spriteFootPx(3)=${Spritegen.spriteFootPx(3)} (기대 ${38 * 3})`);
+  // 포즈 오프셋은 픽셀이라 배율을 타고, alpha 는 비율이라 타면 안 된다
+  {
+    const walk = Spritegen.POSES.walk1;
+    const allMul = Object.values(Spritegen.POSES).every((q) => q.dx % S === 0 && q.dy % S === 0);
+    ok(allMul && walk && walk.alpha === 1, '포즈 오프셋은 배율을 타고 alpha 는 안 탄다',
+      `walk1.dy=${walk && walk.dy} alpha=${walk && walk.alpha}`);
+  }
+  // 파츠가 실제로 같은 배율로 승격돼 나오는가 — 여기가 어긋나면 몸만 작아진다
+  if (PARTS && typeof PARTS.getPart === 'function') {
+    const body = PARTS.getPart('body_normal');
+    ok(body && body.px.length === body.h && body.px.every((r) => r.length === body.w),
+      '승격된 파츠의 w/h 가 픽셀과 맞는다', body ? `${body.w}x${body.h}` : '없음');
+  }
   const jbad = ['head', 'chest', 'pelvis', 'shBack', 'shFront', 'handBack', 'handFront', 'hipBack', 'hipFront']
     .filter((k) => !Spritegen.JOINTS[k]).map((k) => `JOINTS.${k} 없음`);
   okAll(jbad, 'JOINTS 필수 키', 9);
@@ -1463,6 +1491,82 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
     }
   }
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
+}
+
+section('스프라이트 캐시');
+if (Spritegen) {
+  /* ★ 해상도를 4배로 올리면서 아틀라스 한 벌이 약 0.25MB → 1MB 가 됐다.
+   *   무제한 캐시는 그때부터 휴대폰을 죽이는 장치가 된다 (HANDOFF §50). */
+  const MAX = Spritegen.SPRITE_CACHE_MAX;
+  ok(MAX > 0 && MAX <= 400, '캐시 상한이 있고 상식적인 크기다', `SPRITE_CACHE_MAX=${MAX}`);
+
+  Spritegen.clearSpriteCache();
+  ok(Spritegen.spriteCacheSize() === 0, '캐시를 비울 수 있다', Spritegen.spriteCacheSize());
+  // 캔버스가 없는 node 에서는 buildSprite 가 못 도니 여기까지만 본다.
+} else {
+  ok(false, '스프라이트 모듈을 읽지 못했다');
+}
+
+section('스프라이트 좌표계');
+{
+  /* ★ 실제로 당한 것 (HANDOFF §50):
+   *   SPRITE_W/H 만 보고 «밖에서 안 쓴다» 고 판단했는데, renderer 가 `FOOT_Y * SPRITE_SCALE` 로
+   *   머리·가슴·지평선 높이를 직접 계산하고 있었다. 해상도를 2배로 올리자
+   *   체력바와 피해 숫자가 통째로 머리 위 두 배 높이로 날아갔다 — 스모크는 전부 통과한 채로.
+   *
+   *   상수는 **아틀라스 픽셀**이고 화면 좌표가 아니다. 밖에서는 spriteFootPx(scale) 를 쓴다. */
+  const files = [];
+  const walkArt = (relDir) => {
+    for (const name of readdirSync(srcDir(relDir), { withFileTypes: true })) {
+      const rel = relDir ? `${relDir}/${name.name}` : name.name;
+      if (name.isDirectory()) walkArt(rel);
+      else if (name.name.endsWith('.js')) files.push(rel);
+    }
+  };
+  walkArt('');
+
+  /** 상수 이름 바로 옆(공백 무시)에 곱하기·나누기가 붙어 있나.
+   *  ★ 정규식으로 짜지 않는다 — 역슬래시가 도구를 거치며 먹히는 일을 이 저장소에서 여러 번 겪었다.
+   *    먹힌 정규식(`\s` → `s`)은 실패가 아니라 «조용히 아무것도 안 잡는 통과» 로 위장돼 더 나쁘다. */
+  const scaledBy = (code, name) => {
+    const isWord = (ch) => ch != null && (/[A-Za-z0-9_$]/).test(ch);
+    for (let i = code.indexOf(name); i >= 0; i = code.indexOf(name, i + 1)) {
+      if (isWord(code[i - 1]) || isWord(code[i + name.length])) continue;   // 다른 이름의 일부
+      let a = i - 1; while (a >= 0 && (code[a] === ' ' || code[a] === '\t')) a--;
+      let b = i + name.length; while (b < code.length && (code[b] === ' ' || code[b] === '\t')) b++;
+      if (code[b] === '*' || code[b] === '/') return true;
+      if ((code[a] === '*' || code[a] === '/') && code[a - 1] !== '/' && code[a - 1] !== '*') return true;
+    }
+    return false;
+  };
+
+  const CONSTS = ['SPRITE_W', 'SPRITE_H', 'FOOT_Y', 'ROT_PIVOT'];
+  const bad = [];
+  for (const rel of files) {
+    if (rel === 'art/spritegen.js') continue;            // 좌표계의 주인
+    const code = readFileSync(srcDir(rel), 'utf8')
+      .split('\n')
+      .filter((ln) => !/^\s*(\/\/|\*|\/\*)/.test(ln))    // 주석 줄은 뺀다 (파츠 문서가 상수를 언급한다)
+      .join('\n');
+    for (const c of CONSTS) {
+      if (scaledBy(code, c)) bad.push(rel + ': ' + c + ' 로 화면 좌표를 직접 계산한다 — spriteFootPx() 를 써라');
+    }
+  }
+  okAll(bad, '아틀라스 픽셀 상수를 밖에서 화면 좌표로 쓰지 않는다', files.length);
+
+  // 가드가 실제로 무는가 — 통과만 하고 아무것도 안 잡는 검사를 여러 번 만들었다
+  okAll([
+    scaledBy('x = FOOT_Y * SCALE;', 'FOOT_Y') ? null : '「FOOT_Y * SCALE」을 못 잡는다',
+    scaledBy('x = 3 * FOOT_Y;', 'FOOT_Y') ? null : '「3 * FOOT_Y」를 못 잡는다',
+    scaledBy('import { FOOT_Y } from "x";', 'FOOT_Y') ? '평범한 import 를 잘못 잡는다' : null,
+    scaledBy('const MY_FOOT_Y = a * 2;', 'FOOT_Y') ? '다른 이름의 일부를 잘못 잡는다' : null,
+  ].filter(Boolean), '가드가 실제 위반을 잡고 멀쩡한 코드는 안 잡는다', 4);
+
+  if (Spritegen) {
+    ok(Spritegen.spriteFootPx(6) === Spritegen.spriteFootPx(3) * 2,
+      '발밑 높이가 scale 에 비례한다',
+      `${Spritegen.spriteFootPx(6)} vs ${Spritegen.spriteFootPx(3) * 2}`);
+  }
 }
 
 section('모듈 간 import 정합성 (정적 분석)');

@@ -9,21 +9,45 @@
 import { getPart } from './parts.js';
 import { makePalette } from './palette.js';
 
-export const SPRITE_W = 32;
-export const SPRITE_H = 40;
-export const FOOT_Y = 38; // 지면에 닿는 y
+/**
+ * 논리 캔버스 배율.
+ *
+ * ★★ 파츠 픽셀과 아래 좌표들은 전부 **32×40 시절 숫자로 적혀 있다.**
+ *   해상도를 올릴 때 그 숫자를 전부 손으로 고치면 반드시 몇 개를 빠뜨린다
+ *   (조인트 10개 · 포즈 오프셋 수십 개 · 방패 오프셋 · 회전축…).
+ *   대신 **여기 하나로 곱한다.** `art/parts.js` 가 파츠를 같은 배율로 승격한다.
+ *
+ * ★ 1 로 되돌리면 옛 해상도로 즉시 돌아간다 — 비교할 때 쓴다.
+ */
+export const SCALE = 2;
+const S = SCALE;
+
+export const SPRITE_W = 32 * S;
+export const SPRITE_H = 40 * S;
+export const FOOT_Y = 38 * S; // 지면에 닿는 y (아틀라스 픽셀)
+
+/**
+ * 발밑에서 정수리까지 **화면 px**. 밖에서 스프라이트 높이를 잴 때는 반드시 이걸 쓴다.
+ *
+ * ★ `FOOT_Y * scale` 로 직접 계산하면 안 된다 — FOOT_Y 는 아틀라스 픽셀이라
+ *   SCALE 을 올리는 순간 머리 위치·지평선·피해 숫자가 통째로 두 배로 뛴다.
+ *   실제로 겪었다 (HANDOFF §50).
+ *
+ * @param {number} scale drawSpriteFrame 에 넘기는 것과 **같은** 값
+ */
+export function spriteFootPx(scale) { return (FOOT_Y * scale) / SCALE; }
 /** 사망 프레임 전체 회전축 (골반). 여기를 축으로 넘어진다. */
-export const ROT_PIVOT = { x: 16, y: 26 };
+export const ROT_PIVOT = { x: 16 * S, y: 26 * S };
 
 /**
  * 방패를 그릴 때 handBack 에서 얼마나 앞으로 밀지.
  * handBack.x(11) + 8 = 19 → 몸통(중심 16)의 앞쪽 가장자리에 방패면이 오게 된다.
  * 0으로 되돌리면 방패가 등 뒤로 가서 캐릭터가 반대편을 보는 것처럼 읽힌다.
  */
-export const SHIELD_OFFSET = { x: 8, y: -1 };
+export const SHIELD_OFFSET = { x: 8 * S, y: -1 * S };
 
 /** SPEC §4.2 조인트 좌표 (스프라이트 로컬, 기본 포즈) */
-export const JOINTS = {
+export const JOINTS = scaleJoints({
   head: { x: 16, y: 14 },      // 목 (머리/헤어/투구 앵커)
   chest: { x: 16, y: 14 },     // 몸통 상단 중앙
   pelvis: { x: 16, y: 26 },
@@ -33,7 +57,14 @@ export const JOINTS = {
   handFront: { x: 21, y: 24 },
   hipBack: { x: 14, y: 26 },
   hipFront: { x: 18, y: 26 },
-};
+});
+
+/** 조인트 좌표를 SCALE 배로. 숫자는 32×40 기준으로 적혀 있다. */
+function scaleJoints(j) {
+  const out = {};
+  for (const k of Object.keys(j)) out[k] = { x: j[k].x * S, y: j[k].y * S };
+  return out;
+}
 
 /** SPEC §4.5 프레임 목록 */
 export const FRAMES = [
@@ -50,14 +81,15 @@ const JOINT_KEYS = ['head', 'chest', 'pelvis', 'shBack', 'shFront', 'handBack', 
 
 /** 포즈 기본값 채우기 */
 function pose(o = {}) {
+  // ★ dx/dy 는 **픽셀** 이라 SCALE 을 탄다. rot/alpha 는 각도·비율이라 안 탄다.
   const p = {
-    dx: o.dx || 0, dy: o.dy || 0,
+    dx: (o.dx || 0) * S, dy: (o.dy || 0) * S,
     weaponRot: o.weaponRot || 0, offhandRot: o.offhandRot || 0,
     rot: o.rot || 0, alpha: o.alpha == null ? 1 : o.alpha,
   };
   for (const k of JOINT_KEYS) {
     const j = o[k] || {};
-    p[k] = { dx: j.dx || 0, dy: j.dy || 0 };
+    p[k] = { dx: (j.dx || 0) * S, dy: (j.dy || 0) * S };
   }
   return p;
 }
@@ -553,13 +585,36 @@ export function buildSprite(recipe = {}) {
   return { canvas, flash, w: SPRITE_W, h: SPRITE_H, frames, key: spriteKey(recipe) };
 }
 
+/**
+ * 스프라이트 캐시.
+ *
+ * ★★ **상한이 있어야 한다.** 아틀라스 한 장이 SPRITE_W×SPRITE_H×24프레임 이고
+ *   기본·발광 두 장을 들고 있다. 32×40 시절엔 한 벌에 약 0.25MB 라 무제한이어도 티가 안 났지만
+ *   64×80(SCALE=2)이 되면서 **4배인 약 1MB** 가 됐다 — 적 외형까지 쌓이면 수백 벌이라
+ *   휴대폰에서 먼저 죽는다. 여기서 막는다 (HANDOFF §50).
+ *
+ * ★ 버리는 순서는 **가장 오래 안 쓴 것**(LRU). Map 은 넣은 순서를 지키므로
+ *   꺼낼 때 다시 넣어 «최근» 으로 올리면 별도 자료구조 없이 LRU 가 된다.
+ */
 const spriteCache = new Map();
+
+/** 대략 1MB × 이 값 = 최대 캔버스 메모리. 한 판에 등장하는 외형 수보다 넉넉하다. */
+export const SPRITE_CACHE_MAX = 120;
 
 /** 캐시된 스프라이트 조회 (없으면 생성) */
 export function getSprite(recipe = {}) {
   const key = spriteKey(recipe);
-  let s = spriteCache.get(key);
-  if (!s) { s = buildSprite(recipe); spriteCache.set(key, s); }
+  const hit = spriteCache.get(key);
+  if (hit) {
+    spriteCache.delete(key); spriteCache.set(key, hit);   // 최근 쓴 것으로 올린다
+    return hit;
+  }
+  const s = buildSprite(recipe);
+  spriteCache.set(key, s);
+  while (spriteCache.size > SPRITE_CACHE_MAX) {
+    const oldest = spriteCache.keys().next().value;
+    spriteCache.delete(oldest);
+  }
   return s;
 }
 
@@ -593,8 +648,13 @@ export function drawSpriteFrame(ctx, sprite, frame, x, y, opts = {}) {
   const { scale = 3, flip = false, flash = 0, alpha = 1, tint = null } = opts;
   const f = sprite.frames[frame] || sprite.frames.idle0;
   if (!f) return;
-  const dw = SPRITE_W * scale, dh = SPRITE_H * scale;
-  const ox = -Math.round(dw / 2), oy = -FOOT_Y * scale;
+  /* ★★ `scale` 은 **논리 픽셀(32×40 기준) 하나가 화면에서 몇 px 인가** 다 — 아틀라스 픽셀이 아니다.
+   *   부르는 쪽은 전부 `16 * scale, 38 * scale` 처럼 논리 좌표로 자리를 잡는다.
+   *   해상도를 올렸다고 여기서 그대로 곱하면 스프라이트만 SCALE 배로 커져 판이 다 어긋난다.
+   *   그래서 화면 크기는 그대로 두고 **같은 자리에 더 촘촘히** 그린다. */
+  const px = scale / SCALE;                 // 아틀라스 픽셀 하나가 화면에서 몇 px 인가
+  const dw = SPRITE_W * px, dh = SPRITE_H * px;
+  const ox = -Math.round(dw / 2), oy = -FOOT_Y * px;
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;

@@ -1,6 +1,7 @@
 // 도트 파츠 인덱스. 실제 픽셀 데이터는 parts_body.js / parts_gear.js 가 소유한다.
 // SPEC §4.3~4.4 참고.
 import { BODY_PARTS } from './parts_body.js';
+import { upscalePart } from './upscale.js';
 import { GEAR_PARTS } from './parts_gear.js';
 
 export const PARTS = { ...BODY_PARTS, ...GEAR_PARTS };
@@ -11,6 +12,12 @@ export const EMPTY_PART = { w: 1, h: 1, ax: 0, ay: 0, px: ['.'] };
 const warned = new Set();
 
 /** 파츠 조회. 없거나 `*_none` 이면 빈 파츠를 돌려준다 (렌더 중단 방지). */
+/* ★ 파츠는 **32×40 시절 좌표로 적혀 있다.** 스프라이트를 64×80 으로 올리면서
+ *   여기서 2배로 승격한다 (`art/upscale.js`, HANDOFF §50).
+ *   손으로 64×80 에 맞춰 다시 찍은 파츠는 `hd: true` 를 달면 그대로 통과한다 —
+ *   그래야 한 번에 다 갈아엎지 않고 **하나씩** 옮길 수 있다. */
+const upCache = new Map();
+
 export function getPart(name) {
   if (!name || name === 'none' || String(name).endsWith('_none')) return EMPTY_PART;
   const p = PARTS[name];
@@ -18,8 +25,14 @@ export function getPart(name) {
     if (!warned.has(name)) { warned.add(name); console.warn('[parts] 정의되지 않은 파츠:', name); }
     return EMPTY_PART;
   }
-  return p;
+  if (p.hd) return p;
+  let up = upCache.get(name);
+  if (!up) { up = upscalePart(p); upCache.set(name, up); }
+  return up;
 }
+
+/** 손질한 파츠를 바로 확인할 때 (개발용). 캐시를 비운다. */
+export function clearPartCache() { upCache.clear(); }
 
 export const hasPart = (name) => !!PARTS[name];
 
