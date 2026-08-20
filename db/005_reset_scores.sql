@@ -56,12 +56,16 @@ insert into public.scores_history
   select s.*, now() from public.scores s;
 
 -- 새 시즌 번호 = 지금까지 중 가장 큰 것 + 1
+--
+-- ★ `alter ... set default next_season` 처럼 변수를 그대로 쓰면
+--   「cannot use column reference in DEFAULT expression」으로 죽는다 —
+--   DEFAULT 식은 PL/pgSQL 변수를 모르고 컬럼 이름으로 읽는다. 동적 SQL 로 값을 박아야 한다.
 do $$
 declare next_season integer;
 begin
   select coalesce(max(season_id), 0) + 1 into next_season from public.scores_history;
   raise notice '새 시즌: %', next_season;
-  alter table public.scores alter column season_id set default next_season;
+  execute format('alter table public.scores alter column season_id set default %s', next_season);
 end $$;
 
 delete from public.scores;
