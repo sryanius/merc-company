@@ -9,7 +9,7 @@
  *
  * 실행: node tools/maplabels.mjs
  */
-import { CITIES, REGIONS } from '../src/data/world.js';
+import { CITIES, REGIONS, citySpecialty } from '../src/data/world.js';
 
 const MAP_W = 1000;
 const MAP_H = 700;
@@ -139,12 +139,26 @@ function layoutLabels(viewW, here, opt) {
     const fs = thin ? 13 : Math.max(10, Math.round(12 * scale));
     const fs2 = thin ? 11 : Math.max(9, Math.round(10 * scale));
     const sub = isHere ? '현재 위치' : '3일';
+    /* ★ worldmap.js 와 같은 규칙: 명물 줄은 **고른 곳/현재 위치에만** 붙는다.
+     *   여기가 어긋나면 도구가 라벨 높이를 잘못 재서 겹침 보고가 통째로 틀린다. */
+    const must = isHere || isSel;
     queue.push({
       prio: isSel ? 1 : rank(c), c, isHere, sub, fs, fs2,
       x: sx(c.x), y: sy(c.y), r: nodeR(c.tier || 1),
       w: Math.max(textW(c.name, fs), textW(sub, fs2)), h: fs + 2 + fs2,
-      force: isHere || isSel,
+      force: must,
     });
+    /* 명물은 **따로** 놓인 라벨이다 (worldmap.js 와 같은 규칙) — force 가 아니라
+       자리가 없으면 빠진다. 고른 도시에만 붙는다. */
+    const spec = !thin && isSel ? (citySpecialty(c.id) || []).length : 0;
+    if (spec) {
+      const spTxt = `명물 ${'가'.repeat(spec * 3)}`;
+      queue.push({
+        prio: 2.5, c, isHere: false, sub: '', fs: fs2, fs2,
+        x: sx(c.x), y: sy(c.y), r: nodeR(c.tier || 1),
+        w: textW(spTxt, fs2), h: fs2 + 2, force: false,
+      });
+    }
   }
   queue.sort((a, b) => a.prio - b.prio);
 

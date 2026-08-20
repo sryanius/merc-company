@@ -885,11 +885,22 @@ function drawNodes() {
       // 이름 + 거리 두 줄을 한 덩어리로 놓는다. 현재 위치와 직접 고른 곳은 무슨 일이 있어도 보여 준다.
       // 실제로 그리는 건 flushLabels 다 — 던전 라벨과 자리를 같이 나눠야 하기 때문.
       const must = isHere || c.id === selectedId || hovered;
+
+      /* ★ 명물 클래스를 셋째 줄로 붙인다 — **고른 곳/현재 위치/가리킨 곳에만.**
+       *   전부에 붙이면 라벨이 한 줄씩 길어져 방금 0쌍으로 맞춘 겹침이 되살아난다
+       *   (§32). 그리고 명물을 알고 싶은 순간은 «거기로 갈까?» 를 따질 때다 —
+       *   그때는 이미 그 도시를 고르거나 가리키고 있다.
+       *   나머지 도시는 아래 「인접 도시」 목록과 명물 필터로 볼 수 있다. */
       const nameFont = `${isHere ? '700 ' : '600 '}${fs}px ${FONT}`;
       const nameCol = isHere ? '#f2dfa8' : hovered ? '#ffffff' : '#e8e2d8';
       const subCol = isHere ? 'rgba(224,180,74,.9)' : 'rgba(167,157,176,.85)';
       queueLabel(rank(c), {
-        x, y, r, w: Math.max(tw, sw), h: fs + 2 + fs2, force: must,
+        x,
+        y,
+        r,
+        w: Math.max(tw, sw),
+        h: fs + 2 + fs2,
+        force: must,
         draw: (lx, ty) => {
           ctx.save();
           ctx.globalAlpha = alpha;
@@ -902,6 +913,33 @@ function drawNodes() {
           ctx.restore();
         },
       });
+
+      /* ★ 명물은 **따로 놓는다.** 도시 라벨에 셋째 줄로 붙이면 라벨이 통째로 커지는데
+       *   그 라벨은 force 라 자리가 없어도 그려진다 — 겹침이 되살아난다(실측 8쌍).
+       *   따로 두면 자리가 없을 때 **이것만 조용히 빠진다.**
+       *   고른 도시에만 붙인다 — 명물을 알고 싶은 순간은 «거기로 갈까» 를 따질 때다. */
+      /* 폰에서는 안 붙인다 — 표시 라벨이 4개뿐인 좁은 폭에서 한 줄을 더 넣으면 겹친다.
+       * 그리고 폰은 지도 **아래 「인접 도시」 목록**에 이미 명물이 나온다(중복이다). */
+      if (!thin && c.id === selectedId) {
+        const sp = specLine(c.id);
+        if (sp) {
+          const spTxt = `명물 ${sp}`;
+          ctx.font = `${fs2}px ${FONT}`;
+          const spW = ctx.measureText(spTxt).width;
+          queueLabel(2.5, {
+            x, y, r, w: spW, h: fs2 + 2, force: false,
+            draw: (lx, ty) => {
+              ctx.save();
+              ctx.globalAlpha = alpha;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'top';
+              ctx.font = `${fs2}px ${FONT}`;
+              boxedText(spTxt, lx, ty, fs2, 'rgba(224,180,74,.8)');
+              ctx.restore();
+            },
+          });
+        }
+      }
     }
 
     ctx.restore();
