@@ -2106,19 +2106,28 @@ section('펫 / 무한의 탑');
   if (Math.abs(TD.floorPower(TD.TOWER_FLOORS) - TD.POWER_MAX) > 1e-6) curveBad.push('최고층이 POWER_MAX 가 아니다');
   okAll(curveBad, '층 배율이 단조 증가하고 양끝이 맞는다', TD.TOWER_FLOORS);
 
-  // 4) 비용식 — 등차수열 합 공식이 실제 루프와 일치하나
+  // 4) 비용식 — 합산식이 «층마다 걷는 값» 의 합과 일치하나
   const costBad = [];
   for (const [a, b] of [[1, 1], [1, 100], [50, 500], [1, 500]]) {
     let loop = 0;
     for (let f = a; f <= b; f++) loop += TD.floorCost(f);
     if (loop !== TD.costRange(a, b)) costBad.push(`costRange(${a},${b})=${TD.costRange(a, b)} vs 루프 ${loop}`);
   }
-  okAll(costBad, '층 비용 합산식이 루프와 일치', 4);
-  // 값을 박아 두면 GOLD_PER_FLOOR 를 조정할 때마다 깨진다 — 공식과 일치하는지만 본다.
-  const wantTotal = TD.GOLD_PER_FLOOR * (TD.TOWER_FLOORS * (TD.TOWER_FLOORS + 1)) / 2;
-  ok(TD.costRange(1, TD.TOWER_FLOORS) === wantTotal,
-    `1~${TD.TOWER_FLOORS}층 누적이 등차수열 합과 일치 (${wantTotal.toLocaleString()}G)`,
-    `실제 ${TD.costRange(1, TD.TOWER_FLOORS)}`);
+  /* ★ 화면이 보여 주는 총액과 실제로 걷는 액수가 같아야 한다.
+   *   한때 닫힌 식(등차수열+제곱합)을 썼는데, 실제로는 **층마다 반올림해서** 걷으므로
+   *   몇 G 씩 어긋났다 (13,170 vs 13,169). 이 검사가 잡았다. */
+  okAll(costBad, '층 비용 합산식이 «층마다 걷는 값» 의 합과 일치', 4);
+
+  /* 비용은 깊이에 **가파르게** 실려야 한다 — 탑이 골드 소모 역할을 하는 근거다.
+   * 값을 박지 않는다: 곡선을 조정해도 «가파른가» 만 본다. */
+  const cLo = TD.floorCost(50);
+  const cHi = TD.floorCost(TD.TOWER_FLOORS);
+  ok(cHi / cLo >= 20,
+    '깊은 층이 얕은 층보다 훨씬 비싸다 (500층 / 50층 ≥ 20배)',
+    `${cLo}G → ${cHi}G (${(cHi / cLo).toFixed(1)}배)`);
+  let mono = true;
+  for (let f = 2; f <= TD.TOWER_FLOORS; f++) if (TD.floorCost(f) < TD.floorCost(f - 1)) { mono = false; break; }
+  ok(mono, '층 비용이 단조 증가한다');
 
   // 5) '매달 1일' 판정 — dayOfWeek 만 보면 한 달에 4번 참이 된다(실제로 겪은 함정)
   const State = await import('../src/game/state.js');

@@ -257,6 +257,8 @@ function injectStyle() {
 
 /* 확률표(조건 + F~S 7열)는 폰 폭을 넘는다. 페이지가 아니라 이 래퍼 안에서만 가로로 민다. */
 .tv-oddswrap{max-width:100%;overflow-x:auto}
+.tv-namerow{margin-top:10px;padding-top:9px;border-top:1px solid var(--line-soft);text-align:left}
+.tv-namein{width:100%;font-size:13px}
 .tv-scrollhint{display:none}
 
 /* ══════════════════ 모바일 대응 ══════════════════
@@ -767,9 +769,12 @@ function openHireModal(cls, merc, city, isSpec) {
     gradeNode, msgNode, detail);
 
   let modalPreview = null;
+  /* ★ **배경을 눌러도 안 닫힌다.** 등급이 굴러가는 연출이 끝나기 전에 딴 데를 누르면
+   *   «뭐가 나왔는지도 모르고» 창이 사라진다 (제작자 지적). 확인으로만 닫는다. */
   modal({
     title: '고용',
     body,
+    dismissable: false,
     actions: [{ label: '확인', kind: 'primary' }],
     onClose: () => {
       if (modalPreview) removePreview(modalPreview);
@@ -788,10 +793,34 @@ function openHireModal(cls, merc, city, isSpec) {
       detail.classList.add('tv-shine');
       detail.style.color = GRADE_COLOR[merc.grade];
       toast(`${merc.grade}등급! ${merc.name}${josa(merc.name, '이/가')} 용병단에 합류했다.`, 'good');
+      /* ★ A 이상은 오래 데리고 갈 사람이라 이름을 그 자리에서 정하게 한다.
+       *   나중에 용병 상세에서도 바꿀 수 있지만, **뽑은 순간**이 정하고 싶은 순간이다. */
+      detail.appendChild(nameRow(merc));
     } else {
       toast(`${merc.name}${josa(merc.name, '을/를')} 고용했다. (${merc.grade}등급)`, merc.grade === 'F' ? 'bad' : '');
     }
   });
+}
+
+/**
+ * A 이상 전용 «이름 정하기» 줄.
+ *
+ * ★ 기본값은 **뽑힌 이름 그대로**다. 그대로 쓰고 싶은 사람이 아무것도 안 해도 되게.
+ * ★ 비우고 나가면 원래 이름이 남는다 — 실수로 지운 채 닫아도 이름 없는 용병은 안 생긴다.
+ */
+function nameRow(merc) {
+  const orig = merc.name;
+  const input = el('input', { class: 'co-in tv-namein', value: orig, maxlength: '16' });
+  const apply = () => {
+    const v = input.value.trim();
+    merc.name = v ? v.slice(0, 16) : orig;
+    save();
+  };
+  input.addEventListener('change', apply);
+  input.addEventListener('blur', apply);
+  return el('div', { class: 'col tv-namerow', style: { gap: '4px' } },
+    el('div', { class: 'tiny faint', text: '이름 — 그대로 써도 되고 지금 바꿔도 된다 (16자)' }),
+    input);
 }
 
 /** 등급 글자를 F부터 주르륵 굴리다가 서서히 멈춘다 */

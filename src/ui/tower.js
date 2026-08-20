@@ -16,7 +16,7 @@ import { state, save } from '../game/state.js';
 import * as Tower from '../game/tower.js';
 import * as Pet from '../game/pet.js';
 import { getPetSpecies } from '../data/pets.js';
-import { TOWER_FLOORS, zoneOf, floorPower, floorEnemyCount, SWEEP_BACKOFF, REST_EVERY } from '../data/tower.js';
+import { TOWER_FLOORS, zoneOf, floorPower, floorEnemyCount, SWEEP_BACKOFF, REST_EVERY, floorCost, costRange } from '../data/tower.js';
 import { rankNote } from './ranknote.js';
 import { go, refresh, toast } from './app.js';
 
@@ -120,7 +120,10 @@ function runPanel(st, entry, preview) {
         ? `최고 기록 −${SWEEP_BACKOFF}층이라 ${preview.sweepTo}층까지는 전투 없이 소탕한다 (${num(preview.sweep)}G). ${preview.nextFloor}층부터 실제로 싸운다.`
         : `1층부터 오른다. 최고 기록이 ${SWEEP_BACKOFF}층을 넘으면 그 아래는 소탕으로 건너뛴다.`),
     el('div', { class: 'faint tiny' },
-      `층당 ${num(2)}G × 층수 · 보유 ${num(gold)}G — 골드가 떨어지면 그 층에서 멈춘다.`),
+      /* ★ 예전에는 «층당 2G × 층수» 를 **손으로 적어 놨다.** 공식과 아무 상관 없는 숫자였고,
+       *   비용을 깊이 가산으로 바꾸자 그대로 거짓말이 됐다. 실제 값을 계산해 보여 준다. */
+      `다음 층 ${num(floorCost(preview.nextFloor))}G · ${TOWER_FLOORS}층까지 ${num(costRange(preview.nextFloor, TOWER_FLOORS))}G`
+      + ` · 보유 ${num(gold)}G — 골드가 떨어지면 그 층에서 멈춘다.`),
     rows.length ? el('div', { class: 'col', style: { gap: '8px' } }, rows)
       : el('div', { class: 'faint tiny', text: '출전할 수 있는 부대가 없다.' }),
     squads.length ? watchPanel(st, squads) : null);

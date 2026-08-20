@@ -46,10 +46,28 @@ export const TOWER_FLOORS = 500;
  */
 export const GOLD_PER_FLOOR = 1;
 
+/**
+ * 깊이 가산 — **위로 갈수록 층당 값이 가파르게 오른다.**
+ *
+ * ★ 예전에는 «층당 1G × 층수» 라 500층 완주가 12.5만G 였다. 후반 플레이어는 골드가
+ *   수백만이라 **탑이 골드 소모 역할을 전혀 못 했다** (제작자: «골드가 남아돌아»).
+ *
+ * ★ 그렇다고 전 구간을 올리면 초반 탑이 잠긴다. 그래서 **깊이에만** 실었다:
+ *
+ *     floorCost(f) = f × (1 + f / TOWER_FLOORS × DEEP_MULT)
+ *
+ *   50층 110G · 100층 340G — 초반은 거의 그대로다.
+ *   500층 3,000G · 1~500 합계 **약 113만G** — 후반에는 한 달치 수입을 걸어야 한다.
+ *
+ * ★ 골드가 떨어지면 그 층에서 멈춘다. 즉 이 값은 **비용이자 도달 상한**이다 —
+ *   바꾸면 `node tools/tower.mjs` 로 도달 층을 다시 재라.
+ */
+export const DEEP_MULT = 12;
+
 /** n층 1회 통과 비용 */
 export function floorCost(floor) {
   const f = Math.max(1, Math.min(TOWER_FLOORS, Math.round(floor)));
-  return f * GOLD_PER_FLOOR;
+  return Math.round(f * GOLD_PER_FLOOR * (1 + (f / TOWER_FLOORS) * DEEP_MULT));
 }
 
 /** a층부터 b층까지 전부 통과하는 비용 (양끝 포함) */
@@ -57,8 +75,13 @@ export function costRange(a, b) {
   const lo = Math.max(1, Math.round(a));
   const hi = Math.min(TOWER_FLOORS, Math.round(b));
   if (hi < lo) return 0;
-  // 등차수열 합 — 500층까지 루프를 돌 이유가 없다
-  return GOLD_PER_FLOOR * ((lo + hi) * (hi - lo + 1)) / 2;
+  /* ★ **닫힌 식을 쓰면 안 된다.** 실제로 걷는 건 층마다 반올림한 `floorCost(f)` 의 합인데,
+   *   합을 먼저 구하고 한 번 반올림하면 몇 G 씩 어긋난다 (smoke 가 잡았다: 13,170 vs 13,169).
+   *   화면이 보여 주는 총액과 실제 청구액이 다르면 안 된다.
+   *   500 회 루프는 사람이 못 느낀다 — 정확함이 우선이다. */
+  let sum = 0;
+  for (let f = lo; f <= hi; f++) sum += floorCost(f);
+  return sum;
 }
 
 /**
