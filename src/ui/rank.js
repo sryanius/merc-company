@@ -17,6 +17,8 @@ import { state } from '../game/state.js';
 import * as Cloud from '../net/cloud.js';
 import { ABYSS_NAME, zoneOf } from '../data/abyss.js';
 import { getCity } from '../data/world.js';
+import { getClass } from '../data/classes.js';
+import { GRADE_COLOR } from '../art/palette.js';
 import { go, toast } from './app.js';
 
 export function dispose() { /* rAF·타이머 없음 */ }
@@ -36,6 +38,10 @@ const CSS = `
 .rk-row { display:grid; grid-template-columns:38px 1fr auto; gap:10px; align-items:center;
   padding:7px 8px; border-radius:6px; }
 .rk-row + .rk-row { border-top:1px solid rgba(255,255,255,.05); }
+.rk-squad { display:flex; flex-wrap:wrap; gap:3px 6px; margin-top:3px; }
+.rk-mem { font-size:10.5px; white-space:nowrap; }
+.rk-mem i { font-style:normal; opacity:.55; }
+@media (max-width: 767px) { .rk-mem { font-size:12px; } }
 .rk-row.me { background:rgba(224,180,74,.13); }
 .rk-no { font-variant-numeric:tabular-nums; font-weight:800; color:var(--ink-faint); text-align:right; }
 .rk-row.top1 .rk-no { color:#f0c05a; }
@@ -120,11 +126,42 @@ async function load(list) {
            *   클라이언트는 어차피 도시 데이터를 다 갖고 있으니 여기서 푸는 게 맞다. */
           city ? ` · ${city.name} ★${city.tier || r.city_tier || '?'}` : '',
           r.top_level ? ` · 최고 Lv${r.top_level}` : '',
-          r.roster_n ? ` · 단원 ${r.roster_n}` : '')),
+          r.roster_n ? ` · 단원 ${r.roster_n}` : ''),
+        squadLine(r.squad)),
       el('div', { class: 'rk-val' },
         `${num(r.value)}${unit}`,
         kind === 'abyss' && r.value ? el('div', { class: 'rk-sub', style: { textAlign: 'right' }, text: zoneOf(r.value) }) : null)));
   }
+}
+
+/**
+ * 그 사람의 **대표 부대** 한 줄.
+ *
+ * ★ 순위표에 이걸 붙이는 이유 — 숫자만 보면 «어떻게 저기까지 갔지» 를 알 수 없다.
+ *   편성을 보면 배울 게 생기고, 그게 경쟁을 굴린다.
+ *
+ * ★ 이건 **본인이 신고한 값**이다. 서버가 편성을 검증하지는 않는다 (점수와 같다).
+ *   그래서 «검증됨» 같은 말을 붙이면 안 된다 — 그냥 보여 준다.
+ *
+ * ★ 클래스 id 만 오므로 이름은 여기서 찾는다. 모르는 id 는 조용히 건너뛴다
+ *   (구버전 클라이언트가 올린 값이거나 삭제된 클래스일 수 있다).
+ */
+function squadLine(squad) {
+  const mems = squad && Array.isArray(squad.members) ? squad.members : [];
+  if (!mems.length) return null;
+
+  const row = el('div', { class: 'rk-squad' });
+  for (const m of mems) {
+    const cls = m && m.c ? getClass(m.c) : null;
+    if (!cls) continue;
+    row.appendChild(el('span', {
+      class: 'rk-mem',
+      style: { color: GRADE_COLOR[m.g] || 'var(--ink-dim)' },
+      title: `${cls.name} · ${m.g || '?'}등급 · Lv${m.l || 1}`,
+    }, `${cls.name}`, el('i', { text: ` ${m.g || ''}${m.l || ''}` })));
+  }
+  if (!row.childNodes.length) return null;
+  return row;
 }
 
 /** 내 기록 — 서버에 마지막으로 올라간 값 */

@@ -109,6 +109,28 @@ Deno.serve(async (req) => {
   }
 
   // ── 6) 기록. 같은 판이면 최고치만 올린다 (greatest)
+/** 부대 스냅샷을 «모양만» 거른다. 내용은 못 믿으므로 크기와 타입만 본다. */
+function sanitizeSquad(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  const mems = Array.isArray(s.members) ? s.members : [];
+  if (!mems.length) return null;
+  const cut = (v: unknown, n: number) => Array.from(String(v ?? '')).slice(0, n).join('');
+  const out = {
+    name: cut(s.name, 16),
+    power: Number.isFinite(Number(s.power)) ? Math.max(0, Math.round(Number(s.power))) : undefined,
+    members: mems.slice(0, 7).map((m) => {
+      const x = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
+      return {
+        c: cut(x.c, 24),
+        l: Math.max(1, Math.min(80, Math.round(Number(x.l) || 1))),
+        g: cut(x.g, 1),
+      };
+    }).filter((m) => m.c),
+  };
+  return out.members.length ? out : null;
+}
+
   const keepMax = (a: number, b: number) => (a > b ? a : b);
   const same = compareTo !== null;
 
@@ -128,6 +150,11 @@ Deno.serve(async (req) => {
     top_level: score.topLevel,
     squads_n: score.squadsN,
     pets_n: score.petsN,
+    /* 순위표에 보여 줄 대표 부대 스냅샷 (rules.js topSquadOf).
+     * ★ 클라이언트가 스스로 신고하는 값이다 — 점수와 마찬가지로 «검증된 편성» 이 아니다.
+     *   여기서는 **모양만** 거른다: 배열이고, 7명 이하고, 필드가 예상한 것뿐인가.
+     *   DB 에도 pg_column_size < 2048 제약이 걸려 있다. */
+    squad: sanitizeSquad(score.squad),
     status,
     submitted_at: new Date().toISOString(),
   };

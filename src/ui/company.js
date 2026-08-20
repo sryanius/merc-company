@@ -682,6 +682,7 @@ const CSS = `
 .co-fx{display:flex;flex-wrap:wrap;gap:6px;}
 .co-petrow{border-top:1px solid var(--line-soft);padding-top:7px;margin-top:2px;}
 .co-pet{font-size:11px;}
+@media (max-width: 767px){.co-pet{font-size:12px;}}
 /* 소속 부대 배지 — 카드 맨 위 이름 옆. 부대별 고정 색이라 명부를 눈으로 훑어도 묶여 보인다 */
 .co-sqb{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;
   border:1px solid currentColor;font-size:10px;font-weight:700;line-height:1.6;white-space:nowrap;}

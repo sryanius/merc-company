@@ -76,6 +76,48 @@ export function extractScore(st) {
     squadsN: Array.isArray(st.squads) ? st.squads.length : 0,
     petsN: Array.isArray(st.pets) ? st.pets.length : 0,
     itemsN: Array.isArray(st.items) ? st.items.length : 0,
+    squad: topSquadOf(st),
+  };
+}
+
+/**
+ * 순위표에 보여 줄 **대표 부대** 스냅샷.
+ *
+ * ★ 자랑거리를 보여 주는 게 목적이라 «가장 센 부대» 하나만 담는다.
+ *   부대 5개를 다 담으면 행 하나가 몇 KB 가 되고, 순위표는 200행을 한 번에 받는다.
+ *
+ * ★ 담는 것은 **게임 정보뿐**이다 — 클래스·레벨·등급·세트. 세이브 원문이나
+ *   개인 정보는 절대 안 넣는다. 그리고 이건 클라이언트가 스스로 신고하는 값이라
+ *   «검증된 편성» 이 아니다. 화면에도 그렇게 쓰면 안 된다.
+ *
+ * @returns {{name:string, power:number, members:Array}|null}
+ */
+function topSquadOf(st) {
+  const squads = Array.isArray(st?.squads) ? st.squads : [];
+  const roster = Array.isArray(st?.roster) ? st.roster : [];
+  if (!squads.length || !roster.length) return null;
+  const byUid = new Map(roster.filter((m) => m && m.uid).map((m) => [m.uid, m]));
+
+  let best = null;
+  let bestScore = -1;
+  for (const sq of squads) {
+    const mems = (sq?.memberUids || []).map((u) => byUid.get(u)).filter(Boolean);
+    if (!mems.length) continue;
+    // 서버가 못 믿는 값이라 정교할 필요가 없다 — 레벨 합이면 «가장 키운 부대» 가 잡힌다.
+    const score = mems.reduce((a, m) => a + (Number(m.level) || 1), 0);
+    if (score > bestScore) { bestScore = score; best = { sq, mems }; }
+  }
+  if (!best) return null;
+
+  const cut = (v, n) => Array.from(String(v ?? '')).slice(0, n).join('');
+  return {
+    name: cut(best.sq.name || '부대', 16),
+    power: Math.round(Number(best.sq.power) || 0) || undefined,
+    members: best.mems.slice(0, 7).map((m) => ({
+      c: cut(m.classId, 24),                       // 클래스 id — 이름은 받는 쪽이 찾는다
+      l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
+      g: cut(m.grade, 1),
+    })),
   };
 }
 

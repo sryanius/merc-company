@@ -21,7 +21,13 @@ alter table public.scores add constraint scores_squad_size
   check (squad is null or pg_column_size(squad) < 2048);
 
 -- 순위표 함수에 squad 를 얹는다. 나머지 컬럼·정렬은 그대로다.
-create or replace function public.leaderboard(
+--
+-- ★ `create or replace` 로는 **리턴 타입을 못 바꾼다**
+--   (ERROR 42P13: cannot change return type of existing function).
+--   컬럼을 하나 더하는 것도 리턴 타입 변경이라 반드시 먼저 지워야 한다.
+drop function if exists public.leaderboard(text, integer);
+
+create function public.leaderboard(
   p_kind  text,
   p_limit integer default 100
 )
