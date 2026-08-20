@@ -24,7 +24,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodePng } from './lib/png.mjs';
 import { makePalette, PIX_CHARS } from '../src/art/palette.js';
-import { JOINTS as DEFAULT_JOINTS, SPRITE_W, SPRITE_H } from '../src/art/spritegen.js';
+import { JOINTS as DEFAULT_JOINTS, SPRITE_W as DEF_W, SPRITE_H as DEF_H } from '../src/art/spritegen.js';
+
+/* ★ 후보마다 **캔버스 크기가 다를 수 있다** — 해상도 자체를 비교하려고 만든 도구다.
+ *   후보 JSON 의 canvas: {w,h} 를 쓰고, 없으면 지금 게임 규격을 쓴다. */
+const canvasOf = (c) => ({ w: (c.canvas && c.canvas.w) || DEF_W, h: (c.canvas && c.canvas.h) || DEF_H });
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -43,8 +47,9 @@ const ORDER = [
 ];
 
 function compose(cand, problems) {
+  const { w: CW, h: CH } = canvasOf(cand);
   const J = { ...DEFAULT_JOINTS, ...(cand.joints || {}) };
-  const grid = Array.from({ length: SPRITE_H }, () => new Array(SPRITE_W).fill('.'));
+  const grid = Array.from({ length: CH }, () => new Array(CW).fill('.'));
   const P = cand.parts || {};
   // arm/leg 는 한 벌로 앞뒤에 쓴다
   const resolved = { ...P, armBack: P.armBack || P.arm, armFront: P.armFront || P.arm, legBack: P.legBack || P.leg, legFront: P.legFront || P.leg };
@@ -64,7 +69,7 @@ function compose(cand, problems) {
         if (!ALLOWED.has(ch)) { problems.push(`${slot}: 모르는 문자 '${ch}' (${y}행 ${x}열)`); continue; }
         const gx = j.x + (x - (p.ax || 0));
         const gy = j.y + (y - (p.ay || 0));
-        if (gx < 0 || gx >= SPRITE_W || gy < 0 || gy >= SPRITE_H) continue;
+        if (gx < 0 || gx >= CW || gy < 0 || gy >= CH) continue;
         grid[gy][gx] = ch;
       }
     }
@@ -77,6 +82,7 @@ function compose(cand, problems) {
  *   눈으로만 고르면 옆모습이 뒤돌아 보이는 후보를 이쁘다고 뽑는 일이 생긴다 —
  *   실제로 플레이어가 방패병을 두 번 지적한 게 그 경우였다 (tools/facing.mjs). */
 function judge(grid, cand) {
+  const { w: SPRITE_W, h: SPRITE_H } = canvasOf(cand);
   const J = { ...DEFAULT_JOINTS, ...(cand.joints || {}) };
   const MID = SPRITE_W / 2;
   let eye = 0, eyeX = 0, skin = 0, skinX = 0, hair = 0, hairX = 0;
@@ -110,9 +116,8 @@ function judge(grid, cand) {
   if (hair && out.hairX > MID + 0.4) out.bad.push(`머리카락 평균 x ${out.hairX.toFixed(1)} (≤${(MID + 0.4).toFixed(1)}, 뒤통수 쪽이어야 한다)`);
   // 조립 결함 — 조인트 사이가 비면 몸이 끊겨 보인다
   for (let y = top; y <= bottom; y++) if (!rowFill[y]) { out.bad.push(`y=${y} 가 통째로 비었다 (몸이 끊긴다)`); break; }
-  // 발이 지면에 닿나
-  const foot = 38 * (SPRITE_H / 80);
-  if (bottom < SPRITE_H - 6) out.bad.push(`발이 지면에서 ${SPRITE_H - 2 - bottom}px 떠 있다`);
+  // 발이 지면에 닿나 (캔버스 높이의 5% 안쪽이면 닿은 것으로 본다)
+  if (bottom < SPRITE_H * 0.93) out.bad.push(`발이 지면에서 ${SPRITE_H - 2 - bottom}px 떠 있다`);
   // 대두 판정 — 머리 폭 대 어깨 폭
   const headRow = Math.max(0, J.head.y - 12);
   const shoulderRow = Math.min(SPRITE_H - 1, J.shFront.y + 1);
@@ -135,7 +140,7 @@ const put = (s, x, y, c) => {
   s.px[i] = c[0]; s.px[i + 1] = c[1]; s.px[i + 2] = c[2]; s.px[i + 3] = 255;
 };
 
-const CELL_W = SPRITE_W * ZOOM, CELL_H = SPRITE_H * ZOOM, PAD = 10;
+const PAD = 10;
 const cands = [];
 for (const f of files) {
   const abs = path.resolve(ROOT, f);
@@ -149,21 +154,34 @@ for (const f of files) {
 }
 if (!cands.length) { console.error('읽은 후보가 없다.'); process.exit(1); }
 
+/* ★ 해상도가 다른 후보를 나란히 놓을 때는 **화면에서 같은 크기**로 맞춰야 공평하다.
+ *   64×80 을 6배로, 96×120 을 6배로 그리면 후자가 그냥 더 커 보여서 «더 이쁘다» 로 착각한다.
+ *   게임은 어느 쪽이든 96×120 CSS px 에 그리므로, 여기서도 같은 최종 크기로 맞춘다. */
+const REF_H = 40;                                  // 논리 높이 (32×40 기준)
+const zoomOf = (c) => (ZOOM * REF_H) / canvasOf(c).h * 2;
+const cellOf = (c) => ({ w: Math.round(canvasOf(c).w * zoomOf(c)), h: Math.round(canvasOf(c).h * zoomOf(c)) });
+const CELL_W = Math.max(...cands.map((c) => cellOf(c).w));
+const CELL_H = Math.max(...cands.map((c) => cellOf(c).h));
+
 const s = sheet(cands.length * (CELL_W + PAD) + PAD, CELL_H + PAD * 2);
 cands.forEach((c, i) => {
   const x0 = PAD + i * (CELL_W + PAD), y0 = PAD;
+  const cz = zoomOf(c);
+  const { w: CW, h: CH } = canvasOf(c);
   for (let x = -1; x <= CELL_W; x++) { put(s, x0 + x, y0 - 1, GRID); put(s, x0 + x, y0 + CELL_H, GRID); }
   for (let y = -1; y <= CELL_H; y++) { put(s, x0 - 1, y0 + y, GRID); put(s, x0 + CELL_W, y0 + y, GRID); }
   // 지면선 (발바닥 y=38*SCALE)
-  const gy = y0 + Math.round((SPRITE_H - 2) * ZOOM);
+  const gy = y0 + Math.round((CH - 2) * cz);
   for (let x = 0; x < CELL_W; x++) put(s, x0 + x, gy, GROUND);
-  for (let y = 0; y < SPRITE_H; y++) {
-    for (let x = 0; x < SPRITE_W; x++) {
+  for (let y = 0; y < CH; y++) {
+    for (let x = 0; x < CW; x++) {
       const hex = PAL[c.grid[y][x]];
       if (!hex) continue;
       const n = parseInt(hex.slice(1), 16);
       const col = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-      for (let dy = 0; dy < ZOOM; dy++) for (let dx = 0; dx < ZOOM; dx++) put(s, x0 + x * ZOOM + dx, y0 + y * ZOOM + dy, col);
+      const px0 = x0 + Math.round(x * cz), py0 = y0 + Math.round(y * cz);
+      const px1 = x0 + Math.round((x + 1) * cz), py1 = y0 + Math.round((y + 1) * cz);
+      for (let yy = py0; yy < py1; yy++) for (let xx = px0; xx < px1; xx++) put(s, xx, yy, col);
     }
   }
 });
