@@ -1361,6 +1361,21 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
     }
     okAll(specBad, '등급별 명물 수 (1·2등급 1종 / 3등급 2 / 4등급 3 / 5등급 4)', World.CITIES.length);
 
+    /* ★ 도시끼리 너무 가까우면 **노드가 겹쳐 클릭이 안 된다.**
+     *   실제로 sed 로 좌표를 고치다 같은 지역·등급 도시를 전부 덮어써서
+     *   사막 3개·설원 2개가 완전히 같은 자리에 놓였다 — 서리관문이 안 눌렸다.
+     *   라벨 검사(maplabels)는 **라벨만** 보므로 이건 못 잡는다. 여기서 잡는다. */
+    const nearBad = [];
+    for (let i = 0; i < World.CITIES.length; i++) {
+      for (let j = i + 1; j < World.CITIES.length; j++) {
+        const a = World.CITIES[i];
+        const b = World.CITIES[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d < 110) nearBad.push(`${a.id}↔${b.id} = ${Math.round(d)}`);
+      }
+    }
+    okAll(nearBad, '도시 노드가 서로 110 이상 떨어져 있다 (겹치면 클릭이 안 된다)', World.CITIES.length);
+
     const noHome = Classes.BASE_CLASSES.filter((id) => World.citiesForClass(id).length === 0);
     okAll(noHome, '1차 클래스 7종이 전부 특화 도시를 갖는다', Classes.BASE_CLASSES.length);
     const counts = Classes.BASE_CLASSES.map((id) => World.citiesForClass(id).length);

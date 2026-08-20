@@ -139,7 +139,7 @@ export const CITIES = [
 
   // 태양흉터 황야 (tier 4) — 동쪽 외곽
   {
-    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 860, y: 620,
+    id: 'dunehold', name: '모래성채', regionId: 'sunscar', tier: 4, x: 880, y: 400,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
     specialty: ['archer', 'rogue', 'spearman'],
     desc: '사막 대상로의 유일한 우물을 낀 성채. 물값이 곧 통행세이고, 칼이 곧 계약서다. '
@@ -153,7 +153,7 @@ export const CITIES = [
       + '모래언덕 위에서 먼저 보는 활잡이, 모래바람에 등을 대는 방패병, 다른 길을 아는 도적이 여기서 값을 부른다.',
   },
   {
-    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 4, x: 860, y: 620,
+    id: 'emberwell', name: '잿불우물', regionId: 'sunscar', tier: 4, x: 960, y: 540,
     services: ['tavern', 'shop', 'guild'], links: [],
     specialty: ['apprentice', 'acolyte', 'swordsman'],
     desc: '땅속에서 불이 새어 나오는 유적 위에 세워진 변경 취락. 유물 사냥꾼들의 마지막 보급지. '
@@ -162,14 +162,14 @@ export const CITIES = [
 
   // 서리변경 (tier 5) — 북쪽 끝
   {
-    id: 'lastlamp', name: '마지막 등불', regionId: 'frostmarch', tier: 5, x: 300, y: 110,
+    id: 'lastlamp', name: '마지막 등불', regionId: 'frostmarch', tier: 5, x: 660, y: 30,
     services: ['tavern', 'shop', 'guild', 'smith'], links: [],
     specialty: ['apprentice', 'archer', 'rogue', 'acolyte'],
     desc: '서리관문 **너머**, 성벽이 지켜 주지 않는 쪽에 선 마지막 취락. 돌아오지 않는 자들의 이름이 등불 아래 걸린다. '
       + '얼음을 녹이는 견습마법사, 눈보라 속에서 쏘는 활잡이, 길을 아는 도적, 그리고 그들을 배웅하는 수도사뿐이다.',
   },
   {
-    id: 'frostgate', name: '서리관문', regionId: 'frostmarch', tier: 5, x: 300, y: 110,
+    id: 'frostgate', name: '서리관문', regionId: 'frostmarch', tier: 5, x: 520, y: 70,
     services: ['tavern', 'guild', 'smith'], links: [],
     specialty: ['shieldman', 'acolyte', 'spearman', 'swordsman'],
     desc: '얼어붙은 성벽 하나가 북쪽 전부를 막아선다 — 성벽 안쪽으로는. 이곳 주점의 술은 얼지 않는 것만으로 값을 한다. '
