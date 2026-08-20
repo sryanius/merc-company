@@ -11,6 +11,25 @@ import { chooseAction, isDamaging, makeBasicSkill } from './ai.js';
 
 /** 전투 제한 시간(초). 초과 시 총 HP 비율 우세승 */
 export const TIME_LIMIT = 120;
+
+/* ── 패주 (설계 3a, HANDOFF §26) ─────────────────────────────────────────────
+ * 예전에는 **전멸해야만** 전투가 끝났다. 그래서 결과가 「전멸승」/「전멸패」 둘뿐이고
+ * "3명 잃고 겨우 이겼다" 같은 중간이 존재하지 않았다 (§24 · §25).
+ *
+ * 패주를 넣으면 진 쪽도 남은 사람이 살아 나온다 — 그게 부분 패의 실체다.
+ *
+ * ★ `TIME_LIMIT` 우세승은 실측 1320전 중 **0회**였다. 죽은 코드다. 그건 그대로 두고
+ *   (안전망이니까) 실제로 도는 건 아래 규칙이다.
+ *
+ * ★ 난수를 안 쓴다. 이미 정해진 상태를 읽기만 하므로 rng 소비가 안 늘고,
+ *   따라서 "패주를 껐을 때" 와 결과를 1:1로 비교할 수 있다.
+ */
+/** 자기 전력이 이 밑으로 떨어지면 패주 후보 */
+export const ROUT_FLOOR = 0.20;
+/** 그리고 상대가 자기보다 이 배 이상 남아 있어야 실제로 패주한다 */
+export const ROUT_LEAD = 3.0;
+/** 개전 직후에는 안 본다 — 초반 난전에서 한쪽이 잠깐 밀리는 걸 패주로 오판한다 */
+export const ROUT_AFTER = 3.0;
 /** 고정 시뮬 스텝. 결정론을 위해 항상 이 단위로만 진행한다 */
 export const FIXED = 1 / 60;
 
@@ -741,6 +760,23 @@ export function createBattle(cfg = {}) {
     return n;
   };
 
+  /** 그 진영의 전투원 수 (펫 제외) */
+  const countOf = (side) => {
+    let n = 0;
+    for (const u of units) if (u.side === side && !u.pet) n++;
+    return n;
+  };
+
+  /**
+   * 그 진영이 얼마나 남았나 (0~1).
+   * 인원과 체력을 반씩 본다 — 7명이 다 살았지만 빈사인 것과 4명이 멀쩡한 것은 다르다.
+   * `result.margin` 도 같은 정의를 쓴다.
+   */
+  const strengthOf = (side) => {
+    const tot = countOf(side);
+    return tot > 0 ? 0.5 * (aliveFighters(side) / tot) + 0.5 * hpRatioOf(side) : 0;
+  };
+
   function hpRatioOf(side) {
     let cur = 0, max = 0;
     // 펫 제외 — 덩치 큰 수호 펫이 시간초과 판정을 왜곡한다
@@ -748,11 +784,21 @@ export function createBattle(cfg = {}) {
     return max > 0 ? cur / max : 0;
   }
 
+  /** 어느 쪽이 물러났나 ('ally'|'enemy'|null). 전멸로 끝나면 null 이다. */
+  let routed = null;
+
   function checkEnd() {
     // 단원이 전멸했는데 펫이 살아 있다고 이긴 게 아니다 — 펫은 머릿수에 안 넣는다
     const a = aliveFighters('ally');
     const e = aliveFighters('enemy');
     if (a > 0 && e > 0) {
+      // 승부가 갈렸으면 전멸까지 안 간다 — 남은 사람은 살아 나온다
+      if (B.time >= ROUT_AFTER) {
+        const sa = strengthOf('ally');
+        const se = strengthOf('enemy');
+        if (sa < ROUT_FLOOR && se > sa * ROUT_LEAD) { routed = 'ally'; finish('enemy'); return; }
+        if (se < ROUT_FLOOR && sa > se * ROUT_LEAD) { routed = 'enemy'; finish('ally'); return; }
+      }
       if (B.time >= TIME_LIMIT) {
         const ra = hpRatioOf('ally');
         const re = hpRatioOf('enemy');
@@ -799,7 +845,6 @@ export function createBattle(cfg = {}) {
      * 인원과 체력을 반씩 본다 — 7명이 다 살았지만 빈사인 것과 4명이 멀쩡한 것을
      * 같게 볼 수는 없다.
      */
-    const countOf = (side) => { let n = 0; for (const u of units) if (u.side === side && !u.pet) n++; return n; };
     const aTot = countOf('ally');
     const eTot = countOf('enemy');
     const aAlive = aliveFighters('ally');
@@ -811,6 +856,8 @@ export function createBattle(cfg = {}) {
       allyAlive: aAlive, allyCount: aTot, allyHp: aHp,
       enemyAlive: eAlive, enemyCount: eTot, enemyHp: eHp,
       score: strength(aAlive, aTot, aHp) - strength(eAlive, eTot, eHp),
+      /** 전멸이 아니라 물러나서 끝났으면 그 진영. UI 가 「패주」 라고 쓸 수 있다. */
+      routed,
     };
 
     push({ type: 'end', winner });

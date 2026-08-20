@@ -2378,6 +2378,41 @@ section('서버 공유 규칙');
   const r2 = run(777).result.margin;
   ok(JSON.stringify(r1) === JSON.stringify(r2), '같은 시드면 margin 도 같다');
 
+  /* ── 패주 (설계 3a) ────────────────────────────────────────────────────
+   * 패주는 **승자를 바꾸면 안 된다.** 전투를 일찍 끝내 남은 사람을 살려 보낼 뿐이다.
+   * (실측: 3744 전투에서 승패가 달라진 판 0건 — HANDOFF §26) */
+  {
+    const bad = [];
+    let routs = 0;
+    let loserSurvived = 0;
+    let losses = 0;
+    for (let k = 0; k < 60; k++) {
+      const b = run(5000 + k * 7919, 1 + (k % 12) * 0.6);
+      const m = b.result.margin;
+      if (!m) { bad.push(`시드 ${k}: margin 없음`); continue; }
+      if (m.routed) {
+        routs++;
+        // 물러난 쪽이 진 쪽이다
+        if (m.routed === b.result.winner) bad.push(`시드 ${k}: 물러난 쪽이 이겼다`);
+        // 물러났다는 건 전멸이 아니라는 뜻이다 — 남은 사람이 있어야 한다
+        const left = m.routed === 'ally' ? m.allyAlive : m.enemyAlive;
+        if (left <= 0) bad.push(`시드 ${k}: 물러났는데 생존자 0`);
+        // 개전 직후에는 안 본다
+        if (b.result.time < E.ROUT_AFTER - 1e-6) bad.push(`시드 ${k}: ${b.result.time}s 에 패주 (ROUT_AFTER=${E.ROUT_AFTER})`);
+      }
+      if (b.result.winner !== 'ally') {
+        losses++;
+        if (m.allyAlive > 0) loserSurvived++;
+      }
+    }
+    okAll(bad, '패주가 규칙을 지킨다 (진 쪽만 물러나고, 남은 사람이 있고, 개전 직후엔 없다)', 60);
+    ok(routs > 0, '패주가 실제로 일어난다', `${routs}/60`);
+    /* ★ 이게 3a 의 목적이다. 예전에는 지면 **반드시 전멸**이었다 (실측 평균 생존 0.00명).
+     *   지금은 진 판에서도 사람이 남는다 (실측 평균 1.34명). */
+    ok(losses === 0 || loserSurvived > 0,
+      '진 판에서도 살아남는 단원이 있다 (부분 패)', `${loserSurvived}/${losses}`);
+  }
+
   // 아직 아무도 안 읽는다 — 읽기 시작하면 DATA_VERSION·인계·보상을 같이 봐야 한다
   const fsm2 = await import('node:fs');
   const readers = ['src/game/quest.js', 'src/game/dungeon.js', 'src/game/tower.js', 'src/game/abyss.js', 'src/ui/battle.js']
