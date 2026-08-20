@@ -676,7 +676,12 @@ const CSS = `
 .co-pick:hover{border-color:var(--gold-dim);background:var(--bg-2);}
 .co-promo{border:1px solid var(--line);border-radius:6px;padding:12px;background:linear-gradient(180deg,var(--bg-2),var(--bg-1));cursor:pointer;}
 .co-promo.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold-dim) inset;}
-.co-fx{display:flex;flex-wrap:wrap;gap:6px;max-height:46px;overflow:auto;}
+/* ★ 진형 효과는 **다 펼친다.** 예전에는 46px 로 잘라 스크롤을 달았는데,
+   두 줄이 넘으면 나머지가 있는지조차 모른다 — 스크롤바가 얇아 눈에 안 띈다.
+   효과 개수는 진형이 정하고 많아야 예닐곱 줄이라, 펼쳐도 판을 안 밀어낸다. */
+.co-fx{display:flex;flex-wrap:wrap;gap:6px;}
+.co-petrow{border-top:1px solid var(--line-soft);padding-top:7px;margin-top:2px;}
+.co-pet{font-size:11px;}
 /* 소속 부대 배지 — 카드 맨 위 이름 옆. 부대별 고정 색이라 명부를 눈으로 훑어도 묶여 보인다 */
 .co-sqb{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;
   border:1px solid currentColor;font-size:10px;font-weight:700;line-height:1.6;white-space:nowrap;}
@@ -858,7 +863,6 @@ const CSS = `
   .co-sq{min-width:120px;}
   .co-strip{padding:8px;gap:8px;}
   .co-names{max-height:44vh;}
-  .co-fx{max-height:none;}
 
   /* 표: 칸을 좁히고, 그래도 넘치면 자기 상자 안에서만 가로 스크롤 */
   .co-root table.data th,.co-root table.data td,
@@ -1168,6 +1172,46 @@ function squadBar() {
   return bar;
 }
 
+/**
+ * 편성판 아래 «이 부대의 펫» 줄.
+ *
+ * ★ 펫 화면이 따로 있는데도 여기 붙이는 이유 — **펫은 부대의 일부**다.
+ *   편성을 짜면서 «지금 이 부대에 뭐가 붙어 있나» 를 보려고 화면을 옮겨야 하면
+ *   편성 판단이 끊긴다 (제작자 지적: "부대 배치화면에서 같이 볼 수 있으면 좋겠다").
+ *   자세한 관리(교체·방출)는 여전히 펫 화면이 한다 — 여기서는 **보여 주고 넘겨준다.**
+ */
+function squadPetRow(sq) {
+  let pets = [];
+  try { pets = Pet.squadPets(state, sq) || []; } catch (e) { pets = []; }
+  const cap = (() => { try { return (Pet.petUidsOf(sq) || []).length || 3; } catch (e) { return 3; } })();
+
+  const row = el('div', { class: 'row center wrap co-petrow', style: { gap: '6px' } },
+    el('span', { class: 'tiny faint', style: { flex: '0 0 auto' }, text: '펫' }));
+
+  if (!pets.length) {
+    row.appendChild(el('span', { class: 'tiny muted', text: '배치된 펫이 없다 — 무한의 탑에서 얻는다' }));
+  } else {
+    for (const p of pets) {
+      let label = '';
+      let ability = '';
+      try { label = Pet.petLabel(p) || ''; ability = Pet.petAbilityText(p) || ''; } catch (e) { /* 옛 세이브 */ }
+      row.appendChild(el('span', {
+        class: 'tag co-pet',
+        style: { color: GRADE_COLOR[p.grade] || 'var(--ink)' },
+        title: ability,
+      }, label || `${p.grade || '?'} ${p.sid || '펫'}`));   // petLabel 이 등급을 이미 붙인다
+    }
+    if (pets.length < cap) {
+      row.appendChild(el('span', { class: 'tiny faint', text: `빈 자리 ${cap - pets.length}` }));
+    }
+  }
+  row.appendChild(el('button', {
+    class: 'btn sm ghost', style: { marginLeft: 'auto', flex: '0 0 auto' },
+    onClick: () => go('pets'),
+  }, '펫 관리'));
+  return row;
+}
+
 /** 보유 펫 수 — 버튼에 붙여 "펫이 있다"는 걸 화면에서 바로 알게 한다 */
 function petCountLabel() {
   try {
@@ -1391,6 +1435,7 @@ function boardPanel() {
   }
 
   panel.appendChild(board(sq, f, owned));
+  panel.appendChild(squadPetRow(sq));
   panel.appendChild(el('div', {
     class: 'tiny faint co-boardhint',
     text: short(
