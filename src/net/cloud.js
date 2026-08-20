@@ -397,6 +397,14 @@ function worthSubmitting(score) {
   if (!score) return false;
   const done = readSubmitted();
   if (!done || done.seed !== score.seed) return true;      // 새 판이면 무조건 한 번
+
+  /* ★★ **세이브 버전이 바뀌었으면 기억을 버린다.**
+   *   서버 기록을 리셋해도 이 «이미 올렸다» 기억은 로컬에 남는다. 그래서 리셋 뒤
+   *   옛 기록보다 낮게 다시 오르면 **제출 자체를 건너뛰어** 순위표에 영영 안 뜬다
+   *   (제작자가 나락을 다시 올랐는데 안 뜬다고 알려 줬다 — HANDOFF §42).
+   *   마이그레이션이 기록을 0 으로 내렸다면 버전도 같이 올라가므로, 여기서 잡힌다. */
+  if ((Number(done.dataVersion) || 0) !== (Number(score.dataVersion) || 0)) return true;
+
   return score.abyssBest > (done.abyss || 0)
     || score.towerBest > (done.tower || 0)
     || score.questsDone > (done.quests || 0);
@@ -439,11 +447,13 @@ export async function submitScore(opt = {}) {
        * 지금 값을 제출한 것으로 기록해 둔다. 게임은 아무 영향 없이 계속된다. */
       writeLS(SUBMITTED_KEY, JSON.stringify({
         seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+        dataVersion: score.dataVersion || 0,
       }));
       return { ok: false, error: (res.data.reasons || []).join(' / ') || '서버가 거절했다' };
     }
     writeLS(SUBMITTED_KEY, JSON.stringify({
       seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+      dataVersion: score.dataVersion || 0,
     }));
     return { ok: true, error: '' };
   })();
