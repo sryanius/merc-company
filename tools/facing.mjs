@@ -31,6 +31,9 @@ const EYE_X = MID + 1.5 * SCALE;         // 눈 평균 x (중심보다 확실히
 const MIN_SKIN = 5 * SCALE;              // 보이는 얼굴 픽셀 수 (투구가 얼굴을 통째로 덮으면 안 된다)
 const SKIN_X = MID + 0.8 * SCALE;        // 얼굴 평균 x
 const HAIR_BACK = MID + 0.2 * SCALE;     // 머리카락 평균 x (뒤통수는 뒤쪽에 있어야 한다)
+/* ★ 머리카락이 **머리에 붙어 있나** — 평균 x 만 재면 «뒤에 떠 있는 가발» 을 못 잡는다 */
+const MAX_BARE = 2 * SCALE;              // 정수리가 드러난 열 (조금은 이마·가르마라 허용)
+const MAX_FLOAT = 3 * SCALE;             // 피부에 한 칸도 안 닿는 머리카락 덩어리
 
 const get = (n) => {
   if (!n || n.endsWith('_none')) return null;
@@ -59,14 +62,21 @@ function composeHead(names) {
   return grid;
 }
 
+/* ★★ 재질 문자는 **3단계 전부** 세야 한다 (art/palette.js).
+ *   하이라이트(x·y)를 빼먹었더니 얼굴 평균 x 가 뒤로 밀려 31/71 이 낙제로 나왔다 —
+ *   하이라이트는 빛을 받는 **앞면에 몰려 있기** 때문이다. 그림이 아니라 자가 틀렸다.
+ *   팔레트에 단계를 더할 때 여기도 같이 고쳐야 한다 (HANDOFF §54). */
+const SKIN = new Set(['s', 'S', 'x']);
+const HAIR = new Set(['h', 'H', 'y']);
+
 function measure(grid) {
   let eye = 0, eyeX = 0, skin = 0, skinX = 0, hair = 0, hairX = 0;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const c = grid[y][x];
       if (c === 'e') { eye++; eyeX += x; }
-      else if (c === 's' || c === 'S') { skin++; skinX += x; }
-      else if (c === 'h' || c === 'H') { hair++; hairX += x; }
+      else if (SKIN.has(c)) { skin++; skinX += x; }
+      else if (HAIR.has(c)) { hair++; hairX += x; }
     }
   }
   return {
@@ -74,7 +84,65 @@ function measure(grid) {
     eyeX: eye ? eyeX / eye : null,
     skinX: skin ? skinX / skin : null,
     hairX: hair ? hairX / hair : null,
+    ...scalp(grid),
   };
+}
+
+/**
+ * 머리카락이 **두피에 붙어 있나.**
+ *
+ * ★ 실제로 겪은 것 (HANDOFF §54): 파츠를 다시 그렸더니 머리카락이 뒤통수 **뒤에 떠 있는 판**이 됐다.
+ *   대머리에 가발이 따로 떠 있는 모양인데, 위 지표(평균 x)는 전부 통과했다.
+ *   «뒤통수 쪽에 있는가» 만 재고 «머리에 붙어 있는가» 를 안 쟀기 때문이다.
+ *
+ * 두 가지를 본다:
+ *   1. 정수리 노출 — 머리 위쪽에서 머리카락 대신 **맨살**이 보이는 칸 수
+ *   2. 뜬 머리카락 — 머리(피부)와 **한 칸도 안 닿는** 머리카락 덩어리의 크기
+ */
+function scalp(grid) {
+  const skinAt = (x, y) => SKIN.has(grid[y][x]);
+  const hairAt = (x, y) => HAIR.has(grid[y][x]);
+
+  // 1) 각 열에서 가장 위의 피부/머리카락을 찾아, 피부가 더 위면 «정수리가 드러났다»
+  let bare = 0;
+  for (let x = 0; x < W; x++) {
+    let topSkin = -1; let topHair = -1;
+    for (let y = 0; y < H; y++) {
+      if (topSkin < 0 && skinAt(x, y)) topSkin = y;
+      if (topHair < 0 && hairAt(x, y)) topHair = y;
+      if (topSkin >= 0 && topHair >= 0) break;
+    }
+    if (topSkin >= 0 && topHair >= 0 && topSkin < topHair) bare++;
+  }
+
+  /* 2) 머리카락 덩어리를 잇고, **몸의 어느 것에도 안 닿으면** «떠 있다».
+   *
+   * ★ 「피부에 닿는가」 로 재면 안 된다 — 투구를 쓰면 머리카락이 두피 대신 **투구**에 닿는데
+   *   그걸 «떴다» 로 오판한다 (실제로 human/short/iron 이 그렇게 낙제로 나왔다).
+   *   기준은 «머리카락 아닌 무언가에 닿아 있는가» 다. 허공에 뜬 판만 잡힌다. */
+  const solid = (x, y) => grid[y][x] !== '.' && !hairAt(x, y);
+  const seen = Array.from({ length: H }, () => new Array(W).fill(false));
+  let floating = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (seen[y][x] || !hairAt(x, y)) continue;
+      const stack = [[x, y]]; let size = 0; let touches = false;
+      seen[y][x] = true;
+      while (stack.length) {
+        const [cx, cy] = stack.pop();
+        size++;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          if (solid(nx, ny)) touches = true;
+          if (seen[ny][nx] || !hairAt(nx, ny)) continue;
+          seen[ny][nx] = true; stack.push([nx, ny]);
+        }
+      }
+      if (!touches) floating = Math.max(floating, size);
+    }
+  }
+  return { bare, floating };
 }
 
 /** 실제로 게임에 쓰이는 (머리, 헤어, 투구) 조합만 검사한다 */
@@ -102,6 +170,9 @@ for (const combo of combos) {
   if (m.skin < MIN_SKIN) bad.push(`얼굴 ${m.skin}px(≥${MIN_SKIN})`);
   else if (m.skinX < SKIN_X) bad.push(`얼굴 x ${m.skinX.toFixed(1)}(≥${SKIN_X})`);
   if (m.hair > 0 && m.hairX > HAIR_BACK) bad.push(`머리 x ${m.hairX.toFixed(1)}(≤${HAIR_BACK})`);
+  /* 머리카락이 있는데 두피를 안 덮거나 몸에서 떨어져 있으면 «가발이 떠 있는» 그림이다 */
+  if (m.hair > 0 && m.bare > MAX_BARE) bad.push(`정수리 노출 ${m.bare}칸(≤${MAX_BARE})`);
+  if (m.floating > MAX_FLOAT) bad.push(`뜬 머리카락 ${m.floating}px(≤${MAX_FLOAT})`);
   rows.push({ combo, m, bad });
   if (bad.length) fails.push({ combo, bad });
 }
