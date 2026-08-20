@@ -45,7 +45,7 @@ const N_WAVE = optNum('n', 24);
 /** 던전 런(HP 인계) 표본 */
 const N_RUN = optNum('nrun', 24);
 /** 부대 등급 — 실제 만렙 부대의 중앙값에 해당 */
-const GRADE = optStr('grade', 'B');
+const GRADE = optStr('grade', 'A');
 const LEVEL = optNum('level', 80);
 /** `--nospecial` — 세트 고유 효과를 빼고 잰다 (9차 이전 측정과의 A/B 비교용) */
 const NO_SPECIAL = ARGV.includes('--nospecial');

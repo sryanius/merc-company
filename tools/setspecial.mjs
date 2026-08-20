@@ -47,7 +47,7 @@ const wants = (name) => !only || only.split(',').includes(name);
 
 /** 웨이브 하나당 표본 */
 const N = optNum('n', 30);
-const GRADE = optStr('grade', 'B');
+const GRADE = optStr('grade', 'A');
 const LEVEL = optNum('level', 80);
 
 /* ────────────────────────────── 출력 헬퍼 ────────────────────────────── */
