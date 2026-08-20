@@ -55,9 +55,14 @@ export async function call(url, opt = {}) {
     if (text) { try { data = JSON.parse(text); } catch { data = text; } }
 
     if (!res.ok) {
-      // PostgREST 는 사유를 message 에 담는다. 트리거가 raise 한 문구도 여기로 온다.
-      const msg = (data && (data.message || data.error_description || data.error)) || `HTTP ${res.status}`;
-      return { ok: false, status: res.status, data, error: String(msg) };
+      /* 사유가 담기는 필드가 서비스마다 다르다:
+       *   PostgREST → message (트리거가 raise 한 문구도 여기로 온다)
+       *   GoTrue(인증) → **msg** · error_description · error_code
+       * msg 를 빼먹으면 인증 오류가 전부 "HTTP 404" 같은 숫자로만 보인다. */
+      const msg = (data && (data.message || data.msg || data.error_description
+        || (typeof data.error === 'string' ? data.error : null)))
+        || `HTTP ${res.status}`;
+      return { ok: false, status: res.status, data, error: String(msg), code: data?.error_code || '' };
     }
     return { ok: true, status: res.status, data, error: '' };
   } catch (e) {

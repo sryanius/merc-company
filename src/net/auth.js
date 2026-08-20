@@ -175,7 +175,17 @@ export async function completeOAuth() {
     body: { auth_code: code, code_verifier: verifier },
   });
   writeLS(VERIFIER_KEY, null);
-  if (!res.ok) return { ok: false, handled: true, error: res.error };
+  if (!res.ok) {
+    /* `flow_state_not_found` 는 서버가 이 로그인 시도를 모른다는 뜻이다 —
+     * 코드를 이미 썼거나(새로고침) 너무 오래 걸렸다. 원문을 그대로 보여 주면
+     * 플레이어가 할 수 있는 게 없으므로 무엇을 하면 되는지로 바꿔 말한다. */
+    const stale = res.code === 'flow_state_not_found' || res.status === 404;
+    return {
+      ok: false,
+      handled: true,
+      error: stale ? '로그인이 만료됐습니다. 다시 시도해 주세요.' : res.error,
+    };
+  }
 
   const s = toSession(res.data);
   if (!s) return { ok: false, handled: true, error: '응답에 토큰이 없다' };
