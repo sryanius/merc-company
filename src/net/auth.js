@@ -51,7 +51,20 @@ function load() {
     const raw = readLS(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (s && s.userId && s.access && s.refresh) session = s;
+    if (!s || !s.userId || !s.access || !s.refresh) return null;
+
+    /* ★ 익명 시절 세션은 버린다.
+     *   익명 로그인을 걷어내기 전에 클라우드를 켠 사람은 저장소에 그 세션이 남아 있다.
+     *   그러면 `signedIn()` 이 참이라 "이미 로그인됨"으로 보고 **구글 로그인 화면이
+     *   영영 안 뜬다** — 실제로 그 상태에 걸렸다.
+     *   구글 계정에는 항상 이메일이 있으므로(대시보드에서 '이메일 없는 사용자 허용'을
+     *   꺼 두었다) 이메일 유무로 정확히 가른다. */
+    if (!s.email) {
+      console.warn('[auth] 익명 시절 세션을 버린다 — 구글 로그인이 필요하다');
+      writeLS(SESSION_KEY, null);
+      return null;
+    }
+    session = s;
   } catch (e) {
     console.warn('[auth] 세션을 읽지 못했다', e);
   }
