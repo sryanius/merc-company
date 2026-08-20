@@ -1816,7 +1816,7 @@ if (State) {
   ok(State.calendar(336).year === 1 && State.calendar(337).year === 2, '336일이 1년, 337일차부터 2년');
   const lbl = State.calendarLabel(245);
   ok(/^\d+년 \d+월 \d+주차 \(245일차\)$/.test(lbl), 'UI 표기 형식 `N년 N월 N주차 (N일차)`', lbl);
-  ok(State.DATA_VERSION === 6, 'DATA_VERSION 이 6', State.DATA_VERSION);
+  ok(State.DATA_VERSION === 7, 'DATA_VERSION 이 7', State.DATA_VERSION);
 
   /* ── 랭킹 리셋 마이그레이션 (DATA_VERSION 5) ────────────────────────────
    * ★ 리셋은 **버전 4 이하에서 올라올 때만** 일어나야 한다.
@@ -1863,6 +1863,47 @@ if (State) {
     ok(State.RANK_RESET_VERSION <= State.DATA_VERSION,
       '랭킹 리셋 기준 버전이 DATA_VERSION 을 넘지 않는다',
       `${State.RANK_RESET_VERSION} vs ${State.DATA_VERSION}`);
+    /* ── 평판 초기화 (DATA_VERSION 7) ──────────────────────────────────── */
+    {
+      const store2 = {};
+      const prev2 = globalThis.localStorage;
+      globalThis.localStorage = {
+        getItem: (k) => (k in store2 ? store2[k] : null),
+        setItem: (k, v) => { store2[k] = String(v); },
+        removeItem: (k) => { delete store2[k]; },
+      };
+      const mkRep = (ver) => {
+        State.newGame(4242, '평판');
+        State.save();
+        const raw = JSON.parse(globalThis.localStorage.getItem(State.SAVE_KEY));
+        const body = raw && raw.data ? raw.data : raw;
+        body.dataVersion = ver;
+        body.reputation = { greenhold: 100, kingsrest: 77, frostgate: 55 };
+        globalThis.localStorage.setItem(State.SAVE_KEY, JSON.stringify(raw));
+        State.load();
+        return State.state;
+      };
+      const r1 = mkRep(6);
+      ok(r1.reputation.kingsrest === 0 && r1.reputation.frostgate === 0,
+        '버전 6 세이브를 열면 도시 평판이 초기화된다',
+        `왕의안식 ${r1.reputation.kingsrest} / 서리관문 ${r1.reputation.frostgate}`);
+      const startCity = World.START_CITY;
+      ok(r1.reputation[startCity] === State.START_REP,
+        '초기화해도 시작 도시는 START_REP 로 남는다',
+        `${startCity} = ${r1.reputation[startCity]} (기대 ${State.START_REP})`);
+      globalThis.localStorage = prev2;
+
+      /* ★ 미래 위험 — DATA_VERSION 을 8 로 올릴 때 이 관문이 따라 올라가면
+       *   그때 또 남의 평판이 날아간다. 실행으로는 못 잰다 (cur===DATA_VERSION 이면
+       *   마이그레이션이 맨 위에서 반환한다) — §27.5 에서 겪었다. 값으로 못 박는다. */
+      ok(State.REP_RESET_VERSION === 7,
+        'REP_RESET_VERSION 이 7 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
+        String(State.REP_RESET_VERSION));
+      ok(State.REP_RESET_VERSION !== State.RANK_RESET_VERSION,
+        '평판 리셋과 랭킹 리셋이 따로 관리된다',
+        `평판 ${State.REP_RESET_VERSION} / 랭킹 ${State.RANK_RESET_VERSION}`);
+    }
+
     ok(State.RANK_RESET_VERSION === 5,
       'RANK_RESET_VERSION 이 5 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
       String(State.RANK_RESET_VERSION));

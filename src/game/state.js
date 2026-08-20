@@ -48,6 +48,10 @@ export const SAVE_VERSION = 1;
  *       년/월/주 달력(day 파생 — calendar/openDungeonWeek/calendarLabel) 도입.
  *       옛 세이브의 장비는 weapon→weapon / armor→body / accessory→neck 으로 옮겨지고,
  *       의뢰·주점·상점 목록은 새 슬롯·수치로 다시 채워져야 한다.
+ *   7 — 도시 배율·보스 등장률 재조정(§37) + **평판 곡선 교체분 반영**.
+ *       평판 상한이 100 → 300 으로, 효과 계수(REP_PER_TIER)가 60 → 150 으로 바뀌어서
+ *       기존 세이브의 평판 수치는 **옛 척도로 쌓인 값**이다 (옛 100 = 옛 최대치,
+ *       새 100 = 최대의 1/3). 그대로 두면 뜻이 다른 숫자가 남는다 → 초기화한다.
  *   6 — 도시 등급이 난이도 축이 됐다 (CITY_POWER) + 전 도시가 F~S 를 다 내보낸다.
  *       의뢰 목록이 새 규칙으로 다시 채워져야 한다. 랭킹 기록은 **안 건드린다**
  *       (RANK_RESET_VERSION 은 5 에 고정 — 따라 올리지 마라).
@@ -55,7 +59,7 @@ export const SAVE_VERSION = 1;
  *       **탑·나락 기록을 리셋한다** (제작자 결정: 시즌 병기 없이 그냥 리셋).
  *       옛 곡선에서 세운 기록과 새 기록이 한 순위표에 섞이면 안 된다.
  */
-export const DATA_VERSION = 6;
+export const DATA_VERSION = 7;
 
 /**
  * 랭킹 기록(탑·나락)을 리셋한 버전.
@@ -65,6 +69,16 @@ export const DATA_VERSION = 6;
  *   다음에 또 리셋할 일이 생기면 그때 이 값을 그 버전으로 올려라.
  */
 export const RANK_RESET_VERSION = 5;
+
+/**
+ * 도시 평판을 초기화한 버전.
+ *
+ * ★ `RANK_RESET_VERSION` 과 **따로 둔다.** 랭킹 리셋(5)과 평판 리셋(7)은 시점이 다르고,
+ *   하나로 묶으면 다음에 둘 중 하나만 다시 하고 싶을 때 못 한다.
+ * ★ **DATA_VERSION 을 올릴 때 같이 올리지 마라.** 여기 고정돼 있어야 «그때 한 번만»
+ *   초기화된다. 같이 올리면 수치를 손볼 때마다 남의 평판이 매번 날아간다.
+ */
+export const REP_RESET_VERSION = 7;
 /** 도시 목록(주점/상점/의뢰) 리롤 주기 */
 export const REFRESH_DAYS = 3;
 
@@ -475,6 +489,19 @@ function migrateDataVersion(st) {
    *   `progress.js` 의 튜토리얼·진행 관문을 구동한다 — 0 으로 내리면
    *   한참 진행한 사람에게 「첫 의뢰를 받아라」가 다시 뜬다.
    *   탑·나락 기록은 순수한 기록이라 지워도 그런 부작용이 없다. */
+  /* ── 평판 초기화 (DATA_VERSION 7, HANDOFF §38) ──────────────────────────
+   * 평판 곡선이 통째로 바뀌었다 (상한 100→300, REP_PER_TIER 60→150, 획득량 상향).
+   * 옛 척도로 쌓인 수치는 새 곡선 위에서 **뜻이 다르다** — 옛 100 은 «최대치» 였지만
+   * 새 100 은 «최대의 1/3» 이다. 그대로 두면 옛 세이브만 조용히 유리하다.
+   *
+   * ★ 새 게임과 같은 상태로 되돌린다 — 시작 도시만 START_REP, 나머지 0.
+   *   `defaultReputation()` 이 그 규칙의 유일한 출처다. */
+  let repReset = false;
+  if (cur > 0 && cur < REP_RESET_VERSION) {
+    st.reputation = defaultReputation();
+    repReset = true;
+  }
+
   let rankReset = false;
   if (cur > 0 && cur < RANK_RESET_VERSION) {
     if (st.tower) { st.tower.best = 0; st.tower.bestDay = 0; }
@@ -483,6 +510,9 @@ function migrateDataVersion(st) {
   }
 
   st.dataVersion = DATA_VERSION;
+  if (repReset && Array.isArray(st.log)) {
+    st.log.push({ day: st.day, text: '이름값의 셈법이 달라졌다. 도시마다 처음부터 다시 눈도장을 찍어야 한다.' });
+  }
   if (rankReset && Array.isArray(st.log)) {
     st.log.push({ day: st.day, text: '전장의 규칙이 달라졌다. 탑과 나락의 기록은 처음부터 다시 센다.' });
   }
