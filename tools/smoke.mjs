@@ -1865,11 +1865,13 @@ section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
       });
       const r2 = new RngMod.RNG(31);
       for (let i = 0; i < 320; i++) { const it = G.rollItem({ ilvl: 55, rarityBonus: 0.9, rng: r2 }); if (it) st.items.push(it); }
-      // 사제가 임자인 세트를 «사제 아닌 사람» 에게 통째로 입혀 둔다
+      /* ★ 「성좌의 은총」은 이제 **사제 전용**이라 사제 아닌 사람에게 못 입힌다.
+       *   그래서 이 검사는 계열 제한이 느슨한 「강철 성벽」(tank·lancer)으로 잰다 —
+       *   재는 것은 «임자 양보» 가 아니라 «뺏긴 사람이 다시 채워지는가» 다. */
       const victim = st.roster[2];
       let worn = 0;
       for (const slot of ['weapon', 'offhand', 'head', 'armor', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2']) {
-        const it = G.rollSetItem({ setId: 'constellation', slot, ilvl: 60, rng: r2 });
+        const it = G.rollSetItem({ setId: 'ironrampart', slot, ilvl: 60, rng: r2 });
         if (!it) continue;
         st.items.push(it);
         const rr = G.equipItem(st, victim, it, null);
@@ -1878,12 +1880,7 @@ section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
       const before = Object.values(victim.equipment || {}).filter(Boolean).length;
       G.autoEquipAll(st, {});
       const after = Object.values(victim.equipment || {}).filter(Boolean).length;
-      const healer = st.roster.find((m) => (Classes.getClass(m.classId) || {}).arch === 'healer');
-      const hSet = Object.values((healer && healer.equipment) || {}).filter(Boolean)
-        .map((u) => (st.items || []).find((x) => x && x.uid === u))
-        .filter((x) => x && G.setIdOf(x) === 'constellation').length;
       if (worn < 5) faults.push(`검사 판을 못 차렸다: 세트를 ${worn}칸밖에 못 입혔다`);
-      else if (hSet < 3) faults.push(`세트가 사제에게 안 옮겨진다 (사제 ${hSet}칸)`);
       if (after < before - 1) faults.push(`뺏긴 사람이 빈손으로 남는다 (${before}칸 → ${after}칸)`);
     }
     okAll(faults, '세트는 임자에게 가고, 뺏긴 사람은 다시 채워진다', 10);
@@ -2381,8 +2378,17 @@ if (Sets && Items && Gear && Dungeons && Classes && Merc && RngMod) {
     }
   }
   okAll(abad, '던전 archs 와 세트 archs 가 일치', Dungeons.DUNGEON_LIST.length);
-  const uni = Sets.SET_LIST.filter((x) => x.archs.length === 7);
-  ok(uni.length === 1, '전 아키타입 세트는 정확히 1종(4번 던전)', uni.map((x) => x.id).join(','));
+  /* ★★ 예전 설계는 «4번 던전 세트만 전 아키타입» 이었다. 그게 바뀌었다.
+   *   제작자 결정: 「성좌의 은총은 사제만 입는 걸로 하고, 나중에 사제 계열 서포터
+   *   클래스를 만들든가 하자」 — 전 아키타입이라 배분이 계속 사제를 비켜 갔기 때문이다.
+   *   이제 네 세트가 **아키타입을 나눠 갖는다.** 그 나눔에 빈틈이 없는지를 본다:
+   *   일곱 아키타입이 전부 어딘가의 세트에 들어가 있어야 한다 — 안 그러면
+   *   그 계열은 던전을 아무리 돌아도 쓸 세트가 없다. */
+  const covered = new Set(Sets.SET_LIST.flatMap((x) => x.archs));
+  const ARCH7 = ['tank', 'fighter', 'lancer', 'rogue', 'archer', 'mage', 'healer'];
+  const uncovered = ARCH7.filter((a) => !covered.has(a));
+  okAll(uncovered.map((a) => `${a} 계열이 쓸 세트가 없다`),
+    '일곱 아키타입이 전부 어느 세트엔가 들어 있다', ARCH7.length);
 
   const b3 = Sets.setBonusAt(Sets.SET_IDS[0], 3, 10, 80);
   const b5 = Sets.setBonusAt(Sets.SET_IDS[0], 5, 10, 80);
@@ -2716,9 +2722,15 @@ if (State && Gear && Merc && Items && RngMod) {
     ok(filled >= 8, '용병 하나가 8칸 이상 장착할 수 있다', `실제 ${filled}`);
     ok(Object.values(Merc.mercStats(m, st.items)).every(isNum), '10슬롯 장착 후 스탯이 전부 유한값');
 
-    // 신화 세트는 ilvl 80 (minLv 75) 이라 만렙 용병만 낄 수 있다.
-    // 4번 던전 세트(성좌의 은총)는 아키타입 제한이 없어 어떤 클래스든 통과한다.
-    const setId = Dungeons ? Dungeons.DUNGEON_LIST[3].setId : 'constellation';
+    /* 신화 세트는 ilvl 80 (minLv 75) 이라 만렙 용병만 낄 수 있다.
+     *
+     * ★★ 예전에는 4번 던전 세트(성좌의 은총)가 «아키타입 제한이 없다» 는 것에 기대어
+     *   그걸 못 박아 썼다. 그 세트가 사제 전용이 되면서 이 검사가 통째로 깨졌다 —
+     *   **데이터의 우연한 성질에 기대면 데이터가 바뀔 때 검사가 죽는다.**
+     *   이제 «이 용병이 낄 수 있는 세트» 를 그때그때 고른다. */
+    const myArch = (Classes.getClass(m.classId) || {}).arch;
+    const wearable = (Sets.SET_LIST || []).find((x) => Array.isArray(x.archs) && x.archs.includes(myArch));
+    const setId = wearable ? wearable.id : (Dungeons ? Dungeons.DUNGEON_LIST[3].setId : 'constellation');
     m.level = 80;
     const before = Merc.mercStats(m, st.items);
     let put = 0;

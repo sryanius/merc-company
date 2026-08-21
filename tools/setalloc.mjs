@@ -45,6 +45,7 @@ function table(head, rows, align = []) {
   for (const r of rows) console.log(line(r));
 }
 const head = (t) => { console.log(`\n${t}\n${'─'.repeat(86)}`); };
+const num = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 
 /* ────────────────────────────── 판 만들기 ────────────────────────────── */
 
@@ -154,83 +155,109 @@ head('2. 아키타입별 «성좌 조각 하나» 점수 — 왜 사제가 밀�
   table(['클래스', '아키타입', `${piece && piece.name} 점수`], rows, ['', '', 'r']);
 }
 
-head('3. 사제가 없는 부대 — 세트가 버려지지 않나');
+head('3. 사제가 없는 부대 — 세트는 창고에 남는다 (제작자 결정)');
 {
-  /* ★★ 비임자 배율을 너무 내리면 **아무도 안 끼고 창고에 남는다.**
-   *   임자가 그 부대에 없을 수도 있기 때문이다. 그 경계를 여기서 지킨다 —
-   *   사제 없는 부대라도 누군가는 세트를 써야 한다(안 쓰면 그냥 손해다). */
+  /* ★ 「성좌의 은총」은 **사제 전용**이다 (sets.js archs: ['healer']).
+   *   그래서 사제가 없는 부대는 아예 못 쓴다 — 버려지는 게 아니라 «자격이 없는» 것이다.
+   *   제작자 결정: 「그냥 성좌의 은총은 사제만 입는 걸로 하고,
+   *   나중에 사제 계열 서포터 클래스를 만들든가 하자」.
+   *   여기서는 그게 **오류 없이** 동작하는지(아무도 못 끼고 창고에 남는지)만 본다. */
   const NOHEAL = ['bulwark_abyss', 'swordgod_apex', 'dragoonlord_apex', 'shadowblade_apex',
     'masterarcher_apex', 'archmage_apex', 'swordgod_apex'];
   const st = build(['constellation'], { copies: 1, classes: NOHEAL });
   const rows = allocate(st);
   const worn = rows.reduce((a, x) => a + (x.cnt.constellation || 0), 0);
-  const best = Math.max(...rows.map((x) => x.cnt.constellation || 0));
-  table(['클래스', '아키타입', '성좌 조각', ''],
-    rows.map((x) => [x.cls, x.arch, String(x.cnt.constellation || 0),
-      (x.cnt.constellation || 0) >= 3 ? '★ 세트 발동' : '']), ['', '', 'r', '']);
-  console.log('');
-  console.log(`  착용된 조각 ${worn}/10 · 한 사람 최대 ${best}칸`);
-  if (best >= 3) console.log('  판정: 사제가 없어도 누군가 세트를 쓴다 — 통과');
-  else console.log('  판정: **아무도 세트를 못 쓴다** — 비임자 배율이 너무 낮다');
+  const holes = st.roster.reduce((a, m) => a + Object.keys(m.equipment || {}).filter((k) => !m.equipment[k]).length, 0);
+  console.log(`  착용된 성좌 조각 ${worn}칸 (0이어야 정상) · 부대 빈 칸 ${holes}`);
+  if (worn === 0 && holes <= 3) console.log('  판정: 아무도 못 끼고, 부대는 다른 장비로 정상 착용 — 통과');
+  else if (worn > 0) console.log('  판정: **사제가 아닌데 끼고 있다** — archs 제한이 안 걸린다');
+  else console.log(`  판정: 부대에 빈 칸이 ${holes}개 — 창고 재고를 확인해라`);
 }
 
-head('4. ★ 이미 남이 세트를 끼고 있을 때 — 제작자가 겪은 상황');
+head('4. 사제만 낄 수 있나 — 계열 제한 확인');
 {
-  /* ★★ 제작자 화면: 창룡제가 성좌 7칸, 사제는 3칸.
-   *   갓 주운 조각을 나눠 주는 것과 **이미 남이 입고 있는 세트를 옮기는 것**은 다른 문제다.
-   *   (a) 배분은 전투력 순이라 사제가 맨 뒤 → 앞사람 것을 못 가져온다
-   *   (b) `breaksSetTier` 가 착용자의 세트 단계를 지켜 준다 → 스스로도 안 벗는다
-   *   그래서 세트가 한번 남에게 붙으면 그대로 굳는다. 그 상태를 여기서 재현한다. */
+  /* 배점(prefer)이 아니라 **자격(archs)** 으로 막는지 직접 확인한다.
+   * 배점은 «덜 좋아 보이게» 할 뿐이라 여러 벌이 돌아다니면 결국 새어 나갔다
+   * (제작자 화면에서 10·5·5·3·3 으로 흩어졌다). 자격 제한은 새지 않는다. */
   const st = build(['constellation'], { copies: 1 });
-  // 창룡제(lancer)에게 성좌를 통째로 입혀 둔다 — 제작자 화면의 출발점
-  const lancer = st.roster.find((m) => (getClass(m.classId) || {}).arch === 'lancer');
-  const pieces = (st.items || []).filter((it) => Gear.setIdOf(it) === 'constellation');
-  let worn = 0;
-  for (const it of pieces) {
-    const r = Gear.equipItem(st, lancer, it, null);
-    if (r && r.ok) worn++;
-  }
-  console.log(`  준비: 창룡제에게 성좌 ${worn}칸을 입혀 뒀다.`);
-  const rows = allocate(st);
-  table(['클래스', '아키타입', '성좌 조각', ''],
-    rows.map((x) => [x.cls, x.arch, String(x.cnt.constellation || 0),
-      (x.cnt.constellation || 0) >= 3 ? '★ 세트 발동' : '']), ['', '', 'r', '']);
-  const healer = rows.find((x) => x.arch === 'healer');
-  const got = healer ? (healer.cnt.constellation || 0) : 0;
-  const lan = rows.find((x) => x.arch === 'lancer');
-  console.log('');
-  console.log(`  자동 착용 뒤 — 사제 ${got}칸 · 창룡제 ${lan ? (lan.cnt.constellation || 0) : 0}칸`);
-  if (got >= 5) console.log('  판정: 세트가 사제에게 옮겨 갔다 — 통과');
-  else console.log(`  판정: **세트가 안 옮겨진다** (사제 ${got}칸) — 제작자가 본 그대로다`);
-
-  /* ★★ 뺏긴 사람이 **빈손으로 남으면 안 된다.** 세트를 옮기는 대가로 부대가 약해지면
-   *   그건 고친 게 아니다. 창고에 돌아온 물건으로 자리가 메워졌는지 센다. */
-  const empt = [];
+  const piece = (st.items || []).find((it) => Gear.setIdOf(it) === 'constellation');
+  const rows = [];
   for (const m of st.roster) {
-    const holes = Object.keys(m.equipment || {}).filter((k) => !m.equipment[k]);
-    if (holes.length) empt.push(`${(getClass(m.classId) || {}).name || m.classId} ${holes.length}칸`);
+    const cls = getClass(m.classId) || {};
+    const issue = Gear.equipIssue(m, piece, null, st);
+    rows.push([cls.name || m.classId, cls.arch, issue ? '✗ ' + String(issue).slice(0, 30) : '✓ 낄 수 있다']);
   }
-  console.log(`  빈 칸: ${empt.length ? empt.join(' · ') : '없음'}`);
-  console.log(empt.length ? '  ※ 창고 재고가 모자라면 빌 수 있다 — 재고를 늘려 아래에서 다시 본다' : '  ※ 전원 빈 칸 없음');
+  table(['클래스', '아키타입', '성좌 조각'], rows);
+  const okN = rows.filter((r) => r[2].startsWith('✓')).length;
+  console.log('');
+  console.log(okN === 1 ? '  판정: 사제 한 명만 낄 수 있다 — 통과' : `  판정: **${okN}명이 낄 수 있다** — 사제만이어야 한다`);
 }
 
-head('4b. 뺏긴 사람이 다시 채워지는가 (창고 재고 충분)');
+head('5. ★ 흩어진 상태에서 모이나 — 「강철 성벽」 2벌 (계열 제한이 느슨한 세트)');
 {
-  const st = build(['constellation'], { copies: 1 });
-  const lancer = st.roster.find((m) => (getClass(m.classId) || {}).arch === 'lancer');
-  for (const it of (st.items || []).filter((x) => Gear.setIdOf(x) === 'constellation')) Gear.equipItem(st, lancer, it, null);
-  const before = Object.values(lancer.equipment || {}).filter(Boolean).length;
-  Gear.autoEquipAll(st, {});
-  const after = Object.values(lancer.equipment || {}).filter(Boolean).length;
-  const setN = Object.values(lancer.equipment || {}).filter(Boolean)
-    .map((u) => (st.items || []).find((x) => x && x.uid === u))
-    .filter((x) => x && Gear.setIdOf(x) === 'constellation').length;
-  console.log(`  창룡제 착용 칸: ${before} → ${after} (성좌 ${setN}칸)`);
-  if (after >= before - 1) console.log('  판정: 뺏겨도 다시 채워진다 — 통과');
-  else console.log(`  판정: **빈손으로 남는다** (${before} → ${after}) — 재배치가 안 돈다`);
+  /* ★★ 제작자 화면: 성좌가 10 · 5 · 5 · 3 · 3 으로 다섯 명에게 흩어져 있었다.
+   *   한 칸씩 «지금 낀 것보다 나은가» 를 보는 탐욕법은 그 상태에서 못 빠져나온다 —
+   *   조각 하나를 옮겨 봐야 그 칸만 보면 손해라 아무도 안 움직인다.
+   *   전원 벗기고 다시 나누는 것(reset)이 실제로 그걸 푸는지 나란히 놓고 본다. */
+  const scatter = (st, setId = 'ironrampart') => {
+    // 세트를 아무에게나 조금씩 나눠 입힌다 (흩어진 상태를 만든다)
+    const pieces = (st.items || []).filter((it) => Gear.setIdOf(it) === setId);
+    let i = 0;
+    for (const it of pieces) {
+      const m = st.roster[i % st.roster.length];
+      Gear.equipItem(st, m, it, null);
+      if (i % 3 === 2) i++;
+      i++;
+    }
+  };
+  const measure = (opt, setId = 'ironrampart') => {
+    const st = build([setId], { copies: 2, seed: 13 });
+    scatter(st, setId);
+    const spread0 = st.roster.map((m) => Object.values(m.equipment || {}).filter(Boolean)
+      .map((u) => (st.items || []).find((x) => x && x.uid === u))
+      .filter((x) => x && Gear.setIdOf(x) === 'ironrampart').length).filter((n) => n > 0);
+    Gear.autoEquipAll(st, opt);
+    const rows = st.roster.map((m) => {
+      const cls = getClass(m.classId) || {};
+      const worn = Object.values(m.equipment || {}).filter(Boolean);
+      const setN = worn.map((u) => (st.items || []).find((x) => x && x.uid === u))
+        .filter((x) => x && Gear.setIdOf(x) === 'ironrampart').length;
+      return { cls: cls.name || m.classId, arch: cls.arch, setN, worn: worn.length };
+    });
+    /* ★★ 진짜 잣대는 **전투력 총합**이다. 세트 단계는 그 일부일 뿐이라,
+     *   단계만 보고 고르면 «세트는 모였는데 부대가 약해진» 결과를 놓친다. */
+    const power = st.roster.reduce((a, m) => a + Merc.mercPower(m, st), 0);
+    return { before: spread0.sort((a, b) => b - a), rows, power };
+  };
+  /* ★ 잣대: «몇 칸 모였나» 가 아니라 **실제로 발동한 단계**를 센다.
+   *   세트 보너스는 3/5/7/풀 단계에서만 나오므로, 2칸이나 4칸은 값이 같다(각각 0단계·1단계).
+   *   조각 수만 보면 «흩어져도 총합은 같다» 는 착시가 생긴다. */
+  const TIERS = [3, 5, 7, 10];
+  const tierOf = (n) => TIERS.filter((x) => n >= x).length;      // 발동 단계 수
+  const score = (rows) => rows.reduce((a, x) => a + tierOf(x.setN), 0);
+
+  const a1 = measure({});
+  const b1 = measure({ reset: true });
+  console.log(`  배분 전 흩어짐: ${a1.before.join(' · ')}칸 (발동 단계 ${a1.before.reduce((s, n) => s + tierOf(n), 0)})`);
+  const fmt = (r) => r.rows.filter((x) => x.setN > 0)
+    .map((x) => `${x.cls} ${x.setN}(${tierOf(x.setN)}단계)`).join(' · ') || '(아무도 없음)';
+  table(['방식', '세트를 가진 사람', '발동 단계 합', '빈 칸', '부대 전투력 합'], [
+    ['지금(한 칸씩)', fmt(a1), String(score(a1.rows)),
+      String(a1.rows.reduce((s, x) => s + (10 - x.worn), 0)), num(a1.power)],
+    ['백지 재배분', fmt(b1), String(score(b1.rows)),
+      String(b1.rows.reduce((s, x) => s + (10 - x.worn), 0)), num(b1.power)],
+  ], ['', '', 'r', 'r', 'r']);
+  console.log(`  전투력 차이: ${b1.power >= a1.power ? '+' : ''}${num(b1.power - a1.power)} (${((b1.power / Math.max(1, a1.power) - 1) * 100).toFixed(1)}%)`);
+  console.log('');
+  console.log(score(b1.rows) >= score(a1.rows)
+    ? '  판정: 백지 재배분이 같거나 낫다.'
+    : '  판정: **백지 재배분이 더 나쁘다** — 백지에서는 첫 조각에 세트 시너지가 0 이라');
+  if (score(b1.rows) < score(a1.rows)) {
+    console.log('        세트를 모으는 힘이 없다. 지금 방식은 breaksSetTier 로 세트를 지켜서 오히려 낫다.');
+  }
 }
 
-head('5. 판정');
+head('6. 판정');
 {
   const st = build(['constellation'], { copies: 1 });
   const rows = allocate(st);

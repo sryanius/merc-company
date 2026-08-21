@@ -1753,7 +1753,7 @@ function buildPlan(st, targets, opt = {}) {
    *   나중 행이 도로 뺏어 간다 — 뺏긴 사람이 **한 칸만 남은 채** 끝났다(실측 10칸 → 1칸).
    *   재배치는 창고에 남은 것으로만 메운다.
    */
-  const planFor = (m, stealOk = true) => {
+  const planFor = (m, stealOk = true, setFirst = false) => {
     const myRank = rank.has(m.uid) ? rank.get(m.uid) : Infinity;
     /** 이 아이템을 지금 사람이 가져갈 수 있나 */
     const canTake = (it) => {
@@ -1775,6 +1775,54 @@ function buildPlan(st, targets, opt = {}) {
     const weights = archWeightsFor(m);
     const changed = [];
     const virt = { ...m, equipment: eq };
+
+    /* ★★ **세트 먼저 잡기** (백지 재배분에서만 돈다).
+     *
+     *   한 칸씩 최고점을 고르는 탐욕법은 **백지에서 세트를 못 모은다** —
+     *   첫 조각에는 시너지가 0 이라 그냥 «스탯 좋은 낱개» 와 구별이 안 되고,
+     *   그 다음 칸에서도 마찬가지라 세트가 영영 3칸에 못 닿는다.
+     *   실측(tools/setalloc.mjs): 그냥 백지로 돌리면 발동 단계 합이 6 → 3 으로 **반토막** 났다.
+     *
+     *   그래서 백지에서는 «이 사람이 낄 수 있는 세트 중 조각이 가장 많이 모이는 것» 을
+     *   먼저 통째로 배정하고, 남은 칸을 평소대로 채운다. 3칸을 못 채우는 세트는 건너뛴다
+     *   (2칸짜리는 보너스가 0 이라 낱개와 같다). */
+    if (setFirst) {
+      const bySet = new Map();
+      for (const it of items) {
+        const sid = setIdOf(it);
+        if (!sid || !setArchAllows(sid, m)) continue;
+        if (!canTake(it) || (pool && !pool.has(it.uid))) continue;
+        const slot = SLOTS.find((s2) => slotAccepts(s2, it) && !eq[s2]);
+        if (!slot) continue;
+        if (!bySet.has(sid)) bySet.set(sid, new Map());
+        const bucket = bySet.get(sid);
+        // 한 칸에 하나만 — 같은 칸 후보가 여럿이면 점수가 높은 쪽
+        const cur = bucket.get(slot);
+        const sc = scoreItemFor(virt, it, { weights, worn: [], slot, items: st, max: SLOTS.length, preferActive });
+        if (!cur || sc > cur.sc) bucket.set(slot, { it, sc });
+      }
+      let bestSid = null; let bestN = 0;
+      for (const [sid, bucket] of bySet) if (bucket.size > bestN) { bestN = bucket.size; bestSid = sid; }
+      if (bestSid && bestN >= 3) {
+        for (const [slot, { it }] of bySet.get(bestSid)) {
+          if (eq[slot]) continue;
+          const holder = owner.get(it.uid);
+          let tookFrom = null;
+          if (holder && holder !== m.uid) {
+            const hm = byUid.get(holder);
+            const he = vEq.get(holder);
+            if (he) for (const s2 of slotKeysOf(he)) if (he[s2] === it.uid) he[s2] = null;
+            tookFrom = { uid: holder, name: (hm && hm.name) || '다른 단원' };
+            const hr = rank.has(holder) ? rank.get(holder) : Infinity;
+            if (hr < myRank && !redone.has(holder) && hm) { redone.add(holder); redo.push(hm); }
+          }
+          changed.push({ slot, from: null, to: it, delta: 0, tookFrom, setPick: bestSid });
+          owner.set(it.uid, m.uid);
+          eq[slot] = it.uid;
+        }
+      }
+    }
+
     for (const slot of SLOTS) {
       // 양손 무기를 들었으면 왼손은 건너뛰고, 남아 있던 왼손 장비는 벗긴다
       if (slot === 'offhand' && isTwoHandedItem(findItem(st, eq.weapon))) {
@@ -1836,7 +1884,7 @@ function buildPlan(st, targets, opt = {}) {
   };
 
   for (const m of targets) {
-    const changed = planFor(m);
+    const changed = planFor(m, true, !!opt.reset);
     const row = { uid: m.uid, name: m.name, merc: m, changed };
     out.push(row);
     rowOf.set(m.uid, row);
@@ -1937,7 +1985,7 @@ export function unequipBenched(state) {
 
 export function autoEquipAll(state, {
   squadId = null, mercs = null, pool = null, dryRun = false, powerOf = null,
-  freeBenched = true,
+  freeBenched = true, reset = false,
 } = {}) {
   const st = useState(state);
   if (!st) return { perMerc: [], total: 0 };
@@ -1977,6 +2025,35 @@ export function autoEquipAll(state, {
       }
     }
   }
+  /* ★★ **백지 재배분** (`reset`).
+   *
+   *   제작자 지적: 「셋템 하나인데 2부대에 풀템이 있어」.
+   *   한 칸씩 «지금 낀 것보다 나은가» 를 보는 탐욕법은 **이미 흩어진 상태에서 못 빠져나온다** —
+   *   조각 하나를 옮겨 봐야 그 칸만 보면 손해라서 아무도 안 움직인다.
+   *   전원을 벗겨 놓고 다시 나누면 그 국소 최적에서 벗어난다.
+   *
+   * ★ 잠근 장비는 **그대로 둔다.** 잠금은 «자동으로 움직이지 마라» 이고,
+   *   백지 재배분이야말로 플레이어가 가장 지키고 싶어 하는 순간이다.
+   *
+   * ★ dryRun 이면 아래 `restore` 로 원상 복구된다 — 미리보기가 상태를 바꾸면 안 된다. */
+  /* ★★ `pool` 이 있으면 **reset 을 무시한다.**
+   *   전투 결과의 «획득 장비 자동 착용» 은 이번 전리품만 후보로 준다(battle.js).
+   *   거기서 전원을 벗기면 **전리품 3개로 부대 전체를 다시 입히려다** 대부분이 빈손이 된다.
+   *   되돌릴 수 없는 조작이라 옵션 실수 하나가 곧 사고다 — 여기서 못 하게 막는다. */
+  const doReset = reset && !pool;
+  if (doReset) {
+    for (const m of targets) {
+      if (!m || !m.equipment) continue;
+      for (const s of slotKeysOf(m.equipment)) {
+        const uid = m.equipment[s];
+        if (!uid) continue;
+        if (isLocked(findItem(st, uid))) continue;
+        restore.push({ m, s, uid });
+        m.equipment[s] = null;
+      }
+    }
+  }
+
   const strength = typeof powerOf === 'function'
     ? (m) => { try { return powerOf(m) || 0; } catch { return 0; } }
     : (m) => mercStrength(st, m);
@@ -1985,7 +2062,7 @@ export function autoEquipAll(state, {
     .sort((a, b) => b.p - a.p || a.i - b.i)
     .map((x) => x.m);
 
-  const perMerc = buildPlan(st, ordered, { pool });
+  const perMerc = buildPlan(st, ordered, { pool, reset: doReset });
   if (!dryRun) applyPlan(st, perMerc);
   else for (const r of restore) r.m.equipment[r.s] = r.uid;   // 미리보기는 상태를 안 바꾼다
 

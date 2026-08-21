@@ -111,7 +111,10 @@ const DUNGEON_DEFS = [
     week: 4,
     setId: 'constellation',
     setName: '성좌의 은총',
-    archs: ALL_ARCHS.slice(),
+    /* ★ 세트가 사제 전용이 되면서 여기도 같이 바꿨다 (sets.js constellation 주석 참고).
+     *   던전의 archs 와 세트의 archs 는 **반드시 같아야 한다** — 스모크가 그걸 본다.
+     *   어긋나면 던전은 «누구나 쓴다» 고 안내하는데 정작 못 끼는 상황이 된다. */
+    archs: ['healer'],
     biome: 'plains',
     x: 430, y: 665,
     formationId: 'crescent',
@@ -121,7 +124,7 @@ const DUNGEON_DEFS = [
     // 실측 보정(8차): 균형 편성이라 가장 무르다. 1웨이브 50% 지점 실측 → 1.109.
     power: 1.109,
     desc: '남쪽 벌판 한가운데 홀로 선 신전. 천장에 박힌 별자리가 층마다 다르게 돈다. '
-      + '여기서 나오는 한 벌은 누구에게나 맞는다 — 그래서 어느 부대든 마지막 주에는 여기로 온다.',
+      + '여기서 나오는 한 벌은 **사제만** 걸칠 수 있다 — 별이 고른 것은 남을 살리는 손이다.',
   },
 ];
 
