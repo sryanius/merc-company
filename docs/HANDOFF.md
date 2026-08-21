@@ -4500,3 +4500,38 @@ if (soldLine) reward.appendChild(soldLine);
 품질 반복은 워크플로 resume — 낙제한 계열만 프롬프트에 비평을 넣어 다시 그리면
 나머지는 캐시로 재사용된다.
 
+## 60. 스타일 매핑 · 등급 후광 · 도감
+
+### 60.1 계열(arch) 7종으로는 105개 클래스를 못 가른다
+
+제작자 지적: 「클래스랑 매치가 안 된다」. 「무극의 투신」(fighter, 권갑 무술가)이 검 든
+일러스트를, 「불사의 혈염귀」(tank, 흡혈귀)가 십자 성방패 기사를 받고 있었다.
+
+`illustStyleOf(c)` (merc.js) — 무기 목록(equip)과 계열로 **스타일**을 정한다.
+7계열 + 4스타일 = 11종: monk(권갑, claw이고 dagger 없음) · fiend(혈귀, tank+greatsword·
+fighter+katana claw·tank+scythe) · necro(사령, mage/healer+scythe) · oath(방패 사제,
+healer+shield). 스타일 일러스트가 없으면 `hasFrontPart` 검사가 계열로 자연히 물러난다.
+분포: fighter 14 · tank 17 · rogue 15 · mage 11 · monk 10 · lancer 9 · archer 8 ·
+healer 6 · necro 6 · fiend 6 · oath 3.
+
+### 60.2 등급 표식을 «덧입히기» 에서 «배경» 으로
+
+제작자: 「S나 A등급 금빛 입히는 게 디자인 제약일 것 같아서 차라리 배경을 다르게 하자」.
+
+- `rec.gradeBg = 'S'|'A'` (mercRecipe) → `drawPortraitFrame` 이 캐릭터 **뒤에**
+  방사형 후광(S 금 `#f0d24a`, A 보라 `#b48ef0`) + 고정 자리 십자 반짝이(시간 트윙클)를 깐다.
+- 배경이 있으면 **오라 외곽선은 생략** — 그 금빛 테두리가 곧 제약이었다.
+- 옆모습(전투)은 화면이 작아 오라 유지. `portraitKey` 에 gradeBg 포함(캐시 정합).
+
+### 60.3 도감 (ui/codex.js — 8번째 탭)
+
+용병(차수별 접이식, 기본 1차만) · 펫 · 적(티어별 접이식). 전부 **정지 프레임** —
+105장이 같이 애니메이션되면 그게 사고다. 기본 렌더 468ms.
+하단 내비 8칸: 320px 실측으로 안전하나 **축약 라벨은 반드시 2글자** (§53.4).
+
+### 60.4 사용량 한도 중단과 재개
+
+스타일 일러스트 생성 중 세션 한도에 걸려 3계열의 교정이 끊겼다.
+워크플로 resume 으로 이어받았다 — 완성분(fiend)과 초안 3건은 캐시로 재사용되고
+교정 에이전트만 다시 돌았다. **부분 실패한 생성은 버리지 말고 resume** 이 정답이다.
+

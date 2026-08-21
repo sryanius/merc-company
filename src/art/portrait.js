@@ -162,7 +162,7 @@ export function portraitKey(recipe = {}) {
   const p = recipe.palette || {};
   return ['F', n.illust, n.plate, n.head2, n.hair2, n.helm2,
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
-    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura].join('|');
+    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura, recipe.gradeBg].join('|');
 }
 
 /**
@@ -230,6 +230,9 @@ export function buildPortrait(recipe = {}) {
   return {
     canvas, flash, w: W, h: H, frames, key: portraitKey(recipe), aura: recipe.aura || null,
     footY: dims.footY, norm: dims.norm,
+    /* 등급 배경 (제작자: 「금빛 입히는 건 디자인 제약이니 차라리 배경을 다르게」).
+     * 색을 캐릭터에 얹지 않고 **뒤에** 후광을 깐다 — 일러스트 디자인이 자유로워진다. */
+    gradeBg: recipe.gradeBg || null,
   };
 }
 
@@ -271,8 +274,39 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   ctx.imageSmoothingEnabled = false;
   const dx0 = Math.round(x) - Math.round(dw / 2);
   const dy0 = Math.round(y) - Math.round((portrait.footY ?? PORTRAIT_FOOT_Y) * px);
-  /* S 등급 오라 — 옆모습(drawSpriteFrame)과 같은 수법 */
-  if (portrait.aura) {
+
+  /* ── 등급 배경 후광 — 캐릭터 **뒤에** 깐다. 금빛 덧입히기(오라)의 대체다. */
+  const BG = { S: ['#f0d24a', '#a87b1c'], A: ['#b48ef0', '#5b3f9e'] };
+  const bg = portrait.gradeBg && BG[portrait.gradeBg];
+  if (bg) {
+    const cx = dx0 + dw / 2;
+    const cy = dy0 + dh * 0.45;
+    const R = dh * 0.52;
+    const grad = ctx.createRadialGradient(cx, cy, R * 0.15, cx, cy, R);
+    grad.addColorStop(0, bg[0] + '55');
+    grad.addColorStop(0.65, bg[1] + '2e');
+    grad.addColorStop(1, bg[1] + '00');
+    ctx.fillStyle = grad;
+    ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    /* 반짝이 — 고정 자리 + 시간 트윙클 (프레임마다 자리가 튀면 어지럽다) */
+    const tw = Date.now() / 480;
+    const SPOTS = [[-0.38, -0.30], [0.40, -0.18], [-0.30, 0.22], [0.34, 0.30], [0.02, -0.44]];
+    SPOTS.forEach(([fx, fy], i) => {
+      const a2 = 0.28 + 0.24 * Math.sin(tw + i * 1.7);
+      if (a2 <= 0.1) return;
+      ctx.globalAlpha = alpha * a2;
+      ctx.fillStyle = bg[0];
+      const sx = cx + fx * dw; const sy = cy + fy * dh;
+      const r2 = Math.max(1, Math.round(px));
+      ctx.fillRect(sx - r2, sy, r2 * 3, r2);       // 십자 반짝이
+      ctx.fillRect(sx, sy - r2, r2, r2 * 3);
+    });
+    ctx.globalAlpha = alpha;
+  }
+
+  /* S 등급 오라 — 옆모습(drawSpriteFrame)과 같은 수법.
+   * ★ 등급 배경이 있으면 **오라는 생략한다** — 금빛 테두리가 곧 «디자인 제약» 이었다. */
+  if (portrait.aura && !bg) {
     if (!portrait._tint) {
       const c = makeCanvas(portrait.flash.width, portrait.flash.height);
       const g = c.getContext('2d');

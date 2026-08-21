@@ -49,6 +49,10 @@ const SCREENS = [
    *   360px 에서 칸 50px · 글자 24px, 320px(아이폰 SE)에서도 45px 로 남는다.
    *   8칸째를 넣으려면 그때는 **다시 재고** 넣어라. */
   { id: 'rank', title: '순위표', short: '순위', icon: '🏆', nav: true, load: () => import('./rank.js') },
+  /* 도감 — 클래스·펫·적을 한눈에 (제작자 요청: 순위표 오른쪽).
+   * ★ 8칸째 탭이다. 실측(320px)으로 8칸 = 칸당 39px, 축약 라벨 2글자까지 안전.
+   *   축약을 3글자 이상으로 바꾸면 그리드가 화면 밖으로 삐져나간다 — HANDOFF §53.4. */
+  { id: 'codex', title: '도감', short: '도감', icon: '📖', nav: true, load: () => import('./codex.js') },
 ];
 
 /* HUD 날짜 표기용 소량 CSS. 모듈 안에서 한 번만 주입한다.

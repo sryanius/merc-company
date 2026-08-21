@@ -1072,15 +1072,50 @@ export function mercRecipe(merc, itemsById) {
    *   계열(arch) 단위로 매핑한다 — 전직 클래스까지 한 번에 커버된다.
    *   정면 전용 필드다: portrait.js 만 읽고 spritegen(옆모습)은 모르는 이름이라 무시한다.
    *   파츠가 아직 없으면 portrait 의 hasFrontPart 검사가 조용히 기존 조립으로 되돌린다. */
+  /* 등급 배경 — 정면 초상은 캐릭터 뒤에 후광을 깐다 (금빛 덧입히기 대체, 제작자 결정).
+   * 옆모습(전투)은 화면이 작아 오라를 유지한다. */
+  if (g === 'S' || g === 'A') rec.gradeBg = g;
+
   const arch = c && c.arch;
   if (arch) {
-    /* illust(통짜 일러스트, 최우선) > plate(포즈 판) > 조립 — portrait.js 가 있는 것부터 쓴다 */
-    rec.illust = `illust_${arch}`;
+    /* illust(통짜 일러스트, 최우선) > plate(포즈 판) > 조립 — portrait.js 가 있는 것부터 쓴다.
+     *
+     * ★★ 계열(arch)만으로는 거칠다 — 「무극의 투신」(fighter, 권갑 무술가)이 검 든 일러스트를,
+     *   「불사의 혈염귀」(tank, 흡혈귀)가 십자 성방패 기사를 받았다 (제작자 지적).
+     *   무기·컨셉으로 **스타일**을 갈라 그쪽 일러스트를 우선한다. */
+    rec.illust = `illust_${illustStyleOf(c)}`;
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
   }
 
   return rec;
+}
+
+/**
+ * 이 클래스가 쓸 일러스트 스타일.
+ *
+ * ★ 계열(arch) 7종만으로는 105개 클래스를 못 가른다 — 같은 fighter 라도
+ *   검사(검)와 아수라 파계존(권갑 무술가)은 완전히 다른 그림이어야 한다.
+ *   무기 목록(equip)과 계열로 **스타일**을 정한다. 스타일 일러스트가 없으면
+ *   portrait 의 hasFrontPart 검사가 계열 일러스트/포즈 판으로 자연히 물러난다.
+ */
+export function illustStyleOf(c) {
+  const arch = (c && c.arch) || 'fighter';
+  const eq = new Set((c && c.equip) || []);
+  const has = (...w) => w.some((x) => eq.has(x));
+  // 권갑(claw) 무술가 — 단검 계열(도적)의 claw 와 구분한다
+  if (has('claw') && !has('dagger')) {
+    if (arch === 'tank' && has('greatsword')) return 'fiend';   // 불사의 혈염귀
+    if (arch === 'fighter' && has('katana')) return 'fiend';    // 혈귀검사·진혈군주 계열
+    if (arch === 'fighter' || arch === 'tank') return 'monk';   // 수도승·나한·아수라·금강불괴
+  }
+  if (arch === 'rogue' && has('katana') && has('claw') && !has('dagger')) return 'fiend';
+  // 낫·사령 — 어둠의 술사
+  if ((arch === 'mage' || arch === 'healer') && has('scythe')) return 'necro';
+  if (arch === 'tank' && has('scythe')) return 'fiend';
+  // 방패 든 사제
+  if (arch === 'healer' && has('shield')) return 'oath';
+  return arch;
 }
 
 /** SPEC §3.7 표기 호환 별칭 */
