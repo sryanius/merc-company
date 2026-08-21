@@ -9,7 +9,9 @@
 import { el, num, clamp } from '../core/util.js';
 import { rng } from '../core/rng.js';
 import { GRADE_COLOR } from '../art/palette.js';
-import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
+/* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
+ *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
+import { getShowcase, drawShowcase } from '../art/showcase.js';
 import { ARCHETYPES, BASE_CLASSES, getClass } from '../data/classes.js';
 import { getCity } from '../data/world.js';
 // 평판/특화/확률 API는 다른 모듈에서 나중에 붙는 것들이라 이름 import 하면
@@ -306,7 +308,7 @@ function makePreview(recipe) {
   const canvas = el('canvas', { width: PREVIEW_W, height: PREVIEW_H });
   const box = el('div', { class: 'sprite-box tv-box' }, canvas);
   let sprite = null;
-  try { sprite = getSprite(recipe); } catch (e) { console.warn('[tavern] 스프라이트 생성 실패', e); }
+  try { sprite = getShowcase(recipe); } catch (e) { console.warn('[tavern] 스프라이트 생성 실패', e); }
   const entry = { canvas, sprite, phase: Math.floor(Math.random() * IDLE_FRAMES.length) };
   previews.push(entry);
   drawPreview(entry, 0);
@@ -332,7 +334,7 @@ function drawPreview(entry, frameIdx) {
   ctx.restore();
   if (!entry.sprite) return;
   const f = IDLE_FRAMES[(frameIdx + entry.phase) % IDLE_FRAMES.length];
-  drawSpriteFrame(ctx, entry.sprite, f, PREVIEW_W / 2, 38 * SPRITE_SCALE, { scale: SPRITE_SCALE });
+  drawShowcase(ctx, entry.sprite, f, PREVIEW_W / 2, 38 * SPRITE_SCALE, { scale: SPRITE_SCALE });
 }
 
 function startPreviewLoop() {

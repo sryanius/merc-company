@@ -13,7 +13,8 @@ import { getClass, classChain } from '../data/classes.js';
 import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
-import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
+/* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
+import { getShowcase, drawShowcase } from '../art/showcase.js';
 import {
   GRADES, mercStats, mercRecipe, mercPower, baseStatsOf, expProgress,
   canPromote, promoteOptionsFor, promote, nextPromoteLevel, isWounded,
@@ -524,10 +525,10 @@ const mercOf = (uid) => state.roster.find((m) => m.uid === uid) || null;
 function spriteCanvas(recipe, scale = 1, frame = 'idle0') {
   const c = el('canvas', { width: 32 * scale, height: 40 * scale });
   try {
-    const sp = getSprite(recipe);
+    const sp = getShowcase(recipe);
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    drawSpriteFrame(ctx, sp, frame, 16 * scale, 38 * scale, { scale });
+    drawShowcase(ctx, sp, frame, 16 * scale, 38 * scale, { scale });
   } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
   return c;
 }
@@ -536,7 +537,7 @@ function spriteCanvas(recipe, scale = 1, frame = 'idle0') {
 function animatedSprite(recipe, scale = 3) {
   const c = el('canvas', { width: 32 * scale, height: 40 * scale });
   let sp = null;
-  try { sp = getSprite(recipe); } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
+  try { sp = getShowcase(recipe); } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
   const ctx = c.getContext('2d');
   const seq = ['idle0', 'idle1', 'idle2', 'idle3'];
   let i = 0;
@@ -544,7 +545,7 @@ function animatedSprite(recipe, scale = 3) {
     ctx.clearRect(0, 0, c.width, c.height);
     if (sp) {
       ctx.imageSmoothingEnabled = false;
-      drawSpriteFrame(ctx, sp, seq[i % seq.length], 16 * scale, 38 * scale, { scale });
+      drawShowcase(ctx, sp, seq[i % seq.length], 16 * scale, 38 * scale, { scale });
     }
     i++;
   };

@@ -197,6 +197,23 @@ export function checkStatic(s) {
   if (s.towerBest > 0 && s.towerBestDay > s.day) bad.push(`탑 기록일 ${s.towerBestDay} > 현재 ${s.day}`);
   // 이긴 판보다 끝낸 의뢰가 많을 수 없다 (의뢰 하나에 최소 한 판)
   if (s.battlesWon < s.questsDone) bad.push(`승리 ${s.battlesWon} < 의뢰 ${s.questsDone}`);
+
+  /* ★★ 완료 의뢰·명성에 **일차 기준 상한**을 건다.
+   *
+   *   여기가 뚫려 있었다. `checkGrowth` 가 «하루에 이만큼 이상 늘 수 없다» 를 보지만
+   *   그건 **지난 제출과 비교**하는 검사라, `prev` 가 없는 **첫 제출은 통과한다.**
+   *   즉 처음부터 «1일차, 의뢰 99999건» 으로 올리면 아무 검사에도 안 걸렸다.
+   *   실제로 순위표 완료 의뢰 칸에 그런 기록이 올라왔다 (HANDOFF §57).
+   *
+   *   상한은 게임이 코드로 강제하는 값에서 나온다: 부대 5개 × 하루 5건.
+   *   그 **두 배**까지 봐준다 — 규칙이 바뀌어도 정상 플레이어가 걸리지 않게. */
+  const questCap = s.day * MAX_QUESTS_PER_DAY * MAX_SQUADS * 2;
+  if (s.questsDone > questCap) {
+    bad.push(`의뢰 ${s.questsDone}건 (${s.day}일차 상한 ${questCap})`);
+  }
+  /* 명성도 같다 — 의뢰에서만 나오므로 의뢰 상한을 넘을 수 없다. */
+  const renownCap = questCap * 60 + 1000;
+  if (s.renown > renownCap) bad.push(`명성 ${s.renown} (${s.day}일차 상한 ${renownCap})`);
   return bad;
 }
 
