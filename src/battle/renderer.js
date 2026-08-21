@@ -70,6 +70,10 @@ const FS_ENDING = 62;
 
 const EASE_OUT = (t) => 1 - Math.pow(1 - t, 3);
 const EASE_IN = (t) => t * t * t;
+/* 시작도 끝도 느린 곡선. ★ EASE_OUT 은 **시작이 가장 빠르다**(미분값 3) —
+ * 돌진에 쓰면 첫 프레임이 평균의 3배로 튀어 «사라졌다가 나타나는» 도약이 된다.
+ * 실측: 1배속에서 첫 프레임 89px (평균 32px). 그게 순간이동으로 읽히던 원인이다. */
+const EASE_SMOOTH = (t) => t * t * (3 - 2 * t);
 const hashStr = (s) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; };
 
 function hex2rgb(h) {
@@ -155,6 +159,12 @@ const CLIPS = {
   hit: [['hit0', 0.17]],
   die: [['die0', 0.13], ['die1', 0.13], ['die2', 0.14], ['die3', 0.60]],
 };
+/* 돌진 «한 걸음» — 목표까지 거리의 이 비율만 나아간다 (나머지는 타격 연출이 잇는다).
+ * 0.28 이면 478px 짜리 간격에서 134px 를 0.25초에 간다 = 536px/초. 눈이 따라간다. */
+const LUNGE_FRAC = 0.28;
+/* 아주 가까운 상대에게도 최소한 이만큼은 내디딘다 (제자리 스윙처럼 보이지 않게) */
+const LUNGE_MIN_PX = 22;
+
 /* 돌진 잔상 — 프레임당 이동량이 이보다 크면 지나온 자리에 반투명 분신을 깐다.
  * 스프라이트 폭(96px)의 1/6 을 넘어가면 이미 «끊겨» 보이기 시작한다. */
 const GHOST_MIN_PX = 16;
@@ -1098,7 +1108,21 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const d = facing(v.u);
     const tx = homeX(t.u) - d * meleeStand;
     const ty = homeY(t.u);
-    v.lunge = { t: 0, out: 0.25, hold: 0.13, back: 0.32, dx: tx - homeX(v.u), dy: ty - homeY(v.u) };
+    /* ★★ 돌진은 **앞으로 한 걸음**이지 전장 횡단이 아니다.
+     *   진영 사이가 화면에서 478px 인데 그걸 0.25초에 왕복하면
+     *   («왔다갔다 하는 잔상만 보인다» — 제작자) 아무것도 안 읽힌다.
+     *   때리는 시각은 엔진이 정하므로(MELEE_DELAY) **시간은 못 늘린다** —
+     *   대신 **거리를 줄인다.** 목표까지의 일부만 나아가고, 닿았다는 신호는
+     *   무기 궤적과 피격 연출(섬광·넉백·피해 숫자)이 대신한다.
+     *   원거리 무기가 그렇듯, 화면에서 «맞았다» 를 만드는 건 이동이 아니라 타격 연출이다. */
+    const wantX = tx - homeX(v.u);
+    const wantY = ty - homeY(v.u);
+    const want = Math.hypot(wantX, wantY) || 1;
+    const step = Math.min(want, Math.max(LUNGE_MIN_PX, want * LUNGE_FRAC));
+    const k = step / want;
+    v.lunge = { t: 0, out: 0.25, hold: 0.13, back: 0.32, dx: wantX * k, dy: wantY * k,
+      /* 한 걸음으로 안 닿았으면(k<1) 대상 자리에도 베는 궤적을 남긴다 */
+      reach: k < 0.95, tv: t };
     v.clip = null;
     fx.spawn('dust', posX(v), posY(v), { dir: d, count: 5 });
   }
@@ -1303,15 +1327,25 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       if (L.t >= total) {
         v.lunge = null; v.ox = 0; v.oy = 0;
       } else if (L.t < L.out) {
-        const p = EASE_OUT(L.t / L.out);
+        const p = EASE_SMOOTH(L.t / L.out);
         v.ox = L.dx * p; v.oy = L.dy * p;
         if (!L.dusted && L.t > L.out * 0.9) { L.dusted = true; fx.spawn('dust', posX(v), posY(v), { dir: facing(v.u), count: 4 }); }
       } else if (L.t < L.out + L.hold) {
         v.ox = L.dx; v.oy = L.dy;
         // 무기가 지나간 자리에 호 잔상
-        if (!L.swung && L.t > L.out + L.hold * 0.2) { L.swung = true; weaponTrail(v); }
+        if (!L.swung && L.t > L.out + L.hold * 0.2) {
+          L.swung = true;
+          weaponTrail(v);
+          /* ★ 한 걸음만 내디디므로 공격자와 대상 사이가 남는다.
+           *   그 사이를 **베는 궤적**으로 이어 «닿았다» 를 만든다 —
+           *   화면에서 명중을 만드는 건 이동이 아니라 타격 연출이다. */
+          if (L.reach && L.tv && !L.tv.gone) {
+            const d = facing(v.u);
+            fx.spawn('trail', posX(L.tv) - d * 8, chestY(L.tv) + 4, { dir: d, scale: 1.25 });
+          }
+        }
       } else {
-        const p = EASE_IN((L.t - L.out - L.hold) / L.back);
+        const p = EASE_SMOOTH((L.t - L.out - L.hold) / L.back);
         v.ox = L.dx * (1 - p); v.oy = L.dy * (1 - p);
       }
       return;
