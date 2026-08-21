@@ -1771,7 +1771,7 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
   }
 }
 
-section('던전 주 1회 · 구걸');
+section('던전 하루 1회 · 구걸');
 {
   /* ★★ 제작자 지적 두 건:
    *   (1) 「던전이 안 죽고 그만두고 다시 1웨이브부터 할 수 있는데,
@@ -1785,22 +1785,20 @@ section('던전 주 1회 · 구걸');
   if (!D || !S) { ok(false, '모듈을 못 읽었다'); } else {
     const faults = [];
 
-    // ── 던전: 부대마다 주 1회
-    S.newGame(9, '주간검사');
+    // ── 던전: 부대마다 하루 1회 (이어 가기는 안 센다)
+    S.newGame(9, '일일검사');
     const st = S.state;
     const sqid = (st.squads || [])[0] && st.squads[0].id;
     if (!sqid) faults.push('검사 판을 못 차렸다: 부대가 없다');
     else {
       const d0 = st.day;
-      if (D.squadUsedThisWeek(st, sqid)) faults.push('아무것도 안 했는데 이미 썼다고 나온다');
+      if (D.squadUsedToday(st, sqid)) faults.push('아무것도 안 했는데 이미 썼다고 나온다');
       D.markSquadRun(st, sqid);
-      if (!D.squadUsedThisWeek(st, sqid)) faults.push('표시했는데 안 썼다고 나온다');
-      st.day = d0 + (S.DAYS_PER_WEEK - 1);
-      if (!D.squadUsedThisWeek(st, sqid)) faults.push(`같은 주 마지막 날에 풀린다 (${st.day}일차)`);
-      st.day = d0 + S.DAYS_PER_WEEK;
-      if (D.squadUsedThisWeek(st, sqid)) faults.push(`다음 주가 됐는데 안 풀린다 (${st.day}일차)`);
+      if (!D.squadUsedToday(st, sqid)) faults.push('표시했는데 안 썼다고 나온다');
+      st.day = d0 + 1;
+      if (D.squadUsedToday(st, sqid)) faults.push('날짜를 넘겼는데 안 풀린다');
       st.day = d0;
-      if (D.squadUsedThisWeek(st, 'squad_없음')) faults.push('다른 부대까지 막힌다');
+      if (D.squadUsedToday(st, 'squad_없음')) faults.push('다른 부대까지 막힌다');
     }
 
     // ── 구걸: 1등급 도시 · 하루 한 번 · 100~1000
@@ -1820,18 +1818,53 @@ section('던전 주 1회 · 구걸');
     s2.day += 1;
     if (S.beg(s2).ok) faults.push('고등급 도시에서도 구걸이 된다');
 
-    okAll(faults, '던전은 부대마다 주 1회, 구걸은 1등급 도시에서 하루 한 번', 11);
+    okAll(faults, '던전은 부대마다 하루 1회, 구걸은 1등급 도시에서 하루 한 번', 10);
+
+    /* ★★ **이어 가기가 막히면 안 된다.** 처음에 웨이브마다 «썼다» 를 세는 바람에
+     *   1웨이브를 깬 뒤 2웨이브로 못 갔다 (제작자가 바로 잡아 줬다).
+     *   ui/dungeon.js 는 DOM 을 써서 node 로 못 돌리므로 소스로 확인한다:
+     *     · beginRun 은 **1웨이브일 때만** 표시한다
+     *     · deployPanel 은 이어 가는 중이면 `resuming` 을 넘겨 게이트를 건너뛴다 */
+    const strip = (x) => {
+      let out = ''; let i = 0;
+      while (i < x.length) {
+        if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
+        if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
+        out += x[i]; i++;
+      }
+      return out;
+    };
+    const usrc = strip(readFileSync(srcDir('ui/dungeon.js'), 'utf8').split(String.fromCharCode(13)).join(''));
+    const ubad = [];
+    const bi = usrc.indexOf('function beginRun(');
+    const bbody = bi < 0 ? '' : usrc.slice(bi, usrc.indexOf(String.fromCharCode(10) + '}', bi));
+    if (!bbody) ubad.push('beginRun 을 못 찾았다');
+    else if (!bbody.includes('waveIndex === 0')) {
+      ubad.push('beginRun 이 웨이브를 안 가리고 표시한다 — 2웨이브로 못 간다');
+    }
+    if (!usrc.includes('resuming: startIdx > 0')) {
+      ubad.push('deployPanel 이 이어 가기(resuming)를 안 넘긴다 — 계속 진격 버튼이 막힌다');
+    }
+    if (!usrc.includes('opt.resuming')) ubad.push('deployInfo 가 resuming 을 안 본다');
+    okAll(ubad, '이어 가기는 오늘 몫을 다시 세지 않는다', 3);
+
+    /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 표시를 지우면 걸리는지 본다 */
+    const planted = usrc.replace('waveIndex === 0', 'true');
+    const pi = planted.indexOf('function beginRun(');
+    const pbody = planted.slice(pi, planted.indexOf(String.fromCharCode(10) + '}', pi));
+    if (!pbody.includes('waveIndex === 0')) pass('검사가 실제로 문다 (웨이브 구분을 지우면 걸린다)');
+    else ok(false, '검사가 실제로 문다', '지웠는데 그대로 남아 있다');
 
     /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 경계가 실제로 물리는지 확인한다 */
     S.newGame(9, '메타');
     const s3 = S.state;
     const id3 = s3.squads[0].id;
     D.markSquadRun(s3, id3);
-    const stuck = D.squadUsedThisWeek(s3, id3);
-    s3.day += S.DAYS_PER_WEEK;
-    const freed = !D.squadUsedThisWeek(s3, id3);
-    if (stuck && freed) pass('검사가 실제로 문다 (같은 주 막히고 다음 주 풀린다)');
-    else ok(false, '검사가 실제로 문다', `같은주막힘 ${stuck} / 다음주풀림 ${freed}`);
+    const stuck = D.squadUsedToday(s3, id3);
+    s3.day += 1;
+    const freed = !D.squadUsedToday(s3, id3);
+    if (stuck && freed) pass('검사가 실제로 문다 (같은 날 막히고 다음 날 풀린다)');
+    else ok(false, '검사가 실제로 문다', `같은날막힘 ${stuck} / 다음날풀림 ${freed}`);
   }
 }
 
@@ -2051,7 +2084,45 @@ section('백지 재배분이 약속을 지키나');
       if (bench.equipment.neck !== it.uid) faults.push('대기 인원의 잠근 장비를 벗겼다');
     }
 
-    okAll(faults, '미리보기가 실제와 같고, 못 낄 세트를 찜하지 않고, 잠금을 지킨다', 6);
+    /* ── (4) 조각만 낀 «고아» 가 남지 않는다 ──
+     *
+     * ★★ 제작자 지적 그대로: 「1부대 세라핀이 피의 서약 한 개 입고 있는데
+     *   2부대 하랄드가 피의 서약 9세트야」. 3칸을 못 채운 조각은 보너스가 0 이라
+     *   그냥 낱개 장비다 — 모아 주면 단계가 오르는데 흩어진 채로 굳어 있었다. */
+    {
+      S.newGame(77, '고아검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      ['shieldman', 'swordsman', 'rogue', 'swordsman', 'rogue', 'archer', 'acolyte'].forEach((c, i) => {
+        const m = M.createMerc({ classId: c, grade: 'S', level: 80 });
+        m.hiredDay = 2; st.roster.push(m);
+        sq.memberUids[i] = m.uid; m.squadId = sq.id; m.slotIndex = i;
+      });
+      const r = new RngMod.RNG(5);
+      for (let i = 0; i < 300; i++) { const it = G.rollItem({ ilvl: 75, rarityBonus: 0.9, rng: r }); if (it) st.items.push(it); }
+      const SL = ['weapon', 'offhand', 'head', 'armor', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
+      const made = [];
+      for (let c = 0; c < 2; c++) for (const s0 of SL) { const it = G.rollSetItem({ setId: 'bloodoath', slot: s0, ilvl: 80, rng: r }); if (it) { st.items.push(it); made.push(it); } }
+      const wear = st.roster.filter((m) => ['fighter', 'rogue'].includes((Classes.getClass(m.classId) || {}).arch));
+      // 흩뿌린다 — 한 명에게 9, 나머지에게 조금씩
+      made.forEach((p, i) => { const tgt = i < 9 ? wear[0] : wear[((i - 9) % Math.max(1, wear.length - 1)) + 1]; if (tgt) G.equipItem(st, tgt, p, null); });
+      const cnt = (m) => Object.values(m.equipment || {}).filter(Boolean)
+        .map((u) => (st.items || []).find((x) => x && x.uid === u))
+        .filter((x) => x && G.setIdOf(x) === 'bloodoath').length;
+      if (!wear.length || cnt(wear[0]) < 5) faults.push('검사 판을 못 차렸다: 세트를 못 흩뿌렸다');
+      const TIERS = [3, 5, 7, 10];
+      const tierOf = (n) => TIERS.filter((x) => n >= x).length;
+      const beforeT = wear.reduce((a, m) => a + tierOf(cnt(m)), 0);
+      G.autoEquipAll(st, { reset: true });
+      const orphans = wear.filter((m) => cnt(m) > 0 && cnt(m) < 3);
+      const afterT = wear.reduce((a, m) => a + tierOf(cnt(m)), 0);
+      if (orphans.length) faults.push(`3칸을 못 채운 «고아» 가 ${orphans.length}명 남았다 (${orphans.map((m) => cnt(m)).join(',')}칸)`);
+      if (afterT < beforeT) faults.push(`세트 발동 단계가 줄었다 (${beforeT} → ${afterT})`);
+    }
+
+    okAll(faults, '미리보기가 실제와 같고, 못 낄 세트를 찜하지 않고, 잠금을 지키고, 고아 조각이 안 남는다', 8);
   }
 }
 

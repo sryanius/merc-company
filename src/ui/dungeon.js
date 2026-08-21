@@ -469,26 +469,32 @@ function forecast(d, id) {
 
 /* ─────────────────────────── 부대 ─────────────────────────── */
 
-function deployInfo(id) {
+/**
+ * @param {string} id 부대 id
+ * @param {{resuming?: boolean}} [opt] `resuming` 이면 **오늘 몫 게이트를 건너뛴다** —
+ *   이미 시작한 판의 다음 웨이브로 가는 것이라 새 도전이 아니다.
+ *   (이걸 안 넣었더니 1웨이브를 깨고 2웨이브로 못 갔다 — 제작자 지적.)
+ */
+function deployInfo(id, opt = {}) {
   const members = squadMembers(state, id) || [];
   const hurt = members.filter((m) => isWounded(m, state.day));
   let res = null;
   try { res = canDeploy(state, id); } catch (e) { console.warn('[dungeon] canDeploy 실패', e); }
   if (!res || typeof res !== 'object') res = { ok: false, reason: '출전 여부를 확인할 수 없다.' };
   const list = Array.isArray(res.deployable) ? res.deployable : null;
-  /* ★★ 부대마다 **주 1회.** 물러나도 쓴 것으로 친다 (게임 규칙: dungeon.js squadUsedThisWeek).
+  /* ★★ 부대마다 **하루 1회.** 물러나도 쓴 것으로 친다 (게임 규칙: dungeon.js squadUsedToday).
    *   예전에는 «1웨이브만 깨고 물러나기» 를 반복해 세트 조각을 무한히 캘 수 있었다.
    *   출전 자체를 여기서 막는다 — 이 함수가 카드의 «출전 가능/불가» 와 돌입 버튼을 함께 정한다. */
-  let usedThisWeek = false;
-  try { usedThisWeek = Dungeon.squadUsedThisWeek(state, id); } catch (e) { usedThisWeek = false; }
-  if (usedThisWeek) {
+  let usedToday = false;
+  try { usedToday = !opt.resuming && Dungeon.squadUsedToday(state, id); } catch (e) { usedToday = false; }
+  if (usedToday) {
     return {
       ok: false,
-      reason: '이번 주 던전은 이미 다녀왔다. 다음 주에 다시 온다.',
+      reason: '이 부대는 오늘 던전에 다녀왔다. 날짜를 넘기면 다시 갈 수 있다.',
       members,
       benched: Array.isArray(res.benched) ? res.benched : hurt,
       fit: list ? list.length : Math.max(0, members.length - hurt.length),
-      usedThisWeek: true,
+      usedToday: true,
     };
   }
   return {
@@ -545,8 +551,11 @@ function beginRun(d, id, waveIndex) {
   const members = dep.members || [];
   /* ★ 들어가는 **순간** 남긴다. 정산 때 남기면 물러났을 때 기록이 안 남아
    *   «1웨이브만 깨고 물러나기» 가 그대로 살아난다 — 그게 막으려던 바로 그 구멍이다.
-   *   웨이브를 이어 갈 때 다시 불려도 같은 주차를 덮어쓰므로 문제없다. */
-  try { Dungeon.markSquadRun(state, id); save(); } catch (e) { console.warn('[dungeon] 주간 기록 실패', e); }
+   *
+   * ★★ **1웨이브일 때만** 남긴다. 2·3웨이브는 같은 판을 이어 가는 것이라 새 도전이 아니다. */
+  if (waveIndex === 0) {
+    try { Dungeon.markSquadRun(state, id); save(); } catch (e) { console.warn('[dungeon] 기록 실패', e); }
+  }
   RUN = {
     dungeonId: d.id,
     squadId: id,
@@ -1129,7 +1138,7 @@ function deployPanel(d, root) {
   const squads = state.squads || [];
 
   const cards = squads.map((s) => {
-    const dep = deployInfo(s.id);
+    const dep = deployInfo(s.id, { resuming: startIdx > 0 && s.id === squadId });
     const power = allyPower(s.id);
     const on = s.id === squadId;
     const no = squads.indexOf(s) + 1;      // 1~5 — 단축키 숫자와 같다
@@ -1158,7 +1167,8 @@ function deployPanel(d, root) {
   });
 
   const sq = pickSquad();
-  const dep = sq ? deployInfo(sq.id) : null;
+  // startIdx > 0 이면 **이미 시작한 판**을 이어 가는 것이다 — 오늘 몫을 또 세면 안 된다
+  const dep = sq ? deployInfo(sq.id, { resuming: startIdx > 0 }) : null;
   const canGo = !!(e.ok && sq && dep && dep.ok);
   const label = startIdx > 0 ? `${startIdx + 1}웨이브로 계속 진격` : '1웨이브 돌입';
 
