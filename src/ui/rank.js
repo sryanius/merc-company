@@ -33,6 +33,10 @@ const KINDS = [
   { id: 'abyss', label: ABYSS_NAME, unit: '심층', desc: '비용이 안 드는 순수 전력 싸움. 부대가 세면 깊이 내려간다.' },
   { id: 'tower', label: '무한의 탑', unit: '층', desc: '월 1회 · 골드를 태워야 오른다. 명예의 전당에 가깝다.' },
   { id: 'quests', label: '완료 의뢰', unit: '건', desc: '꾸준함의 기록. 전력과는 다른 축이다.' },
+  /* ★ 아래 둘은 **본인 신고값**이다 (전력은 장비·진형 보정까지 들어가서 서버가 다시 계산하려면
+   *   게임 전체가 서버로 딸려 온다). 상한만 rules.js 가 건다 — «검증됨» 이라고 쓰면 안 된다. */
+  { id: 'smercs', label: 'S 용병', unit: '명', desc: '주점에서 뽑은 S 등급이 몇이나 되나. 평판과 운의 기록이다.' },
+  { id: 'power', label: '부대 전력', unit: '', desc: '가장 센 부대 하나의 전력. 장비·진형까지 반영된 값이다.' },
 ];
 
 let kind = 'abyss';
@@ -46,6 +50,9 @@ let cache = null;
 
 const CSS = `
 .rk-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.rk-more { margin-top:4px; display:block; margin-left:auto; }
+.rk-pw { font-size:11px; color:var(--gold); border:1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius:999px; padding:1px 7px; white-space:nowrap; }
 .rk-row { display:grid; grid-template-columns:38px 1fr auto; gap:10px; align-items:center;
   padding:7px 8px; border-radius:6px; }
 .rk-row + .rk-row { border-top:1px solid rgba(255,255,255,.05); }
@@ -148,11 +155,21 @@ async function load(list) {
            *   클라이언트는 어차피 도시 데이터를 다 갖고 있으니 여기서 푸는 게 맞다. */
           city ? ` · ${city.name} ★${city.tier || r.city_tier || '?'}` : '',
           r.top_level ? ` · 최고 Lv${r.top_level}` : '',
-          r.roster_n ? ` · 단원 ${r.roster_n}` : ''),
+          r.roster_n ? ` · 단원 ${r.roster_n}` : '',
+          /* 지금 보는 축은 오른쪽 큰 숫자로 이미 보인다 — 부제에 또 쓰면 군더더기다. */
+          kind !== 'smercs' && r.s_mercs ? ` · S ${r.s_mercs}명` : '',
+          kind !== 'power' && r.top_power ? ` · 전력 ${num(r.top_power)}` : ''),
         squadLine(r.squad)),
       el('div', { class: 'rk-val' },
         `${num(r.value)}${unit}`,
-        kind === 'abyss' && r.value ? el('div', { class: 'rk-sub', style: { textAlign: 'right' }, text: zoneOf(r.value) }) : null)));
+        kind === 'abyss' && r.value ? el('div', { class: 'rk-sub', style: { textAlign: 'right' }, text: zoneOf(r.value) }) : null,
+        /* ★★ 줄 전체가 눌리긴 하지만 **그걸 아무도 몰랐다** (제작자: «아이디 눌러야 나오는 게 안 보여서»).
+         *   숨은 조작은 없는 기능과 같다. 눈에 보이는 버튼을 단다.
+         *   줄 클릭도 그대로 둔다 — 익숙해진 사람이 쓰던 길을 뺏을 이유가 없다. */
+        el('button', {
+          class: 'btn xs rk-more',
+          onClick: (ev) => { ev.stopPropagation(); openSquads(kind, rank, r.company_name); },
+        }, '상세보기'))));
   }
 }
 
@@ -217,9 +234,14 @@ async function openSquads(kind, rank, name) {
 
   for (const sq of squads) {
     const f = sq.f ? getFormation(sq.f) : null;
+    /* ★ 부대 전력. 옛 제출에는 없다 (`stampSquadPower` 를 넣기 전 기록) — 없으면 그냥 뺀다.
+     *   «0» 으로 보여 주면 «전력이 0인 부대» 로 읽혀서 더 나쁘다. */
+    const power = Number(sq.p) || 0;
     const box = el('div', { class: 'rk-sqbox' },
       el('div', { class: 'row spread center', style: { gap: '8px' } },
-        el('b', { text: sq.n || '부대' }),
+        el('div', { class: 'row center', style: { gap: '8px' } },
+          el('b', { text: sq.n || '부대' }),
+          power ? el('span', { class: 'rk-pw', text: `전력 ${num(power)}` }) : null),
         el('span', { class: 'faint tiny', text: `${f ? f.name : sq.f || '기본진'} · ${(sq.m || []).length}명` })));
     const grid = el('div', { class: 'rk-sqgrid' });
     for (const m of sq.m || []) {

@@ -80,6 +80,11 @@ export function extractScore(st) {
     squadsN: Array.isArray(st.squads) ? st.squads.length : 0,
     petsN: Array.isArray(st.pets) ? st.pets.length : 0,
     itemsN: Array.isArray(st.items) ? st.items.length : 0,
+    /* ★ 순위 축을 늘리려고 더한 값들 (플레이어 요청).
+     *   둘 다 **본인 신고**다 — 서버가 계산하지 않는다. 상한은 checkStatic 이 건다. */
+    sMercs: roster.reduce((a, m) => a + (m && m.grade === 'S' ? 1 : 0), 0),
+    topPower: Math.round(Math.max(0, ...(Array.isArray(st.squads) ? st.squads : [])
+      .map((sq) => Number(sq && sq.power) || 0), 0)),
     squad: topSquadOf(st),
     squadsFull: allSquadsOf(st),
   };
@@ -111,6 +116,9 @@ function allSquadsOf(st) {
     out.push({
       n: cut(sq.name || '부대', 16),
       f: cut(sq.formationId || 'basic', 24),
+      /* ★ 부대 전력. `squad.js stampSquadPower()` 가 제출 직전에 찍는다 —
+       *   여기서는 계산할 수 없다 (의존성 0 제약). 없으면 그냥 뺀다. */
+      p: Math.round(Number(sq.power) || 0) || undefined,
       m: mems.map((m) => {
         /* 그 사람이 맞춘 세트 — 같은 세트 id 가 몇 칸인지까지 담아야 «몇 세트» 가 읽힌다 */
         const setCount = {};
@@ -214,6 +222,12 @@ export function checkStatic(s) {
   /* 명성도 같다 — 의뢰에서만 나오므로 의뢰 상한을 넘을 수 없다. */
   const renownCap = questCap * 60 + 1000;
   if (s.renown > renownCap) bad.push(`명성 ${s.renown} (${s.day}일차 상한 ${renownCap})`);
+
+  /* S 용병은 명부 안에 있어야 하고, 부대 전력은 «전원 만렙 S» 를 넘을 수 없다.
+   * 전력 상한은 후하게 잡는다 — 장비·진형 보정이 밸런스에 따라 움직이므로
+   * 조이면 패치 때마다 오탐이 난다. */
+  if (s.sMercs < 0 || s.sMercs > s.rosterN) bad.push(`S 용병 ${s.sMercs} (단원 ${s.rosterN})`);
+  if (s.topPower < 0 || s.topPower > POWER_CAP) bad.push(`부대 전력 ${s.topPower} (상한 ${POWER_CAP})`);
   return bad;
 }
 
@@ -275,6 +289,9 @@ export function checkCadence(prev, s) {
 
 /** 하루에 부대 하나가 끝낼 수 있는 의뢰 수의 넉넉한 상한 */
 export const MAX_QUESTS_PER_DAY = 5;
+
+/** 부대 전력 상한. 7명 × 만렙 S × 신화 풀세트를 아주 후하게 잡은 값이다. */
+export const POWER_CAP = 5_000_000;
 
 /**
  * 증가폭이 게임 규칙으로 설명되는가.

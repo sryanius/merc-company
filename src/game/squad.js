@@ -428,6 +428,28 @@ export function squadPower(state, squadId) {
   return Math.round(total);
 }
 
+/**
+ * 모든 부대의 전력을 **상태에 찍어 둔다.**
+ *
+ * ★ 왜 필요한가
+ *   순위표에 올릴 값(`game/rules.js`)은 «의존성 0 데이터 모듈» 만 물 수 있다 —
+ *   서버(Deno)로 게임 전체가 딸려가면 안 되기 때문이다. 그래서 rules.js 는
+ *   `squadPower()` 를 부를 수 없고 `sq.power` 를 **읽기만** 한다.
+ *   그런데 그 값을 아무도 안 써 넣고 있었다 — 순위표의 부대 전력이 늘 비어 있었다.
+ *
+ * ★ 왜 «바뀔 때마다» 가 아니라 여기서 한 번에 찍나
+ *   전력은 단원·레벨·장비·진형 어디가 바뀌어도 달라진다. 그 모든 자리에 갱신을 심으면
+ *   반드시 한 곳을 빠뜨리고, 빠뜨린 것은 «순위표 숫자가 조금 낡았다» 로만 보여 안 잡힌다.
+ *   제출 직전에 전부 다시 계산하는 편이 싸고 확실하다 (부대는 최대 5개다).
+ */
+export function stampSquadPower(state) {
+  const st = useState(state);
+  for (const sq of st.squads || []) {
+    if (sq && sq.id) sq.power = squadPower(st, sq.id);
+  }
+  return st;
+}
+
 /** 부대 하루 임금 */
 export function squadUpkeep(state, squadId) {
   return squadMembers(state, squadId).reduce((a, m) => a + (m.upkeep || upkeepOf(m)), 0);

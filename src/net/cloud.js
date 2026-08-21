@@ -34,6 +34,7 @@ import * as Auth from './auth.js';
 import { authed, call } from './rest.js';
 import { SAVE_KEY, onSaved, state } from '../game/state.js';
 import { extractScore } from '../game/rules.js';
+import { stampSquadPower } from '../game/squad.js';
 
 /* ★ 예전의 켜기/끄기 스위치(`merc_cloud_on_v1`)는 없앴다.
  *   로그인했으면 켜진 것이고 아니면 안 켜진 것이다 — 상태를 두 군데서 관리하면
@@ -432,6 +433,9 @@ export async function submitScore(opt = {}) {
   }
 
   let score = null;
+  /* ★ 전력을 먼저 찍는다 — rules.js 는 sq.power 를 **읽기만** 하고 계산하지 못한다
+   *   (의존성 0 제약). 안 찍으면 순위표의 부대 전력이 늘 빈다. */
+  try { stampSquadPower(state); } catch (e) { console.warn('[cloud] 전력 계산 실패', e); }
   try { score = extractScore(state); } catch (e) { return { ok: false, error: String(e.message || e) }; }
   if (!score) return { ok: false, error: '점수를 읽지 못했다' };
   if (!opt.force && !worthSubmitting(score)) return { ok: true, skipped: true, error: '' };
