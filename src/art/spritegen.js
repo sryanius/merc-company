@@ -383,6 +383,11 @@ function blit(buf, part, jx, jy, tbl) {
 }
 
 const ARM_BY_BODY = { body_slim: 'arm_slim', body_normal: 'arm_normal', body_heavy: 'arm_heavy', body_hulk: 'arm_heavy' };
+/** 갑옷이 정하는 기본 견갑. 판금·중갑은 어깨판이 있어야 «갑옷» 으로 읽힌다. */
+const PAULDRON_BY_ARMOR = {
+  armor_plate: 'pld_plate', armor_heavy: 'pld_plate', armor_mail: 'pld_mail',
+  armor_leather: 'pld_leather', armor_bone: 'pld_bone',
+};
 const LEG_BY_ARMOR = {
   armor_cloth: 'leg_cloth', armor_robe: 'leg_cloth', armor_leather: 'leg_leather',
   armor_mail: 'leg_mail', armor_plate: 'leg_plate', armor_heavy: 'leg_plate',
@@ -401,6 +406,10 @@ function partNames(recipe = {}) {
     head: recipe.head || 'head_human',
     hair: recipe.hair || 'hair_none',
     helm: recipe.helm || 'helm_none',
+    /* ★ 견갑은 **갑옷과 따로**다. 어깨 위에 얹혀 팔보다 나중에 그려지므로
+     *   팔의 외곽선이 어깨를 세로로 자르지 않는다 — 갑옷에 넣으면 그렇게 된다.
+     *   그리고 여기가 «등급이 올라갈수록 화려해지는» 치장을 붙일 자리다 (HANDOFF §56). */
+    pauldron: recipe.pauldron || PAULDRON_BY_ARMOR[armor] || 'pld_none',
     weapon: recipe.weapon || 'wpn_none',
     offhand: recipe.offhand || 'shd_none',
   };
@@ -431,6 +440,7 @@ function composeFrame(parts, tbl, tblBack, tblCape, p) {
   // SPEC §4.6 그리기 순서
   blit(buf, parts.cape, chestX, chestY, tblCape);
   blit(buf, rotatedPart(parts.arm, armAngle(sbX, sbY, hbX, hbY)), sbX, sbY, tblBack);
+  blit(buf, parts.pauldron, sbX, sbY, tblBack);
   blit(buf, parts.leg, pbX, pbY, tblBack);
   blit(buf, parts.leg, pfX, pfY, tbl);
   blit(buf, parts.body, chestX, chestY, tbl);
@@ -449,6 +459,9 @@ function composeFrame(parts, tbl, tblBack, tblCape, p) {
   // 잘림 판정은 프레임 전체 이동(p.dx/p.dy)까지 반영한 최종 위치로 한다
   blit(buf, fitRot(parts.offhand, p.offhandRot, shX + p.dx, shY + p.dy), shX, shY, tbl);
   blit(buf, rotatedPart(parts.arm, armAngle(sfX, sfY, hfX, hfY)), sfX, sfY, tbl);
+  /* 견갑은 **팔 위에** 온다 — 팔보다 먼저 그리면 팔 외곽선이 어깨를 가로질러 잘라 버린다.
+   * 먼쪽 어깨도 같은 이유로 먼쪽 팔 바로 뒤에 그린다. */
+  blit(buf, parts.pauldron, sfX, sfY, tbl);
   blit(buf, fitRot(parts.weapon, p.weaponRot, hfX + p.dx, hfY + p.dy), hfX, hfY, tbl);
   return buf;
 }
@@ -485,7 +498,7 @@ export function spriteKey(recipe = {}) {
   const n = partNames(recipe);
   const p = recipe.palette || {};
   return [
-    n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand,
+    n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin || 'pale', p.hair || 'brown', p.metal || 'iron', p.cloth || 'ash',
     p.leather || 'brown', p.accent || 'gold', p.glow || 'none',
     /* ★ 눈 색도 열쇠다. 빼면 «눈만 다른» 두 캐릭터가 같은 캐시를 나눠 써서

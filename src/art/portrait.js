@@ -73,6 +73,10 @@ const ORDER = [
   ['hair', 'head', false],
   ['helm', 'head', false],
   ['arm', 'shRight', false],
+  /* 견갑은 **팔 위에** 온다 — 팔보다 먼저 그리면 팔 외곽선이 어깨를 잘라 버린다.
+   * 정면은 좌우 두 짝이고 왼쪽은 뒤집어 그린다. */
+  ['pauldron', 'shLeft', true],
+  ['pauldron', 'shRight', false],
   ['weapon', 'handRight', false],
   ['offhand', 'handLeft', true],
 ];
@@ -81,6 +85,11 @@ const ORDER = [
 const FAR_SHADE = 0.82;
 
 const ARM_BY_BODY = { body_slim: 'arm_slim', body_normal: 'arm_normal', body_heavy: 'arm_heavy', body_hulk: 'arm_heavy' };
+/** 갑옷이 정하는 기본 견갑 (옆모습 spritegen 과 같은 표) */
+const PAULDRON_BY_ARMOR = {
+  armor_plate: 'pld_plate', armor_heavy: 'pld_plate', armor_mail: 'pld_mail',
+  armor_leather: 'pld_leather', armor_bone: 'pld_bone',
+};
 const LEG_BY_ARMOR = {
   armor_cloth: 'leg_cloth', armor_robe: 'leg_cloth', armor_leather: 'leg_leather',
   armor_mail: 'leg_mail', armor_plate: 'leg_plate', armor_heavy: 'leg_plate',
@@ -95,6 +104,7 @@ function partsOf(recipe = {}) {
     arm: recipe.arm || ARM_BY_BODY[body] || 'arm_normal',
     leg: recipe.leg || LEG_BY_ARMOR[armor] || 'leg_cloth',
     head: recipe.head || 'head_human',
+    pauldron: recipe.pauldron || PAULDRON_BY_ARMOR[armor],
     hair: recipe.hair,
     helm: recipe.helm,
     weapon: recipe.weapon,
@@ -117,7 +127,7 @@ export function canDraw(recipe = {}) {
 export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
-  return ['F', n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand,
+  return ['F', n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye].join('|');
 }
 
