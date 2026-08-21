@@ -32,16 +32,19 @@ export const PORTRAIT_FOOT_Y = BASE_FOOT_Y * SCALE;
  * ★ 어깨·손·엉덩이를 중심(x=16)에서 **같은 거리로** 벌린다.
  *   한쪽만 어긋나면 즉시 짝짝이로 보인다.
  */
+/* ★ 애니풍 «반치비 3등신» 비율 (제작자 채택 — 반치비 몸 + 치비 머리, HANDOFF §60).
+ *   목이 y48(96×120)로 내려와 머리가 커졌고, 골반이 y80 으로 내려와 몸통이 짧아졌다.
+ *   96×120 실제값: head/chest (48,48) · pelvis (48,80) · 어깨 (38,51)/(58,51) · 힙 (43,80)/(53,80). */
 export const JOINT_BASE = {
-  head: { x: 16, y: 44 / 3 },
-  chest: { x: 16, y: 44 / 3 },
-  pelvis: { x: 16, y: 25 },
-  shLeft: { x: 16 - 3.0, y: 16 },
-  shRight: { x: 16 + 3.0, y: 16 },
-  handLeft: { x: 16 - 4.6, y: 80 / 3 },
-  handRight: { x: 16 + 4.6, y: 80 / 3 },
-  hipLeft: { x: 16 - 1.9, y: 25 },
-  hipRight: { x: 16 + 1.9, y: 25 },
+  head: { x: 16, y: 16 },
+  chest: { x: 16, y: 16 },
+  pelvis: { x: 16, y: 80 / 3 },
+  shLeft: { x: 38 / 3, y: 17 },
+  shRight: { x: 58 / 3, y: 17 },
+  handLeft: { x: 34 / 3, y: 28 },
+  handRight: { x: 62 / 3, y: 28 },
+  hipLeft: { x: 43 / 3, y: 80 / 3 },
+  hipRight: { x: 53 / 3, y: 80 / 3 },
 };
 
 export const JOINTS = (() => {
