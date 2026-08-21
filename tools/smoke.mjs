@@ -1771,6 +1771,67 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
   }
 }
 
+section('거절 사유가 밖으로 새지 않나');
+{
+  /* ★★ 실제로 당한 것 (HANDOFF §55):
+   *   거절 응답에 `reasons` 를 실어 보냈더니 그게 그대로 공격 도구가 됐다.
+   *   조작자가 값을 바꿔 가며 찔러 보면 서버가 «부대 전력 5,285,956 (상한 5,000,000)» 이라고
+   *   상한을 알려 준다. 거절 19건을 그렇게 훑고 상한 밑으로 낮춰 통과했다.
+   *
+   * ★ 사유는 `rejections` 테이블에만 남긴다. 오탐 대응은 «제보» 로 한다 (제작자 결정).
+   *
+   * ★ 주석을 걷어내고 본다 — 이 저장소에서 «옛 코드를 설명한 주석» 을 코드로 오인해
+   *   헛도는 검사를 만든 적이 있다. */
+  const strip = (x) => {
+    let out = ''; let i = 0;
+    while (i < x.length) {
+      if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
+      if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
+      out += x[i]; i++;
+    }
+    return out;
+  };
+  const fnPath = fileURLToPath(new URL('supabase/functions/submit-score/index.ts', ROOT));
+  if (!existsSync(fnPath)) {
+    ok(true, '엣지 함수가 없어 건너뜀', fnPath);
+  } else {
+    const src = strip(readFileSync(fnPath, 'utf8').split(String.fromCharCode(13)).join(''));
+    /** 거절 분기 안의 `return json(...)` 한 줄을 뽑아 온다 */
+    const rejectReturn = (text) => {
+      const at = text.indexOf("verdict.verdict === 'reject'");
+      if (at < 0) return null;
+      const r = text.indexOf('return json(', at);
+      if (r < 0) return null;
+      return text.slice(r, text.indexOf(';', r) + 1);
+    };
+    const ret = rejectReturn(src);
+    const faults = [];
+    if (!ret) faults.push('거절 분기의 응답을 못 찾았다');
+    else {
+      if (ret.includes('reasons')) faults.push(`거절 응답에 reasons 가 실린다 → ${ret.trim()}`);
+      if (ret.includes('tier')) faults.push(`거절 응답에 tier 가 실린다 → ${ret.trim()}`);
+    }
+    /* 사유는 «남기기는» 해야 한다 — 안 남기면 제보가 와도 판단할 재료가 없다 */
+    const at = src.indexOf("verdict.verdict === 'reject'");
+    const branch = at >= 0 ? src.slice(at, at + 500) : '';
+    if (!branch.includes('rejections')) faults.push('거절을 rejections 에 안 남긴다');
+    if (!branch.includes('payload')) faults.push('거절에 payload 를 안 남긴다 — 제보가 와도 되짚을 수 없다');
+    okAll(faults, '거절은 조용히 하고, 사유·payload 는 DB 에만 남긴다', 4);
+
+    /* ★ 클라이언트도 사유를 지어내면 안 된다 */
+    const cl = strip(readFileSync(srcDir('net/cloud.js'), 'utf8'));
+    ok(!cl.includes('res.data.reasons'), '클라이언트가 서버 사유를 읽지 않는다',
+      '더 이상 오지 않는 값이다');
+
+    /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 실제로 무는지 확인한다 */
+    const planted = src.replace('return json({ ok: false }, 200);',
+      'return json({ ok: false, tier: verdict.tier, reasons: verdict.reasons }, 200);');
+    const pr = rejectReturn(planted);
+    if (pr && pr.includes('reasons')) pass('검사가 실제로 문다 (사유를 다시 실으면 걸린다)');
+    else ok(false, '검사가 실제로 문다', '사유를 심었는데 못 잡았다');
+  }
+}
+
 section('제출 필드가 서버 화이트리스트와 맞나');
 {
   /* ★★ 실제로 당한 것 (HANDOFF §58):

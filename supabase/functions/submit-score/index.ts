@@ -94,12 +94,27 @@ Deno.serve(async (req) => {
   const compareTo = prev && sameRun(prev, score) ? prev : null;
   const verdict = judge(compareTo, score);
 
-  // ── 4) A등급: 물리적으로 불가능 — 기록하고 거절한다
+  /* ── 4) A등급: 물리적으로 불가능 — 기록하고 거절한다.
+   *
+   * ★★ **사유를 본인에게 알려 주지 않는다** (제작자 결정).
+   *   예전에는 `reasons` 를 그대로 돌려줬는데, 그게 그대로 공격 도구가 됐다:
+   *   조작자가 값을 바꿔 가며 찔러 보면 서버가 «부대 전력 5,285,956 (상한 5,000,000)» 이라고
+   *   상한을 알려 줬다. 실제로 거절 19건을 그렇게 훑은 뒤 상한 밑으로 낮춰 통과한 기록이 있다
+   *   (HANDOFF §55). 사유는 `rejections` 에만 남긴다 — 보는 사람은 운영자뿐이면 된다.
+   *
+   * ★ 오탐 대응은 «제보» 로 한다: 플레이어 수가 적어 서로 아는 사이라,
+   *   순위표에 안 올라가면 사람이 직접 알려 온다는 제작자 판단이다.
+   *   그래서 메시지도 «알려 달라» 로 끝낸다.
+   *
+   * ★ payload 를 같이 남긴다. 예전에는 flag 에만 남겨서, 정작 거절 19건은
+   *   `payload: null` 이라 나중에 무엇을 보냈는지 되짚을 수 없었다 —
+   *   제보가 들어와도 판단할 재료가 없다는 뜻이다. */
   if (verdict.verdict === 'reject') {
     await admin.from('rejections').insert({
       user_id: userId, tier: verdict.tier, reasons: verdict.reasons,
+      payload: JSON.stringify(score),
     });
-    return json({ ok: false, tier: verdict.tier, reasons: verdict.reasons }, 200);
+    return json({ ok: false }, 200);
   }
 
   /* ── 5) B등급: 총량 초과 — **게임은 그대로 두고 랭킹에서만 숨긴다**(제작자 결정).

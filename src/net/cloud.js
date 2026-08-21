@@ -460,7 +460,9 @@ export async function submitScore(opt = {}) {
         sMercs: score.sMercs, topPower: score.topPower,
         dataVersion: score.dataVersion || 0,
       }));
-      return { ok: false, error: (res.data.reasons || []).join(' / ') || '서버가 거절했다' };
+      /* ★ 서버가 사유를 안 준다 (일부러 그렇게 만들었다 — submit-score 주석 참고).
+       *   여기서도 지어내지 않는다. 오탐이면 사람이 알려 오는 쪽으로 유도한다. */
+      return { ok: false, error: '이번 기록은 순위표에 올리지 못했습니다. 계속 그러면 알려 주세요.' };
     }
     writeLS(SUBMITTED_KEY, JSON.stringify({
       seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
