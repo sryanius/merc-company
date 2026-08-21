@@ -1044,8 +1044,15 @@ function openAutoEquipPreview(target) {
 function planCard(row) {
   const m = row.merc;
   const c = getClass(m.classId) || {};
-  const after = { ...(m.equipment || {}) };
-  for (const ch of row.changed) after[ch.slot] = ch.to.uid;
+  /* ★★ 계획이 준 **최종 장비**를 그대로 쓴다.
+   *   예전에는 «지금 장비 + 변경» 으로 만들었는데, 백지 재배분에서는 그게 거짓말이 된다:
+   *   재배분이 못 채운 칸을 «원래 것을 그대로 낀 것» 으로 그려서
+   *   실측 예고 38칸 / 실제 30칸 이었다. 확인 화면이 손실을 숨기면 안 된다. */
+  const after = row.after ? { ...row.after } : (() => {
+    const a0 = { ...(m.equipment || {}) };
+    for (const ch of row.changed) a0[ch.slot] = ch.to.uid;
+    return a0;
+  })();
   const ghost = { ...m, equipment: after };
 
   const sBefore = mercStats(m, state);
@@ -1065,7 +1072,7 @@ function planCard(row) {
         text: `전투력 ${num(pBefore)} → ${num(pAfter)} (${dPower >= 0 ? '+' : ''}${num(dPower)})`,
       })));
 
-  for (const ch of row.changed) {
+  for (const ch of (row.diff || row.changed)) {
     card.appendChild(el('div', { class: 'iv-swap tiny' },
       el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: SLOT_NAME[ch.slot] || ch.slot }),
       ch.from
@@ -1081,8 +1088,18 @@ function planCard(row) {
         : null));
   }
 
+  /* ★ 빈 채로 끝나는 칸 — 창고 재고가 모자라면 생긴다. 반드시 보여 준다. */
+  const base = row.before || m.equipment || {};
+  const lost = Object.keys(base).filter((s0) => base[s0] && !after[s0]);
+  if (lost.length) {
+    card.appendChild(el('div', {
+      class: 'tiny', style: { color: 'var(--bad)', fontWeight: '700' },
+      text: `⚠ ${lost.length}칸이 빈 채로 끝난다 (${lost.map((s0) => SLOT_NAME[s0] || s0).join(' · ')}) — 창고에 맞는 장비가 없다`,
+    }));
+  }
+
   // 세트 착용 개수 변화 — 줄어들면 경고
-  const before = setCountsOf(m.equipment || {});
+  const before = setCountsOf(row.before || m.equipment || {});
   const now = setCountsOf(after);
   const keys = new Set([...before.keys(), ...now.keys()]);
   let breaks = false;

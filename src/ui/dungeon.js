@@ -476,6 +476,21 @@ function deployInfo(id) {
   try { res = canDeploy(state, id); } catch (e) { console.warn('[dungeon] canDeploy 실패', e); }
   if (!res || typeof res !== 'object') res = { ok: false, reason: '출전 여부를 확인할 수 없다.' };
   const list = Array.isArray(res.deployable) ? res.deployable : null;
+  /* ★★ 부대마다 **주 1회.** 물러나도 쓴 것으로 친다 (게임 규칙: dungeon.js squadUsedThisWeek).
+   *   예전에는 «1웨이브만 깨고 물러나기» 를 반복해 세트 조각을 무한히 캘 수 있었다.
+   *   출전 자체를 여기서 막는다 — 이 함수가 카드의 «출전 가능/불가» 와 돌입 버튼을 함께 정한다. */
+  let usedThisWeek = false;
+  try { usedThisWeek = Dungeon.squadUsedThisWeek(state, id); } catch (e) { usedThisWeek = false; }
+  if (usedThisWeek) {
+    return {
+      ok: false,
+      reason: '이번 주 던전은 이미 다녀왔다. 다음 주에 다시 온다.',
+      members,
+      benched: Array.isArray(res.benched) ? res.benched : hurt,
+      fit: list ? list.length : Math.max(0, members.length - hurt.length),
+      usedThisWeek: true,
+    };
+  }
   return {
     ok: !!res.ok,
     reason: res.reason || '',
@@ -528,6 +543,10 @@ function pickSquad() {
 function beginRun(d, id, waveIndex) {
   const dep = deployInfo(id);
   const members = dep.members || [];
+  /* ★ 들어가는 **순간** 남긴다. 정산 때 남기면 물러났을 때 기록이 안 남아
+   *   «1웨이브만 깨고 물러나기» 가 그대로 살아난다 — 그게 막으려던 바로 그 구멍이다.
+   *   웨이브를 이어 갈 때 다시 불려도 같은 주차를 덮어쓰므로 문제없다. */
+  try { Dungeon.markSquadRun(state, id); save(); } catch (e) { console.warn('[dungeon] 주간 기록 실패', e); }
   RUN = {
     dungeonId: d.id,
     squadId: id,

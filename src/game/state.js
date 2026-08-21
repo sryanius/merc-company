@@ -251,6 +251,51 @@ function defaultState() {
   };
 }
 
+/* ─────────────────── 구걸 ───────────────────
+ *
+ * ★★ 제작자 지적: 「초반에 골드가 너무 부족하다는 말이 있어.
+ *   1등급 도시에서는 매일 한 번씩 구걸을 통해 100~1000 골드 사이로 랜덤하게 얻게 하자」
+ *
+ * ★ **1등급 도시에서만** 된다. 후반에는 의뢰 한 건이 7만 골드라 있으나 마나이므로
+ *   («구걸 눌러야 하나» 하는 잡일만 늘린다) 애초에 저티어로 못 박는다.
+ *
+ * ★ 하루 한 번. 기록은 «마지막으로 구걸한 날» 하나면 된다 — 날짜가 오르면 저절로 풀린다.
+ *   옛 세이브에는 이 필드가 없다(undefined → 0) → 바로 한 번 할 수 있다. 마이그레이션 불필요.
+ */
+export const BEG_CITY_TIER = 1;
+export const BEG_MIN = 100;
+export const BEG_MAX = 1000;
+
+/** 지금 이 도시에서 구걸할 수 있나 */
+export function canBeg(st = state) {
+  const s0 = st || state;
+  if (!s0) return { ok: false, reason: '상태가 없다.' };
+  let tier = 0;
+  try { tier = Number((getCity(s0.cityId) || {}).tier) || 0; } catch { tier = 0; }
+  if (tier !== BEG_CITY_TIER) {
+    return { ok: false, reason: '이만한 도시에서는 아무도 적선하지 않는다. 1등급 도시에서만 된다.' };
+  }
+  const last = Math.floor(Number(s0.beggedDay) || 0);
+  if (last >= (s0.day || 1)) return { ok: false, reason: '오늘은 이미 손을 벌렸다. 내일 다시.' };
+  return { ok: true, reason: '' };
+}
+
+/**
+ * 구걸한다. 성공하면 `{ ok: true, gold }`.
+ * ★ 금액은 게임 RNG 로 굴린다 — 같은 세이브를 다시 불러 다시 눌러도 같은 값이 나오게.
+ */
+export function beg(st = state) {
+  const s0 = st || state;
+  const chk = canBeg(s0);
+  if (!chk.ok) return { ok: false, reason: chk.reason, gold: 0 };
+  const gold = rng.int(BEG_MIN, BEG_MAX);
+  s0.beggedDay = s0.day || 1;
+  s0.gold = Math.max(0, Math.round((Number(s0.gold) || 0) + gold));
+  logFor(s0, `길에서 손을 벌렸다. ${gold.toLocaleString('en-US')}G 를 얻었다.`);
+  touch();
+  return { ok: true, reason: '', gold };
+}
+
 /** 살아있는 단일 상태 객체. 재할당 금지 — 내용만 갈아끼운다. */
 export const state = defaultState();
 

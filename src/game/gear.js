@@ -1705,6 +1705,13 @@ function buildPlan(st, targets, opt = {}) {
    *   안 그러면 뒤에 B 차례가 왔을 때 **이미 뺏긴 물건을 아직 낀 것으로** 보고
    *   «지금 것보다 나은 게 없다» 며 빈손으로 끝난다. */
   const vEq = new Map();
+  /* ★★ **백지 재배분 전의 장비를 따로 기억한다.**
+   *   reset 은 `autoEquipAll` 이 `m.equipment` 를 이미 비운 뒤에 여기로 온다.
+   *   그래서 계획만 보면 모든 칸이 «빈 슬롯 → X» 로 보이고, 미리보기가
+   *   **무엇을 벗는지 못 보여 준다.** 게다가 미리보기는 (dryRun 이라 복구된) 원래 장비 위에
+   *   변경만 덮어써서, 재배분이 못 채운 칸을 «그대로 낀 것» 으로 그렸다 —
+   *   실측: 예고 38칸 / 실제 30칸. 되돌릴 수 없는 조작인데 확인 화면이 손실을 숨긴 것이다. */
+  const origEq = opt.origEq instanceof Map ? opt.origEq : new Map();
   for (const m of st.roster || []) {
     if (!m) continue;
     const e = { ...normalizeEquipment(m.equipment) };
@@ -1794,6 +1801,12 @@ function buildPlan(st, targets, opt = {}) {
         if (!canTake(it) || (pool && !pool.has(it.uid))) continue;
         const slot = SLOTS.find((s2) => slotAccepts(s2, it) && !eq[s2]);
         if (!slot) continue;
+        /* ★★ **정말 낄 수 있는지 확인한다.**
+         *   `setArchAllows` 만 보면 계열은 맞는데 **레벨·무기 종류**가 안 맞는 경우를 놓친다.
+         *   그러면 못 낄 사람이 세트를 통째로 «찜» 해 놓고 applyPlan 에서 전부 실패하고,
+         *   그 사이 owner 를 잡고 있어서 **정작 낄 수 있는 사람이 못 가져간다.**
+         *   실측: 그 상태에서 낄 수 있는 단원의 세트가 10칸 → 1칸으로 떨어졌다. */
+        if (equipIssue(m, it, slot, st)) continue;
         if (!bySet.has(sid)) bySet.set(sid, new Map());
         const bucket = bySet.get(sid);
         // 한 칸에 하나만 — 같은 칸 후보가 여럿이면 점수가 높은 쪽
@@ -1888,6 +1901,29 @@ function buildPlan(st, targets, opt = {}) {
     const row = { uid: m.uid, name: m.name, merc: m, changed };
     out.push(row);
     rowOf.set(m.uid, row);
+  }
+
+  /* 계획을 «사람이 읽을 수 있게» 다듬는다:
+   *   · 원래 끼고 있던 것과 같은 물건이면 그건 변경이 아니다 (reset 이면 전부 다시 끼우므로 잔뜩 생긴다)
+   *   · 나머지는 from 을 **원래 장비**로 채운다 — 무엇을 벗는지 보여야 한다
+   *   · after 에 **최종 장비**를 실어 미리보기가 실제 결과를 그리게 한다 */
+  for (const row of out) {
+    const before = origEq.get(row.uid) || null;
+    const eq = vEq.get(row.uid) || null;
+    if (eq) row.after = { ...eq };
+    if (!before) continue;
+    row.before = { ...before };
+    /* ★★ `changed` 는 **실제로 끼우는 목록**이라 손대면 안 된다.
+     *   백지 재배분은 이미 장비를 벗겨 놓았으므로, «원래와 같은 물건» 도 다시 끼워야 한다.
+     *   그걸 «변경이 아니다» 라며 걸러 냈다가 그 칸들이 **빈 채로 끝났다**
+     *   (실측: 예고 30칸 / 실제 26칸, 네 칸이 조용히 비었다).
+     *
+     *   사람에게 보여 줄 목록은 따로 만든다 — `diff`. */
+    row.diff = row.changed
+      .filter((ch) => before[ch.slot] !== ch.to.uid)
+      .map((ch) => (ch.from || !before[ch.slot]
+        ? ch
+        : { ...ch, from: findItem(st, before[ch.slot]) || null }));
   }
 
   /* ★ 뺏긴 사람 재배치 — 한 사람당 한 번만. 안 하면 «임자에게 넘겨 준 자리가 빈 채로» 끝난다.
@@ -2020,6 +2056,10 @@ export function autoEquipAll(state, {
       if (!m || assigned.has(m.uid) || targetUids.has(m.uid)) continue;
       for (const s of slotKeysOf(m.equipment)) {
         if (!m.equipment[s]) continue;
+        /* ★★ 잠근 장비는 **대기 인원에게서도** 안 벗긴다.
+         *   isLocked 의 약속은 «자동 착용이 뺏지도, 벗기지도, 팔지도 못한다» 인데
+         *   이 회수 블록만 그 약속을 안 지키고 있었다 (reset 이전부터 있던 구멍이다). */
+        if (isLocked(findItem(st, m.equipment[s]))) continue;
         restore.push({ m, s, uid: m.equipment[s] });
         m.equipment[s] = null;
       }
@@ -2041,7 +2081,9 @@ export function autoEquipAll(state, {
    *   거기서 전원을 벗기면 **전리품 3개로 부대 전체를 다시 입히려다** 대부분이 빈손이 된다.
    *   되돌릴 수 없는 조작이라 옵션 실수 하나가 곧 사고다 — 여기서 못 하게 막는다. */
   const doReset = reset && !pool;
+  const origEq = new Map();
   if (doReset) {
+    for (const m of targets) if (m) origEq.set(m.uid, { ...normalizeEquipment(m.equipment) });
     for (const m of targets) {
       if (!m || !m.equipment) continue;
       for (const s of slotKeysOf(m.equipment)) {
@@ -2062,13 +2104,15 @@ export function autoEquipAll(state, {
     .sort((a, b) => b.p - a.p || a.i - b.i)
     .map((x) => x.m);
 
-  const perMerc = buildPlan(st, ordered, { pool, reset: doReset });
+  const perMerc = buildPlan(st, ordered, { pool, reset: doReset, origEq });
   if (!dryRun) applyPlan(st, perMerc);
   else for (const r of restore) r.m.equipment[r.s] = r.uid;   // 미리보기는 상태를 안 바꾼다
 
   return {
     perMerc,
-    total: perMerc.reduce((a, r) => a + r.changed.length, 0),
+    /* 버튼에 찍히는 수는 **사람이 보는 변경**이다. 백지 재배분에서 changed 를 세면
+     * 원래 끼고 있던 것을 다시 끼우는 것까지 포함돼 «34칸 착용» 처럼 부풀려진다. */
+    total: perMerc.reduce((a, r) => a + (r.diff || r.changed).length, 0),
     freed: restore.length,
   };
 }

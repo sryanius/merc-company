@@ -866,11 +866,17 @@ function weekBlock() {
       ? el('span', { class: 'faint', text: `— ${now.name}${josa(now.name, '은/는')} 그때 닫힌다` })
       : null);
 
-  // 던전은 아직 안 열렸으면 통째로 감춘다 — 첫 화면 복잡도의 큰 몫이었다
+  /* 던전은 아직 안 열렸으면 통째로 감춘다 — 첫 화면 복잡도의 큰 몫이었다.
+   *
+   * ★★ 구걸은 **여기에도** 넣는다. 초반 골드가 마르는 걸 메우는 장치라
+   *   던전이 잠긴 «바로 그 시기» 에 가장 필요하다. 던전 해금 뒤에만 보이면
+   *   정작 필요한 사람에게 안 보인다 (그렇게 만들었다가 화면에서 확인하고 고쳤다). */
   if (!Progress.unlocked(Progress.FEATURES.DUNGEON, state)) {
     return el('div', { class: 'city-week' },
-      el('span', { class: 'faint tiny', text: `이번 주: ${week}주차` }),
-      el('span', { class: 'faint tiny', text: `· ${Progress.lockHint(Progress.FEATURES.DUNGEON, state)}` }));
+      el('div', { class: 'w-row tiny' },
+        el('span', { class: 'faint tiny', text: `이번 주: ${week}주차` }),
+        el('span', { class: 'faint tiny', text: `· ${Progress.lockHint(Progress.FEATURES.DUNGEON, state)}` })),
+      begRow());
   }
 
   return el('div', { class: 'city-week' },
@@ -879,8 +885,40 @@ function weekBlock() {
     el('div', { class: 'w-row' },
       el('span', { class: 'faint tiny', text: '던전은 월드맵의 별도 노드다. 주차 안에 다녀와야 한다.' }),
       el('button', { class: 'btn sm ghost', onClick: () => go('world') }, '월드맵에서 보기')),
+    begRow(),
     towerRow(),
     abyssRow());
+}
+
+/**
+ * 구걸 — **1등급 도시에서만, 하루 한 번.**
+ *
+ * ★ 초반 골드가 마르는 것을 메우는 장치다(제작자 지적). 규칙은 state.js 가 갖는다 —
+ *   여기서 조건을 다시 쓰면 두 곳이 어긋난다.
+ * ★ 조건이 안 되는 도시에서는 **아예 안 보여 준다.** 후반 도시에서 회색 버튼이
+ *   계속 보이면 «눌러야 하나» 하는 잡일만 늘어난다.
+ */
+function begRow() {
+  const chk = GameState.canBeg(state);
+  // 1등급 도시가 아니면 줄 자체를 안 만든다 (오늘 이미 했으면 «내일 다시» 로 남긴다)
+  if (!chk.ok && /1등급/.test(chk.reason || '')) return null;
+  return el('div', { class: 'w-row' },
+    el('span', { class: chk.ok ? 'w-now' : 'faint tiny', text: '구걸' }),
+    chk.ok
+      ? el('span', {}, el('b', { class: 'w-dun', text: `· ${GameState.BEG_MIN}~${GameState.BEG_MAX}G` }))
+      : el('span', { class: 'faint tiny', text: '· 오늘은 이미 했다' }),
+    el('span', { class: 'faint tiny', text: '작은 도시에서만 · 하루 한 번' }),
+    el('button', {
+      class: `btn sm ${chk.ok ? '' : 'ghost'}`,
+      disabled: !chk.ok,
+      onClick: () => {
+        const r = GameState.beg(state);
+        if (!r.ok) { toast(r.reason || '지금은 안 된다.', 'bad'); return; }
+        save();
+        toast(`${num(r.gold)}G 를 얻었다.`, 'good');
+        refresh();
+      },
+    }, '손 벌리기'));
 }
 
 /**

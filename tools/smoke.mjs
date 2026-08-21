@@ -1771,6 +1771,70 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
   }
 }
 
+section('던전 주 1회 · 구걸');
+{
+  /* ★★ 제작자 지적 두 건:
+   *   (1) 「던전이 안 죽고 그만두고 다시 1웨이브부터 할 수 있는데,
+   *       그 주에 한 번 진행한 부대는 다시 못 하도록 막아 줘」
+   *   (2) 「초반에 골드가 너무 부족하다. 1등급 도시에서 매일 한 번 구걸로 100~1000골드」
+   *
+   * ★ 둘 다 **날짜/주차 경계**가 핵심이라 경계를 직접 넘겨 본다.
+   *   경계를 안 넘겨 보면 «한 번은 되더라» 만 확인하고 끝난다. */
+  const D = need('game/dungeon.js');
+  const S = need('game/state.js');
+  if (!D || !S) { ok(false, '모듈을 못 읽었다'); } else {
+    const faults = [];
+
+    // ── 던전: 부대마다 주 1회
+    S.newGame(9, '주간검사');
+    const st = S.state;
+    const sqid = (st.squads || [])[0] && st.squads[0].id;
+    if (!sqid) faults.push('검사 판을 못 차렸다: 부대가 없다');
+    else {
+      const d0 = st.day;
+      if (D.squadUsedThisWeek(st, sqid)) faults.push('아무것도 안 했는데 이미 썼다고 나온다');
+      D.markSquadRun(st, sqid);
+      if (!D.squadUsedThisWeek(st, sqid)) faults.push('표시했는데 안 썼다고 나온다');
+      st.day = d0 + (S.DAYS_PER_WEEK - 1);
+      if (!D.squadUsedThisWeek(st, sqid)) faults.push(`같은 주 마지막 날에 풀린다 (${st.day}일차)`);
+      st.day = d0 + S.DAYS_PER_WEEK;
+      if (D.squadUsedThisWeek(st, sqid)) faults.push(`다음 주가 됐는데 안 풀린다 (${st.day}일차)`);
+      st.day = d0;
+      if (D.squadUsedThisWeek(st, 'squad_없음')) faults.push('다른 부대까지 막힌다');
+    }
+
+    // ── 구걸: 1등급 도시 · 하루 한 번 · 100~1000
+    S.newGame(9, '구걸검사');
+    const s2 = S.state;
+    s2.cityId = 'greenhold';                     // 1등급
+    const g0 = s2.gold;
+    const r1 = S.beg(s2);
+    if (!r1.ok) faults.push(`1등급 도시에서 구걸이 안 된다: ${r1.reason}`);
+    if (r1.gold < S.BEG_MIN || r1.gold > S.BEG_MAX) faults.push(`구걸 금액 ${r1.gold} 이 ${S.BEG_MIN}~${S.BEG_MAX} 밖이다`);
+    if (s2.gold !== g0 + r1.gold) faults.push('구걸한 만큼 골드가 안 늘었다');
+    const r2 = S.beg(s2);
+    if (r2.ok) faults.push('같은 날 두 번 구걸된다');
+    s2.day += 1;
+    if (!S.beg(s2).ok) faults.push('날짜가 지나도 구걸이 안 풀린다');
+    s2.cityId = 'frostgate';                     // 5등급
+    s2.day += 1;
+    if (S.beg(s2).ok) faults.push('고등급 도시에서도 구걸이 된다');
+
+    okAll(faults, '던전은 부대마다 주 1회, 구걸은 1등급 도시에서 하루 한 번', 11);
+
+    /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 경계가 실제로 물리는지 확인한다 */
+    S.newGame(9, '메타');
+    const s3 = S.state;
+    const id3 = s3.squads[0].id;
+    D.markSquadRun(s3, id3);
+    const stuck = D.squadUsedThisWeek(s3, id3);
+    s3.day += S.DAYS_PER_WEEK;
+    const freed = !D.squadUsedThisWeek(s3, id3);
+    if (stuck && freed) pass('검사가 실제로 문다 (같은 주 막히고 다음 주 풀린다)');
+    else ok(false, '검사가 실제로 문다', `같은주막힘 ${stuck} / 다음주풀림 ${freed}`);
+  }
+}
+
 section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
 {
   /* ★ 제작자 요청 3건을 한 번에 지킨다:
@@ -1890,6 +1954,104 @@ section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
     G.autoEquipAll(st2, { squadId: 'squad_1' });
     if (s2.equipment.neck === g2.uid) pass('검사가 실제로 문다 (잠금이 없으면 뺏어온다)');
     else ok(false, '검사가 실제로 문다', '잠금 없이도 안 뺏어왔다 — 위 검사가 헛돌 수 있다');
+  }
+}
+
+section('백지 재배분이 약속을 지키나');
+{
+  /* ★★ 배포한 뒤에 병렬 조사가 찾아낸 결함 셋을 여기서 못 박는다.
+   *   전부 **되돌릴 수 없는 손실**이었고, 가장 나쁜 것은 «확인 화면이 손실을 숨긴다» 였다.
+   *
+   *   1) 미리보기가 실제보다 더 약속했다 — 예고 38칸 / 실제 30칸.
+   *      planCard 가 «지금 장비 + 변경» 으로 그렸는데, 백지 재배분에서는
+   *      재배분이 못 채운 칸이 «원래 것을 그대로 낀 것» 으로 보였다.
+   *   2) 세트 먼저 잡기가 `equipIssue` 를 안 봐서, 레벨·무기 계열이 안 맞는 단원이
+   *      세트를 통째로 «찜» 하고 전부 실패했다 — 정작 낄 수 있는 단원이 10칸 → 1칸.
+   *   3) 대기 인원 장비 회수가 `isLocked` 를 안 봐서 잠근 장비를 벗겼다.
+   *
+   *   ★ 그리고 이 검사를 만들다 **내가 넷째를 만들었다**: 읽기 좋게 하려고
+   *     `changed` 에서 «원래와 같은 물건» 을 걸렀는데, 그 목록이 실제 착용에도 쓰여서
+   *     네 칸이 조용히 비었다. 사람이 보는 목록(`diff`)과 끼우는 목록(`changed`)은 다른 것이다. */
+  const G = need('game/gear.js');
+  const S = need('game/state.js');
+  const M = need('game/merc.js');
+  if (!G || !S || !M) { ok(false, '모듈을 못 읽었다'); } else {
+    const faults = [];
+
+    /* ── (1) 미리보기가 약속한 칸 수 = 실제 결과 ── */
+    {
+      S.newGame(31, '예고검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      ['shieldman', 'swordsman', 'spearman', 'rogue', 'archer', 'apprentice', 'acolyte'].forEach((c, i) => {
+        const m = M.createMerc({ classId: c, grade: 'C', level: 40 });
+        m.hiredDay = 2; st.roster.push(m);
+        sq.memberUids[i] = m.uid; m.squadId = sq.id; m.slotIndex = i;
+      });
+      const r = new RngMod.RNG(7);
+      for (let i = 0; i < 35; i++) { const it = G.rollItem({ ilvl: 35, rarityBonus: 0.3, rng: r }); if (it) st.items.push(it); }
+      let k = 0;
+      for (const it of st.items.slice()) {
+        const rr = G.equipItem(st, st.roster[k % 7], it, null);
+        if (rr && rr.ok) k++;
+        if (k >= 26) break;
+      }
+      if (k < 20) faults.push(`검사 판을 못 차렸다: ${k}칸밖에 못 입혔다`);
+      const plan = G.autoEquipAll(st, { reset: true, dryRun: true });
+      // 미리보기(planCard)가 그리는 것과 같은 계산
+      const promised = plan.perMerc.reduce((a, row) => a + Object.values(row.after || {}).filter(Boolean).length, 0);
+      G.autoEquipAll(st, { reset: true });
+      const actual = st.roster.reduce((a, m) => a + Object.values(m.equipment || {}).filter(Boolean).length, 0);
+      if (promised !== actual) faults.push(`미리보기 ${promised}칸 / 실제 ${actual}칸 — 확인 화면이 거짓말한다`);
+      if (!plan.perMerc.every((row) => row.after)) faults.push('계획이 최종 장비(after)를 안 준다 — 미리보기가 추측하게 된다');
+    }
+
+    /* ── (2) 못 낄 사람이 세트를 찜하지 않는다 ── */
+    {
+      S.newGame(41, '찜검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      const A = M.createMerc({ classId: 'shieldman', grade: 'S', level: 70 });   // 세트 minLv 75 미달
+      const B = M.createMerc({ classId: 'shieldman', grade: 'F', level: 80 });   // 낄 수 있다
+      [A, B].forEach((m, i) => { m.hiredDay = 2; st.roster.push(m); sq.memberUids[i] = m.uid; m.squadId = sq.id; m.slotIndex = i; });
+      const r = new RngMod.RNG(3);
+      for (const slot of ['weapon', 'offhand', 'head', 'armor', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2']) {
+        const it = G.rollSetItem({ setId: 'ironrampart', slot, ilvl: 80, rng: r });
+        if (it) st.items.push(it);
+      }
+      const setN = (m) => Object.values(m.equipment || {}).filter(Boolean)
+        .map((u) => (st.items || []).find((x) => x && x.uid === u))
+        .filter((x) => x && G.setIdOf(x) === 'ironrampart').length;
+      G.autoEquipAll(st, { reset: true });
+      if (setN(A) > 0) faults.push(`레벨 미달 단원이 세트를 ${setN(A)}칸 꼈다`);
+      if (setN(B) < 5) faults.push(`낄 수 있는 단원이 ${setN(B)}칸뿐이다 — 못 낄 사람이 찜했다`);
+    }
+
+    /* ── (3) 대기 인원의 잠근 장비는 안 벗긴다 ── */
+    {
+      S.newGame(51, '잠금검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      const onDuty = M.createMerc({ classId: 'swordsman', grade: 'S', level: 50 });
+      onDuty.hiredDay = 2; st.roster.push(onDuty); sq.memberUids[0] = onDuty.uid; onDuty.squadId = sq.id;
+      const bench = M.createMerc({ classId: 'swordsman', grade: 'S', level: 50 });
+      bench.hiredDay = 2; st.roster.push(bench);
+      const it = G.rollItem({ ilvl: 40, rarity: 4, slot: 'neck', rng: new RngMod.RNG(9) });
+      st.items.push(it);
+      const eq = G.equipItem(st, bench, it, 'neck');
+      if (!eq || !eq.ok) faults.push('검사 판을 못 차렸다: 대기 인원에게 목걸이를 못 끼웠다');
+      it.locked = true;
+      G.autoEquipAll(st, {});
+      if (bench.equipment.neck !== it.uid) faults.push('대기 인원의 잠근 장비를 벗겼다');
+    }
+
+    okAll(faults, '미리보기가 실제와 같고, 못 낄 세트를 찜하지 않고, 잠금을 지킨다', 6);
   }
 }
 

@@ -218,6 +218,47 @@ export function canEnter(state = State.state, dungeonId = null) {
   return { ok: true, reason: '', week, dungeonId: d.id, openId };
 }
 
+/* ─────────────────── 부대별 «이번 주 몫» ───────────────────
+ *
+ * ★★ 제작자 지적: 「던전이 안 죽고 그만두고 다시 1웨이브부터 할 수 있는데,
+ *   그 주에 한 번 진행한 부대는 다시 못 하도록 막아 줘」
+ *
+ *   던전은 지면 그 도전이 끝나지만 **물러나면(정비) 아무 대가가 없었다.**
+ *   그래서 «1웨이브만 깨고 물러나기» 를 반복하면 세트 조각을 무한히 캘 수 있었다.
+ *   나락(주 1회)·탑(월 1회)처럼 **부대마다 주 1회**로 못 박는다.
+ *
+ * ★ 부대 단위인 이유: 던전은 주마다 하나만 열리므로 «부대별 주 1회» 가 곧 «주 1회» 다.
+ *   부대를 여럿 굴리는 사람은 부대 수만큼 갈 수 있다 — 그게 부대를 늘리는 이유이기도 하다.
+ *
+ * ★ 기록은 «절대 주차»(weekIndex) 로 남긴다. 날짜로 남기면 주가 바뀌었는지 매번 되계산해야 한다. */
+
+/** 한 주가 며칠인가와 같은 기준으로 센 절대 주차 (0부터) */
+export function dungeonWeekIndex(day) {
+  const d = Math.max(1, Math.floor(Number(day) || 1));
+  /* 한 주의 길이는 state.js 가 정한다 — 여기서 7 을 박으면 달력을 고칠 때 조용히 어긋난다.
+   * (이 모듈은 state 를 이미 import 하고 있으므로 상수만 빌려 온다) */
+  const per = Math.max(1, Math.floor(Number(State.DAYS_PER_WEEK) || 7));
+  return Math.floor((d - 1) / per);
+}
+
+/** 이 부대가 이번 주에 이미 던전에 들어갔나 */
+export function squadUsedThisWeek(state = State.state, squadId = null) {
+  const st = state || State.state;
+  if (!st || !squadId) return false;
+  const runs = st.dungeonRuns;
+  if (!runs || typeof runs !== 'object') return false;
+  const w = Math.floor(Number(runs[squadId]));
+  return Number.isFinite(w) && w === dungeonWeekIndex(st.day);
+}
+
+/** 이 부대가 이번 주 몫을 썼다고 남긴다 (웨이브 **진입** 시점에 부른다 — 물러나도 남는다) */
+export function markSquadRun(state = State.state, squadId = null) {
+  const st = state || State.state;
+  if (!st || !squadId) return;
+  if (!st.dungeonRuns || typeof st.dungeonRuns !== 'object' || Array.isArray(st.dungeonRuns)) st.dungeonRuns = {};
+  st.dungeonRuns[squadId] = dungeonWeekIndex(st.day);
+}
+
 /** 던전 진행도 조회 `{bestWave, clearedAt}` (기록이 없으면 0/null) */
 export function dungeonProgress(state = State.state, dungeonId = null) {
   const st = state || State.state;
