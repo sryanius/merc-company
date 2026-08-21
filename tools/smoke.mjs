@@ -1771,6 +1771,121 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
   }
 }
 
+section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
+{
+  /* ★ 제작자 요청 3건을 한 번에 지킨다:
+   *   (2) 남이 낀 장비도 가져올 수 있게  (3) 잠근 것은 못 가져가게
+   *   (4) 「성좌의 은총」은 사제 우선
+   *
+   * ★★ 자동 착용은 **되돌릴 수 없는** 조작이다. 잘못 뺏으면 플레이어가 손해를 본다 —
+   *   그래서 «뺏는다» 만큼 «잠그면 안 뺏긴다» 를 같은 무게로 검사한다. */
+  const G = need('game/gear.js');
+  const M = need('game/merc.js');
+  const S = need('game/state.js');
+  if (!G || !M || !S) { ok(false, '장비 모듈을 못 읽었다'); } else {
+    const build = () => {
+      S.newGame(11, '검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      st.squads = st.squads.slice(0, 1);
+      const sq1 = st.squads[0];
+      sq1.memberUids = new Array(7).fill(null);
+      const sq2 = { id: 'squad_2', name: '제2부대', memberUids: new Array(7).fill(null),
+        formationId: 'basic', status: 'idle', returnDay: 0, petUids: [] };
+      st.squads.push(sq2);
+      const mk = (sq, i, lv) => {
+        const m = M.createMerc({ classId: 'swordsman', grade: 'S', level: lv });
+        m.hiredDay = 2; st.roster.push(m);
+        sq.memberUids[i] = m.uid; m.squadId = sq.id; m.slotIndex = i;
+        return m;
+      };
+      /* 레벨은 **아이템 착용 조건 위**로 잡는다 (ilvl 60 무기는 Lv38 이상) —
+       * 못 끼우면 검사가 «기능 고장» 으로 오탐한다 */
+      const strong = mk(sq1, 0, 70);
+      const weak = mk(sq2, 0, 45);
+      /* ★ **목걸이**로 잰다. 무기는 클래스마다 다룰 수 있는 종류가 달라서
+       *   («검사는 도를 다룰 수 없습니다») `equipItem` 이 조용히 실패하고,
+       *   그러면 «뺏기가 고장» 으로 오탐한다. 장신구는 그 제약이 없다. */
+      const good = G.rollItem({ ilvl: 40, rarity: 4, slot: 'neck', rng: new RngMod.RNG(99) });
+      st.items.push(good);
+      const eq = G.equipItem(st, weak, good, 'neck');
+      if (!eq || !eq.ok) return { st, strong, weak, good, setupFail: (eq && eq.reason) || '장착 실패' };
+      return { st, strong, weak, good };
+    };
+
+    const faults = [];
+    /* 판을 못 차렸으면 그 사실부터 말한다 — 안 그러면 «기능이 고장» 으로 오탐한다 */
+    const probe = build();
+    if (probe.setupFail) faults.push(`검사 판을 못 차렸다: ${probe.setupFail}`);
+
+    // (2) 뺏어오는가 + 누구에게서인지 남는가
+    {
+      const { st, strong, weak, good } = build();
+      const res = G.autoEquipAll(st, { squadId: 'squad_1' });
+      if (strong.equipment.neck !== good.uid) faults.push('남의 장비를 못 가져온다');
+      if (weak.equipment.neck === good.uid) faults.push('뺏겼는데 원래 주인도 아직 끼고 있다');
+      const ch = res.perMerc.flatMap((r) => r.changed).find((c) => c.to && c.to.uid === good.uid);
+      if (!ch || !ch.tookFrom) faults.push('«누구에게서» 가 계획에 안 남는다 — 미리보기가 조용해진다');
+    }
+    // (3) 잠그면 못 가져가는가
+    {
+      const { st, strong, weak, good } = build();
+      good.locked = true;
+      G.autoEquipAll(st, { squadId: 'squad_1' });
+      if (strong.equipment.neck === good.uid) faults.push('잠근 장비를 가져갔다');
+      if (weak.equipment.neck !== good.uid) faults.push('잠근 장비가 원래 주인에게서 사라졌다');
+    }
+    // (3) 잠근 것은 착용자에게서도 안 벗겨지고, 팔리지도 않는가
+    {
+      const { st, weak, good } = build();
+      good.locked = true;
+      const r = new RngMod.RNG(5);
+      for (let i = 0; i < 40; i++) { const it = G.rollItem({ ilvl: 45, rarityBonus: 1.2, slot: 'neck', rng: r }); if (it) st.items.push(it); }
+      G.autoEquipAll(st, { mercs: [weak.uid] });
+      if (weak.equipment.neck !== good.uid) faults.push('잠근 장비를 착용자에게서 벗겼다');
+      if (G.isSellable(good)) faults.push('잠근 장비가 팔린다');
+    }
+    okAll(faults, '남의 장비는 가져오고, 잠근 것은 못 건드린다', 7);
+
+    /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 잠금을 껐을 때 실제로 뺏기는지 확인한다 */
+    const { st: st2, strong: s2, good: g2 } = build();
+    G.autoEquipAll(st2, { squadId: 'squad_1' });
+    if (s2.equipment.neck === g2.uid) pass('검사가 실제로 문다 (잠금이 없으면 뺏어온다)');
+    else ok(false, '검사가 실제로 문다', '잠금 없이도 안 뺏어왔다 — 위 검사가 헛돌 수 있다');
+  }
+}
+
+section('세트 임자(prefer)가 살아 있나');
+{
+  /* ★★ `setDefOf` 는 **아는 필드만 남기는 화이트리스트**다. sets.js 에 `prefer` 를 더했는데
+   *   거기 안 적어서 조용히 사라졌고, 배점을 고쳐도 «아무것도 안 바뀌는» 상태로 한참 헤맸다.
+   *   (엣지 함수의 sanitizeSquadsFull 이 부대 전력 `p` 를 버렸던 것과 같은 병이다.)
+   *   그래서 «데이터에 있는 prefer 가 setDefOf 를 통과해서 나오는가» 를 직접 확인한다. */
+  const G = need('game/gear.js');
+  const D = need('data/sets.js');
+  if (!G || !D) { ok(false, '세트 모듈을 못 읽었다'); } else {
+    const faults = [];
+    const raw = (D.SETS || D.default || {});
+    const declared = Object.keys(raw).filter((id) => Array.isArray(raw[id] && raw[id].prefer) && raw[id].prefer.length);
+    if (!declared.length) faults.push('prefer 를 선언한 세트가 하나도 없다 — 성좌의 은총에 넣기로 했다');
+    for (const id of declared) {
+      const def = G.setDefOf(id);
+      if (!def) { faults.push(`${id}: setDefOf 가 null`); continue; }
+      if (!Array.isArray(def.prefer) || !def.prefer.length) {
+        faults.push(`${id}: setDefOf 가 prefer 를 버렸다 (화이트리스트에 안 적혔다)`);
+      } else if (def.prefer.join(',') !== raw[id].prefer.join(',')) {
+        faults.push(`${id}: prefer 가 달라졌다 (${raw[id].prefer} → ${def.prefer})`);
+      }
+    }
+    okAll(faults, 'sets.js 의 prefer 가 setDefOf 를 통과한다', Math.max(1, declared.length));
+
+    /* 성좌의 은총은 사제여야 한다 — 제작자가 콕 집은 것이라 이름으로 못 박는다 */
+    const c = G.setDefOf('constellation');
+    ok(!!c && Array.isArray(c.prefer) && c.prefer.includes('healer'),
+      '성좌의 은총의 임자는 사제(healer)다', c ? JSON.stringify(c.prefer) : 'setDefOf 없음');
+  }
+}
+
 section('단원이 늘어나는 길이 둘뿐인가');
 {
   /* ★★ 오늘 넣은 총량 불변식(`sMercs ≤ hiredN + START_ROSTER`)이 성립하는 **근거**가 이것이다:

@@ -993,6 +993,12 @@ function openAutoEquipPreview(target) {
   const list = el('div', { class: 'col iv-scroll', style: { gap: '8px' } });
   for (const c of cards) list.appendChild(c.card);
   body.appendChild(list);
+  const taken = rows.reduce((a, r) => a + r.changed.filter((c) => c.tookFrom).length, 0);
+  if (taken) {
+    body.appendChild(el('div', { class: 'iv-danger tiny' },
+      el('b', { text: `다른 단원에게서 가져오는 장비 ${taken}칸 — ` }),
+      '빼앗기는 쪽은 그 자리가 빕니다. 지키고 싶은 장비는 창고에서 🔒 로 잠그면 자동 착용이 못 건드립니다.'));
+  }
   body.appendChild(el('div', { class: 'tiny faint', text: '벗겨진 장비는 창고로 돌아갑니다. 남는 장비는 그대로 보관됩니다.' }));
 
   modal({
@@ -1056,7 +1062,13 @@ function planCard(row) {
         ? el('span', { style: { color: rColor(ch.from) }, text: ch.from.name })
         : el('span', { class: 'faint', text: '빈 슬롯' }),
       el('span', { class: 'faint', text: '→' }),
-      el('span', { style: { color: rColor(ch.to), fontWeight: '700' }, text: ch.to.name })));
+      el('span', { style: { color: rColor(ch.to), fontWeight: '700' }, text: ch.to.name }),
+      /* ★ 남에게서 가져오는 것이면 **누구 것인지 반드시 보여 준다.**
+       *   자동 착용은 되돌릴 수 없다 — 조용히 뺏으면 «내 부대가 왜 약해졌지» 가 된다.
+       *   잠그면 안 뺏긴다는 것도 같이 알린다(잠금 버튼은 창고 카드에 있다). */
+      ch.tookFrom
+        ? el('span', { class: 'tag', style: { color: 'var(--warn, #d8a13a)' }, text: `${ch.tookFrom.name} 에게서` })
+        : null));
   }
 
   // 세트 착용 개수 변화 — 줄어들면 경고
@@ -1241,14 +1253,39 @@ function itemCard(it, owner, col) {
       : null,
     el('div', { class: 'row spread center', style: { marginTop: '8px', gap: '6px' } },
       el('span', { class: 'tiny num', style: { color: 'var(--gold)' }, text: `${num(it.value || 0)}G` }),
-      owner
-        ? el('span', { class: 'tag', style: { color: GRADE_COLOR[owner.grade] || 'var(--steel)' }, text: `${owner.name} 착용` })
-        : isProtected(it)
-          ? el('span', { class: 'tag', style: { color: 'var(--ink-faint)' }, text: '판매 불가' })
-          : el('button', {
-            class: 'btn sm ghost',
-            onClick: (e) => { e.stopPropagation(); askSell(it); },
-          }, `판매 ${num(sellPrice(it))}G`)));
+      el('div', { class: 'row center', style: { gap: '6px' } },
+        lockToggle(it),
+        owner
+          ? el('span', { class: 'tag', style: { color: GRADE_COLOR[owner.grade] || 'var(--steel)' }, text: `${owner.name} 착용` })
+          : isProtected(it)
+            ? el('span', { class: 'tag', style: { color: 'var(--ink-faint)' }, text: '판매 불가' })
+            : el('button', {
+              class: 'btn sm ghost',
+              onClick: (e) => { e.stopPropagation(); askSell(it); },
+            }, `판매 ${num(sellPrice(it))}G`))));
+}
+
+/**
+ * 장비 잠금 토글.
+ *
+ * ★ 잠금은 «자동으로 움직이지 마라» 다 — 자동 착용이 뺏어가지도, 벗기지도, 팔지도 못한다
+ *   (gear.js `isLocked`). 자동 착용이 남의 장비를 가져올 수 있게 되면서 필요해졌다:
+ *   그게 없으면 부대를 짜 놓아도 다음 자동 착용 한 번에 흩어진다.
+ */
+function lockToggle(it) {
+  const on = GearAPI.isLocked(it);
+  return el('button', {
+    class: `btn sm ${on ? '' : 'ghost'}`,
+    title: on ? '잠금 해제 — 자동 착용이 가져갈 수 있게 된다' : '잠금 — 자동 착용·판매가 못 건드린다',
+    style: on ? { color: 'var(--gold)' } : null,
+    onClick: (e) => {
+      e.stopPropagation();
+      it.locked = !on;
+      save();
+      toast(it.locked ? `${it.name} 잠갔다.` : `${it.name} 잠금을 풀었다.`, it.locked ? 'good' : '');
+      refresh();
+    },
+  }, on ? '🔒' : '🔓');
 }
 
 /* ─────────────────────────── 상세 ─────────────────────────── */
@@ -1308,6 +1345,16 @@ function openItemDetail(itemUid) {
       info,
       equipTargets(it, owner)),
     actions: [
+      {
+        label: GearAPI.isLocked(it) ? '🔒 잠금 해제' : '🔓 잠그기',
+        kind: GearAPI.isLocked(it) ? 'primary' : 'ghost',
+        act: () => {
+          it.locked = !GearAPI.isLocked(it);
+          save();
+          toast(it.locked ? '잠갔다 — 자동 착용·판매가 못 건드린다.' : '잠금을 풀었다.', it.locked ? 'good' : '');
+          refresh();
+        },
+      },
       owner
         ? { label: '장착 중 — 판매 불가', kind: 'ghost', act: () => { toast(`${owner.name}${josa(owner.name, '이/가')} 착용 중입니다. 먼저 해제하세요.`, 'bad'); return false; } }
         : isProtected(it)

@@ -955,6 +955,10 @@ export function setDefOf(setId) {
     name: raw.name || setId,
     desc: raw.desc || '',
     archs: setArchs(setId),
+    /* ★★ 이 반환값은 **아는 필드만 남기는 화이트리스트**다. sets.js 에 필드를 더해도
+     *   여기에 안 적으면 조용히 사라진다 — `prefer` 를 넣고 «아무것도 안 바뀐다» 로 한 번 당했다.
+     *   (엣지 함수의 sanitizeSquadsFull 이 부대 전력 `p` 를 버렸던 것과 같은 병이다.) */
+    prefer: Array.isArray(raw.prefer) ? raw.prefer.slice() : null,
     profile: profileKeyOf(setId),
     tiers,
     bonus: table,
@@ -1406,9 +1410,23 @@ export function unequipSlot(state, merc, slot) {
  * @param {object} item
  * @param {object} [st] 넘기면 착용 여부까지 본다
  */
+/**
+ * 잠긴 장비인가.
+ *
+ * ★ 잠금은 «자동으로 움직이지 마라» 는 뜻이다. 세 가지를 동시에 막는다:
+ *   자동 착용이 **뺏어가지 못하고**, 착용자에게서 **벗기지도 못하고**, **팔리지도** 않는다.
+ *   되돌릴 수 없는 조작(자동 착용·자동 판매)에 대한 플레이어의 유일한 안전장치다.
+ *
+ * ★ 옛 세이브에는 이 필드가 없다 — 없으면 false 라 그대로 «안 잠김» 이다. 마이그레이션이 필요 없다.
+ */
+export function isLocked(item) {
+  return !!(item && item.locked);
+}
+
 export function isSellable(item, st = null) {
   if (!item) return false;
   if (item.noSell === true) return false;
+  if (isLocked(item)) return false;          // 잠긴 건 안 판다
   // 신화 = 던전 세트 조각. rarity 로도, setId 로도 판정한다 (둘 중 하나만 있는 데이터가 있다)
   const mythicR = Number.isFinite(SETS_DATA.MYTHIC_RARITY) ? SETS_DATA.MYTHIC_RARITY : 5;
   if ((item.rarity || 0) >= mythicR) return false;
@@ -1468,6 +1486,41 @@ export function archWeightsFor(merc) {
 const SET_SCORE_STEP = 0.05;
 const SET_SCORE_TIER = 0.18;
 
+/* ── 세트가 «임자» 를 고르는 배율 (`sets.js` 의 `prefer` 를 선언한 세트에만 걸린다) ──
+ *
+ * ★★ 왜 필요한가: 배분은 **전투력 순**이라 사제가 맨 뒤에 고르고, healer 가중치는
+ *   atk 0.85(다른 아키타입은 2.2~2.6)라 같은 조각도 점수가 낮게 나온다.
+ *   그래서 사제를 노린 세트가 앞사람들에게 흩어졌다 (실측: tools/setalloc.mjs).
+ *
+ * ★ 임자를 올리는 것만으로는 부족하다 — 앞사람이 **먼저** 고르기 때문이다.
+ *   그래서 임자가 아닌 사람의 점수를 **내리는** 쪽이 실제로 작동한다.
+ *   두 값 다 실측으로 골랐다: 임자만 올리면(1.35/1.00) 사제 0칸 그대로,
+ *   임자 아닌 쪽을 0.62 로 내려야 사제가 세트를 쥔다.
+ *
+ * ★ 0.62 보다 더 내리면 «아무도 안 낀 채 창고에 남는» 구간이 생긴다 —
+ *   임자가 그 부대에 없을 수도 있기 때문이다. 그 경계도 도구로 확인했다. */
+const SET_PREFER_MULT = 1.35;
+const SET_OFF_PREFER_MULT = 0.30;
+
+/**
+ * 이 세트가 이 용병을 «임자» 로 보는가. prefer 를 선언 안 한 세트면 null(=중립).
+ *
+ * ★★ `active` 가 핵심이다. 페널티를 **무조건** 걸면 임자가 그 부대에 없을 때
+ *   아무도 안 끼고 세트가 창고에서 썩는다 (실측: 사제 없는 부대에서 최대 2칸, 세트 효과 0).
+ *   그래서 «지금 배분 대상 중에 임자가 있는가» 를 보고, 있을 때만 남들을 물러나게 한다.
+ *   `active` 가 없으면(단독 호출) 예전처럼 중립적으로 임자만 살짝 올린다.
+ */
+function preferBiasFor(setId, merc, active = null) {
+  const def = setDefOf(setId);
+  const pref = def && Array.isArray(def.prefer) ? def.prefer : null;
+  if (!pref || !pref.length) return null;
+  const mine = pref.includes(archOf(merc));
+  if (mine) return SET_PREFER_MULT;
+  // 임자가 이번 배분에 없으면 남을 물러나게 할 이유가 없다 — 그러면 세트가 버려진다
+  if (active && !active.has(setId)) return null;
+  return SET_OFF_PREFER_MULT;
+}
+
 /**
  * 이 용병에게 이 아이템이 얼마나 좋은지 점수화한다. 장착 불가면 -Infinity.
  * @param {object} merc 용병
@@ -1496,6 +1549,13 @@ export function scoreItemFor(merc, item, ctx = {}) {
       const hitsTier = !!def && def.tiers.some((t) => (t === 'full' ? max : t) === n + 1);
       v *= 1 + SET_SCORE_STEP * n + (hitsTier ? SET_SCORE_TIER : 0);
     }
+  }
+  /* ★ 임자 배율은 조각을 **하나도 안 걸쳤을 때부터** 걸려야 한다.
+   *   위 시너지 블록은 `n > 0` 일 때만 도는데, 첫 조각을 누가 집느냐가 곧 결과라
+   *   거기 얹으면 아무것도 안 바뀐다 (그렇게 만들었다가 실측으로 확인했다). */
+  if (sid) {
+    const bias = preferBiasFor(sid, merc, ctx.preferActive || null);
+    if (bias != null) v *= bias;
   }
   return Math.round(v * 100) / 100;
 }
@@ -1637,15 +1697,54 @@ function tierOf(sid, n) {
 function buildPlan(st, targets, opt = {}) {
   const pool = toUidSet(opt.pool);
   const owner = new Map(); // itemUid -> mercUid (가상 소유)
+
+  /* ★★ **가상 장비를 전원분 들고 간다** (예전에는 대상 한 명분만 만들었다).
+   *
+   *   자동 착용이 «남이 끼고 있는 장비» 를 가져올 수 있게 되면서 필요해졌다:
+   *   A 가 B 의 장비를 가져가면 B 의 상태도 그 자리에서 비어야 한다.
+   *   안 그러면 뒤에 B 차례가 왔을 때 **이미 뺏긴 물건을 아직 낀 것으로** 보고
+   *   «지금 것보다 나은 게 없다» 며 빈손으로 끝난다. */
+  const vEq = new Map();
   for (const m of st.roster || []) {
-    if (!m || !m.equipment) continue;
-    for (const s of slotKeysOf(m.equipment)) { const u = m.equipment[s]; if (u) owner.set(u, m.uid); }
+    if (!m) continue;
+    const e = { ...normalizeEquipment(m.equipment) };
+    vEq.set(m.uid, e);
+    for (const s of slotKeysOf(e)) { const u = e[s]; if (u) owner.set(u, m.uid); }
   }
+  /* 처리 순서 = 전투력 순. 자기보다 **먼저 고른 사람** 것은 못 가져온다 —
+   * 가져가면 그 사람 계획을 되돌려야 해서 결과가 요동친다. */
+  const rank = new Map();
+  targets.forEach((m, i) => { if (m) rank.set(m.uid, i); });
+  const byUid = new Map((st.roster || []).filter(Boolean).map((m) => [m.uid, m]));
+
   const items = (st.items || []).filter(Boolean);
+
+  /* ★ «이번 배분 대상 중에 임자가 있는 세트» 만 남을 물러나게 한다.
+   *   사제가 없는 부대에서까지 페널티를 걸면 세트가 통째로 창고에 남는다. */
+  const targetArchs = new Set(targets.map((m) => archOf(m)).filter(Boolean));
+  const preferActive = new Set();
+  for (const it of items) {
+    const sid = setIdOf(it);
+    if (!sid || preferActive.has(sid)) continue;
+    const def = setDefOf(sid);
+    const pref = def && Array.isArray(def.prefer) ? def.prefer : null;
+    if (pref && pref.some((a) => targetArchs.has(a))) preferActive.add(sid);
+  }
+
   const out = [];
 
   for (const m of targets) {
-    const eq = { ...normalizeEquipment(m.equipment) }; // 가상 장비 (실제 용병은 아직 안 건드린다)
+    const myRank = rank.has(m.uid) ? rank.get(m.uid) : Infinity;
+    /** 이 아이템을 지금 사람이 가져갈 수 있나 (없으면 자유, 있으면 «아직 안 고른 사람» 것만) */
+    const canTake = (it) => {
+      const holder = owner.get(it.uid);
+      if (!holder) return true;                 // 창고에 있다
+      if (holder === m.uid) return false;       // 자기가 이미 다른 칸에 끼고 있다
+      if (isLocked(it)) return false;           // ★ 잠긴 건 못 뺏는다
+      const hr = rank.has(holder) ? rank.get(holder) : Infinity;
+      return hr > myRank;                       // 나보다 뒤에 고르는 사람(또는 대상 밖) 것만
+    };
+    const eq = vEq.get(m.uid) || { ...normalizeEquipment(m.equipment) };
     const weights = archWeightsFor(m);
     const changed = [];
     const virt = { ...m, equipment: eq };
@@ -1658,13 +1757,17 @@ function buildPlan(st, targets, opt = {}) {
       const ctx = {
         weights, worn: wornExcept(st, eq, slot), slot, items: st,
         max: SLOTS.length - (isTwoHandedItem(findItem(st, eq.weapon)) ? 1 : 0),
+        preferActive,
       };
       const curItem = findItem(st, eq[slot]);
       const curScore = curItem ? scoreItemFor(virt, curItem, { ...ctx, checkEquip: false }) : 0;
+      /* ★ 잠긴 장비를 끼고 있으면 그 칸은 **손대지 않는다.**
+       *   «못 뺏는다» 만으로는 부족하다 — 착용자 본인의 자동 착용이 벗겨 버리면 잠금이 무의미하다. */
+      if (curItem && isLocked(curItem)) continue;
       let best = null, bestScore = -Infinity;
       for (const it of items) {
         if (!slotAccepts(slot, it)) continue;
-        if (owner.has(it.uid)) continue;
+        if (!canTake(it)) continue;
         if (pool && !pool.has(it.uid)) continue;
         const sc = scoreItemFor(virt, it, ctx);
         if (sc > bestScore) { bestScore = sc; best = it; }
@@ -1679,9 +1782,21 @@ function buildPlan(st, targets, opt = {}) {
        * 실측: 3칸 보유 부대가 자동 착용 후 평균 1.0칸, 30회 중 27회 3칸 보너스가 날아갔다.
        * 활성 단계(3/5/7/풀)를 **내리는 교체는 하지 않는다.** 같은 세트로 갈아타는 건 허용한다. */
       if (curItem && breaksSetTier(st, eq, slot, curItem, best)) continue;
+      /* 남에게서 가져오는 것이면 **그 사람의 가상 장비도 그 자리에서 비운다.**
+       * (실제 state 는 applyPlan 의 equipItem 이 벗긴다 — gear.js equipItem 1350행 부근) */
+      const holder = owner.get(best.uid);
+      let tookFrom = null;
+      if (holder && holder !== m.uid) {
+        const hm = byUid.get(holder);
+        const he = vEq.get(holder);
+        if (he) for (const s of slotKeysOf(he)) if (he[s] === best.uid) he[s] = null;
+        tookFrom = { uid: holder, name: (hm && hm.name) || '다른 단원' };
+      }
       changed.push({
         slot, from: curItem || null, to: best,
         delta: Math.round((bestScore - curScore) * 100) / 100,
+        // ★ 미리보기·결과에 «누구에게서» 를 보여 준다. 안 보이면 조용히 뺏긴 것처럼 느껴진다.
+        tookFrom,
       });
       if (curItem) owner.delete(curItem.uid); // 벗은 장비는 창고로 돌아간다
       owner.set(best.uid, m.uid);

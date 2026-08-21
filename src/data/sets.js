@@ -310,6 +310,15 @@ const RAW_SETS = {
   constellation: {
     id: 'constellation', name: '성좌의 은총', order: 4,
     archs: ALL_ARCHS.slice(),
+    /* ★★ `prefer` — «누구 손에 쥐어지길 바라는가» (자동 착용 배분에만 쓴다. 스탯과 무관).
+     *
+     *   이 세트의 풀 효과 `constellation_grace` 는 **쓰러질 때 되살아나고 아군 전체를 회복**시킨다 —
+     *   생존 축이라 사제가 들고 있어야 값어치가 산다. 그런데 `profile` 은 atk 비중이 높아서
+     *   healer 가중치(atk 0.85)로는 점수가 낮게 나오고, 배분이 전투력 순이라
+     *   사제는 맨 뒤에 골라 **한 조각도 못 받았다** (실측: tools/setalloc.mjs — 탱커 7 · 전사 3 · 사제 0).
+     *
+     *   `archs` 는 «낄 수 있는가» 이고 이건 «누가 먼저 가져가나» 다 — 둘은 다른 축이다. */
+    prefer: ['healer'],
     color: '#e8c85a', colorDeep: '#8a6a1c',
     palette: { metal: 'gold', cloth: 'ivory', leather: 'tan', accent: 'gold', glow: 'holy' },
     desc: '열두 별자리가 각각 한 조각씩 맡아 벼렸다는 한 벌. 직업을 가리지 않고 착용자를 지킨다.',

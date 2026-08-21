@@ -693,9 +693,19 @@ function onKey(ev) {
     if (!sq) return;
     ev.preventDefault();
     const dep = deployInfo(sq.id);
-    if (!dep.ok) { toast(dep.reason || '출전할 수 없습니다.', 'bad'); return; }
+    if (!dep.ok) {
+      /* ★ 못 나가는 부대여도 **그 카드로 스크롤은 한다.**
+       *   왜 못 나가는지는 카드에 적혀 있는데(원정 중·전원 부상 등),
+       *   토스트만 띄우고 화면을 안 옮기면 «무슨 부대 얘기인지» 를 못 본다. */
+      scrollToCard(i);
+      toast(dep.reason || '출전할 수 없습니다.', 'bad');
+      return;
+    }
     squadId = sq.id;
     rerender(HOST);
+    /* ★ 고른 카드가 화면 밖이면 눌러도 «바뀐 게 안 보인다» (제작자 지적).
+     *   rerender 가 DOM 을 통째로 다시 만들기 때문에 **다시 그린 뒤** 찾아야 한다. */
+    scrollToCard(i);
     return;
   }
 
@@ -707,6 +717,23 @@ function onKey(ev) {
     ev.preventDefault();
     btn.click();
   }
+}
+
+/**
+ * i번째 부대 카드를 화면 **가운데**로 옮긴다.
+ *
+ * ★ `block: 'center'` 인 이유: 폰에서 하단 내비(#nav)가 `position: fixed` 라
+ *   'nearest' 로 맞추면 카드가 내비 뒤에 반쯤 걸린다. 가운데면 위아래 다 여유가 있다.
+ * ★ 스크롤은 **문서(html)** 가 한다 — `#screen` 에는 overflow 가 없다(css/style.css:100).
+ *   그래서 컨테이너를 찾아 scrollTop 을 만지는 대신 scrollIntoView 를 쓴다.
+ */
+function scrollToCard(i) {
+  if (!HOST) return;
+  const cards = HOST.querySelectorAll('.dg-sq');
+  const el0 = cards[i] || HOST.querySelector('.dg-squads');
+  if (!el0 || typeof el0.scrollIntoView !== 'function') return;
+  try { el0.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  catch { el0.scrollIntoView(); }        // 옛 브라우저는 옵션 객체를 모른다
 }
 
 function bindKeys() {
