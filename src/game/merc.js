@@ -1035,6 +1035,37 @@ export function mercRecipe(merc, itemsById) {
   if (maxR >= 5) rec.palette.glow = 'blood';
   else if (maxR >= 4 && (!rec.palette.glow || rec.palette.glow === 'none')) rec.palette.glow = 'holy';
 
+  /* 4) ★ 등급 치장 — «고등급으로 갈수록 화려하고 이쁜 캐릭» (제작자 요청).
+   *
+   *   여기까지 오도록 등급은 **이름표 색으로만** 보였다 — F 와 S 의 도트가 완전히 같았다.
+   *   견갑 층을 만들 때 자리(pld_royal)만 파 두고 연결을 안 했던 것이다 (HANDOFF §56→§61).
+   *
+   *   원칙: 치장은 **클래스 정체성 위에 얹는다.** 파츠를 갈아치우지 않고
+   *   비어 있는 자리(견갑 없음·망토 없음)를 채우거나 색을 높인다 —
+   *   그래야 «누가 기사고 누가 마법사인지» 는 그대로 남는다.
+   *
+   *     B  강조색이 금으로 (허리띠·테두리가 살아난다)
+   *     A  + 견갑이 왕실급으로 (없던 클래스는 새로 생긴다)
+   *     S  + 망토가 없으면 긴 망토 · 은은한 금빛 광채 (장비 광채가 있으면 그쪽을 지킨다)
+   *
+   *   ★ 장비 희귀도 승급(3)이 «장비 자랑», 이건 «사람 자랑» 이다. 순서상 이게 나중이라
+   *     금 강조가 희귀도 색을 덮을 수 있는데, 등급이 곧 그 용병의 급이므로 의도한 우선순위다. */
+  const g = merc?.grade;
+  if (g === 'B' || g === 'A' || g === 'S') {
+    rec.palette.accent = 'gold';
+  }
+  if (g === 'A' || g === 'S') {
+    rec.pauldron = 'pld_royal';
+  }
+  if (g === 'S') {
+    if (!rec.cape || rec.cape === 'cape_none') rec.cape = 'cape_long';
+    if (!rec.palette.glow || rec.palette.glow === 'none') rec.palette.glow = 'holy';
+    /* ★ S 전용 금빛 테두리 오라. 견갑·망토는 A 와 겹치거나(견갑) 이미 있는 클래스가 많아(망토)
+     *   S 만의 표식이 못 된다. 테두리 오라는 어떤 파츠 조합에서도 보이고,
+     *   전설 장비의 «금속=gold» 와도 다른 신호다 (그건 갑옷 색, 이건 윤곽선 빛). */
+    rec.aura = '#f0d24a';
+  }
+
   return rec;
 }
 

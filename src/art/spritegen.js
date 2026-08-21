@@ -504,6 +504,7 @@ export function spriteKey(recipe = {}) {
     /* ★ 눈 색도 열쇠다. 빼면 «눈만 다른» 두 캐릭터가 같은 캐시를 나눠 써서
      *   둘 중 먼저 만들어진 눈 색으로 굳는다 — 눈에 안 띄는 종류의 버그다. */
     p.eye || 'brown',
+    recipe.aura || '',
   ].join('|');
 }
 
@@ -540,7 +541,9 @@ export function buildSprite(recipe = {}) {
   ctx.putImageData(img, 0, 0);
   fctx.putImageData(fimg, 0, 0);
 
-  return { canvas, flash, w: SPRITE_W, h: SPRITE_H, frames, key: spriteKey(recipe) };
+  return { canvas, flash, w: SPRITE_W, h: SPRITE_H, frames, key: spriteKey(recipe),
+    /* S 등급 오라 색 (mercRecipe). 그리기는 drawSpriteFrame 이 한다. */
+    aura: recipe.aura || null };
 }
 
 /**
@@ -624,6 +627,16 @@ export function drawSpriteFrame(ctx, sprite, frame, x, y, opts = {}) {
   ctx.imageSmoothingEnabled = false;
   ctx.translate(Math.round(x), Math.round(y));
   if (flip) ctx.scale(-1, 1);
+  /* ★ S 등급 오라 — 실루엣(flash)을 금색으로 물들여 상하좌우 1px 씩 밀어 네 번 깔면
+   *   윤곽선이 빛나는 테가 된다. 본체를 그리기 **전에** 깔아야 뒤로 간다. */
+  if (sprite.aura) {
+    const au = tintedCanvas(sprite, sprite.aura);
+    const o1 = Math.max(1, Math.round(px));
+    ctx.globalAlpha = alpha * (0.42 + Math.sin(Date.now() / 320) * 0.10);
+    for (const [ax2, ay2] of [[o1, 0], [-o1, 0], [0, o1], [0, -o1]]) {
+      ctx.drawImage(au, f.sx, f.sy, SPRITE_W, SPRITE_H, ox + ax2, oy + ay2, dw, dh);
+    }
+  }
   ctx.globalAlpha = alpha;
   ctx.drawImage(sprite.canvas, f.sx, f.sy, SPRITE_W, SPRITE_H, ox, oy, dw, dh);
 

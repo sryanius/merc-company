@@ -131,7 +131,7 @@ export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
   return ['F', n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
-    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye].join('|');
+    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura].join('|');
 }
 
 function composeFrame(names, tbl, tblFar, dy) {
@@ -174,7 +174,7 @@ export function buildPortrait(recipe = {}) {
   ctx.putImageData(img, 0, 0);
   fctx.putImageData(fimg, 0, 0);
 
-  return { canvas, flash, w: PORTRAIT_W, h: PORTRAIT_H, frames, key: portraitKey(recipe) };
+  return { canvas, flash, w: PORTRAIT_W, h: PORTRAIT_H, frames, key: portraitKey(recipe), aura: recipe.aura || null };
 }
 
 /* ─── 캐시 — 옆모습과 같은 규칙(바이트 예산 · LRU) ─── */
@@ -209,8 +209,26 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   const dh = PORTRAIT_H * px;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  const dx0 = Math.round(x) - Math.round(dw / 2);
+  const dy0 = Math.round(y) - PORTRAIT_FOOT_Y * px;
+  /* S 등급 오라 — 옆모습(drawSpriteFrame)과 같은 수법 */
+  if (portrait.aura) {
+    if (!portrait._tint) {
+      const c = makeCanvas(portrait.flash.width, portrait.flash.height);
+      const g = c.getContext('2d');
+      g.drawImage(portrait.flash, 0, 0);
+      g.globalCompositeOperation = 'source-in';
+      g.fillStyle = portrait.aura;
+      g.fillRect(0, 0, c.width, c.height);
+      portrait._tint = c;
+    }
+    const o1 = Math.max(1, Math.round(px));
+    ctx.globalAlpha = alpha * (0.42 + Math.sin(Date.now() / 320) * 0.10);
+    for (const [ax2, ay2] of [[o1, 0], [-o1, 0], [0, o1], [0, -o1]]) {
+      ctx.drawImage(portrait._tint, f.sx, f.sy, PORTRAIT_W, PORTRAIT_H, dx0 + ax2, dy0 + ay2, dw, dh);
+    }
+  }
   ctx.globalAlpha = alpha;
-  ctx.drawImage(portrait.canvas, f.sx, f.sy, PORTRAIT_W, PORTRAIT_H,
-    Math.round(x) - Math.round(dw / 2), Math.round(y) - PORTRAIT_FOOT_Y * px, dw, dh);
+  ctx.drawImage(portrait.canvas, f.sx, f.sy, PORTRAIT_W, PORTRAIT_H, dx0, dy0, dw, dh);
   ctx.restore();
 }
