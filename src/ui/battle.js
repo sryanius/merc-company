@@ -127,6 +127,8 @@ export function dispose() {
   if (!S) return;
   stopLoop();
   detachInput();
+  /* 단축키는 결과 화면까지 살아 있어야 하므로 detachInput 이 아니라 **여기서만** 뗀다 */
+  if (S.offHotkey) { try { S.offHotkey(); } catch (e) { /* 이미 제거됨 */ } S.offHotkey = null; }
   destroyRenderer();
   S.battle = null;
   S = null;
@@ -347,21 +349,25 @@ function errorPanel(root, msg) {
 /* ─────────────────────────── UI 구성 ─────────────────────────── */
 
 /**
- * 고를 수 있는 배속.
+ * 고를 수 있는 배속. **자리 = 단축키 숫자다** (1번째 = `1` 키).
  *
  * ★ 버튼 목록과 «어느 버튼이 켜졌나» 판정이 **같은 배열**을 봐야 한다 —
  *   예전엔 [1,2,4] 가 두 곳에 손으로 적혀 있어서, 한쪽만 고치면 엉뚱한 버튼에 불이 들어온다.
+ *   이제 단축키까지 이 배열을 본다. 순서를 바꾸면 키도 따라 바뀐다.
  *
- * ★ 0.5x 를 넣은 이유: 배속 계산은 정확한데(1배속 = 실시간, 실측 확인) **전투 자체가 짧다.**
- *   레벨이 앞선 부대는 8초 안에 끝나서 «1배속도 빠르다» 로 느껴진다.
- *   느리게 보는 선택지를 주는 편이 시뮬 속도를 건드리는 것보다 안전하다 —
- *   전투 결과는 시뮬 시간으로 정해지므로 **표시 속도를 바꿔도 승패는 안 변한다.**
+ * ★ 0.5x 를 뺐다 (제작자 요청). 넣었던 이유는 「근접이 왔다갔다 해서 안 보인다」 였는데
+ *   그건 연출을 고쳐서 해결했다(HANDOFF §52). 남은 건 **칸을 하나 더 먹는 버튼**뿐이라,
+ *   숫자키를 1·2·3 으로 깔끔하게 쓰려고 뺐다.
+ *
+ * ★ 표시 속도만 바뀐다 — 전투 결과는 시뮬 시간으로 정해지므로 승패는 안 변한다.
  */
-const SPEEDS = [0.5, 1, 2, 4];
+const SPEEDS = [1, 2, 4];
 
 function buildUI(root) {
   const waveLabel = el('span', { class: 'tiny muted' });
-  const speedBtns = SPEEDS.map((sp) => el('button', { class: 'btn sm', onClick: () => setSpeed(sp) }, `${sp}x`));
+  const speedBtns = SPEEDS.map((sp, i) => el('button', {
+    class: 'btn sm', title: `단축키 ${i + 1}`, onClick: () => setSpeed(sp),
+  }, `${sp}x`));
 
   const bar = el('div', { class: 'battle-bar bt-bar' },
     el('span', { class: 'bt-title', style: { fontWeight: '700' }, text: S.title }),
@@ -371,7 +377,8 @@ function buildUI(root) {
     el('span', { class: 'bt-spacer', style: { flex: '1' } }),
     el('span', { class: 'tiny faint bt-speedlab', text: '속도' }),
     speedBtns,
-    el('button', { class: 'btn sm', onClick: fastForward }, '결과만 보기'),
+    el('button', { class: 'btn sm', title: '단축키 S', onClick: fastForward }, keyTag('결과만 보기', 's')),
+    /* 후퇴에는 단축키를 안 붙인다 — 되돌릴 수 없는 동작이라 손이 미끄러지면 안 된다 */
     el('button', { class: 'btn sm danger', onClick: askRetreat }, '후퇴'));
 
   const canvas = el('canvas', { width: STAGE_W, height: STAGE_H });
@@ -411,6 +418,7 @@ function buildUI(root) {
   S.logOpen = !isNarrow();          // 폰에서는 접힌 채로 시작한다
   applyLogState();
   attachInput(stage);
+  attachHotkeys();
   attachResize();
   setSpeed(1);
   updateBar();
@@ -490,6 +498,85 @@ function attachInput(stage) {
   S.offKey = () => window.removeEventListener('keydown', onKey);
 }
 
+/**
+ * 전투 화면 단축키.
+ *
+ * ★★ 왜 넣었나 (제작자: 「던전에서 웨이브 계속 진행하는게 클릭이 왔다갔다 해서 힘들다」)
+ *   던전 한 웨이브를 도는 길이 «전투 → 결과 화면 → 이어서 버튼» 인데,
+ *   그 버튼은 **긴 결과 페이지 맨 아래**에 있다. 웨이브마다 스크롤해 내려가
+ *   버튼을 찾아 누르고, 다음 결과에서 또 내려간다 — 그게 「왔다갔다」 다.
+ *   `s` 로 전투를 넘기고 `d` 로 이어 가면 손이 자리를 안 뜬다.
+ *
+ * ★ 상황에 따라 뜻이 달라진다. **이 표가 유일한 출처다.**
+ *
+ *   키 | 전투 중                    | 결과 화면
+ *   ---|----------------------------|---------------------------
+ *   1~3| 배속 (SPEEDS 자리 그대로)   | (무시)
+ *   s  | 결과만 보기                 | (무시)
+ *   d  | 다음 웨이브 / 연출 건너뛰기 | 이어서 (있을 때만)
+ *   f  | (무시)                     | 여기서 그만 / 돌아가기
+ *
+ * ★ 전투 중 `f` 는 **일부러 죽여 뒀다.** 전투 중의 «그만» 은 후퇴인데 그건 의뢰 실패이고
+ *   되돌릴 수 없다. 배속 키 옆에서 손가락이 미끄러져 한 판을 날리게 둘 수는 없다.
+ *   후퇴는 버튼으로만 하고, 버튼은 다시 확인을 묻는다.
+ *
+ * ★ 결과 화면에서도 살아 있어야 한다 — `detachInput()` 은 결과로 넘어갈 때 불리므로
+ *   거기 얹으면 정작 필요한 `d`/`f` 가 죽는다. 해제는 `dispose()` 에서만 한다.
+ */
+function attachHotkeys() {
+  const token = S.token;
+  const onKey = (ev) => {
+    if (!S || S.token !== token) return;
+    if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    /* 길게 누르면 keydown 이 초당 수십 번 온다. 저장소에 키 반복 처리 선례가 없으므로
+     * 여기서 정한다: **반복은 전부 무시.** `d` 를 붙잡고 있다가 웨이브를 통째로
+     * 건너뛰는 사고가 나면 안 된다 (go() 의 busy 가드는 다음 틱이면 이미 풀려 있다). */
+    if (ev.repeat) return;
+    // 글자를 치는 중이면 건드리지 않는다 (용병단 이름 바꾸기 같은 입력창)
+    const el0 = ev.target;
+    if (el0 && (el0.tagName === 'INPUT' || el0.tagName === 'TEXTAREA'
+      || el0.tagName === 'SELECT' || el0.isContentEditable)) return;
+    // 모달(후퇴 확인 등)이 떠 있으면 그쪽이 주인이다
+    const layer = typeof document !== 'undefined' ? document.getElementById('modal-layer') : null;
+    if (layer && layer.childElementCount) return;
+
+    const k = String(ev.key || '').toLowerCase();
+
+    // 숫자키 = 배속. **자리로** 고른다 — SPEEDS 를 고치면 키도 따라간다
+    const i = '123456789'.indexOf(k);
+    if (i >= 0) {
+      if (S.ended || i >= SPEEDS.length) return;
+      ev.preventDefault();
+      setSpeed(SPEEDS[i]);
+      return;
+    }
+    if (k === 's') {
+      if (S.ended) return;
+      ev.preventDefault();
+      fastForward();
+      return;
+    }
+    if (k === 'd') {
+      ev.preventDefault();
+      if (!S.ended) { pokeStage(); return; }
+      if (S.resultNext) S.resultNext();
+      return;
+    }
+    if (k === 'f') {
+      if (!S.ended) return;              // 전투 중 후퇴는 버튼으로만 (위 주석 참고)
+      ev.preventDefault();
+      if (S.resultLeave) S.resultLeave();
+    }
+  };
+  window.addEventListener('keydown', onKey);
+  S.offHotkey = () => window.removeEventListener('keydown', onKey);
+}
+
+/** 키보드가 있는 화면에서만 «(S)» 같은 힌트를 붙인다 — 폰에서는 잡음이다 */
+function keyTag(label, key) {
+  return isNarrow() ? label : `${label} (${key.toUpperCase()})`;
+}
+
 /** 클릭·키 입력 한 번의 의미를 상황에 맞게 해석한다 */
 function pokeStage() {
   if (!S || S.ended) return;
@@ -539,7 +626,7 @@ function showContinue(title, sub, label) {
     sub ? el('span', { class: 'muted', text: sub }) : el('span'),
   ];
   if (!narrow) kids.push(btn);
-  kids.push(el('div', { class: 'bt-hint', text: narrow ? '전장을 탭하거나 아래 버튼' : '화면 아무 곳이나 클릭 · Enter / Space' }));
+  kids.push(el('div', { class: 'bt-hint', text: narrow ? '전장을 탭하거나 아래 버튼' : '화면 아무 곳이나 클릭 · Enter / Space / D' }));
   S.overlay.append(...kids);
   S.overlay.classList.add('on', 'act');
   if (S.goBar) {
@@ -1062,10 +1149,10 @@ function renderResult(win) {
         el('td', { style: { color: r.down ? 'var(--bad)' : 'var(--ok)' }, text: r.down ? '전투 불능' : '생존' }));
     })));
   // 표는 좁은 화면에서 6열이 안 들어간다 — 페이지가 아니라 **표가** 옆으로 스크롤되게 감싼다
-  root.appendChild(el('div', { class: 'panel', style: { marginTop: '12px' } },
+  const record = el('div', { class: 'panel', style: { marginTop: '12px' } },
     el('h3', { text: '전과' }),
     el('div', { class: 'bt-tablewrap' }, table),
-    petRows.length ? petSummary(petRows) : null));
+    petRows.length ? petSummary(petRows) : null);
 
   // 보상
   const reward = el('div', { class: 'panel', style: { marginTop: '12px' } }, el('h3', { text: '보상' }));
@@ -1081,10 +1168,19 @@ function renderResult(win) {
     reward.appendChild(lootAutoEquipBlock(items));
   } else {
     reward.appendChild(el('div', { class: 'tiny faint', text: win ? '쓸 만한 전리품은 없었다.' : '전리품은 없다.' }));
+  }
+  /* ★ 자동 판매 줄은 **전리품이 남았을 때도** 보여야 한다.
+   *   예전엔 이 두 줄이 else 안에 들여쓰기만 어긋난 채 갇혀 있어서,
+   *   «세 점 중 한 점만 팔린» 흔한 경우에 판매 골드가 조용히 사라졌다
+   *   (autoSellLoot 은 남은 것을 items 에 되돌려 넣는다 — 그래서 length 가 0 이 아니다). */
   const soldLine = autoSoldLine();
   if (soldLine) reward.appendChild(soldLine);
-  }
+
+  /* ★★ 보상이 전과보다 **먼저** 온다 (제작자: 「보상이 스크롤 넘어가서 바로 안 보인다」).
+   *   전과 표는 6열짜리라 세로를 많이 먹는다. 그 아래 보상을 두면 폰에서는
+   *   결과 화면을 열자마자 보이는 게 «준 피해 표» 뿐이다 — 궁금한 건 골드와 전리품이다. */
   root.appendChild(reward);
+  root.appendChild(record);
 
   // 성장 / 알림
   const notes = [];
@@ -1103,21 +1199,33 @@ function renderResult(win) {
   // 결과 화면은 자동으로 닫히지 않는다. 아래 버튼을 눌러야 나간다 (하단 고정이라 항상 보인다)
   // "이어서" 는 **이겼을 때만** 뜬다. 지고도 다음 웨이브로 갈 수는 없다.
   const canContinue = win && S && S.continueLabel;
+  const leaveLabel = canContinue ? '여기서 그만'
+    : S && S.returnTo === 'dungeon' ? '던전으로 돌아가기'
+      : (S && S.mode === 'quest' && hasReadySquad()) ? '의뢰소로 돌아가기'
+        : '도시로 돌아가기';
+  /* 단축키 `d`/`f` 가 부르는 것은 **이 버튼들과 똑같은 함수**다 —
+   * 라벨과 키가 따로 놀지 않게 여기서 한 번만 정한다 */
+  S.resultNext = canContinue ? continueBattle : null;
+  S.resultLeave = leaveBattle;
   root.appendChild(el('div', { class: 'bt-actions' },
     canContinue
-      ? el('button', { class: 'btn primary lg', onClick: continueBattle }, S.continueLabel)
+      ? el('button', { class: 'btn primary lg', title: '단축키 D', onClick: continueBattle },
+        keyTag(S.continueLabel, 'd'))
       : null,
     el('button', {
       class: canContinue ? 'btn lg' : 'btn primary lg',
+      title: '단축키 F',
       onClick: leaveBattle,
-    }, canContinue ? '여기서 그만'
-      : S && S.returnTo === 'dungeon' ? '던전으로 돌아가기'
-        : (S && S.mode === 'quest' && hasReadySquad()) ? '의뢰소로 돌아가기'
-          : '도시로 돌아가기'),
+    }, keyTag(leaveLabel, 'f')),
     (a.promotions || []).length
       ? el('button', { class: 'btn lg', onClick: () => { finalizeDays(); go('company'); } }, '전직하러 가기')
       : null,
-    el('span', { class: 'tiny faint', text: '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다.' })));
+    el('span', {
+      class: 'tiny faint',
+      text: isNarrow()
+        ? '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다.'
+        : '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다. · 단축키 D 이어서 · F 그만',
+    })));
 }
 
 /* ─────────────────────────── 전리품 자동 판매 ─────────────────────────── */

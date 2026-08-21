@@ -1508,6 +1508,137 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
 }
 
+section('전투 단축키');
+{
+  /* ★ 렌더러와 마찬가지로 battle.js 도 DOM 을 써서 node 로 못 돌린다 — 소스를 읽는다.
+   *
+   * ★★ 지켜야 하는 것 (HANDOFF 6차 세션 검수표에 «전투 이탈 시 keydown 리스너 0» 이 있다):
+   *   1. 배속 단축키는 SPEEDS 를 **자리로** 고른다. 값을 손으로 적으면 배열을 고칠 때 어긋난다.
+   *   2. 글자 입력(INPUT/TEXTAREA/SELECT/contenteditable)·모달·키 반복 중에는 안 먹는다.
+   *      주점 이름 입력창은 모달이 아니라 화면 본문에 있어서 태그 검사가 반드시 필요하다.
+   *   3. 리스너를 떼는 곳은 dispose() 다. detachInput() 에 얹으면 결과 화면에서 죽어
+   *      정작 필요한 d/f 가 안 먹는다 — 그게 이 단축키를 넣은 이유인데 말이다.
+   *
+   * ★ 정규식을 안 쓴다. 이 저장소에서 heredoc 이 백슬래시를 먹어 «통과만 하고 아무것도
+   *   안 잡는 검사» 를 만든 적이 여러 번이라, 글자 찾기로만 짠다. */
+  /* ★ 저장소 파일은 CRLF 다. 줄바꿈으로 자리를 재는 검사는 반드시 먼저 정규화해라 —
+   *   안 하면 «심어도 안 걸리는» 검사가 된다 (실제로 그랬다). */
+  const src = readFileSync(srcDir('ui/battle.js'), 'utf8').split(String.fromCharCode(13)).join('');
+  const has = (x) => src.includes(x);
+  const NLC = String.fromCharCode(10);
+  /** from 으로 시작하는 함수 본문을 그 다음 «줄머리 }» 까지 잘라 온다 */
+  const bodyOf = (from) => {
+    const a = src.indexOf(from);
+    if (a < 0) return '';
+    const b = src.indexOf(NLC + '}', a + from.length);
+    return b < 0 ? src.slice(a) : src.slice(a, b);
+  };
+  /** const SPEEDS = [ ... ] 안의 숫자들 */
+  const speedsOf = (text) => {
+    const a = text.indexOf('const SPEEDS = [');
+    if (a < 0) return [];
+    const b = text.indexOf(']', a);
+    return text.slice(a + 'const SPEEDS = ['.length, b)
+      .split(',').map((x) => Number(x.trim())).filter((x) => Number.isFinite(x));
+  };
+
+  const faults = [];
+  const speeds = speedsOf(src);
+  if (!speeds.length) faults.push('SPEEDS 를 못 읽었다');
+  if (speeds.includes(0.5)) faults.push('0.5x 가 아직 있다 — 숫자키를 1·2·3 으로 쓰기로 했다');
+  if (speeds.length > 9) faults.push(`배속이 ${speeds.length} 개다 — 숫자키는 9 개뿐이다`);
+  if (!has("'123456789'.indexOf(k)")) faults.push('배속 단축키가 SPEEDS 자리를 안 쓴다 (값을 손으로 적으면 어긋난다)');
+  if (!has('SPEEDS[i]')) faults.push('단축키가 SPEEDS 에서 값을 안 꺼낸다');
+  for (const guard of ['isContentEditable', "getElementById('modal-layer')", 'ev.repeat']) {
+    if (!has(guard)) faults.push(`단축키에 ${guard} 방어가 없다`);
+  }
+  if (!has('S.offHotkey')) faults.push('단축키 리스너를 떼는 곳이 없다 — 전투를 나가도 키가 살아 있다');
+  if (!bodyOf('export function dispose()').includes('S.offHotkey')) {
+    faults.push('dispose() 가 단축키 리스너를 안 뗀다');
+  }
+  if (bodyOf('function detachInput()').includes('offHotkey')) {
+    faults.push('detachInput() 이 단축키를 뗀다 — 결과 화면에서 d/f 가 죽는다');
+  }
+  okAll(faults, '단축키가 배열과 붙어 있고, 입력·모달·반복을 막고, 제때 떨어진다', 10);
+
+  /* ★ 무는 시늉만 하는 검사를 이 저장소에서 여러 번 만들었다 — 실제로 무는지 확인한다 */
+  const bit = speedsOf('const SPEEDS = [0.5, 1, 2, 4];').includes(0.5);
+  if (bit) pass('검사가 실제로 문다 (0.5x 를 되살리면 걸린다)');
+  else ok(false, '검사가 실제로 문다', 'SPEEDS 를 되돌려 심었는데 못 잡았다');
+}
+
+section('결과 화면은 보상을 전과보다 먼저 보여준다');
+{
+  /* ★★ 제작자: 「보상이 스크롤 넘어가서 바로 안 보이는데 보상이 더 궁금하다」.
+   *   전과 표는 6열이라 세로를 많이 먹어서, 그 아래 보상을 두면 폰에서 결과를 열자마자
+   *   보이는 게 «준 피해 표» 뿐이었다. 붙이는 순서가 곧 화면 순서다. */
+  /* ★ 저장소 파일은 CRLF 다. 줄바꿈으로 자리를 재는 검사는 반드시 먼저 정규화해라 —
+   *   안 하면 «심어도 안 걸리는» 검사가 된다 (실제로 그랬다). */
+  const src = readFileSync(srcDir('ui/battle.js'), 'utf8').split(String.fromCharCode(13)).join('');
+  const r = src.indexOf('root.appendChild(reward);');
+  const c = src.indexOf('root.appendChild(record);');
+  const faults = [];
+  if (r < 0) faults.push('보상 패널을 붙이는 곳을 못 찾았다');
+  if (c < 0) faults.push('전과 패널을 붙이는 곳을 못 찾았다');
+  if (r >= 0 && c >= 0 && r > c) faults.push('전과가 보상보다 먼저 붙는다 — 순서가 뒤집혔다');
+
+  /* ★ 자동 판매 줄이 «전리품이 하나도 안 남았을 때» 에만 보이는 버그가 있었다.
+   *   두 줄이 else 블록 안에 들여쓰기만 어긋난 채 갇혀 있었다. 다시 갇히면 잡는다. */
+  const soldAt = src.indexOf('const soldLine = autoSoldLine();');
+  const ifAt = src.indexOf('if (items.length) {');
+  if (soldAt < 0) faults.push('자동 판매 줄을 못 찾았다');
+  else if (ifAt < 0) faults.push('전리품 분기를 못 찾았다');
+  else if (soldAt < ifAt) faults.push('자동 판매 줄이 전리품 분기보다 앞에 있다');
+  else if (soldAt < ifEnd(src, ifAt)) {
+    faults.push('자동 판매 줄이 전리품 if/else 안에 있다 — 전리품이 남으면 판매 골드가 안 보인다');
+  }
+  okAll(faults, '보상이 먼저 오고, 자동 판매 줄이 갇혀 있지 않다', 4);
+
+  /* ★★ 이 검사는 **처음에 헛돌았다.** 「soldLine 앞의 가장 가까운 } 를 본다」 로 짰는데,
+   *   바로 윗줄 `...}));` 의 } 가 먼저 걸려서 버그를 심어도 통과했다.
+   *   중괄호 깊이로 다시 짜고, 아래에서 실제로 무는지 확인한다. */
+  const buggy = plantSoldLineInsideElse(src);
+  const bitten = buggy !== src && soldAt >= 0
+    && buggy.indexOf('const soldLine = autoSoldLine();') < ifEnd(buggy, buggy.indexOf('if (items.length) {'));
+  if (bitten) pass('검사가 실제로 문다 (자동 판매 줄을 else 안에 심으면 걸린다)');
+  else ok(false, '검사가 실제로 문다', '옛 버그를 심었는데 못 잡았다');
+}
+
+/** `if (...) {` 자리에서 시작해 그 if/else 사슬이 **끝나는** 위치를 돌려준다 */
+function ifEnd(src, at) {
+  if (at < 0) return -1;
+  let i = src.indexOf('{', at);
+  if (i < 0) return -1;
+  let depth = 0;
+  for (; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        // `} else {` 면 사슬이 이어진다 — 다음 블록까지 따라간다
+        const rest = src.slice(i, i + 10);
+        if (rest.startsWith('} else')) { const n = src.indexOf('{', i); if (n > 0) { i = n; depth = 1; continue; } }
+        return i;
+      }
+    }
+  }
+  return src.length;
+}
+
+/** 옛 버그를 그대로 되살린다 — 자동 판매 두 줄을 else 블록 **안**으로 옮긴다 */
+function plantSoldLineInsideElse(src) {
+  const two = 'const soldLine = autoSoldLine();' + String.fromCharCode(10)
+    + '  if (soldLine) reward.appendChild(soldLine);';
+  const cut = src.indexOf('  ' + two);
+  if (cut < 0) return src;
+  const without = src.slice(0, cut) + src.slice(cut + two.length + 2);
+  const anchor = without.indexOf("text: win ? '쓸 만한 전리품은 없었다.'");
+  if (anchor < 0) return src;
+  const eol = without.indexOf(String.fromCharCode(10), anchor);
+  return without.slice(0, eol + 1) + '  ' + two + String.fromCharCode(10) + without.slice(eol + 1);
+}
+
 section('근접 연출에 «돌아가는 길» 이 없나');
 {
   /* ★★ 실제로 당한 것: 근접이 왔다갔다 하는 게 안 보기 싫다고 해서 «다가가 머문다» 로

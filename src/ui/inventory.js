@@ -624,10 +624,19 @@ function headerPanel(owners, list) {
   return el('div', { class: 'panel col' },
     el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
       el('h3', { class: 'panel-title', style: { margin: '0' }, text: `창고 — ${list.length} / ${all.length}점` }),
-      el('button', {
-        class: `btn sm iv-ftoggle${nf ? ' primary' : ' ghost'}`,
-        onClick: () => { filterOpen = !filterOpen; refresh(); },
-      }, filterOpen ? '필터 접기' : (nf ? `필터·정렬 (${nf})` : '필터·정렬')),
+      el('div', { class: 'row center wrap', style: { gap: '6px' } },
+        /* ★ 펫 진입점 (제작자: 「펫 관리를 용병단 진형 쪽에서 들어가야 해서 불편하다」).
+         *   용병단 → 진형까지 스크롤 → 펫 관리 였던 것을 장비 탭 한 번으로 줄인다.
+         *   여기에 둔 이유는 펫이 «단원» 이 아니라 **부대에 딸려 오는 장비 같은 존재**이기 때문이다
+         *   (app.js SCREENS 의 pets 주석도 처음부터 「장비 관리와 같은 결」 이라고 적혀 있다).
+         *   from 을 넘겨야 펫 화면이 «장비로» 돌아갈 곳을 안다. */
+        el('button', {
+          class: 'btn sm ghost', onClick: () => go('pets', { from: 'inventory' }),
+        }, '🐾 펫 관리'),
+        el('button', {
+          class: `btn sm iv-ftoggle${nf ? ' primary' : ' ghost'}`,
+          onClick: () => { filterOpen = !filterOpen; refresh(); },
+        }, filterOpen ? '필터 접기' : (nf ? `필터·정렬 (${nf})` : '필터·정렬'))),
       filters),
     el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
       el('div', { class: 'tiny faint', text: `미장착 ${free.length}점 · 매각 가능 ${sellable.length}점 / ${num(stock)}G (전부 팔면 약 ${num(sellable.reduce((a, it) => a + sellPrice(it), 0))}G)` }),

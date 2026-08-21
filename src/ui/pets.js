@@ -57,7 +57,9 @@ function injectStyle() {
 
 /* ─────────────────────────── 화면 ─────────────────────────── */
 
-export function render(root) {
+/* ★ params.from 은 «어디서 들어왔나» 다. refresh() 가 current.params 를 그대로 다시 넘기므로
+ *   화면 안에서 뭘 만져도 돌아갈 곳이 안 바뀐다. 모르는 값이면 그냥 안 붙인다. */
+export function render(root, params = {}) {
   injectStyle();
   const st = state;
   const pets = Pet.allPets(st);
@@ -80,6 +82,9 @@ export function render(root) {
                   r.placed ? 'good' : '');
               },
             }, '자동 배치')
+            : null,
+          params.from === 'inventory'
+            ? el('button', { class: 'btn sm', onClick: () => go('inventory') }, '장비로')
             : null,
           el('button', { class: 'btn sm', onClick: () => go('tower') }, '탑으로'),
           el('button', { class: 'btn sm', onClick: () => go('company') }, '용병단으로'))),
