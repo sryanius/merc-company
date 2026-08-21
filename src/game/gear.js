@@ -1482,6 +1482,9 @@ export function archWeightsFor(merc) {
   return (c && ARCH_WEIGHTS[c.arch]) || DEFAULT_ARCH_WEIGHT;
 }
 
+/** 세트의 첫 단계. 이 아래로 모은 조각은 보너스가 **0** 이라 사실상 낱개다 (=«고아») */
+const SET_MIN_TIER = 3;
+
 /** 세트 조각을 모을 때 붙는 점수 가산 — 다음 단계에 닿으면 크게 쳐준다 */
 const SET_SCORE_STEP = 0.05;
 const SET_SCORE_TIER = 0.18;
@@ -1771,6 +1774,27 @@ function buildPlan(st, targets, opt = {}) {
       if (isLocked(it)) return false;           // ★ 잠긴 건 못 뺏는다
       const hr = rank.has(holder) ? rank.get(holder) : Infinity;
       if (hr > myRank) return true;             // 나보다 뒤에 고르는 사람(또는 대상 밖) 것
+      /* ★★ **«고아» 조각은 먼저 고른 사람에게서도 가져온다.**
+       *
+       *   앞 순번이 세트 조각을 «그냥 스탯 좋은 낱개» 로 집어 가는 일이 잦다.
+       *   그 사람에게 3칸이 안 모이면 세트 보너스가 **0** 이라 사실상 낱개인데,
+       *   뒤에 오는 임자는 그걸 되찾지 못해 **9칸에서 멈춘다** (제작자 화면: 9 · 1 · 1).
+       *   한 칸만 옮기면 10칸 단계가 열리는데 조각 둘이 놀고 있는 셈이다.
+       *
+       *   그래서 «가진 사람에게 세트로서 값이 없는(3칸 미만) 조각» 은 가져올 수 있게 한다.
+       *   뺏긴 사람은 뒤에서 다시 돌려(redo) 창고에 남은 것으로 그 칸을 메운다. */
+      const sid0 = setIdOf(it);
+      if (sid0) {
+        const he0 = vEq.get(holder);
+        if (he0) {
+          let n = 0;
+          for (const s2 of slotKeysOf(he0)) {
+            const u2 = he0[s2];
+            if (u2 && setIdOf(findItem(st, u2)) === sid0) n++;
+          }
+          if (n < SET_MIN_TIER) return true;
+        }
+      }
       /* ★★ **임자만은 «먼저 고른 사람» 에게서도 자기 세트를 가져온다.**
        *   이게 없으면 세트가 한번 남에게 붙는 순간 영영 안 옮겨진다 —
        *   배분이 전투력 순이라 사제는 늘 맨 뒤이고, 앞사람 것은 원칙적으로 못 건드리기 때문이다.

@@ -2120,6 +2120,15 @@ section('백지 재배분이 약속을 지키나');
       const afterT = wear.reduce((a, m) => a + tierOf(cnt(m)), 0);
       if (orphans.length) faults.push(`3칸을 못 채운 «고아» 가 ${orphans.length}명 남았다 (${orphans.map((m) => cnt(m)).join(',')}칸)`);
       if (afterT < beforeT) faults.push(`세트 발동 단계가 줄었다 (${beforeT} → ${afterT})`);
+      /* ★★ **앞 순번이 «낱개로» 쥔 조각을 임자가 되찾을 수 있어야 한다.**
+       *   배분은 전투력 순인데, 앞사람이 세트 조각을 그냥 스탯 좋은 물건으로 집어 가면
+       *   뒤에 오는 임자가 **9칸에서 멈춘다** — 한 칸만 옮기면 10칸 단계가 열리는데도.
+       *   가진 사람에게 3칸이 안 되는 조각은 세트로서 값이 0 이므로 넘겨받을 수 있어야 한다. */
+      const top = Math.max(0, ...wear.map((m) => cnt(m)));
+      const leftovers = wear.reduce((a, m) => a + (cnt(m) > 0 && cnt(m) < 3 ? cnt(m) : 0), 0);
+      if (top < 10 && leftovers > 0) {
+        faults.push(`최다 보유가 ${top}칸인데 낱개 조각이 ${leftovers}개 떠돈다 — 되찾지 못한다`);
+      }
     }
 
     okAll(faults, '미리보기가 실제와 같고, 못 낄 세트를 찜하지 않고, 잠금을 지키고, 고아 조각이 안 남는다', 8);
