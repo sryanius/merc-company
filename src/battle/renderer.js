@@ -155,6 +155,13 @@ const CLIPS = {
   hit: [['hit0', 0.17]],
   die: [['die0', 0.13], ['die1', 0.13], ['die2', 0.14], ['die3', 0.60]],
 };
+/* 돌진 잔상 — 프레임당 이동량이 이보다 크면 지나온 자리에 반투명 분신을 깐다.
+ * 스프라이트 폭(96px)의 1/6 을 넘어가면 이미 «끊겨» 보이기 시작한다. */
+const GHOST_MIN_PX = 16;
+const GHOST_STEP_PX = 14;   // 분신 하나가 메우는 간격
+const GHOST_MAX = 4;        // 너무 많으면 잔상이 아니라 행렬이 된다
+const GHOST_ALPHA = 0.42;
+
 const IDLE = ['idle0', 'idle1', 'idle2', 'idle3'];
 const WALK = ['walk0', 'walk1', 'walk2', 'walk3'];
 
@@ -1468,6 +1475,32 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       if (v.flashCol) { TINT_FLASH.color = v.flashCol; tint = TINT_FLASH; }
       else flash = 1;
     }
+    /* ★★ 돌진 잔상 — 「근접들이 순간이동하면서 공격한다」 는 지적의 해결책이다.
+     *
+     *   근접 돌진은 화면에서 **478px 를 0.25초에** 지난다 (가로 1280 기준).
+     *   60fps 로 프레임당 32px — 스프라이트 폭이 96px 이니 **제 몸의 1/3씩 건너뛴다.**
+     *   눈에는 이어진 움직임이 아니라 순간이동으로 보인다.
+     *
+     *   ★ 이 시간을 늘리려면 엔진의 MELEE_DELAY 를 늘려야 하는데, 실측해 보니
+     *     승률이 5~7%p 떨어진다 (타격이 늦어져 대상이 먼저 죽고 헛치는 일이 는다).
+     *     그래서 **시간은 그대로 두고 눈에 이어 보이게** 한다 —
+     *     지나온 자리에 반투명 잔상을 깔면 빠른 이동이 «빠른 이동» 으로 읽힌다.
+     *
+     *   ★ 잔상은 프레임당 이동량이 클 때만 그린다. 느릴 때 그리면 그냥 지저분하다. */
+    const gap = Math.abs(x - (v.lastX == null ? x : v.lastX));
+    if (v.lunge && gap > GHOST_MIN_PX) {
+      const n = Math.min(GHOST_MAX, Math.round(gap / GHOST_STEP_PX));
+      for (let i = 1; i <= n; i++) {
+        const p2 = i / (n + 1);
+        drawSpriteFrame(g, sp, frameOf(v), x + (v.lastX - x) * p2, y + ((v.lastY == null ? y : v.lastY) - y) * p2, {
+          scale: SPRITE_SCALE,
+          flip: u.side === 'enemy',
+          alpha: (v.alpha == null ? 1 : v.alpha) * GHOST_ALPHA * (1 - p2),
+        });
+      }
+    }
+    v.lastX = x; v.lastY = y;
+
     // 스케일 펀치는 발밑 기준으로 확대되므로 유닛이 제자리에서 부푼다 (화면은 그대로)
     drawSpriteFrame(g, sp, frameOf(v), x, y, {
       scale: SPRITE_SCALE * punchScale(v),
