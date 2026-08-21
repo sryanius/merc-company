@@ -7,6 +7,7 @@
 //    즉 wpn_* 파츠는 날 끝이 위를 향하고 그립(ax,ay)이 아래쪽에 있도록 그려야 한다.
 //  - 이 모듈은 최상위에서 document/window를 건드리지 않는다 (node import 가능).
 import { getPart } from './parts.js';
+import { getFrontPart, hasFrontPart } from './parts_front.js';
 import { SCALE, BASE_W, BASE_H, BASE_FOOT_Y } from './scale.js';
 import { makePalette } from './palette.js';
 import { colorTable, shadeTable, blitInto, blitFrameInto, makeCanvas } from './pixel.js';
@@ -82,6 +83,37 @@ export const FRAMES = [
   'guard0', 'hit0',
   'die0', 'die1', 'die2', 'die3',
 ];
+
+/* ─────────────────── 통짜 전투 시트 (battleSheet) ───────────────────
+ *
+ * ★★ 제작자 결정: 「전투 모션도 파츠 조립이 아니라 통짜로 그리자. 파츠 갈아끼우는 게
+ *   제한이 너무 크다」. 정면 일러스트(portrait illust)와 같은 원리 — 팔레트 문자라
+ *   개인 색 편차는 그대로 살고, 그림의 자유도만 올라간다.
+ *
+ * 스타일마다 **열 장**을 그리고 24프레임에 별칭으로 편다:
+ *   idleA idleB walkA walkB atk0 atk1 atk2 hit0 die0 die1
+ * shoot/cast 는 파일럿에선 atk 를 빌려 쓴다 — 원거리 스타일을 그릴 때 전용 그림을 더한다.
+ *
+ * 프레임 규약: 96×120 · 오른쪽을 본다 · ax=48(발밑 중앙) · ay=114(발바닥, FOOT_Y).
+ * 파츠 이름: `bt_<스타일>_<키>` — parts_front.js 등록부를 같이 쓴다 (adopt 도구 재사용).
+ */
+const SHEET_KEYS = ['idleA', 'idleB', 'walkA', 'walkB', 'atk0', 'atk1', 'atk2', 'hit0', 'die0', 'die1'];
+const SHEET_ALIAS = {
+  idle0: 'idleA', idle1: 'idleA', idle2: 'idleB', idle3: 'idleB',
+  walk0: 'walkA', walk1: 'walkB', walk2: 'walkA', walk3: 'walkB',
+  atk0: 'atk0', atk1: 'atk1', atk2: 'atk2', atk3: 'atk2',
+  shoot0: 'atk0', shoot1: 'atk1', shoot2: 'atk2',
+  cast0: 'atk0', cast1: 'atk1', cast2: 'atk2',
+  guard0: 'idleA', hit0: 'hit0',
+  die0: 'die0', die1: 'die0', die2: 'die1', die3: 'die1',
+};
+
+/** 이 레시피의 통짜 시트 이름 — 열 장이 **전부** 있어야 쓴다 (반쪽 시트는 프레임이 튄다) */
+function sheetOf(recipe) {
+  const s0 = recipe && recipe.battleSheet;
+  if (!s0) return null;
+  return SHEET_KEYS.every((k) => hasFrontPart(`${s0}_${k}`)) ? s0 : null;
+}
 
 const JOINT_KEYS = ['head', 'chest', 'pelvis', 'shBack', 'shFront', 'handBack', 'handFront', 'hipBack', 'hipFront'];
 
@@ -498,6 +530,7 @@ export function spriteKey(recipe = {}) {
   const n = partNames(recipe);
   const p = recipe.palette || {};
   return [
+    sheetOf(recipe),
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin || 'pale', p.hair || 'brown', p.metal || 'iron', p.cloth || 'ash',
     p.leather || 'brown', p.accent || 'gold', p.glow || 'none',
@@ -528,12 +561,23 @@ export function buildSprite(recipe = {}) {
   const fimg = fctx.createImageData(atlasW, SPRITE_H);
 
   const frames = {};
+  const sheet = sheetOf(recipe);
   for (let i = 0; i < FRAMES.length; i++) {
     const name = FRAMES[i];
+    const ox = i * SPRITE_W;
+    if (sheet) {
+      /* 통짜 시트 — 조립·회전 없이 그 프레임 그림을 그대로 얹는다 */
+      const part = getFrontPart(`${sheet}_${SHEET_ALIAS[name] || 'idleA'}`);
+      const buf = new Uint8ClampedArray(SPRITE_W * SPRITE_H * 4);
+      blitInto(buf, SPRITE_W, SPRITE_H, part, part.ax, part.ay, tbl, false);
+      blitFrame(img.data, atlasW, buf, ox, 0, 0, 1, false);
+      blitFrame(fimg.data, atlasW, buf, ox, 0, 0, 1, true);
+      frames[name] = { sx: ox, sy: 0 };
+      continue;
+    }
     const p = POSES[name] || POSES.idle0;
     let buf = composeFrame(parts, tbl, tblBack, tblCape, p);
     if (p.rot) buf = rotateBuffer(buf, p.rot);
-    const ox = i * SPRITE_W;
     blitFrame(img.data, atlasW, buf, ox, p.dx, p.dy, p.alpha, false);
     blitFrame(fimg.data, atlasW, buf, ox, p.dx, p.dy, p.alpha, true);
     frames[name] = { sx: ox, sy: 0 };

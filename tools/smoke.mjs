@@ -1822,8 +1822,29 @@ section('정면 포즈 판·클래스 얼굴의 기하');
       }
       if (near < 8) faults.push(`${n}: 발바닥 근처가 비었다`);
     }
-    okAll(faults, `포즈 판 ${plates.length}·얼굴 ${faces.length}·일러스트 ${ills.length}개가 좌표 규약을 지킨다`,
-      Math.max(1, plates.length + faces.length + ills.length));
+    /* 전투 통짜 시트(bt_*) — 96x120 · 앵커(48,114) · 지면 접촉 · 발 아래 비움.
+     * 열 장이 «전부» 있어야 spritegen 이 쓴다 — 반쪽 시트는 여기서 걸린다. */
+    const bts = names.filter((n) => n.startsWith('bt_'));
+    const SHEET_KEYS = ['idleA', 'idleB', 'walkA', 'walkB', 'atk0', 'atk1', 'atk2', 'hit0', 'die0', 'die1'];
+    const styles = [...new Set(bts.map((n) => n.replace(/^bt_/, '').replace(/_[^_]+$/, '')))];
+    for (const st0 of styles) {
+      const missing = SHEET_KEYS.filter((k) => !names.includes(`bt_${st0}_${k}`));
+      if (missing.length) faults.push(`bt_${st0}: 프레임이 빠졌다 — ${missing.join(', ')} (반쪽 시트는 안 쓰인다)`);
+    }
+    for (const n of bts) {
+      const p = FP.getFrontPart(n);
+      if (p.w !== 96 || p.h !== 120 || p.ax !== 48 || p.ay !== 114) {
+        faults.push(`${n}: 96x120 앵커(48,114) 이어야 한다 (지금 ${p.w}x${p.h} 앵커 ${p.ax},${p.ay})`);
+        continue;
+      }
+      let ground = 0; let below = 0;
+      for (let y = 106; y <= 114; y++) ground += [...(p.px[y] || '')].filter((c) => c !== '.').length;
+      for (let y = 116; y < 120; y++) below += [...(p.px[y] || '')].filter((c) => c !== '.').length;
+      if (ground < 6) faults.push(`${n}: 지면(행 106~114)에 안 닿는다`);
+      if (below > 20) faults.push(`${n}: 발 아래(행 116~)에 ${below}칸`);
+    }
+    okAll(faults, `포즈 판 ${plates.length}·얼굴 ${faces.length}·일러스트 ${ills.length}·전투 프레임 ${bts.length}개가 좌표 규약을 지킨다`,
+      Math.max(1, plates.length + faces.length + ills.length + bts.length));
 
     /* 판이 있으면 canDraw 경로도 성립해야 한다 — 얼굴이 함께 있어야 조립이 선다 */
     const archOf = (n) => n.replace(/^plate_/, '');

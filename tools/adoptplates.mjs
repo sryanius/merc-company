@@ -37,6 +37,12 @@ function checkPart(name, p) {
 }
 
 for (const r of list) {
+  /* 완전 일반형: { name, part } — 전투 시트(bt_*) 등 이름을 호출자가 정하는 경우 */
+  if (r && r.name && r.part) {
+    checkPart(r.name, r.part);
+    parts[r.name] = r.part;
+    continue;
+  }
   if (!r || !r.key) continue;
   /* 일러스트 묶음({key, illust})과 판+얼굴 묶음({key, face, plate}) 둘 다 받는다 */
   if (r.illust) {

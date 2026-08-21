@@ -1083,9 +1083,12 @@ export function mercRecipe(merc, itemsById) {
      * ★★ 계열(arch)만으로는 거칠다 — 「무극의 투신」(fighter, 권갑 무술가)이 검 든 일러스트를,
      *   「불사의 혈염귀」(tank, 흡혈귀)가 십자 성방패 기사를 받았다 (제작자 지적).
      *   무기·컨셉으로 **스타일**을 갈라 그쪽 일러스트를 우선한다. */
-    rec.illust = `illust_${illustStyleOf(c)}`;
+    const style = illustStyleOf(c);
+    rec.illust = `illust_${style}`;
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
+    /* 전투 통짜 시트 — 열 장이 전부 있는 스타일만 spritegen 이 실제로 쓴다 (sheetOf 검사) */
+    rec.battleSheet = `bt_${style}`;
   }
 
   return rec;
