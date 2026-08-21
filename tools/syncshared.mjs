@@ -75,7 +75,15 @@ for (const rel of FILES) {
     // 서로를 참조하는 경로를 평평하게 만든다 (전부 _shared 한 폴더에 둔다)
     const flat = src.replace(/from\s+'(\.\.?\/[^']+)'/g, (m, p) => `from './${path.basename(p)}'`);
     fs.mkdirSync(OUT, { recursive: true });
-    fs.writeFileSync(path.join(OUT, path.basename(rel)), flat, 'utf8');
+    const dest = path.join(OUT, path.basename(rel));
+    fs.writeFileSync(dest, flat, 'utf8');
+    /* ★★ **써 놓고 되읽는다.**
+     *   한 번 이런 일이 있었다: 이 도구가 «복사했다» 고 해시까지 찍었는데
+     *   복사본은 옛 내용 그대로였고, 그 상태로 Edge Function 을 배포했다.
+     *   서버는 옛 규칙으로 판정하는데 도구는 성공이라고 말한 것이다.
+     *   쓴 결과를 확인 안 하는 도구는 «성공했다는 말» 만 파는 셈이다. */
+    const back = fs.readFileSync(dest, 'utf8');
+    if (back !== flat) problems.push(`${rel} 을 썼는데 되읽은 내용이 다르다 (복사 실패)`);
   }
 }
 

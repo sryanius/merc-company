@@ -87,6 +87,16 @@ export function extractScore(st) {
      * 옛 세이브는 0 이라, 전체가 아니라 **증가분끼리** 비교해야 한다. */
     hires: Number(st.stats?.hires) || 0,
     specHires: Number(st.stats?.specHires) || 0,
+    /* ★★ 「고용된 단원 수」를 **명부에서 직접 센다.**
+     *
+     *   `stats.hires` 는 계량기라 **생기기 전부터 하던 사람은 0** 이다 — 그걸로 총량을
+     *   재면 오래 한 정상 플레이어가 전부 걸린다. 반면 `hiredDay` 는 **최초 커밋부터**
+     *   있었고 `addMerc` 가 항상 채운다(호출자는 주점 하나뿐이다). 그래서 옛 세이브에도
+     *   빠짐없이 들어 있다 — 계량기 대신 쓸 수 있는 유일한 파생값이다.
+     *
+     *   새 게임 시작 단원 4명은 `hiredDay = 1` 이고 등급이 C·C·D·D 로 **고정**이다
+     *   (state.js newGame). 즉 **S 는 반드시 고용된 사람**이다. */
+    hiredN: roster.reduce((a, m) => a + (m && (Number(m.hiredDay) || 0) > 1 ? 1 : 0), 0),
     topPower: Math.round(Math.max(0, ...(Array.isArray(st.squads) ? st.squads : [])
       .map((sq) => Number(sq && sq.power) || 0), 0)),
     squad: topSquadOf(st),
@@ -232,6 +242,27 @@ export function checkStatic(s) {
    * 조이면 패치 때마다 오탐이 난다. */
   if (s.sMercs < 0 || s.sMercs > s.rosterN) bad.push(`S 용병 ${s.sMercs} (단원 ${s.rosterN})`);
   if (s.topPower < 0 || s.topPower > POWER_CAP) bad.push(`부대 전력 ${s.topPower} (상한 ${POWER_CAP})`);
+
+  /* ★★ **총량 불변식** — 이력이 필요 없다. 여기가 이 검증의 새 바닥이다.
+   *
+   *   조작 기록 하나가 이렇게 들어왔다: 총 고용 4회인데 S 용병 17명, 단원 17명.
+   *   기존 검사는 전부 «지난번보다 얼마나 늘었나» 를 보는 것이라, 한 번 통과해
+   *   원장이 생기고 나면 조금씩 올리는 것을 막지 못했다 (실제 세이브는 단원 36명 전원 S,
+   *   그중 **시작 단원 4명까지 S** 였다 — 시작 등급은 C·C·D·D 로 고정인데도).
+   *
+   *   아래 둘은 «게임이 코드로 강제하는 것» 에서 바로 나오므로 오탐이 없다:
+   *     · 명부는 정원을 넘을 수 없다.
+   *     · S 는 고용으로만 생긴다 (시작 단원은 C·C·D·D 고정, 등급은 나중에 안 바뀐다).
+   *
+   *   여유(START_ROSTER)를 두는 이유: **1일차에 고용하면** `hiredDay === 1` 이라
+   *   시작 단원과 구분이 안 되어 hiredN 이 그만큼 덜 세어진다. 시작 골드로는
+   *   많아야 두 명이므로 4는 넉넉하다. */
+  if (s.rosterCap > 0 && s.rosterN > s.rosterCap) {
+    bad.push(`단원 ${s.rosterN}명 (정원 ${s.rosterCap})`);
+  }
+  if (Number.isFinite(s.hiredN) && s.sMercs > s.hiredN + START_ROSTER) {
+    bad.push(`S 용병 ${s.sMercs}명 · 고용된 단원 ${s.hiredN}명`);
+  }
   return bad;
 }
 
@@ -294,6 +325,9 @@ export function checkCadence(prev, s) {
 /** 하루에 부대 하나가 끝낼 수 있는 의뢰 수의 넉넉한 상한 */
 export const MAX_QUESTS_PER_DAY = 5;
 
+/** 새 게임이 주는 시작 단원 수. state.js newGame 이 4명을 C·C·D·D 로 준다 — **S 는 없다.** */
+export const START_ROSTER = 4;
+
 /** 명물 슬롯의 S 확률 상한 (merc.js SPEC_S_MAX_BY_TIER 의 최댓값). 일반 슬롯은 0 이다. */
 export const S_CHANCE_MAX = 0.05;
 /** 운을 봐주는 배수. 4배면 실효 20% — 이걸 넘으면 확률로는 설명이 안 된다. */
@@ -355,7 +389,7 @@ export function checkGrowth(prev, s) {
 }
 
 /**
- * 첫 제출이 «갓 시작한 계정» 으로는 설명이 안 되는가.
+ * 기록 자체가 «이 일차로는 설명이 안 되는가». **매 제출마다** 본다.
  *
  * ★ 기준은 전부 **게임이 코드로 강제하는 것**에서 나온다:
  *   - 탑은 월 1회, 나락은 주 1회만 열린다 → 며칠 만에 깊이 갈 수 없다.
@@ -364,7 +398,7 @@ export function checkGrowth(prev, s) {
  *
  * ★ 상한은 **넉넉하게** 잡는다. 여기 걸려도 게임은 그대로 돌아가고 순위표에서만 빠진다.
  */
-function firstSubmitOddities(s) {
+function absoluteOddities(s) {
   const bad = [];
   const towerRuns = Math.floor(Math.max(0, s.day - 1) / DAYS_PER_MONTH) + 1;
   const abyssRuns = Math.floor(Math.max(0, s.day - 1) / DAYS_PER_WEEK) + 1;
@@ -373,8 +407,12 @@ function firstSubmitOddities(s) {
    * 실측(tools/tower.mjs): 만렙 풀세트 부대가 500층 중 474층. 그 절반을 1회분으로 본다. */
   if (s.towerBest > towerRuns * 250) bad.push(`탑 ${s.towerBest}층 · ${s.day}일차면 입장 ${towerRuns}회`);
   if (s.abyssBest > abyssRuns * 12) bad.push(`나락 ${s.abyssBest}심층 · ${s.day}일차면 입장 ${abyssRuns}회`);
-  /* S 는 명물 슬롯에서만, 그것도 최대 5% 다. 하루 한 명씩 나온다 쳐도 이 이상은 안 모인다. */
-  const sCap = Math.max(2, Math.ceil(s.day * 0.06));
+  /* S 는 명물 슬롯에서만, 그것도 최대 5% 다. 하루 한 명씩 나온다 쳐도 이 이상은 안 모인다.
+   *
+   * ★ 계량기(hires)가 «그보다 많이 고용했다» 고 말하면 그쪽을 믿는다.
+   *   계량기는 옛 세이브에서 0 이라 **상한을 좁히는 데는 못 쓰지만**, 넓히는 데는 안전하다 —
+   *   0 이면 일차 상한 그대로고, 값이 있으면 그만큼 봐준다. */
+  const sCap = Math.max(2, Math.ceil(s.day * 0.06), Math.max(0, Number(s.hires) || 0));
   if (s.sMercs > sCap) bad.push(`S 용병 ${s.sMercs}명 · ${s.day}일차 상한 ${sCap}`);
   return bad;
 }
@@ -393,20 +431,20 @@ export function judge(prev, s) {
   const a = [...checkStatic(s), ...checkCadence(prev, s)];
   if (a.length) return { verdict: 'reject', tier: 'A', reasons: a };
 
-  /* ★★ **첫 제출은 비교할 대상이 없다.**
-   *   checkCadence·checkGrowth 는 «지난번보다 얼마나 늘었나» 를 보는 검사라
-   *   prev 가 없으면 통째로 건너뛴다. 즉 처음부터 큰 값으로 올리면 아무것도 안 걸렸다.
-   *   실제로 순위표에 «43일차에 탑 247층, 단원 6명 전원 S, 완료 의뢰 3건» 이 올라왔다
-   *   (HANDOFF §57).
+  /* ★★ 이 검사는 **매 제출마다** 돈다. 예전에는 `if (!prev)` 안에 있었다.
    *
-   * ★ 그렇다고 **거절하면 안 된다.** 오래 오프라인으로 하다가 클라우드를 처음 켠
-   *   정상 플레이어의 첫 제출도 똑같이 커 보인다. 구분할 방법이 없다.
+   *   그게 구멍이었다. flag 를 받아도 원장은 갱신되므로(submit-score 의 «flagged 여도
+   *   갱신한다»), **한 번 걸리고 나면 그 뒤로는 증가분 검사만 남았다.**
+   *   증가분 상한은 제출당 최소 2명이라, 제출을 반복하면 얼마든지 올릴 수 있었다 —
+   *   실제로 거절 19건을 찔러 본 뒤 통과한 기록이 있다 (S 17명 · 총 고용 4회).
+   *   절대 상한이 매번 걸리면 그 «조금씩 올리기» 가 상한을 못 넘는다.
+   *
+   * ★ 그래도 **거절하지는 않는다.** 오래 오프라인으로 하다가 클라우드를 처음 켠
+   *   정상 플레이어의 기록도 똑같이 커 보인다. 구분할 방법이 없다.
    *   그래서 **표시(flag)** 만 한다 — 순위표에서는 빠지고 행은 남아 사람이 본다.
-   *   기록이 작으면(갓 시작한 사람) 걸리지 않는다. */
-  if (!prev) {
-    const first = firstSubmitOddities(s);
-    if (first.length) return { verdict: 'flag', tier: 'C', reasons: first };
-  }
+   *   «불가능» 인 것(정원 초과·고용 없는 S)은 위 checkStatic 이 이미 거절한다. */
+  const odd = absoluteOddities(s);
+  if (odd.length) return { verdict: 'flag', tier: 'C', reasons: odd };
 
   const b = checkGrowth(prev, s);
   // ★ B 는 거절이 아니라 **표시**다 (제작자 결정: 랭킹에서만 숨긴다).

@@ -291,16 +291,25 @@ export function toast(text, kind = '') {
 /** dismissable:false 면 배경을 눌러도 닫히지 않는다 (반드시 선택해야 하는 모달용). */
 export function modal({ title, body, actions = [], onClose, wide = false, dismissable = true }) {
   const layer = $('#modal-layer');
-  const close = () => { layer.innerHTML = ''; onClose?.(); };
+  const close = () => { layer.innerHTML = ''; offKey?.(); offKey = null; onClose?.(); };
   // wide 는 인라인 min-width 였는데 인라인은 미디어쿼리로 덮을 수 없어 폰에서 가로 스크롤을 만들었다.
   // 이제 `.modal.wide` 클래스(css/style.css)가 폭을 정한다 — PC 계산값은 그대로 760px.
+  /* ★ 액션에 `hotkey: 's'` 를 주면 그 글자로 누를 수 있다.
+   *   버튼을 «찾아서 click()» 하는 방식이라 Promise·중복클릭 방지 같은 아래 로직을 그대로 탄다 —
+   *   단축키 경로를 따로 만들면 그쪽만 규칙이 어긋난다. */
+  const byKey = new Map();
+  const registerKey = (a, btn) => {
+    const k = String(a.hotkey || '').toLowerCase();
+    if (k) { byKey.set(k, btn); btn.title = `단축키 ${k.toUpperCase()}`; }
+    return btn;
+  };
   const box = el('div', { class: `modal${wide ? ' wide' : ''}` },
     // title 은 문자열이 보통이지만 **노드도 받는다** — 머리말에 버튼을 달 수 있어야 한다
     //   (용병 상세의 이름 옆 수정 아이콘 등).
     title ? (typeof title === 'string' ? el('header', { text: title }) : el('header', {}, title)) : null,
     el('div', { class: 'body' }, body),
     actions.length
-      ? el('footer', {}, actions.map((a) => el('button', {
+      ? el('footer', {}, actions.map((a) => registerKey(a, el('button', {
           class: `btn ${a.kind || ''}`,
           /* `act` 가 false 를 돌려주면 창을 닫지 않는다 (검증 실패 등).
            *
@@ -321,10 +330,27 @@ export function modal({ title, body, actions = [], onClose, wide = false, dismis
             }
             if (r !== false) close();
           },
-        }, a.label)))
+        }, a.label))))
       : el('footer', {}, el('button', { class: 'btn', onClick: close }, '닫기')));
   layer.innerHTML = '';
   layer.appendChild(box);
+  /* 단축키 — 창이 떠 있는 동안만 산다. close 에서 반드시 뗀다(안 떼면 다음 창까지 따라간다). */
+  let offKey = null;
+  if (byKey.size) {
+    const onKey = (ev) => {
+      if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.repeat) return;
+      const el0 = ev.target;
+      if (el0 && (el0.tagName === 'INPUT' || el0.tagName === 'TEXTAREA'
+        || el0.tagName === 'SELECT' || el0.isContentEditable)) return;
+      const btn = byKey.get(String(ev.key || '').toLowerCase());
+      if (!btn || btn.disabled) return;
+      ev.preventDefault();
+      btn.click();
+    };
+    window.addEventListener('keydown', onKey);
+    offKey = () => window.removeEventListener('keydown', onKey);
+  }
+
   /* ★ 배경 클릭으로 닫기 — 반드시 **누른 곳도 배경이었을 때만** 닫는다.
    * 예전에는 click 하나만 봤는데, 입력창의 글자를 드래그하다 배경에서 손을 떼면
    * click 의 target 이 배경이 되어 모달이 그대로 꺼졌다

@@ -13,6 +13,7 @@ import * as Rules from '../src/game/rules.js';
 import { DAYS_PER_WEEK, DAYS_PER_MONTH } from '../src/game/state.js';
 import { goldRange } from '../src/data/abyss.js';
 
+const NLC = String.fromCharCode(10);
 let fails = 0;
 const pass = (s) => console.log(`   ✓ ${s}`);
 const fail = (s, d) => { fails++; console.log(`   ✗ ${s}\n       ${d}`); };
@@ -199,6 +200,93 @@ console.log('\n── 6. 실제 잠수로 만든 세이브');
   else pass(`같은 주 재잠수 조작 → ${cv.tier}등급`);
 
   delete globalThis.localStorage;
+}
+
+/* ─────────────── 7. 총량 불변식 — 실제로 순위표에 올라왔던 조작 ───────────────
+ *
+ * 「진궐단」 이 이렇게 들어왔다 (2026-08-21, 원장 실측):
+ *   총 고용 4회 · S 용병 17명 · 단원 17명 · 탑 500/500 · 완료 의뢰 15건에 Lv80
+ * 클라우드 세이브 실물은 더 노골적이었다: 단원 36명 **전원 S**, 정원은 20.
+ * 시작 단원 4명(등급이 C·C·D·D 로 고정이다)까지 S 였다.
+ *
+ * 거절 19건을 찔러 본 뒤 통과했다 — 전력을 상한 밑으로 낮추고, 원장이 생긴 뒤로는
+ * 증가분 검사만 남는다는 걸 이용해 조금씩 올렸다.
+ *
+ * ★ 아래 표에서 «통과» 쪽이 더 중요하다. 오탐으로 정상 플레이어를 날리는 게
+ *   조작을 놓치는 것보다 큰 사고다 — 이 파일 머리말의 원칙이다.
+ */
+console.log(NLC + '── 7. 총량 불변식 (실제 조작 기록 + 오탐 검사)');
+{
+  const S0 = (o) => ({
+    seed: 1, day: 1, questsDone: 0, gold: 800, renown: 0,
+    abyssBest: 0, abyssBestDay: 0, abyssLastRunDay: 0,
+    towerBest: 0, towerBestDay: 0, towerLastRunDay: 0,
+    battlesWon: 0, battlesLost: 0, topLevel: 1,
+    rosterN: 4, rosterCap: 20, squadsN: 1, petsN: 0, itemsN: 10,
+    sMercs: 0, topPower: 0, hires: 0, specHires: 0, hiredN: 0, cityId: 'greenhold', ...o,
+  });
+  const CASES = [
+    [true, '진궐단 — 순위표에 올라간 값 (S 17명 · 고용 4회)', S0({ day: 141, questsDone: 15,
+      battlesWon: 68, battlesLost: 5, topLevel: 80, rosterN: 17, rosterCap: 20, squadsN: 4,
+      sMercs: 17, hires: 4, specHires: 4, hiredN: 13, topPower: 577935,
+      towerBest: 500, towerBestDay: 141, abyssBest: 230, gold: 1408862, renown: 199 })],
+    [true, '진궐단 — 세이브 실물 (단원 36 전원 S · 정원 20)', S0({ day: 151, questsDone: 15,
+      battlesWon: 68, battlesLost: 5, topLevel: 80, rosterN: 36, rosterCap: 20, squadsN: 4,
+      sMercs: 36, hires: 23, specHires: 23, hiredN: 32, topPower: 577935,
+      towerBest: 500, towerBestDay: 141, abyssBest: 230, gold: 1408862, renown: 199 })],
+    [true, '고용 0회인데 S 10명', S0({ day: 60, questsDone: 20, battlesWon: 40,
+      rosterN: 14, sMercs: 10, hiredN: 0, topLevel: 30 })],
+    [true, '정원 20인데 단원 45명', S0({ day: 90, questsDone: 30, battlesWon: 60,
+      rosterN: 45, rosterCap: 20, hiredN: 41, sMercs: 2, topLevel: 40 })],
+
+    [false, '갓 시작 (1일차)', S0({})],
+    [false, '계량기 이전부터 하던 사람 (hires 0 · 단원 40 · S 15)', S0({ day: 400, questsDone: 300,
+      battlesWon: 700, battlesLost: 90, topLevel: 80, rosterN: 40, rosterCap: 40, squadsN: 5,
+      sMercs: 15, hires: 0, specHires: 0, hiredN: 36, topPower: 70000,
+      towerBest: 480, towerBestDay: 390, abyssBest: 120, gold: 900000, renown: 9000 })],
+    [false, '보통 진행 (30일차)', S0({ day: 30, questsDone: 25, battlesWon: 50, battlesLost: 6,
+      topLevel: 22, rosterN: 12, rosterCap: 20, squadsN: 2, sMercs: 1, hires: 8, specHires: 3,
+      hiredN: 8, topPower: 9000, gold: 40000, renown: 300 })],
+    [false, '명물 도시를 오래 돈 사람 (고용 300회에 S 25명)', S0({ day: 260, questsDone: 200,
+      battlesWon: 460, battlesLost: 50, topLevel: 80, rosterN: 48, rosterCap: 50, squadsN: 5,
+      sMercs: 25, hires: 300, specHires: 260, hiredN: 44, topPower: 74000,
+      towerBest: 470, towerBestDay: 253, abyssBest: 150, gold: 700000, renown: 6000 })],
+    [false, '1일차 고용은 hiredDay 가 1 이라 hiredN 이 덜 세어진다', S0({ day: 12, questsDone: 8,
+      battlesWon: 16, topLevel: 9, rosterN: 7, rosterCap: 20, sMercs: 1, hires: 3,
+      specHires: 2, hiredN: 1, gold: 3000, renown: 40 })],
+    [false, '오래 오프라인으로 하다 클라우드를 처음 켠 사람', S0({ day: 220, questsDone: 180,
+      battlesWon: 400, battlesLost: 40, topLevel: 76, rosterN: 30, rosterCap: 40, squadsN: 4,
+      sMercs: 12, hires: 140, specHires: 120, hiredN: 26, topPower: 68000,
+      towerBest: 430, towerBestDay: 197, abyssBest: 100, gold: 500000, renown: 5000 })],
+  ];
+  for (const [shouldCatch, name, sc] of CASES) {
+    const v = judge(null, sc);
+    const caught = v.verdict !== 'ok';
+    if (caught === shouldCatch) {
+      pass(`${shouldCatch ? '잡음' : '통과'} — ${name}${caught ? ` (${v.tier}: ${v.reasons[0]})` : ''}`);
+    } else if (shouldCatch) {
+      fail(`조작이 통과했다 — ${name}`, '규칙에 구멍');
+    } else {
+      fail(`정상 플레이를 잡았다 — ${name}`, `${v.tier}: ${v.reasons.join(' / ')}`);
+    }
+  }
+
+  /* ★★ 「조금씩 올리기」 — 이게 실제로 뚫린 경로다.
+   *   flag 를 받아도 원장은 갱신되므로, 예전에는 절대 검사가 첫 제출에만 돌아
+   *   그 뒤로는 증가분 상한(제출당 최소 2명)만 남았다. 반복하면 얼마든지 올라간다. */
+  let prev2 = S0({ day: 100, questsDone: 50, battlesWon: 120, rosterN: 10,
+    sMercs: 4, hiredN: 6, hires: 0, topLevel: 50 });
+  let blocked = -1;
+  for (let i = 1; i <= 10; i++) {
+    const next = { ...prev2, day: prev2.day + 1, sMercs: prev2.sMercs + 2,
+      rosterN: prev2.rosterN + 2, hiredN: prev2.hiredN + 2 };
+    const v = judge(prev2, next);
+    if (v.verdict !== 'ok' && blocked < 0) blocked = i;
+    prev2 = next;
+  }
+  if (blocked > 0 && blocked <= 3) pass(`조금씩 올리기가 ${blocked}회차에서 막힌다`);
+  else if (blocked > 0) fail(`조금씩 올리기가 ${blocked}회차까지 갔다`, '3회 안에 막혀야 한다');
+  else fail('조금씩 올리기가 10회까지 안 막혔다', '절대 상한이 매번 돌지 않는다');
 }
 
 console.log('\n' + '─'.repeat(74));

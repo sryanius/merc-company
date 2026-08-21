@@ -142,6 +142,10 @@ const CSS = `
 .dg-tier.on { background:linear-gradient(90deg, rgba(255,95,58,.14), var(--bg-2)); }
 /* 부대 카드 */
 .dg-squads { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; }
+.dg-key { display:inline-block; min-width:15px; margin-right:5px; padding:0 3px; border-radius:3px;
+  background:rgba(255,255,255,.09); color:var(--ink-faint); font-size:10px; line-height:15px;
+  text-align:center; font-weight:700; vertical-align:1px; }
+.dg-sq.on .dg-key { background:rgba(224,180,74,.22); color:var(--gold); }
 .dg-sq { border:1px solid var(--line); border-radius:var(--radius); background:var(--bg-2); padding:10px; cursor:pointer; }
 .dg-sq.on { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold-dim) inset; }
 .dg-sq.off { opacity:.5; cursor:not-allowed; }
@@ -656,11 +660,73 @@ function settleRun() {
 
 /* ─────────────────────────── 렌더 ─────────────────────────── */
 
-export function dispose() { /* rAF·타이머 없음. RUN 은 화면을 나가도 살아 있어야 한다 */ }
+/**
+ * 던전 화면 단축키 — **1~5 부대 고르기 · S 돌입.**
+ *
+ * ★★ 던전 한 바퀴가 손을 안 떼고 돌아야 한다 (제작자):
+ *   1~5 부대 → `s` 돌입 → `s` 확인창 «들어간다» → `s` 결과만 보기 → `s` 이어서 → … → `f` 그만
+ *   확인창의 s 는 modal() 의 `hotkey` 가, 전투 쪽 s/f 는 battle.js 가 맡는다.
+ *
+ * ★ 리스너는 `bound` 로 한 번만 건다. `rerender()` 는 dispose 를 안 거치고
+ *   render 를 다시 부르므로(이 파일 rerender 참고) 가드가 없으면 볼 때마다 쌓인다.
+ *
+ * ★ 모달이 떠 있으면 **아무것도 안 한다** — 그때는 모달 자신의 단축키가 주인이다.
+ *   안 그러면 확인창에서 s 를 눌렀을 때 «들어간다» 와 «돌입» 이 같이 발동한다.
+ */
+let bound = false;
+let HOST = null;
+
+function onKey(ev) {
+  if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.repeat) return;
+  const el0 = ev.target;
+  if (el0 && (el0.tagName === 'INPUT' || el0.tagName === 'TEXTAREA'
+    || el0.tagName === 'SELECT' || el0.isContentEditable)) return;
+  const layer = typeof document !== 'undefined' ? document.getElementById('modal-layer') : null;
+  if (layer && layer.childElementCount) return;
+  if (!HOST || !HOST.isConnected) return;
+
+  const k = String(ev.key || '').toLowerCase();
+
+  const i = '123456789'.indexOf(k);
+  if (i >= 0) {
+    const sq = (state.squads || [])[i];
+    if (!sq) return;
+    ev.preventDefault();
+    const dep = deployInfo(sq.id);
+    if (!dep.ok) { toast(dep.reason || '출전할 수 없습니다.', 'bad'); return; }
+    squadId = sq.id;
+    rerender(HOST);
+    return;
+  }
+
+  if (k === 's') {
+    /* 버튼을 찾아 click() 한다 — 조건(출전 가능·입장 가능)이 버튼의 disabled 에
+     * 이미 다 들어 있어서, 여기서 조건을 다시 쓰면 두 곳이 어긋난다. */
+    const btn = HOST.querySelector('[data-hotkey="s"]');
+    if (!btn || btn.disabled) return;
+    ev.preventDefault();
+    btn.click();
+  }
+}
+
+function bindKeys() {
+  if (bound || typeof window === 'undefined') return;
+  window.addEventListener('keydown', onKey);
+  bound = true;
+}
+
+export function dispose() {
+  /* rAF·타이머 없음. RUN 은 화면을 나가도 살아 있어야 한다 */
+  if (bound && typeof window !== 'undefined') window.removeEventListener('keydown', onKey);
+  bound = false;
+  HOST = null;
+}
 
 export function render(root, params = {}) {
   injectStyle();
   ensureDropFactory();
+  HOST = root;
+  bindKeys();
 
   // 전투에서 돌아왔다면 먼저 정산한다 (배너로 결과를 보여준다)
   const settled = settleRun();
@@ -1020,12 +1086,16 @@ function deployPanel(d, root) {
     const dep = deployInfo(s.id);
     const power = allyPower(s.id);
     const on = s.id === squadId;
+    const no = squads.indexOf(s) + 1;      // 1~5 — 단축키 숫자와 같다
     return el('div', {
       class: `dg-sq ${on ? 'on' : ''} ${dep.ok ? '' : 'off'}`,
+      title: no <= 9 ? `단축키 ${no}` : '',
       onClick: () => { if (!dep.ok) { toast(dep.reason || '출전할 수 없습니다.', 'bad'); return; } squadId = s.id; rerender(root); },
     },
       el('div', { class: 'row spread center' },
-        el('span', { style: { fontWeight: '700', color: on ? 'var(--gold)' : 'var(--ink)' }, text: s.name }),
+        el('span', { style: { fontWeight: '700', color: on ? 'var(--gold)' : 'var(--ink)' } },
+          no <= 9 ? el('span', { class: 'dg-key', text: String(no) }) : null,
+          el('span', { text: s.name })),
         el('span', { class: 'tiny', style: { color: dep.ok ? 'var(--ok)' : 'var(--bad)' }, text: dep.ok ? '출전 가능' : '불가' })),
       el('div', { class: 'tiny faint', text: `${dep.fit}/${dep.members.length}명 · 전투력 ${num(power)}` }),
       dep.ok ? null : el('div', { class: 'tiny', style: { color: 'var(--bad)' }, text: dep.reason }),
@@ -1060,6 +1130,9 @@ function deployPanel(d, root) {
       el('button', {
         class: 'btn primary lg',
         disabled: !canGo,
+        title: '단축키 S',
+        // 단축키 핸들러가 이 표식으로 버튼을 찾아 click() 한다 — 동작 경로를 하나로 유지한다
+        data: { hotkey: 's' },
         onClick: () => askEnter(d, sq, startIdx, root),
       }, label),
       startIdx > 0
@@ -1093,7 +1166,9 @@ function askEnter(d, sq, waveIndex, root) {
       f.ok && w.pct < 50 ? el('div', { class: 'dg-note bad tiny' }, '지금 전력으로는 넘기 어렵다. 조각을 더 모아 오는 편이 낫다.') : null),
     actions: [
       { label: '취소', kind: 'ghost' },
-      { label: '들어간다', kind: 'primary', act: () => { setTimeout(() => enterWave(d, sq.id, waveIndex, root), 0); } },
+      /* ★ 확인창의 «들어간다» 도 s 다 — 던전 한 바퀴가 s 만으로 돌아야 한다
+       *   (부대 고르기 1~5 → 돌입 s → 확인 s → 전투 s → 이어서 s … 나가기 f). */
+      { label: '들어간다', kind: 'primary', hotkey: 's', act: () => { setTimeout(() => enterWave(d, sq.id, waveIndex, root), 0); } },
     ],
   });
 }
