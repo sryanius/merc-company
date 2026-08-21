@@ -1843,6 +1843,25 @@ section('정면 포즈 판·클래스 얼굴의 기하');
       if (ground < 6) faults.push(`${n}: 지면(행 106~114)에 안 닿는다`);
       if (below > 20) faults.push(`${n}: 발 아래(행 116~)에 ${below}칸`);
     }
+    /* ★ 전용 프레임(shoot/cast/guard)이 «있으면 실제로 쓰이는가».
+     *   별칭으로만 물러나면 활 쏘는 그림을 그려 넣어도 검 휘두르는 그림이 나온다 —
+     *   화면에는 «그냥 예전 그대로» 로 보여서 안 잡히는 종류의 버그다. */
+    const SG = need('art/spritegen.js');
+    if (SG && SG.sheetPartName) {
+      const optFaults = [];
+      for (const st0 of styles) {
+        for (const k of ['shoot0', 'shoot1', 'shoot2', 'cast0', 'cast1', 'cast2', 'guard0']) {
+          if (!names.includes(`bt_${st0}_${k}`)) continue;
+          const got = SG.sheetPartName(`bt_${st0}`, k);
+          if (got !== `bt_${st0}_${k}`) optFaults.push(`bt_${st0}_${k} 를 그려 넣었는데 ${got} 가 쓰인다`);
+        }
+      }
+      /* 메타 검사 — 없는 전용 프레임은 반드시 별칭으로 물러나야 한다
+       * (항상 전용 이름을 돌려주면 위 검사가 영영 안 물린다) */
+      const back = SG.sheetPartName('bt_존재하지않는스타일', 'shoot0');
+      if (back !== 'bt_존재하지않는스타일_atk0') optFaults.push(`전용 프레임이 없을 때 별칭(atk0)으로 안 물러난다 — ${back}`);
+      okAll(optFaults, '전용 전투 프레임은 있으면 쓰이고 없으면 별칭으로 물러난다', 2);
+    }
     okAll(faults, `포즈 판 ${plates.length}·얼굴 ${faces.length}·일러스트 ${ills.length}·전투 프레임 ${bts.length}개가 좌표 규약을 지킨다`,
       Math.max(1, plates.length + faces.length + ills.length + bts.length));
 

@@ -108,11 +108,22 @@ const SHEET_ALIAS = {
   die0: 'die0', die1: 'die0', die2: 'die1', die3: 'die1',
 };
 
+/* 전용 프레임 — 있으면 쓰고 없으면 SHEET_ALIAS 로 물러난다.
+ * 활을 쏘는 그림과 검을 휘두르는 그림은 다르다. 그런데 근접 계열까지 전용 프레임을
+ * 강요하면 열 장이 열여섯 장이 된다 — 그래서 «필수 열 장 + 선택 여섯 장» 으로 나눈다. */
+const SHEET_OPTIONAL = new Set(['shoot0', 'shoot1', 'shoot2', 'cast0', 'cast1', 'cast2', 'guard0']);
+
 /** 이 레시피의 통짜 시트 이름 — 열 장이 **전부** 있어야 쓴다 (반쪽 시트는 프레임이 튄다) */
 function sheetOf(recipe) {
   const s0 = recipe && recipe.battleSheet;
   if (!s0) return null;
   return SHEET_KEYS.every((k) => hasFrontPart(`${s0}_${k}`)) ? s0 : null;
+}
+
+/** 프레임 하나가 쓸 시트 파츠 이름. (검사용으로 내보낸다 — 전용 프레임이 실제로 쓰이는지) */
+export function sheetPartName(sheet, name) {
+  if (SHEET_OPTIONAL.has(name) && hasFrontPart(`${sheet}_${name}`)) return `${sheet}_${name}`;
+  return `${sheet}_${SHEET_ALIAS[name] || 'idleA'}`;
 }
 
 const JOINT_KEYS = ['head', 'chest', 'pelvis', 'shBack', 'shFront', 'handBack', 'handFront', 'hipBack', 'hipFront'];
@@ -567,7 +578,7 @@ export function buildSprite(recipe = {}) {
     const ox = i * SPRITE_W;
     if (sheet) {
       /* 통짜 시트 — 조립·회전 없이 그 프레임 그림을 그대로 얹는다 */
-      const part = getFrontPart(`${sheet}_${SHEET_ALIAS[name] || 'idleA'}`);
+      const part = getFrontPart(sheetPartName(sheet, name));
       const buf = new Uint8ClampedArray(SPRITE_W * SPRITE_H * 4);
       blitInto(buf, SPRITE_W, SPRITE_H, part, part.ax, part.ay, tbl, false);
       blitFrame(img.data, atlasW, buf, ox, 0, 0, 1, false);
