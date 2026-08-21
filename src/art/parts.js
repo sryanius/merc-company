@@ -56,6 +56,7 @@ wpn_none wpn_sword wpn_greatsword wpn_katana wpn_rapier wpn_dagger wpn_twindagge
 wpn_axe wpn_greataxe wpn_mace wpn_hammer wpn_spear wpn_pike wpn_halberd wpn_scythe
 wpn_bow wpn_longbow wpn_crossbow wpn_staff wpn_wand wpn_tome wpn_claw wpn_orb
 shd_none shd_buckler shd_round shd_kite shd_tower shd_orb shd_torch shd_dagger
+pld_none pld_plate pld_mail pld_leather pld_bone pld_royal
 `.trim().split(/\s+/);
 
 /** 파츠 무결성 검사. 콘솔에서 `window.__parts()` 로 확인. */
