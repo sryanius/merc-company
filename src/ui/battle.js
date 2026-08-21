@@ -377,7 +377,8 @@ function buildUI(root) {
     el('span', { class: 'bt-spacer', style: { flex: '1' } }),
     el('span', { class: 'tiny faint bt-speedlab', text: '속도' }),
     speedBtns,
-    el('button', { class: 'btn sm', title: '단축키 S', onClick: fastForward }, keyTag('결과만 보기', 's')),
+    el('button', { class: 'btn sm', title: '단축키 S — 결과 화면에서 한 번 더 누르면 다음 웨이브', onClick: fastForward },
+      keyTag('결과만 보기', 's')),
     /* 후퇴에는 단축키를 안 붙인다 — 되돌릴 수 없는 동작이라 손이 미끄러지면 안 된다 */
     el('button', { class: 'btn sm danger', onClick: askRetreat }, '후퇴'));
 
@@ -512,9 +513,12 @@ function attachInput(stage) {
  *   키 | 전투 중                    | 결과 화면
  *   ---|----------------------------|---------------------------
  *   1~3| 배속 (SPEEDS 자리 그대로)   | (무시)
- *   s  | 결과만 보기                 | (무시)
+ *   s  | 결과만 보기                 | **이어서** (있을 때만)
  *   d  | 다음 웨이브 / 연출 건너뛰기 | 이어서 (있을 때만)
  *   f  | (무시)                     | 여기서 그만 / 돌아가기
+ *
+ *   `s` 가 양쪽 다 «앞으로» 인 것이 핵심이다 — 던전은 웨이브마다 전투 화면이
+ *   새로 뜨므로 전투와 결과가 번갈아 온다. `s` 만 두드리면 끝까지 간다.
  *
  * ★ 전투 중 `f` 는 **일부러 죽여 뒀다.** 전투 중의 «그만» 은 후퇴인데 그건 의뢰 실패이고
  *   되돌릴 수 없다. 배속 키 옆에서 손가락이 미끄러져 한 판을 날리게 둘 수는 없다.
@@ -550,10 +554,14 @@ function attachHotkeys() {
       setSpeed(SPEEDS[i]);
       return;
     }
+    /* ★★ `s` 는 상황을 안 가리고 «앞으로» 다 (제작자: 「ssss 계속 누르다가 f 로 나가는 게 좋다」).
+     *   전투 중이면 전투를 끝내고, 결과 화면이면 다음 웨이브로 간다.
+     *   던전은 웨이브마다 전투 화면이 새로 뜨므로 이 둘이 번갈아 온다 —
+     *   `s` 하나로 둘 다 되어야 손이 자리를 안 뜬다. `d` 도 그대로 둔다. */
     if (k === 's') {
-      if (S.ended) return;
       ev.preventDefault();
-      fastForward();
+      if (!S.ended) { fastForward(); return; }
+      if (S.resultNext) S.resultNext();
       return;
     }
     if (k === 'd') {
@@ -1209,8 +1217,8 @@ function renderResult(win) {
   S.resultLeave = leaveBattle;
   root.appendChild(el('div', { class: 'bt-actions' },
     canContinue
-      ? el('button', { class: 'btn primary lg', title: '단축키 D', onClick: continueBattle },
-        keyTag(S.continueLabel, 'd'))
+      ? el('button', { class: 'btn primary lg', title: '단축키 S 또는 D', onClick: continueBattle },
+        keyTag(S.continueLabel, 's'))
       : null,
     el('button', {
       class: canContinue ? 'btn lg' : 'btn primary lg',
@@ -1224,7 +1232,7 @@ function renderResult(win) {
       class: 'tiny faint',
       text: isNarrow()
         ? '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다.'
-        : '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다. · 단축키 D 이어서 · F 그만',
+        : '전과를 다 확인한 뒤 눌러라. 화면은 저절로 넘어가지 않는다. · 단축키 S · D 이어서 · F 그만',
     })));
 }
 

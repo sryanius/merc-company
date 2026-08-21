@@ -68,7 +68,7 @@ const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
  *   옮긴 것은 언제든 원본과 어긋난다. 아래 `assertMirror()` 가 매 실행마다
  *   원본 소스를 읽어 이 식이 아직 같은지 확인한다 — 어긋나면 시뮬을 멈춘다.
  */
-const OFFER_TIER_MULT = (tier) => 1 + 0.2 * (tier - 1);
+const OFFER_TIER_MULT = (tier) => Quest.cityPowerOf(tier) ** Quest.CITY_REWARD_POW;
 const offerCost = (classId, tier, r, extra = 1) => {
   let base = 0;
   try { base = Merc.hireCost(classId, 'C', 1) || 0; } catch { base = 0; }
@@ -94,7 +94,8 @@ function assertMirror() {
   const want = [
     'const count = clamp(3 + r.int(0, 2) + (tier >= 4 ? 1 : 0), 3, 6);',
     "Merc.hireCost(classId, 'C', 1)",
-    'const cost = Math.round(base * (1 + 0.2 * (tier - 1)) * r.float(0.88, 1.18) / 5) * 5;',
+    'const cityMult = Quest.cityPowerOf(tier) ** Quest.CITY_REWARD_POW;',
+    'const cost = Math.round(base * cityMult * r.float(0.88, 1.18) / 5) * 5;',
   ];
   const missing = want.filter((w) => !src.includes(w));
   if (missing.length) {
@@ -224,9 +225,9 @@ function runAll(extra, label) {
   return keep;
 }
 
-const NOW = runAll(1, '1. 지금 — 고용가 배율 (1 + 0.2×(등급−1))  ※ 5등급 = 1.8배');
+const NOW = runAll(1, '1. 지금 — 고용가 배율 = cityPower^CITY_REWARD_POW (의뢰 보상과 같은 기울기)');
 
-head('2. 왜 여유로운가 — 수입은 도시 등급을 제곱으로 따라가는데 고용가는 선형이다');
+head('2. 기울기 맞춤 — 고용가가 의뢰 보상과 같은 지수를 쓴다');
 {
   const rows = [];
   for (let tier = 1; tier <= 5; tier++) {
@@ -245,8 +246,12 @@ head('2. 왜 여유로운가 — 수입은 도시 등급을 제곱으로 따라�
     rows, ['', 'r', 'r', 'r', 'r', 'r', 'r'],
   );
   console.log('');
-  console.log('  1등급을 1로 놓으면 5등급에서 보상은 3.61배인데 고용가는 1.80배다 — 2.0배 벌어진다.');
-  console.log(`  실측으로도 수입/고용 비가 ${(NOW[1].income / NOW[1].hire).toFixed(2)}배 → ${(NOW[5].income / NOW[5].hire).toFixed(2)}배 로 벌어진다.`);
+  console.log('  «벌어진 폭» 이 전 등급 1.00 이면 도시를 올라가도 뽑기의 상대 가격이 그대로다.');
+  console.log('  옛 식(1 + 0.2×(t−1))에서는 5등급이 1.80배뿐이라 폭이 2.01 까지 벌어져 있었다 —');
+  console.log('  의뢰 한 건으로 살 수 있는 뽑기가 100.3장이었고, 지금은 그 절반이다.');
+  console.log('');
+  console.log('  ★ 그래도 5등급 순환은 여전히 크게 흑자다. 아래 5·7번이 그 이유를 말한다 —');
+  console.log('    주점은 애초에 작은 지출처이고, 하루 지출이 임금 하나뿐이다.');
 }
 
 head('3. 낸 돈 대비 받는 값어치 — 고용가는 «C등급 기준»인데 등급은 추첨이다');
@@ -274,7 +279,7 @@ head('3. 낸 돈 대비 받는 값어치 — 고용가는 «C등급 기준»인�
   console.log('  고등급 도시에서 목록을 통째로 사는 게 항상 옳은 선택이 된다 — 고를 이유가 사라진다.');
 }
 
-head('4. 고용가 배율을 올리면 — 후보 세 가지');
+head('4. 여기서 더 올리면 — 참고용 후보');
 {
   /* 후보는 «5등급에서 몇 배인가» 로 고른다.
    *   지금       1 + 0.20×(t−1)  → 5등급 1.80배
@@ -282,9 +287,9 @@ head('4. 고용가 배율을 올리면 — 후보 세 가지');
    *   나) 보상연동  cityPower^2 그대로 → 5등급 3.61배 (수입과 같은 기울기)
    *   다) 가파름  cityPower^2.6      → 5등급 5.44배 (고등급에서 확실히 아프다) */
   const CANDS = [
-    { key: '가', label: '완만  1 + 0.45×(t−1)', f: (t) => 1 + 0.45 * (t - 1) },
-    { key: '나', label: '보상연동  cityPower²', f: (t) => Quest.cityPowerOf(t) ** 2 },
-    { key: '다', label: '가파름  cityPower^2.6', f: (t) => Quest.cityPowerOf(t) ** 2.6 },
+    { key: '옛', label: '옛 식  1 + 0.20×(t−1)', f: (t) => 1 + 0.2 * (t - 1) },
+    { key: '★', label: '지금  cityPower²  (채택)', f: (t) => Quest.cityPowerOf(t) ** 2 },
+    { key: '가', label: '가파름  cityPower^2.6', f: (t) => Quest.cityPowerOf(t) ** 2.6 },
   ];
   const rows = [];
   for (const c of CANDS) {
@@ -407,16 +412,16 @@ head('7. 정원을 늘리면 — 임금이 유일한 브레이크다');
 head('8. 요약');
 {
   console.log('  · 이 반복은 게임이 만든 주기다 — REFRESH_DAYS = 3 이라 3일마다 주점이 갈린다.');
-  console.log('  · 수입은 도시 등급을 **제곱**으로(cityPower²) 따라가는데 고용가는 **선형**이다(1+0.2t).');
-  console.log('    5등급에서 보상 3.61배 대 고용가 1.80배 — 정확히 2배 벌어져 있다.');
+  console.log('  · 고용가를 의뢰 보상과 **같은 지수**로 맞췄다 (cityPower ** CITY_REWARD_POW).');
+  console.log('    5등급 1.80배 → 3.61배. 의뢰 1건에 살 수 있는 뽑기가 100.3장 → 50.4장.');
   console.log('  · 고용가 기준이 **항상 C등급**이라(hireCost(cls, \'C\', 1)) 명물 슬롯에서 S가 나오면');
   console.log('    C값(380)으로 S(4,000)를 사는 셈이다. 고등급 도시일수록 이 차익이 커진다.');
   console.log('');
   console.log(`  임금이 이 게임의 유일한 브레이크인데(merc.js 주석), 한 순환(${NOW[5].days}일) 임금은 의뢰 한 건 수입의`);
   console.log(`  ${(NOW[5].upkeep / NOW[5].income * 100).toFixed(0)}% 뿐이라 5등급에서는 사실상 브레이크가 안 걸린다.`);
   console.log('');
-  console.log('  ★★ 그런데 시뮬이 애초의 가설을 뒤집는다: **고용가 배율만으로는 못 고친다.**');
-  console.log('     주점 목록은 3~6장이라 지출처로서 너무 작다 — 가장 가파른 안도 5% → 14% 다.');
-  console.log('     배율을 올리는 건 방향은 맞지만, 그것만으로 «여유» 가 사라지지는 않는다.');
+  console.log('  ★★ 배율은 맞췄지만 «여유» 자체는 남아 있다 — 주점이 작은 지출처라 어쩔 수 없다.');
+  console.log('     골드를 더 태우려면 지출처를 **늘려야** 한다 (반복 지출이 임금 하나뿐이다).');
+  console.log('     값을 등급으로 매기는 안은 채택하지 않았다 — 도박은 도박으로 남긴다(제작자 결정).');
   console.log('');
 }

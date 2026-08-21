@@ -1580,11 +1580,24 @@ function genTavern(city, r) {
   const rest = r.pickMany(base.filter((c) => !spec.includes(c)), Math.max(0, count - spec.length));
   const classes = [...spec, ...rest];
 
+  /* ★★ 고용가 배율은 **의뢰 보상과 같은 기울기**를 쓴다 (cityPower ** CITY_REWARD_POW).
+   *
+   *   예전엔 `1 + 0.2 * (tier - 1)` 이라 5등급에서 1.80배였는데, 같은 도시의 의뢰 보상은
+   *   `cityPower ** 2` 라 3.61배였다. 수입은 제곱으로 오르고 지출은 선형이니 위로 갈수록
+   *   벌어진다 — 실측(tools/tavernecon.mjs)으로 의뢰 한 건에 살 수 있는 뽑기가
+   *   **1등급 1.1장 → 5등급 100.3장** 이었다. 5등급에서 목록을 통째로 사도 수입의 5% 다.
+   *
+   *   같은 지수를 쓰면 «도시를 올라가도 뽑기의 상대 가격은 그대로» 가 된다.
+   *   1등급은 그대로(1.00), 2등급은 +16% 뿐이라 초반은 거의 안 건드린다.
+   *
+   * ★ 값은 여전히 **C등급 기준**이고 등급은 살 때 추첨한다 — 도박은 도박으로 남긴다
+   *   (제작자 결정). 등급을 미리 보여 주거나 등급값으로 받는 안은 채택하지 않았다. */
+  const cityMult = Quest.cityPowerOf(tier) ** Quest.CITY_REWARD_POW;
   return classes.map((classId) => {
     let base = 0;
     try { base = Merc.hireCost(classId, 'C', 1) || 0; } catch { base = 0; }
     if (!base) base = 260;
-    const cost = Math.round(base * (1 + 0.2 * (tier - 1)) * r.float(0.88, 1.18) / 5) * 5;
+    const cost = Math.round(base * cityMult * r.float(0.88, 1.18) / 5) * 5;
     return { classId, cost };
   });
 }

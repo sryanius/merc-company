@@ -1508,6 +1508,76 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
 }
 
+section('주점 고용가가 의뢰 보상과 같은 기울기인가');
+{
+  /* ★★ 제작자 지적: 「5등급 도시에서 의뢰 하나 하고 영웅 뽑고 3일 넘기고 반복하는데
+   *   골드가 너무 여유있다」. 재 보니(tools/tavernecon.mjs) 원인이 **기울기 불일치**였다:
+   *     의뢰 보상은 cityPower ** CITY_REWARD_POW (5등급 ×3.61)
+   *     고용가는   1 + 0.2 * (tier - 1)          (5등급 ×1.80)
+   *   수입은 제곱으로 오르고 지출은 선형이라 위로 갈수록 벌어진다 —
+   *   의뢰 한 건으로 살 수 있는 뽑기가 1등급 1.1장 → 5등급 100.3장이었다.
+   *
+   * ★ 그래서 **같은 지수를 쓰기로** 했다. 이 검사는 그 약속을 지킨다:
+   *   genTavern 이 quest.js 의 cityPowerOf/CITY_REWARD_POW 를 그대로 써야 한다.
+   *   누가 CITY_REWARD_POW 를 바꾸면 고용가도 자동으로 따라가야지, 한쪽만 움직이면 안 된다.
+   *
+   * ★ 값은 여전히 C등급 기준이고 등급은 살 때 추첨한다 — 도박은 도박으로 남긴다(제작자 결정). */
+  /* ★★ 주석을 걷어내고 봐야 한다. 이 검사를 처음 짰을 때 «옛 식이 되살아났다» 로 걸렸는데,
+   *   범인은 코드가 아니라 «예전엔 1 + 0.2 * (tier - 1) 이었다» 고 적은 **내 주석**이었다.
+   *   소스를 글자로 훑는 검사는 주석에서 오탐한다. */
+  const strip = (x) => {
+    let out = ''; let i = 0;
+    while (i < x.length) {
+      if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
+      if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
+      out += x[i]; i++;
+    }
+    return out;
+  };
+  const src = strip(readFileSync(srcDir('game/state.js'), 'utf8').split(String.fromCharCode(13)).join(''));
+  const faults = [];
+
+  const bodyStart = src.indexOf('function genTavern(');
+  if (bodyStart < 0) faults.push('genTavern 을 못 찾았다');
+  else {
+    const body = src.slice(bodyStart, src.indexOf(String.fromCharCode(10) + '}', bodyStart));
+    if (body.includes('1 + 0.2 * (tier - 1)')) {
+      faults.push('옛 선형 배율(1 + 0.2×(t−1))이 되살아났다 — 의뢰 보상과 기울기가 어긋난다');
+    }
+    if (!body.includes('Quest.cityPowerOf(tier) ** Quest.CITY_REWARD_POW')) {
+      faults.push('고용가가 의뢰 보상 지수(cityPowerOf ** CITY_REWARD_POW)를 안 쓴다');
+    }
+    if (!body.includes("Merc.hireCost(classId, 'C', 1)")) {
+      faults.push("고용가 기준이 C등급이 아니다 — 등급값으로 바꾸는 안은 채택하지 않았다(도박 유지)");
+    }
+  }
+  okAll(faults, '고용가가 의뢰 보상과 같은 지수를 쓴다', 3);
+
+  /* ★ 무는 시늉만 하는 검사를 이 저장소에서 여러 번 만들었다 — 옛 식을 심어 확인한다 */
+  const planted = strip('function genTavern(city, r) { /* 1 + 0.2 * (tier - 1) 였다 */ '
+    + 'const cost = base * (1 + 0.2 * (tier - 1)); }' + String.fromCharCode(10) + '}');
+  const pb = planted.slice(planted.indexOf('function genTavern('));
+  if (pb.includes('1 + 0.2 * (tier - 1)')) pass('검사가 실제로 문다 (옛 선형 배율을 심으면 걸린다)');
+  else ok(false, '검사가 실제로 문다', '옛 식을 심었는데 못 잡았다');
+  /* 주석 안의 같은 문구는 안 걸려야 한다 — 그게 이 검사를 한 번 헛돌게 만든 원인이다 */
+  const onlyComment = strip('function genTavern() { /* 옛날엔 1 + 0.2 * (tier - 1) 이었다 */ const x = 1; }');
+  if (!onlyComment.includes('1 + 0.2 * (tier - 1)')) pass('주석 안의 옛 식은 오탐하지 않는다');
+  else ok(false, '주석 오탐 방지', '주석을 못 걷어냈다');
+
+  /* 숫자로도 확인한다 — 소스 문자열만 보면 «식은 맞는데 값이 이상한» 경우를 놓친다 */
+  const Q = need('game/quest.js');
+  if (!Q) ok(false, '보상 지수를 못 읽었다');
+  else {
+    const at = (t) => Q.cityPowerOf(t) ** Q.CITY_REWARD_POW;
+    const bad = [];
+    if (Math.abs(at(1) - 1) > 1e-9) bad.push(`1등급 배율이 ${at(1).toFixed(3)} 다 — 초반은 안 건드려야 한다`);
+    for (let t = 2; t <= 5; t++) if (at(t) <= at(t - 1)) bad.push(`${t}등급 배율이 ${t - 1}등급 이하다`);
+    /* 5등급이 옛 식(1.80)보다 확실히 비싸야 한다 — 안 그러면 고친 의미가 없다 */
+    if (at(5) < 1.8 * 1.5) bad.push(`5등급 배율 ${at(5).toFixed(2)} — 옛 1.80 대비 1.5배도 안 된다`);
+    okAll(bad, '배율이 1등급 1.00 에서 시작해 단조 증가하고 5등급이 확실히 비싸다', 6);
+  }
+}
+
 section('전투 단축키');
 {
   /* ★ 렌더러와 마찬가지로 battle.js 도 DOM 을 써서 node 로 못 돌린다 — 소스를 읽는다.
