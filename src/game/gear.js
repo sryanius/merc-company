@@ -1732,17 +1732,44 @@ function buildPlan(st, targets, opt = {}) {
   }
 
   const out = [];
+  const rowOf = new Map();     // mercUid -> 결과 행 (재배치 때 이어 붙인다)
+  const redo = [];             // 뺏겨서 자리가 빈 사람 (한 번만 다시 돌린다)
+  const redone = new Set();
 
-  for (const m of targets) {
+  /** 이 조각이 «이 사람이 임자인 세트» 의 것인가 */
+  const isMySetPiece = (it, merc) => {
+    const sid = setIdOf(it);
+    if (!sid || !preferActive.has(sid)) return false;
+    const def = setDefOf(sid);
+    return !!(def && Array.isArray(def.prefer) && def.prefer.includes(archOf(merc)));
+  };
+
+  /**
+   * 한 사람의 10칸을 채운다.
+   * @param {object} m 대상
+   * @param {boolean} stealOk 남의 것을 가져와도 되는가.
+   *   ★★ **재배치(redo)에서는 false 다.** 이미 계획이 끝난 사람들 것을 다시 가져가면
+   *   두 행이 같은 물건을 주장하게 되고, `applyPlan` 이 행 순서대로 적용하면서
+   *   나중 행이 도로 뺏어 간다 — 뺏긴 사람이 **한 칸만 남은 채** 끝났다(실측 10칸 → 1칸).
+   *   재배치는 창고에 남은 것으로만 메운다.
+   */
+  const planFor = (m, stealOk = true) => {
     const myRank = rank.has(m.uid) ? rank.get(m.uid) : Infinity;
-    /** 이 아이템을 지금 사람이 가져갈 수 있나 (없으면 자유, 있으면 «아직 안 고른 사람» 것만) */
+    /** 이 아이템을 지금 사람이 가져갈 수 있나 */
     const canTake = (it) => {
       const holder = owner.get(it.uid);
       if (!holder) return true;                 // 창고에 있다
+      if (!stealOk) return false;               // 재배치 중 — 남의 것은 안 건드린다
       if (holder === m.uid) return false;       // 자기가 이미 다른 칸에 끼고 있다
       if (isLocked(it)) return false;           // ★ 잠긴 건 못 뺏는다
       const hr = rank.has(holder) ? rank.get(holder) : Infinity;
-      return hr > myRank;                       // 나보다 뒤에 고르는 사람(또는 대상 밖) 것만
+      if (hr > myRank) return true;             // 나보다 뒤에 고르는 사람(또는 대상 밖) 것
+      /* ★★ **임자만은 «먼저 고른 사람» 에게서도 자기 세트를 가져온다.**
+       *   이게 없으면 세트가 한번 남에게 붙는 순간 영영 안 옮겨진다 —
+       *   배분이 전투력 순이라 사제는 늘 맨 뒤이고, 앞사람 것은 원칙적으로 못 건드리기 때문이다.
+       *   (제작자 화면: 창룡제가 성좌 7칸, 사제 3칸. 실측으로도 사제 0칸에서 굳었다.)
+       *   뺏긴 사람은 아래에서 **다시 한 번 돌려** 빈 자리를 메운다. */
+      return isMySetPiece(it, m);
     };
     const eq = vEq.get(m.uid) || { ...normalizeEquipment(m.equipment) };
     const weights = archWeightsFor(m);
@@ -1791,6 +1818,9 @@ function buildPlan(st, targets, opt = {}) {
         const he = vEq.get(holder);
         if (he) for (const s of slotKeysOf(he)) if (he[s] === best.uid) he[s] = null;
         tookFrom = { uid: holder, name: (hm && hm.name) || '다른 단원' };
+        // 이미 자기 차례를 끝낸 사람이면 빈 자리가 남는다 — 뒤에서 한 번 더 돌린다
+        const hr = rank.has(holder) ? rank.get(holder) : Infinity;
+        if (hr < myRank && !redone.has(holder) && hm) { redone.add(holder); redo.push(hm); }
       }
       changed.push({
         slot, from: curItem || null, to: best,
@@ -1802,7 +1832,24 @@ function buildPlan(st, targets, opt = {}) {
       owner.set(best.uid, m.uid);
       eq[slot] = best.uid;
     }
-    out.push({ uid: m.uid, name: m.name, merc: m, changed });
+    return changed;
+  };
+
+  for (const m of targets) {
+    const changed = planFor(m);
+    const row = { uid: m.uid, name: m.name, merc: m, changed };
+    out.push(row);
+    rowOf.set(m.uid, row);
+  }
+
+  /* ★ 뺏긴 사람 재배치 — 한 사람당 한 번만. 안 하면 «임자에게 넘겨 준 자리가 빈 채로» 끝난다.
+   *   이때는 창고에 돌아온 물건(임자가 벗은 것 포함)이 후보에 들어가 있다. */
+  for (const m of redo) {
+    const more = planFor(m, false);
+    if (!more.length) continue;
+    const row = rowOf.get(m.uid);
+    if (row) row.changed.push(...more);
+    else { const r2 = { uid: m.uid, name: m.name, merc: m, changed: more }; out.push(r2); rowOf.set(m.uid, r2); }
   }
   return out;
 }

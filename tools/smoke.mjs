@@ -1845,7 +1845,48 @@ section('자동 착용 — 뺏기 · 잠금 · 세트 임자');
       if (weak.equipment.neck !== good.uid) faults.push('잠근 장비를 착용자에게서 벗겼다');
       if (G.isSellable(good)) faults.push('잠근 장비가 팔린다');
     }
-    okAll(faults, '남의 장비는 가져오고, 잠근 것은 못 건드린다', 7);
+
+    /* ★★ **뺏긴 사람이 빈손으로 남으면 안 된다.**
+     *   세트 임자에게 양보시키는 기능을 넣다가 실제로 그렇게 만들었다:
+     *   재배치가 «이미 계획이 끝난 사람들» 것을 다시 가져가는 바람에 두 행이 같은 물건을
+     *   주장했고, applyPlan 이 행 순서대로 적용하면서 나중 행이 도로 뺏어 갔다 —
+     *   창룡제가 **10칸에서 1칸**으로 줄었다. 재배치는 창고에 남은 것으로만 메워야 한다. */
+    {
+      S.newGame(21, '재배치');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      const cls = ['shieldman', 'swordsman', 'spearman', 'rogue', 'archer', 'apprentice', 'acolyte'];
+      cls.forEach((cid, i) => {
+        const m = M.createMerc({ classId: cid, grade: 'S', level: 60 });
+        m.hiredDay = 2; st.roster.push(m);
+        sq.memberUids[i] = m.uid; m.squadId = sq.id; m.slotIndex = i;
+      });
+      const r2 = new RngMod.RNG(31);
+      for (let i = 0; i < 320; i++) { const it = G.rollItem({ ilvl: 55, rarityBonus: 0.9, rng: r2 }); if (it) st.items.push(it); }
+      // 사제가 임자인 세트를 «사제 아닌 사람» 에게 통째로 입혀 둔다
+      const victim = st.roster[2];
+      let worn = 0;
+      for (const slot of ['weapon', 'offhand', 'head', 'armor', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2']) {
+        const it = G.rollSetItem({ setId: 'constellation', slot, ilvl: 60, rng: r2 });
+        if (!it) continue;
+        st.items.push(it);
+        const rr = G.equipItem(st, victim, it, null);
+        if (rr && rr.ok) worn++;
+      }
+      const before = Object.values(victim.equipment || {}).filter(Boolean).length;
+      G.autoEquipAll(st, {});
+      const after = Object.values(victim.equipment || {}).filter(Boolean).length;
+      const healer = st.roster.find((m) => (Classes.getClass(m.classId) || {}).arch === 'healer');
+      const hSet = Object.values((healer && healer.equipment) || {}).filter(Boolean)
+        .map((u) => (st.items || []).find((x) => x && x.uid === u))
+        .filter((x) => x && G.setIdOf(x) === 'constellation').length;
+      if (worn < 5) faults.push(`검사 판을 못 차렸다: 세트를 ${worn}칸밖에 못 입혔다`);
+      else if (hSet < 3) faults.push(`세트가 사제에게 안 옮겨진다 (사제 ${hSet}칸)`);
+      if (after < before - 1) faults.push(`뺏긴 사람이 빈손으로 남는다 (${before}칸 → ${after}칸)`);
+    }
+    okAll(faults, '세트는 임자에게 가고, 뺏긴 사람은 다시 채워진다', 10);
 
     /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 잠금을 껐을 때 실제로 뺏기는지 확인한다 */
     const { st: st2, strong: s2, good: g2 } = build();
