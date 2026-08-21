@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VERBOSE = process.argv.includes('--verbose');
@@ -151,6 +152,30 @@ head('5. 개발 서버');
 const serve = rd('tools/serve.mjs');
 check(/\.webmanifest/.test(serve), 'serve.mjs 가 .webmanifest MIME 을 안다',
   '없으면 개발 중에만 매니페스트가 무시된다');
+
+head('6. 캐시 버전이 소스보다 낡지 않았나');
+/* ★★ 실제로 두 번 밟은 함정이다.
+ *   서비스워커는 `CACHE` 이름으로 캐시를 통째로 가른다. 소스를 고치고 배포하면서
+ *   버전을 안 올리면, **이미 방문한 사람에게는 옛 파일이 그대로 나간다.**
+ *   새 사람만 새 게임을 보고 기존 사용자는 «아무것도 안 바뀌었다» 고 느낀다.
+ *
+ * ★ git 으로 판단한다 — sw.js 를 마지막으로 건드린 커밋 이후에
+ *   src/ 나 index.html 이 바뀌었으면 버전을 안 올린 것이다.
+ *   (커밋 안 된 작업 중 변경은 세지 않는다. 배포 직전에만 의미가 있다.) */
+try {
+  const last = execSync('git log -1 --format=%H -- sw.js', { cwd: ROOT, encoding: 'utf8' }).trim();
+  if (!last) {
+    check(true, 'sw.js 이력 없음 — 건너뜀', '');
+  } else {
+    const changed = execSync(`git diff --name-only ${last} HEAD -- src index.html`, { cwd: ROOT, encoding: 'utf8' })
+      .split(String.fromCharCode(10)).map((v) => v.trim()).filter(Boolean);
+    check(changed.length === 0,
+      'sw.js 를 마지막으로 고친 뒤 소스가 안 바뀌었다 (= 캐시 버전이 최신)',
+      changed.length ? `${changed.length}개 파일이 그 뒤에 바뀌었다 — sw.js 의 CACHE 를 올려라: ${changed.slice(0, 5).join(', ')}` : '');
+  }
+} catch (e) {
+  check(true, 'git 을 못 읽어 건너뜀', String(e.message || e).slice(0, 60));
+}
 
 /* ─────────────────────────────── 결과 */
 console.log(`\n${'─'.repeat(64)}`);
