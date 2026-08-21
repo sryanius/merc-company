@@ -1842,11 +1842,31 @@ section('던전 하루 1회 · 구걸');
     else if (!bbody.includes('waveIndex === 0')) {
       ubad.push('beginRun 이 웨이브를 안 가리고 표시한다 — 2웨이브로 못 간다');
     }
-    if (!usrc.includes('resuming: startIdx > 0')) {
-      ubad.push('deployPanel 이 이어 가기(resuming)를 안 넘긴다 — 계속 진격 버튼이 막힌다');
-    }
     if (!usrc.includes('opt.resuming')) ubad.push('deployInfo 가 resuming 을 안 본다');
-    okAll(ubad, '이어 가기는 오늘 몫을 다시 세지 않는다', 3);
+    if (!usrc.includes('function resumeOwner(')) {
+      ubad.push('이어 가는 판의 «주인» 을 정하는 곳이 없다 — 화면 선택으로 판정하면 부대마다 다르게 군다');
+    }
+    /* ★★ **이어 가기를 묻는 곳이 넷이다.** 하나라도 빠지면 그 경로만 막힌다 —
+     *   실제로 그렇게 «어떤 부대는 되고 어떤 부대는 안 되는» 상태가 됐다:
+     *     deployPanel(버튼) · 카드 목록 · autoNext(자동 진행) · askEnter(확인창)
+     *   넷 다 resuming 을 넘기는지 글자로 확인한다. */
+    const askAt = usrc.indexOf('function askEnter(');
+    const askBody = askAt < 0 ? '' : usrc.slice(askAt, usrc.indexOf(String.fromCharCode(10) + '}', askAt));
+    if (!askBody.includes('resuming: waveIndex > 0')) {
+      ubad.push('askEnter(확인창)가 resuming 을 안 넘긴다 — 「들어간다」 에서 튕긴다');
+    }
+    const autoAt = usrc.indexOf('params.autoNext');
+    const autoBody = autoAt < 0 ? '' : usrc.slice(autoAt, autoAt + 700);
+    if (!autoBody.includes('resuming: true')) {
+      ubad.push('자동 진행이 resuming 을 안 넘긴다 — 1웨이브 뒤 자동으로 안 이어진다');
+    }
+    if (!autoBody.includes('outcome.squadId')) {
+      ubad.push('자동 진행이 판의 주인을 안 본다 — 엉뚱한 부대가 다음 웨이브에 들어갈 수 있다');
+    }
+    if ((usrc.split('resuming:').length - 1) < 4) {
+      ubad.push(`resuming 을 넘기는 곳이 ${usrc.split('resuming:').length - 1} 곳뿐이다 — 넷이어야 한다`);
+    }
+    okAll(ubad, '이어 가기를 묻는 네 경로가 모두 판의 주인을 본다', 6);
 
     /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 표시를 지우면 걸리는지 본다 */
     const planted = usrc.replace('waveIndex === 0', 'true');

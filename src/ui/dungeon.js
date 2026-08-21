@@ -526,9 +526,35 @@ function setWorn(d, id) {
   return { avg: total / ms.length, best, max };
 }
 
+/**
+ * 지금 **이어 가는 중인 판의 부대 id** (없으면 null).
+ *
+ * ★★ 이게 없어서 던전이 부대마다 다르게 굴었다 (제작자: 「어떤 부대는 계속 진행되고
+ *   어떤 부대는 1웨이브 하고 막힌다」).
+ *   `LAST` 는 «어느 부대가 뛰었는지»(squadId)를 이미 담고 있었는데 **아무도 안 봤다.**
+ *   이어 가기 판정을 «화면에서 선택된 부대» 로 했더니, 방금 뛴 부대가 오늘 몫을 써서
+ *   목록에서 «출전 불가» 가 되고 → `pickSquad` 가 **다른 부대를 골라** 버리고 →
+ *   선택된 부대 ≠ 뛴 부대 가 되어 이어 가기가 꺼졌다.
+ *   선택이 우연히 맞은 부대만 계속 진행됐다.
+ *
+ * ★ 판의 주인만 이어 갈 수 있다 — 남의 판을 다른 부대가 이어받을 수는 없다.
+ */
+function resumeOwner() {
+  if (!LAST || !LAST.win || !LAST.next) return null;
+  if (viewId && LAST.dungeonId !== viewId) return null;
+  return LAST.squadId || null;
+}
+
 /** 지금 고른(또는 고를 만한) 부대 */
 function pickSquad() {
   const squads = state.squads || [];
+  /* ★ 이어 가는 중이면 **그 부대가 우선이다.** 안 그러면 방금 뛴 부대가
+   *   «오늘 몫 사용» 으로 목록에서 빠지면서 엉뚱한 부대가 골라진다. */
+  const rid = resumeOwner();
+  if (rid) {
+    const owner = squads.find((s) => s && s.id === rid);
+    if (owner) return owner;
+  }
   const sel = squads.find((s) => s && s.id === squadId);
   if (sel) return sel;
   const ok = squads.find((s) => deployInfo(s.id).ok);
@@ -821,7 +847,15 @@ export function render(root, params = {}) {
     // settled.next 는 "이어서 도전할 웨이브 번호"(1-based, 0이면 런 종료)다.
     // 방금 깬 웨이브가 N번(1-based)이면 다음 웨이브의 0-based 인덱스도 N이다.
     const nextIdx = outcome.next;
-    const dep = squadId ? deployInfo(squadId) : null;
+    /* ★★ **판의 주인**으로, **이어 가기**로 묻는다.
+     *   여기가 던전이 부대마다 다르게 굴던 두 번째 원인이었다:
+     *     · `resuming` 을 안 넘겨서, 방금 1웨이브를 뛴 부대가 «오늘 몫 사용» 에 걸려
+     *       자동 진행이 아예 안 됐다.
+     *     · 게다가 `squadId` 는 화면 선택이라, 그 부대가 목록에서 빠지면
+     *       **엉뚱한 부대가 다음 웨이브에 들어갈** 수도 있었다.
+     *   판의 주인(outcome.squadId)을 우선하고, 없으면 화면 선택으로 떨어진다. */
+    const runner = outcome.squadId || squadId;
+    const dep = runner ? deployInfo(runner, { resuming: true }) : null;
     if (dep && dep.ok) {
       LAST = null;                                       // 배너를 남기지 않는다 (바로 전투로 넘어간다)
       /* ★ 반드시 다음 틱으로 미룬다.
@@ -829,7 +863,7 @@ export function render(root, params = {}) {
        * **중첩 호출을 조용히 무시**한다. 여기서 곧바로 enterWave → go('battle') 을 부르면
        * 아무 일도 안 일어난 채 던전 화면에 남는다(실제로 그렇게 막혔다).
        * 아래 '들어간다' 버튼이 setTimeout 을 쓰는 이유도 같다. */
-      setTimeout(() => enterWave(d, squadId, nextIdx, root), 0);
+      setTimeout(() => enterWave(d, runner, nextIdx, root), 0);
       return;
     }
   }
@@ -976,7 +1010,9 @@ function briefPanel(d) {
   const f = forecast(d, sq ? sq.id : null);
   const worn = sq ? setWorn(d, sq.id) : { avg: 0, best: 0, max: 10 };
   const w1 = f.waves[0] || { foe: 0, pct: 0, wins: 0, tried: 0, band: BANDS[BANDS.length - 1] };
-  const dep = sq ? deployInfo(sq.id) : null;
+  // 안내 패널도 같은 기준으로 본다 — 버튼은 열려 있는데 여기만 «불가» 라고 하면 헷갈린다
+  const rid = resumeOwner();
+  const dep = sq ? deployInfo(sq.id, { resuming: !!rid && sq.id === rid }) : null;
 
   const lines = [];
   lines.push(el('div', { class: 'row spread center tiny' },
@@ -1133,12 +1169,14 @@ function stairsPanel(d) {
 function deployPanel(d, root) {
   const e = entry(d);
   const total = wavesOf(d);
-  const resume = LAST && LAST.win && LAST.next && LAST.dungeonId === d.id ? LAST.next : 0;
+  /* 이어 가기는 **판의 주인**만 해당한다 (resumeOwner). 화면 선택과 무관하다. */
+  const rOwner = LAST && LAST.dungeonId === d.id ? resumeOwner() : null;
+  const resume = rOwner ? LAST.next : 0;
   const startIdx = resume;                 // 0-based. 이어가기면 방금 깬 웨이브 번호가 곧 다음 인덱스
   const squads = state.squads || [];
 
   const cards = squads.map((s) => {
-    const dep = deployInfo(s.id, { resuming: startIdx > 0 && s.id === squadId });
+    const dep = deployInfo(s.id, { resuming: !!rOwner && s.id === rOwner });
     const power = allyPower(s.id);
     const on = s.id === squadId;
     const no = squads.indexOf(s) + 1;      // 1~5 — 단축키 숫자와 같다
@@ -1167,8 +1205,8 @@ function deployPanel(d, root) {
   });
 
   const sq = pickSquad();
-  // startIdx > 0 이면 **이미 시작한 판**을 이어 가는 것이다 — 오늘 몫을 또 세면 안 된다
-  const dep = sq ? deployInfo(sq.id, { resuming: startIdx > 0 }) : null;
+  // 이어 가는 중이면 **그 부대에 한해** 오늘 몫을 또 세지 않는다
+  const dep = sq ? deployInfo(sq.id, { resuming: !!rOwner && sq.id === rOwner }) : null;
   const canGo = !!(e.ok && sq && dep && dep.ok);
   const label = startIdx > 0 ? `${startIdx + 1}웨이브로 계속 진격` : '1웨이브 돌입';
 
@@ -1201,7 +1239,9 @@ function askEnter(d, sq, waveIndex, root) {
   if (!d || !sq) return;
   const e = entry(d);
   if (!e.ok) { toast(e.reason || '지금은 들어갈 수 없다.', 'bad'); return; }
-  const dep = deployInfo(sq.id);
+  /* ★ waveIndex > 0 이면 **이어 가는 판**이다 — 오늘 몫을 또 물으면 확인창에서 막힌다.
+   *   (돌입 버튼은 열려 있는데 «들어간다» 를 누르면 튕기는, 가장 헷갈리는 형태였다) */
+  const dep = deployInfo(sq.id, { resuming: waveIndex > 0 });
   if (!dep.ok) { toast(dep.reason || '출전할 수 없습니다.', 'bad'); return; }
 
   const total = wavesOf(d);
