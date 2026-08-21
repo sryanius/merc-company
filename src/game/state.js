@@ -242,7 +242,12 @@ function defaultState() {
     tavern: {},
     shop: {},
     log: [],
-    stats: { battlesWon: 0, battlesLost: 0, questsDone: 0 },
+    /* ★ hires/specHires 는 **치트 검사용 계량기**다 (HANDOFF §59).
+     *   순위표에 «43일차에 S 13명» 이 올라왔는데, 명물 고용을 몇 번 했는지 기록이 없어
+     *   «그게 가능한 횟수인가» 를 물을 수 없었다. 이제 산술로 물을 수 있다.
+     *   옛 세이브는 0 으로 시작한다 — 그래서 검사는 **증가분끼리만** 비교한다
+     *   (전체를 비교하면 옛 세이브가 전부 걸린다). */
+    stats: { battlesWon: 0, battlesLost: 0, questsDone: 0, hires: 0, specHires: 0 },
   };
 }
 

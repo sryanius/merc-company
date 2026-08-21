@@ -83,6 +83,10 @@ export function extractScore(st) {
     /* ★ 순위 축을 늘리려고 더한 값들 (플레이어 요청).
      *   둘 다 **본인 신고**다 — 서버가 계산하지 않는다. 상한은 checkStatic 이 건다. */
     sMercs: roster.reduce((a, m) => a + (m && m.grade === 'S' ? 1 : 0), 0),
+    /* 고용 계량기 — «S 가 이만큼 나올 수 있는 횟수였나» 를 묻는 데 쓴다 (checkGrowth).
+     * 옛 세이브는 0 이라, 전체가 아니라 **증가분끼리** 비교해야 한다. */
+    hires: Number(st.stats?.hires) || 0,
+    specHires: Number(st.stats?.specHires) || 0,
     topPower: Math.round(Math.max(0, ...(Array.isArray(st.squads) ? st.squads : [])
       .map((sq) => Number(sq && sq.power) || 0), 0)),
     squad: topSquadOf(st),
@@ -290,7 +294,13 @@ export function checkCadence(prev, s) {
 /** 하루에 부대 하나가 끝낼 수 있는 의뢰 수의 넉넉한 상한 */
 export const MAX_QUESTS_PER_DAY = 5;
 
-/** 부대 전력 상한. 7명 × 만렙 S × 신화 풀세트를 아주 후하게 잡은 값이다. */
+/** 명물 슬롯의 S 확률 상한 (merc.js SPEC_S_MAX_BY_TIER 의 최댓값). 일반 슬롯은 0 이다. */
+export const S_CHANCE_MAX = 0.05;
+/** 운을 봐주는 배수. 4배면 실효 20% — 이걸 넘으면 확률로는 설명이 안 된다. */
+export const S_LUCK_SLACK = 4;
+
+/** 부대 전력 상한. 7명 × 만렙 S × 신화 풀세트를 아주 후하게 잡은 값이다.
+ *  실측 기준: 엔드게임 잣대 부대(4차 Lv80 · 10칸 전설)가 74,148 이다 (tools/endgame.mjs). */
 export const POWER_CAP = 5_000_000;
 
 /**
@@ -318,6 +328,22 @@ export function checkGrowth(prev, s) {
     const questCapGold = Math.max(0, dQuests) * 120_000;
     const cap = abyssCap + questCapGold + (dDay + 1) * 50_000;
     if (dGold > cap) bad.push(`골드 ${dGold.toLocaleString()} 증가 (상한 ${cap.toLocaleString()})`);
+  }
+
+  /* ★★ **S 용병이 나올 수 있는 횟수였나.**
+   *   일반 주점은 S 확률이 **0** 이고(GRADE_WEIGHTS), 명물 슬롯에서만 최대 5% 다.
+   *   그래서 «지난 제출 이후 늘어난 S» 는 «그 사이 명물 고용 횟수» 로 설명돼야 한다.
+   *
+   * ★ 전체가 아니라 **증가분끼리** 비교한다. 계량기가 없던 시절의 세이브는 0 에서 시작하므로
+   *   전체를 비교하면 오래 한 정상 플레이어가 전부 걸린다.
+   *
+   * ★ 상한은 실제 확률(5%)의 **네 배**로 잡는다. 운이 좋은 사람을 날리는 게
+   *   치트를 놓치는 것보다 나쁜 사고다 — 이 파일의 원칙이다. */
+  const dS = s.sMercs - prev.sMercs;
+  if (dS > 0) {
+    const dSpec = Math.max(0, s.specHires - prev.specHires);
+    const cap = Math.max(2, Math.ceil(dSpec * S_CHANCE_MAX * S_LUCK_SLACK));
+    if (dS > cap) bad.push(`S 용병 ${dS}명 증가 · 명물 고용 ${dSpec}회 (상한 ${cap})`);
   }
 
   // 명성: 의뢰 하나당 넉넉히 잡아도 이 이상은 안 나온다

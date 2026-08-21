@@ -755,6 +755,11 @@ function tryHire(cls, offer, city, ctx) {
   const merc = createMerc({ classId: cls.id, grade, level: 1, rng, day: state.day });
   merc.hiredDay = state.day;
   offer.hired = true;
+  /* ★ 고용 횟수를 센다 — 서버가 «S 가 이만큼 나올 수 있는 횟수인가» 를 묻는 데 쓴다.
+   *   명물 슬롯은 따로 센다: 일반 주점은 S 확률이 **0** 이라 S 는 여기서만 나온다. */
+  if (!state.stats) state.stats = {};
+  state.stats.hires = (Number(state.stats.hires) || 0) + 1;
+  if (isSpec) state.stats.specHires = (Number(state.stats.specHires) || 0) + 1;
   addMerc(merc);
   addLog(`${city.name} 주점에서 ${cls.name} ${merc.name}${josa(merc.name, '을/를')} ${num(offer.cost)}G에 고용했다. (${grade}등급${isSpec ? ' · 이 도시의 명물' : ''})`);
   try { save(); } catch (e) { console.warn('[tavern] 저장 실패', e); }

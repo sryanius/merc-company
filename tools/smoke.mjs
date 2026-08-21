@@ -1508,6 +1508,35 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
 }
 
+section('고용 계량기 — S 가 나올 수 있는 횟수였나');
+{
+  const R = need('game/rules.js');
+  if (!R) { ok(false, '규칙 모듈을 못 읽었다'); } else {
+    const prev = { day: 100, questsDone: 100, gold: 0, renown: 0, sMercs: 2, specHires: 40 };
+    const at = (sM, spec) => R.checkGrowth(prev,
+      { day: 140, questsDone: 140, gold: 0, renown: 0, sMercs: sM, specHires: spec }).length > 0;
+
+    /* ★ 통과만 하고 아무것도 안 잡는 검사를 이 저장소에서 여러 번 만들었다.
+     *   그래서 «정상은 통과하고 치트는 잡히는가» 를 **양쪽 다** 본다. */
+    okAll([
+      at(4, 80) ? '정상(명물 40회에 S 2명)을 잘못 잡는다' : null,
+      at(8, 80) ? '운 좋은 경우(명물 40회에 S 6명)를 잘못 잡는다' : null,
+      at(13, 40) ? null : '고용 0회에 S 11명이 늘어난 것을 못 잡는다',
+      at(12, 45) ? null : '명물 5회에 S 10명이 늘어난 것을 못 잡는다',
+    ].filter(Boolean), 'S 획득률 검사가 정상은 통과시키고 치트는 잡는다', 4);
+
+    /* 계량기가 없던 옛 세이브(전부 0)가 걸리면 안 된다 — 증가분끼리 비교하는 이유다 */
+    const legacy = R.checkGrowth(
+      { day: 100, questsDone: 100, gold: 0, renown: 0, sMercs: 30, specHires: 0 },
+      { day: 101, questsDone: 101, gold: 0, renown: 0, sMercs: 30, specHires: 0 });
+    okAll(legacy, '계량기가 0 인 옛 세이브는 안 걸린다', 1);
+
+    ok(R.S_CHANCE_MAX > 0 && R.S_CHANCE_MAX <= 0.1 && R.S_LUCK_SLACK >= 2,
+      '상한이 넉넉하다 (운 좋은 사람을 날리지 않는다)',
+      `S 확률 ${R.S_CHANCE_MAX} × 여유 ${R.S_LUCK_SLACK} = 실효 ${(R.S_CHANCE_MAX * R.S_LUCK_SLACK * 100).toFixed(0)}%`);
+  }
+}
+
 section('제출 필드가 서버 화이트리스트와 맞나');
 {
   /* ★★ 실제로 당한 것 (HANDOFF §58):

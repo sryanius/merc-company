@@ -80,6 +80,12 @@ Deno.serve(async (req) => {
       towerLastRunDay: Number(prevRow.tower_last_run_day),
       questsDone: Number(prevRow.quests_done), battlesWon: Number(prevRow.battles_won),
       gold: Number(prevRow.gold), renown: Number(prevRow.renown),
+      /* 고용 계량기 — «S 가 나올 수 있는 횟수였나» 를 증가분으로 묻는다 (rules.js checkGrowth).
+       * ★ 이 칸이 없던 시절의 원장은 0 이라, 다음 제출 한 번은 «0 에서 늘어난 것» 으로 보인다.
+       *   그래도 상한이 넉넉해 정상 플레이어가 걸리지는 않는다 (S 2명까지는 항상 통과). */
+      sMercs: Number(prevRow.s_mercs) || 0,
+      specHires: Number(prevRow.spec_hires) || 0,
+      hires: Number(prevRow.hires) || 0,
     }
     : null;
 
@@ -239,6 +245,9 @@ function sanitizeSquad(raw: unknown) {
     abyss_best: row.abyss_best, abyss_last_run_day: score.abyssLastRunDay,
     tower_best: row.tower_best, tower_last_run_day: score.towerLastRunDay,
     exp_total: 0, items_n: score.itemsN, pets_n: score.petsN,
+    s_mercs: Math.max(0, Math.round(Number(score.sMercs) || 0)),
+    spec_hires: Math.max(0, Math.round(Number(score.specHires) || 0)),
+    hires: Math.max(0, Math.round(Number(score.hires) || 0)),
     accepted_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
 
