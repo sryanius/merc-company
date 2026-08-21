@@ -38,6 +38,16 @@ function checkPart(name, p) {
 
 for (const r of list) {
   if (!r || !r.key) continue;
+  /* 일러스트 묶음({key, illust})과 판+얼굴 묶음({key, face, plate}) 둘 다 받는다 */
+  if (r.illust) {
+    checkPart(`illust_${r.key}`, r.illust);
+    // 규약: ax = 발밑 중앙 열, ay = 발바닥 행 (portrait.js dimsOf 가 footY 로 쓴다)
+    if (r.illust.ay >= r.illust.h) problems.push(`illust_${r.key}: ay(${r.illust.ay}) 가 캔버스 밖이다`);
+    const below = r.illust.px.slice(r.illust.ay + 1).reduce((a2, row) => a2 + [...row].filter((c) => c !== '.').length, 0);
+    if (below > 60) problems.push(`illust_${r.key}: 발바닥 아래에 ${below}칸 — ay 가 발 위치가 아니다`);
+    parts[`illust_${r.key}`] = r.illust;
+    continue;
+  }
   checkPart(`face_${r.key}`, r.face);
   checkPart(`plate_${r.key}`, r.plate);
   if (r.face && r.face.w === 36 && r.face.h === 38) parts[`face_${r.key}`] = r.face;

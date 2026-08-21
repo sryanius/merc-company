@@ -662,7 +662,10 @@ function classCard(cls, offer, ctx, maxima) {
   const isSpec = spec.includes(cls.id);
   const stats = archStats(cls);
   const cost = offer ? offer.cost : hireCost(cls.id, 'C', 1);
-  const { box } = makePreview(cls.sprite || {});
+  /* ★ 날 것의 cls.sprite 가 아니라 mercRecipe 를 거친다 — 클래스 일러스트(illust)·포즈 판은
+   *   mercRecipe 가 붙여 주는 필드라, 여기만 생으로 쓰면 고용 카드만 옛 조립으로 남는다
+   *   (실제로 그랬다). 등급 미정이라 치장 없는 기본 모습이 나온다. */
+  const { box } = makePreview(mercRecipe({ classId: cls.id }, state));
 
   const mine = oddsOf(tier, { rep: gate.rep, specialty: isSpec });
   const plain = oddsOf(tier, { rep: gate.rep });

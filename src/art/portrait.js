@@ -117,6 +117,14 @@ function partsOf(recipe = {}) {
    *   통짜 그림에도 그대로 먹는다** (문자 행렬이라). 그래서 몸은 판으로 굽고
    *   얼굴·머리카락·투구만 레이어로 남겼다 — 개인 색 편차와 등급 금장이 그대로 산다.
    *   낀 갑옷·무기가 정면에 안 보이게 되는 대신, 전투 옆모습이 장비를 계속 보여 준다. */
+  /* ★★★ «클래스 일러스트»(illust) — 머리·머리카락까지 포함한 **통짜 한 장**, 최우선.
+   *   제작자 요청: 「비스듬히 서 있고, 화면을 풍성하게, 얼굴 생김새도 다르게, 해상도 키워도 됨」.
+   *   3/4 자세·클래스별 얼굴은 공유 두개골로는 안 된다 — 머리카락 레이어 호환을 버리고
+   *   전부 굽는다. 개인 색 편차(피부·머리·눈)는 팔레트 문자라 그대로 산다.
+   *   머리 모양이 클래스마다 고정되는 것이 트레이드오프다 (색은 사람마다 다르다). */
+  const illust = recipe.illust && hasFrontPart(recipe.illust) ? recipe.illust : null;
+  if (illust) return { illust };
+
   const plate = recipe.plate && hasFrontPart(recipe.plate) ? recipe.plate : null;
   if (plate) return { plate, head2: head, hair2: recipe.hair, helm2: recipe.helm };
 
@@ -144,6 +152,7 @@ function partsOf(recipe = {}) {
  */
 export function canDraw(recipe = {}) {
   const n = partsOf(recipe);
+  if (n.illust) return true;                 // partsOf 가 존재를 이미 확인했다
   if (n.plate) return hasFrontPart(n.plate) && hasFrontPart(n.head2);
   return ['head', 'body', 'arm', 'leg'].every((k) => hasFrontPart(n[k]));
 }
@@ -151,18 +160,38 @@ export function canDraw(recipe = {}) {
 export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
-  return ['F', n.plate, n.head2, n.hair2, n.helm2,
+  return ['F', n.illust, n.plate, n.head2, n.hair2, n.helm2,
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura].join('|');
 }
 
-function composeFrame(names, tbl, tblFar, dy) {
-  const buf = new Uint8ClampedArray(PORTRAIT_W * PORTRAIT_H * 4);
+/**
+ * 이 초상의 캔버스 크기와 발 위치.
+ * 일러스트는 **자기 크기**를 쓴다 — 해상도를 올리려고 만든 경로다.
+ * `norm` 은 화면 표시용 배율 보정: 큰 캔버스를 **같은 표시 높이**로 눌러
+ * 카드 레이아웃을 안 건드리면서 픽셀 밀도만 올린다 (120/140 ≈ 0.86).
+ */
+function dimsOf(names) {
+  const ill = names.illust ? getFrontPart(names.illust) : null;
+  if (ill) {
+    return { W: ill.w, H: ill.h, footY: ill.ay, norm: PORTRAIT_H / ill.h, ill };
+  }
+  return { W: PORTRAIT_W, H: PORTRAIT_H, footY: PORTRAIT_FOOT_Y, norm: 1, ill: null };
+}
+
+function composeFrame(names, dims, tbl, tblFar, dy) {
+  const { W, H, ill } = dims;
+  const buf = new Uint8ClampedArray(W * H * 4);
+  if (ill) {
+    // 일러스트는 조립이 없다 — 제자리에 통짜로 얹는다 (숨쉬기만 dy 로)
+    blitInto(buf, W, H, ill, ill.ax, ill.ay + dy, tbl, false);
+    return buf;
+  }
   for (const [slot, joint, far] of ORDER) {
     const part = getFrontPart(names[slot]);
     if (!part) continue;
     const j = JOINTS[joint];
-    blitInto(buf, PORTRAIT_W, PORTRAIT_H, part, j.x, j.y + dy, far ? tblFar : tbl, far);
+    blitInto(buf, W, H, part, j.x, j.y + dy, far ? tblFar : tbl, far);
   }
   return buf;
 }
@@ -173,30 +202,35 @@ function composeFrame(names, tbl, tblFar, dy) {
  */
 export function buildPortrait(recipe = {}) {
   const names = partsOf(recipe);
+  const dims = dimsOf(names);
+  const { W, H } = dims;
   const pal = makePalette(recipe.palette || {});
   const tbl = colorTable(pal);
   const tblFar = shadeTable(tbl, FAR_SHADE);
 
-  const atlasW = PORTRAIT_W * FRAMES.length;
-  const canvas = makeCanvas(atlasW, PORTRAIT_H);
-  const flash = makeCanvas(atlasW, PORTRAIT_H);
+  const atlasW = W * FRAMES.length;
+  const canvas = makeCanvas(atlasW, H);
+  const flash = makeCanvas(atlasW, H);
   const ctx = canvas.getContext('2d');
   const fctx = flash.getContext('2d');
-  const img = ctx.createImageData(atlasW, PORTRAIT_H);
-  const fimg = fctx.createImageData(atlasW, PORTRAIT_H);
+  const img = ctx.createImageData(atlasW, H);
+  const fimg = fctx.createImageData(atlasW, H);
 
   const frames = {};
   FRAMES.forEach((name, i) => {
-    const ox = i * PORTRAIT_W;
+    const ox = i * W;
     frames[name] = { sx: ox, sy: 0 };
-    const buf = composeFrame(names, tbl, tblFar, BREATH[name] || 0);
-    blitFrameInto(img.data, atlasW, PORTRAIT_W, PORTRAIT_H, buf, ox, 0, 0, 1, false);
-    blitFrameInto(fimg.data, atlasW, PORTRAIT_W, PORTRAIT_H, buf, ox, 0, 0, 1, true);
+    const buf = composeFrame(names, dims, tbl, tblFar, BREATH[name] || 0);
+    blitFrameInto(img.data, atlasW, W, H, buf, ox, 0, 0, 1, false);
+    blitFrameInto(fimg.data, atlasW, W, H, buf, ox, 0, 0, 1, true);
   });
   ctx.putImageData(img, 0, 0);
   fctx.putImageData(fimg, 0, 0);
 
-  return { canvas, flash, w: PORTRAIT_W, h: PORTRAIT_H, frames, key: portraitKey(recipe), aura: recipe.aura || null };
+  return {
+    canvas, flash, w: W, h: H, frames, key: portraitKey(recipe), aura: recipe.aura || null,
+    footY: dims.footY, norm: dims.norm,
+  };
 }
 
 /* ─── 캐시 — 옆모습과 같은 규칙(바이트 예산 · LRU) ─── */
@@ -226,13 +260,17 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   const { scale = 3, alpha = 1 } = opts;
   const f = portrait.frames[frame] || portrait.frames.idle0;
   if (!f) return;
-  const px = scale / SCALE;
-  const dw = PORTRAIT_W * px;
-  const dh = PORTRAIT_H * px;
+  /* norm: 일러스트(고해상도)를 기존과 **같은 표시 높이**로 누른다.
+   * 카드 레이아웃은 그대로, 픽셀 밀도만 올라간다. */
+  const px = (scale / SCALE) * (portrait.norm || 1);
+  const W = portrait.w || PORTRAIT_W;
+  const H = portrait.h || PORTRAIT_H;
+  const dw = W * px;
+  const dh = H * px;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   const dx0 = Math.round(x) - Math.round(dw / 2);
-  const dy0 = Math.round(y) - PORTRAIT_FOOT_Y * px;
+  const dy0 = Math.round(y) - Math.round((portrait.footY ?? PORTRAIT_FOOT_Y) * px);
   /* S 등급 오라 — 옆모습(drawSpriteFrame)과 같은 수법 */
   if (portrait.aura) {
     if (!portrait._tint) {
@@ -247,10 +285,10 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
     const o1 = Math.max(1, Math.round(px));
     ctx.globalAlpha = alpha * (0.42 + Math.sin(Date.now() / 320) * 0.10);
     for (const [ax2, ay2] of [[o1, 0], [-o1, 0], [0, o1], [0, -o1]]) {
-      ctx.drawImage(portrait._tint, f.sx, f.sy, PORTRAIT_W, PORTRAIT_H, dx0 + ax2, dy0 + ay2, dw, dh);
+      ctx.drawImage(portrait._tint, f.sx, f.sy, W, H, dx0 + ax2, dy0 + ay2, dw, dh);
     }
   }
   ctx.globalAlpha = alpha;
-  ctx.drawImage(portrait.canvas, f.sx, f.sy, PORTRAIT_W, PORTRAIT_H, dx0, dy0, dw, dh);
+  ctx.drawImage(portrait.canvas, f.sx, f.sy, W, H, dx0, dy0, dw, dh);
   ctx.restore();
 }

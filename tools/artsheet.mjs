@@ -157,16 +157,17 @@ if (partsArg) {
     const p = Portrait.buildPortrait(rec);
     const img = p.canvas.img;
     const f = p.frames[arg('frame', 'idle0')] || p.frames.idle0;
-    const out = new Uint8ClampedArray(Portrait.PORTRAIT_W * Portrait.PORTRAIT_H * 4);
-    for (let y = 0; y < Portrait.PORTRAIT_H; y++) {
-      for (let x = 0; x < Portrait.PORTRAIT_W; x++) {
+    /* ★ 초상별 크기(p.w/p.h)를 쓴다 — 일러스트는 캔버스가 더 크다 (해상도 상향) */
+    const out = new Uint8ClampedArray(p.w * p.h * 4);
+    for (let y = 0; y < p.h; y++) {
+      for (let x = 0; x < p.w; x++) {
         const si = (y * img.width + f.sx + x) * 4;
-        const di = (y * Portrait.PORTRAIT_W + x) * 4;
+        const di = (y * p.w + x) * 4;
         out[di] = img.data[si]; out[di + 1] = img.data[si + 1];
         out[di + 2] = img.data[si + 2]; out[di + 3] = img.data[si + 3];
       }
     }
-    cells.push({ w: Portrait.PORTRAIT_W, h: Portrait.PORTRAIT_H, rgba: out });
+    cells.push({ w: p.w, h: p.h, rgba: out });
   }
   label = `정면 초상 — ${list.filter((id) => !skipped.includes(id)).join(' · ') || '(그릴 수 있는 것이 없다)'}`;
   if (skipped.length) console.error(`  정면 파츠가 없어 건너뜀: ${skipped.join(' ')}`);

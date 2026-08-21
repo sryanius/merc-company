@@ -1074,6 +1074,8 @@ export function mercRecipe(merc, itemsById) {
    *   파츠가 아직 없으면 portrait 의 hasFrontPart 검사가 조용히 기존 조립으로 되돌린다. */
   const arch = c && c.arch;
   if (arch) {
+    /* illust(통짜 일러스트, 최우선) > plate(포즈 판) > 조립 — portrait.js 가 있는 것부터 쓴다 */
+    rec.illust = `illust_${arch}`;
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
   }

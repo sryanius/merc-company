@@ -1808,8 +1808,22 @@ section('정면 포즈 판·클래스 얼굴의 기하');
         if (diff > 80) faults.push(`${n}: head_human 과 실루엣이 ${diff}칸 다르다 (80 이하) — 머리카락이 안 맞는다`);
       }
     }
-    okAll(faults, `포즈 판 ${plates.length}개·얼굴 ${faces.length}개가 좌표 규약을 지킨다`,
-      Math.max(1, plates.length + faces.length));
+    /* 일러스트(통짜) — ay 는 발바닥 행: 그 아래는 거의 비고, 근처엔 그림이 있다 */
+    const ills = names.filter((n) => n.startsWith('illust_'));
+    for (const n of ills) {
+      const p = FP.getFrontPart(n);
+      if (p.px.length !== p.h || p.px.some((r) => r.length !== p.w)) { faults.push(`${n}: 행렬 크기가 어긋난다`); continue; }
+      if (p.ay >= p.h) faults.push(`${n}: ay(${p.ay}) 가 캔버스 밖`);
+      const below = p.px.slice(p.ay + 1).reduce((a2, row) => a2 + [...row].filter((c) => c !== '.').length, 0);
+      if (below > 60) faults.push(`${n}: 발바닥(ay=${p.ay}) 아래에 ${below}칸 — 발이 땅에 안 닿는다`);
+      let near = 0;
+      for (let y = Math.max(0, p.ay - 3); y <= Math.min(p.h - 1, p.ay); y++) {
+        near += [...(p.px[y] || '')].filter((c) => c !== '.').length;
+      }
+      if (near < 8) faults.push(`${n}: 발바닥 근처가 비었다`);
+    }
+    okAll(faults, `포즈 판 ${plates.length}·얼굴 ${faces.length}·일러스트 ${ills.length}개가 좌표 규약을 지킨다`,
+      Math.max(1, plates.length + faces.length + ills.length));
 
     /* 판이 있으면 canDraw 경로도 성립해야 한다 — 얼굴이 함께 있어야 조립이 선다 */
     const archOf = (n) => n.replace(/^plate_/, '');
