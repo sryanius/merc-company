@@ -346,9 +346,22 @@ function errorPanel(root, msg) {
 
 /* ─────────────────────────── UI 구성 ─────────────────────────── */
 
+/**
+ * 고를 수 있는 배속.
+ *
+ * ★ 버튼 목록과 «어느 버튼이 켜졌나» 판정이 **같은 배열**을 봐야 한다 —
+ *   예전엔 [1,2,4] 가 두 곳에 손으로 적혀 있어서, 한쪽만 고치면 엉뚱한 버튼에 불이 들어온다.
+ *
+ * ★ 0.5x 를 넣은 이유: 배속 계산은 정확한데(1배속 = 실시간, 실측 확인) **전투 자체가 짧다.**
+ *   레벨이 앞선 부대는 8초 안에 끝나서 «1배속도 빠르다» 로 느껴진다.
+ *   느리게 보는 선택지를 주는 편이 시뮬 속도를 건드리는 것보다 안전하다 —
+ *   전투 결과는 시뮬 시간으로 정해지므로 **표시 속도를 바꿔도 승패는 안 변한다.**
+ */
+const SPEEDS = [0.5, 1, 2, 4];
+
 function buildUI(root) {
   const waveLabel = el('span', { class: 'tiny muted' });
-  const speedBtns = [1, 2, 4].map((sp) => el('button', { class: 'btn sm', onClick: () => setSpeed(sp) }, `${sp}x`));
+  const speedBtns = SPEEDS.map((sp) => el('button', { class: 'btn sm', onClick: () => setSpeed(sp) }, `${sp}x`));
 
   const bar = el('div', { class: 'battle-bar bt-bar' },
     el('span', { class: 'bt-title', style: { fontWeight: '700' }, text: S.title }),
@@ -489,7 +502,7 @@ function pokeStage() {
 function setSpeed(sp) {
   if (!S) return;
   S.speed = sp;
-  S.speedBtns.forEach((b, i) => { b.className = `btn sm ${[1, 2, 4][i] === sp ? 'primary' : ''}`; });
+  S.speedBtns.forEach((b, i) => { b.className = `btn sm ${SPEEDS[i] === sp ? 'primary' : ''}`; });
 }
 
 function updateBar() {
