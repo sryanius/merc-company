@@ -328,6 +328,31 @@ export function checkGrowth(prev, s) {
   return bad;
 }
 
+/**
+ * 첫 제출이 «갓 시작한 계정» 으로는 설명이 안 되는가.
+ *
+ * ★ 기준은 전부 **게임이 코드로 강제하는 것**에서 나온다:
+ *   - 탑은 월 1회, 나락은 주 1회만 열린다 → 며칠 만에 깊이 갈 수 없다.
+ *   - 일반 주점은 S 등급이 **아예 안 나온다**(가중치 0). 명물 슬롯에서만 최대 5% 다.
+ *     그래서 초반에 S 가 여럿 모이는 일은 사실상 없다.
+ *
+ * ★ 상한은 **넉넉하게** 잡는다. 여기 걸려도 게임은 그대로 돌아가고 순위표에서만 빠진다.
+ */
+function firstSubmitOddities(s) {
+  const bad = [];
+  const towerRuns = Math.floor(Math.max(0, s.day - 1) / DAYS_PER_MONTH) + 1;
+  const abyssRuns = Math.floor(Math.max(0, s.day - 1) / DAYS_PER_WEEK) + 1;
+
+  /* 한 번 입장해서 갈 수 있는 깊이를 아주 후하게 잡은 값이다.
+   * 실측(tools/tower.mjs): 만렙 풀세트 부대가 500층 중 474층. 그 절반을 1회분으로 본다. */
+  if (s.towerBest > towerRuns * 250) bad.push(`탑 ${s.towerBest}층 · ${s.day}일차면 입장 ${towerRuns}회`);
+  if (s.abyssBest > abyssRuns * 12) bad.push(`나락 ${s.abyssBest}심층 · ${s.day}일차면 입장 ${abyssRuns}회`);
+  /* S 는 명물 슬롯에서만, 그것도 최대 5% 다. 하루 한 명씩 나온다 쳐도 이 이상은 안 모인다. */
+  const sCap = Math.max(2, Math.ceil(s.day * 0.06));
+  if (s.sMercs > sCap) bad.push(`S 용병 ${s.sMercs}명 · ${s.day}일차 상한 ${sCap}`);
+  return bad;
+}
+
 /* ─────────────────────────── 종합 ─────────────────────────── */
 
 /**
@@ -341,6 +366,21 @@ export function judge(prev, s) {
   if (!s) return { verdict: 'reject', tier: 'A', reasons: ['점수를 읽지 못했다'] };
   const a = [...checkStatic(s), ...checkCadence(prev, s)];
   if (a.length) return { verdict: 'reject', tier: 'A', reasons: a };
+
+  /* ★★ **첫 제출은 비교할 대상이 없다.**
+   *   checkCadence·checkGrowth 는 «지난번보다 얼마나 늘었나» 를 보는 검사라
+   *   prev 가 없으면 통째로 건너뛴다. 즉 처음부터 큰 값으로 올리면 아무것도 안 걸렸다.
+   *   실제로 순위표에 «43일차에 탑 247층, 단원 6명 전원 S, 완료 의뢰 3건» 이 올라왔다
+   *   (HANDOFF §57).
+   *
+   * ★ 그렇다고 **거절하면 안 된다.** 오래 오프라인으로 하다가 클라우드를 처음 켠
+   *   정상 플레이어의 첫 제출도 똑같이 커 보인다. 구분할 방법이 없다.
+   *   그래서 **표시(flag)** 만 한다 — 순위표에서는 빠지고 행은 남아 사람이 본다.
+   *   기록이 작으면(갓 시작한 사람) 걸리지 않는다. */
+  if (!prev) {
+    const first = firstSubmitOddities(s);
+    if (first.length) return { verdict: 'flag', tier: 'C', reasons: first };
+  }
 
   const b = checkGrowth(prev, s);
   // ★ B 는 거절이 아니라 **표시**다 (제작자 결정: 랭킹에서만 숨긴다).

@@ -406,9 +406,15 @@ function worthSubmitting(score) {
    *   마이그레이션이 기록을 0 으로 내렸다면 버전도 같이 올라가므로, 여기서 잡힌다. */
   if ((Number(done.dataVersion) || 0) !== (Number(score.dataVersion) || 0)) return true;
 
+  /* ★★ **순위표의 모든 축을 여기서 봐야 한다.**
+   *   순위 축을 늘렸는데 여기를 안 고치면, S 용병을 뽑거나 부대를 키워도
+   *   나락·탑·의뢰가 안 오르는 한 **제출 자체가 안 나가** 그 순위표가 영영 빈다.
+   *   축을 더할 때마다 여기도 같이 고쳐야 한다. */
   return score.abyssBest > (done.abyss || 0)
     || score.towerBest > (done.tower || 0)
-    || score.questsDone > (done.quests || 0);
+    || score.questsDone > (done.quests || 0)
+    || score.sMercs > (done.sMercs || 0)
+    || score.topPower > (done.topPower || 0);
 }
 
 /** 지금 날고 있는 제출 (없으면 null). 겹친 호출은 이걸 기다린다. */
@@ -451,12 +457,14 @@ export async function submitScore(opt = {}) {
        * 지금 값을 제출한 것으로 기록해 둔다. 게임은 아무 영향 없이 계속된다. */
       writeLS(SUBMITTED_KEY, JSON.stringify({
         seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+        sMercs: score.sMercs, topPower: score.topPower,
         dataVersion: score.dataVersion || 0,
       }));
       return { ok: false, error: (res.data.reasons || []).join(' / ') || '서버가 거절했다' };
     }
     writeLS(SUBMITTED_KEY, JSON.stringify({
       seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
+      sMercs: score.sMercs, topPower: score.topPower,
       dataVersion: score.dataVersion || 0,
     }));
     return { ok: true, error: '' };

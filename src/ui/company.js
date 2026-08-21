@@ -556,9 +556,23 @@ function animatedSprite(recipe, scale = 3) {
 }
 
 /** 작은 스프라이트 액자 */
-function miniPortrait(merc, scale = 1) {
+/**
+ * 명부·편성판에 쓰는 작은 초상.
+ *
+ * ★ 배율 1 이면 32×40 CSS px 라 **얼굴이 안 보인다.** 정면 도트를 이쁘게 그려 놓고
+ *   알아볼 수 없는 크기로 내보내면 그린 의미가 없다 (제작자: «카드 도트 크게 키우자»).
+ *   2배(64×80)면 눈·머리 모양이 읽힌다.
+ */
+function miniPortrait(merc, scale = MINI_SCALE) {
   return el('div', { class: 'co-mini' }, spriteCanvas(mercRecipe(merc, state), scale));
 }
+
+/** 명부·목록의 초상 배율. 상자 크기(.co-mini)와 **같이** 움직여야 한다. */
+const MINI_SCALE = 2;
+/* ★ 편성판 칸은 76×58 이라 64×80 도트가 넘친다.
+ *   칸을 키우면 좌표 계산식(bx/by)까지 다시 잡아야 하므로 여기만 1배로 둔다.
+ *   판은 «누가 어디 서 있나» 를 보는 곳이고, 얼굴은 명부에서 본다. */
+const SLOT_SCALE = 1;
 
 function statDelta(k, d) {
   const v = PCT_KEYS.has(k) ? Math.round(d * 10) / 10 : Math.round(d);
@@ -666,8 +680,8 @@ const CSS = `
   min-height:72px;box-sizing:border-box;
   border:1px solid var(--gold-dim);background:rgba(224,180,74,.09);}
 
-.co-mini{display:flex;align-items:flex-end;justify-content:center;width:40px;height:44px;flex:0 0 auto;
-  background:radial-gradient(circle at 50% 85%,#221c2e,#100d17);border-radius:4px;overflow:hidden;}
+.co-mini{display:flex;align-items:flex-end;justify-content:center;width:72px;height:84px;flex:0 0 auto;
+  background:radial-gradient(circle at 50% 85%,#221c2e,#100d17);border-radius:5px;overflow:hidden;}
 .co-drop{outline:2px dashed var(--gold-dim);outline-offset:-5px;}
 .co-in{background:var(--bg-1);border:1px solid var(--line);border-radius:5px;padding:5px 8px;color:var(--ink);}
 .co-in:focus{outline:none;border-color:var(--gold-dim);}
@@ -852,7 +866,7 @@ const CSS = `
   .co-boardpanel .co-pickbar{order:5;}
   .co-boardpanel .co-boardhint{order:6;}
   .co-pickbar{min-height:0;padding:6px 7px;gap:6px;}
-  .co-pickbar .co-mini{width:32px;height:36px;}
+  .co-pickbar .co-mini{width:56px;height:64px;}
   .co-pickbar>.col{flex:1 1 calc(100% - 46px) !important;min-width:0;}
   .co-pickbar .btn.sm{padding:8px 10px;flex:1 1 auto;}
 
@@ -1631,7 +1645,7 @@ function slotCell(sq, f, i, slot, merc, owned = true) {
   }
   cell.append(
     el('span', { class: 'lv', text: `L${merc.level || 1}` }),
-    spriteCanvas(mercRecipe(merc, state), 1),
+    spriteCanvas(mercRecipe(merc, state), SLOT_SCALE),
     el('span', { class: 'nm', style: { color: gradeColor(merc.grade) }, text: merc.name }));
   // 상세 보기 전용 버튼.
   //
