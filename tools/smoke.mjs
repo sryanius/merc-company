@@ -1771,6 +1771,98 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
   }
 }
 
+section('단원이 늘어나는 길이 둘뿐인가');
+{
+  /* ★★ 오늘 넣은 총량 불변식(`sMercs ≤ hiredN + START_ROSTER`)이 성립하는 **근거**가 이것이다:
+   *
+   *   1. `roster` 에 원소가 들어가는 곳은 `newGame`(시작 4명)과 `addMerc` **둘뿐**이다.
+   *   2. `addMerc` 는 `hiredDay` 를 **무조건** 채운다.
+   *   3. 시작 4명은 `hiredDay = 1` 이고 등급이 C·C·D·D 로 고정이다.
+   *   → 그래서 «모든 S 는 hiredDay > 1» 이 참이고, 명부만 보고 셀 수 있다.
+   *
+   *   앞으로 누가 `state.roster.push(...)` 를 직접 쓰면 2번이 깨진다 —
+   *   `hiredDay` 없는 단원이 생기고, 그게 S 면 정상 플레이어가 거절당한다.
+   *   조용히 깨지는 종류라 여기서 못 박는다.
+   *
+   * ★ 주석은 걷어내고 본다. 이 저장소에서 «옛 코드를 설명한 주석» 을 코드로 오인해
+   *   헛도는 검사를 만든 적이 있다. */
+  const strip = (x) => {
+    let out = ''; let i = 0;
+    while (i < x.length) {
+      if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
+      if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
+      out += x[i]; i++;
+    }
+    return out;
+  };
+  const countPush = (text) => {
+    let n = 0;
+    for (let i = text.indexOf('roster.push'); i >= 0; i = text.indexOf('roster.push', i + 1)) n++;
+    return n;
+  };
+
+  const faults = [];
+  /* 게임 코드(src/)만 본다 — tools/ 의 시뮬은 플레이어 세이브를 안 만든다 */
+  const files = [...listDir('game'), ...listDir('ui'), ...listDir('net'), ...listDir('data'), 'main.js'];
+  let total = 0;
+  for (const rel of files) {
+    let code = '';
+    try { code = strip(readFileSync(srcDir(rel), 'utf8')); } catch { continue; }
+    const n = countPush(code);
+    if (!n) continue;
+    total += n;
+    if (rel !== 'game/state.js') faults.push(`${rel} 이 roster 에 직접 push 한다 (${n}곳) — addMerc 를 써라`);
+  }
+  if (total !== 2) faults.push(`roster.push 가 ${total}곳이다 — newGame 과 addMerc 둘뿐이어야 한다`);
+
+  /* addMerc 가 hiredDay 를 채우는가 — 이게 hiredN 의 근거다 */
+  const st = strip(readFileSync(srcDir('game/state.js'), 'utf8'));
+  const a = st.indexOf('export function addMerc(');
+  const body = a < 0 ? '' : st.slice(a, st.indexOf(String.fromCharCode(10) + '}', a));
+  if (!body) faults.push('addMerc 를 못 찾았다');
+  else if (!body.includes('hiredDay')) faults.push('addMerc 가 hiredDay 를 안 채운다 — hiredN 이 무너진다');
+
+  /* 시작 단원 등급이 S 를 포함하면 «S 는 반드시 고용» 이 깨진다 */
+  const g = st.indexOf('const grades = ');
+  const gLine = g < 0 ? '' : st.slice(g, st.indexOf(';', g));
+  if (!gLine) faults.push('시작 단원 등급 줄을 못 찾았다');
+  else if (gLine.includes("'S'")) faults.push(`시작 단원에 S 가 들어갔다 — ${gLine.trim()}`);
+
+  okAll(faults, '단원은 newGame·addMerc 로만 늘고, addMerc 가 hiredDay 를 채운다', 4);
+
+  /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 실제로 무는지 확인한다 */
+  const planted = strip('function x(){ state.roster.push(m); }');
+  const bit1 = countPush(planted) === 1;
+  const bit2 = countPush(strip('/* state.roster.push(m) 였다 */ const y = 1;')) === 0;
+  if (bit1 && bit2) pass('검사가 실제로 문다 (직접 push 는 잡고, 주석 속 push 는 안 잡는다)');
+  else ok(false, '검사가 실제로 문다', `코드 ${bit1} / 주석무시 ${bit2}`);
+}
+
+section('랭킹 검증 계측기 (tools/cheatcheck.mjs)');
+{
+  /* ★★ 왜 여기서 돌리나.
+   *   cheatcheck 는 **아무도 안 돌리는 도구**였다. 그래서 checkStatic 에 명성 상한이
+   *   생긴 뒤(21df0cc) 기대값이 안 따라간 채로 **80여 커밋 동안 계속 실패**하고 있었고,
+   *   아무도 몰랐다. 안 도는 검사는 없는 검사다.
+   *
+   *   0.24초면 스모크(1.5초)에 얹어도 티가 안 난다. 여기서 돌리면 «빨간불인 줄 몰랐다» 가 없어진다.
+   *
+   * ★ 실패하면 그 도구의 출력을 그대로 보여 준다 — 여기서 요약하면 원인을 못 찾는다. */
+  const { execFileSync } = await import('node:child_process');
+  let out = '';
+  let failed = false;
+  try {
+    out = execFileSync(process.execPath, ['tools/cheatcheck.mjs'], { encoding: 'utf8' });
+  } catch (e) {
+    failed = true;
+    out = String(e.stdout || e.message);
+  }
+  const NL2 = String.fromCharCode(10);
+  const rows = out.split(NL2).filter((l) => l.includes('✗'));
+  ok(!failed, '정상 플레이를 안 막고 조작을 잡는다 (cheatcheck)',
+    rows.slice(0, 6).join(' | ') || out.trim().split(NL2).slice(-3).join(' | '));
+}
+
 section('거절 사유가 밖으로 새지 않나');
 {
   /* ★★ 실제로 당한 것 (HANDOFF §55):
