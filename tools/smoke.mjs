@@ -2151,7 +2151,35 @@ section('백지 재배분이 약속을 지키나');
       }
     }
 
-    okAll(faults, '미리보기가 실제와 같고, 못 낄 세트를 찜하지 않고, 잠금을 지키고, 고아 조각이 안 남는다', 8);
+    /* ── (5) 한 벌을 다 모았으면 **누군가는 10칸을 입는다** ──
+     *
+     * ★★ 제작자 지적: 「강철 성벽 10세트 다 모았다고 되어 있는데 10세트 착용한 용병은 없어」.
+     *   원인은 `breaksSetTier` 가 «지금 활성인 단계» 만 지킨 것이었다 —
+     *   9칸 → 8칸 교체는 둘 다 «7단계» 라 통과시켜서 **10칸에 영영 못 닿았다.**
+     *   실측으로 낄 수 있는 단원 1명 · 세트 1벌인데 8칸에서 멈췄다.
+     *   이제 «세트 먼저 잡기» 가 정한 칸은 같은 세트끼리만 바뀐다. */
+    {
+      S.newGame(101, '풀세트검사');
+      const st = S.state;
+      st.roster = []; st.items = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      const m0 = M.createMerc({ classId: 'shieldman', grade: 'S', level: 80 });
+      m0.hiredDay = 2; st.roster.push(m0); sq.memberUids[0] = m0.uid; m0.squadId = sq.id;
+      const r = new RngMod.RNG(17);
+      for (let i = 0; i < 200; i++) { const it = G.rollItem({ ilvl: 79, rarityBonus: 0.9, rng: r }); if (it) st.items.push(it); }
+      const SL2 = ['weapon', 'offhand', 'head', 'body', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
+      let mk = 0;
+      for (const s0 of SL2) { const it = G.rollSetItem({ setId: 'ironrampart', slot: s0, ilvl: 80, rng: r }); if (it) { st.items.push(it); mk++; } }
+      if (mk < 10) faults.push(`검사 판을 못 차렸다: 세트 조각을 ${mk}개만 만들었다`);
+      G.autoEquipAll(st, { reset: true });
+      const worn = Object.values(m0.equipment || {}).filter(Boolean)
+        .map((u) => (st.items || []).find((x) => x && x.uid === u))
+        .filter((x) => x && G.setIdOf(x) === 'ironrampart').length;
+      if (worn < SL2.length) faults.push(`한 벌을 다 가졌는데 ${worn}칸만 입는다 — 풀세트가 안 완성된다`);
+    }
+
+    okAll(faults, '미리보기가 실제와 같고, 찜·잠금·고아·풀세트가 모두 지켜진다', 9);
   }
 }
 

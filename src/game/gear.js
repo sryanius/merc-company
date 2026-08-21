@@ -1817,6 +1817,7 @@ function buildPlan(st, targets, opt = {}) {
      *   그래서 백지에서는 «이 사람이 낄 수 있는 세트 중 조각이 가장 많이 모이는 것» 을
      *   먼저 통째로 배정하고, 남은 칸을 평소대로 채운다. 3칸을 못 채우는 세트는 건너뛴다
      *   (2칸짜리는 보너스가 0 이라 낱개와 같다). */
+    const committed = new Set();   // «세트 먼저 잡기» 가 확정한 칸 — 슬롯 루프가 못 뒤집는다
     if (setFirst) {
       const bySet = new Map();
       for (const it of items) {
@@ -1856,6 +1857,7 @@ function buildPlan(st, targets, opt = {}) {
           changed.push({ slot, from: null, to: it, delta: 0, tookFrom, setPick: bestSid });
           owner.set(it.uid, m.uid);
           eq[slot] = it.uid;
+          committed.add(slot);
         }
       }
     }
@@ -1876,9 +1878,32 @@ function buildPlan(st, targets, opt = {}) {
       /* ★ 잠긴 장비를 끼고 있으면 그 칸은 **손대지 않는다.**
        *   «못 뺏는다» 만으로는 부족하다 — 착용자 본인의 자동 착용이 벗겨 버리면 잠금이 무의미하다. */
       if (curItem && isLocked(curItem)) continue;
+      /* ★★ **세트 먼저 잡은 칸은 낱개로 못 바꾼다.**
+       *
+       *   `breaksSetTier` 는 «지금 활성인 단계» 만 지킨다. 9칸에서 8칸으로 내려가는 교체는
+       *   둘 다 «7단계» 라 통과시킨다 — 그래서 10칸(풀세트)에 **영영 못 닿았다.**
+       *   실측: 낄 수 있는 단원 1명 · 세트 1벌인데 legs·feet 가 전설로 바뀌어 **8칸**에서 멈췄다
+       *   (제작자: 「강철 성벽 10세트 다 모았는데 10세트 착용한 용병이 없다」).
+       *
+       *   세트 먼저 잡기가 «이 사람은 이 세트를 입는다» 고 정했으면 그 결정을 지킨다.
+       *   같은 세트끼리 더 좋은 조각으로 바꾸는 것은 허용한다. */
+      if (committed.has(slot)) {
+        const curSid = setIdOf(curItem);
+        if (curSid) {
+          let ok0 = false;
+          for (const it of items) {
+            if (!slotAccepts(slot, it) || setIdOf(it) !== curSid) continue;
+            if (!canTake(it) || (pool && !pool.has(it.uid))) continue;
+            ok0 = true; break;
+          }
+          if (!ok0) continue;             // 같은 세트 후보가 없으면 그대로 둔다
+        }
+      }
       let best = null, bestScore = -Infinity;
+      const lockSid = committed.has(slot) ? setIdOf(curItem) : null;
       for (const it of items) {
         if (!slotAccepts(slot, it)) continue;
+        if (lockSid && setIdOf(it) !== lockSid) continue;   // 세트 먼저 잡은 칸 — 같은 세트만
         if (!canTake(it)) continue;
         if (pool && !pool.has(it.uid)) continue;
         const sc = scoreItemFor(virt, it, ctx);
@@ -2123,9 +2148,22 @@ export function autoEquipAll(state, {
   const strength = typeof powerOf === 'function'
     ? (m) => { try { return powerOf(m) || 0; } catch { return 0; } }
     : (m) => mercStrength(st, m);
+  /* ★★ **부대 순서로 채운다** (제작자 결정: 「1부대부터 장비 채우고 그담 2부대」).
+   *
+   *   예전에는 전체를 전투력 순으로만 돌렸다. 그러면 부대가 섞여서
+   *   «2부대 3번이 1부대 5번보다 먼저 고르는» 일이 생기고,
+   *   1부대를 주력으로 굴리는 사람 눈에는 배분이 제멋대로로 보인다.
+   *   세트도 부대를 넘나들며 흩어진다.
+   *
+   *   이제 **부대 번호 → 그 안에서 전투력 순**이다. 부대에 없는 대기 인원은 맨 뒤다.
+   *   (자동 착용 대상에서 대기 인원은 보통 빠지지만, `mercs` 로 콕 집으면 들어올 수 있다) */
+  const squadOrder = new Map();
+  (st.squads || []).forEach((sq, si) => {
+    for (const u of (sq && sq.memberUids) || []) if (u) squadOrder.set(u, si);
+  });
   const ordered = targets
-    .map((m, i) => ({ m, i, p: strength(m) }))
-    .sort((a, b) => b.p - a.p || a.i - b.i)
+    .map((m, i) => ({ m, i, sq: squadOrder.has(m.uid) ? squadOrder.get(m.uid) : Infinity, p: strength(m) }))
+    .sort((a, b) => a.sq - b.sq || b.p - a.p || a.i - b.i)
     .map((x) => x.m);
 
   const perMerc = buildPlan(st, ordered, { pool, reset: doReset, origEq });

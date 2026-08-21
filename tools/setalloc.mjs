@@ -82,7 +82,7 @@ function build(setIds, { copies = 1, seed = 7, classes = null } = {}) {
     if (it) st.items.push(it);
   }
   const slots = Array.isArray(Sets.SET_SLOTS) && Sets.SET_SLOTS.length
-    ? Sets.SET_SLOTS : ['weapon', 'offhand', 'head', 'armor', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
+    ? Sets.SET_SLOTS : ['weapon', 'offhand', 'head', 'body', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2'];
   for (const setId of setIds) {
     for (let c = 0; c < copies; c++) {
       for (const slot of slots) {
@@ -140,14 +140,14 @@ head(`1. ${NAMES.constellation} 한 벌(10칸)만 창고에 있을 때`);
 head('2. 아키타입별 «성좌 조각 하나» 점수 — 왜 사제가 밀리나');
 {
   const st = build(['constellation'], { copies: 1 });
-  const piece = (st.items || []).find((it) => Gear.setIdOf(it) === 'constellation' && it.slot === 'armor')
+  const piece = (st.items || []).find((it) => Gear.setIdOf(it) === 'constellation' && it.slot === 'body')
     || (st.items || [])[0];
   const rows = [];
   for (const m of st.roster) {
     const cls = getClass(m.classId);
     let sc = 0;
     try {
-      sc = Gear.scoreItemFor(m, piece, { slot: 'armor', items: st, checkEquip: false, worn: [] });
+      sc = Gear.scoreItemFor(m, piece, { slot: 'body', items: st, checkEquip: false, worn: [] });
     } catch { sc = 0; }
     rows.push([(cls && cls.name) || m.classId, (cls && cls.arch) || '?', sc.toFixed(1)]);
   }

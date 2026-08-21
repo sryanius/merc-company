@@ -769,6 +769,23 @@ function wornPanel() {
 
 /* ─────────────────────────── 세트 수집 현황 ─────────────────────────── */
 
+/** 이 세트를 **한 사람이 최대 몇 칸** 입고 있나 (보유가 아니라 착용) */
+function maxWornOf(setId) {
+  let best = 0;
+  for (const m of state.roster || []) {
+    if (!m || !m.equipment) continue;
+    let n = 0;
+    for (const s of Object.keys(m.equipment)) {
+      const uid = m.equipment[s];
+      if (!uid) continue;
+      const it = (state.items || []).find((x) => x && x.uid === uid);
+      if (it && setIdOfItem(it) === setId) n++;
+    }
+    if (n > best) best = n;
+  }
+  return best;
+}
+
 function setPanel() {
   const defs = setDefList().map(normSetDef).filter(Boolean);
   if (!defs.length) return null;
@@ -779,8 +796,12 @@ function setPanel() {
   const total = SLOTS.length;
   const owned = defs.reduce((a, d) => a + ((col.get(d.id) || { count: 0 }).count), 0);
 
+  /* ★★ «수집» 은 **보유한 부위 수**다 — 「10/10」 이 «누가 풀세트를 입었다» 는 뜻이 아니다.
+   *   제작자가 그렇게 읽고 물었다: 「10세트 다 모았다는데 10세트 착용한 용병이 없다」.
+   *   그래서 제목 옆에 «최다 착용» 을 같이 찍는다. 두 수가 다르면 그 자리에서 보인다. */
+  const bestWorn = defs.reduce((a, d) => Math.max(a, maxWornOf(d.id)), 0);
   panel.appendChild(el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
-    el('h3', { class: 'panel-title', style: { margin: '0' }, text: `세트 수집 — ${owned} / ${defs.length * total}칸` }),
+    el('h3', { class: 'panel-title', style: { margin: '0' }, text: `세트 수집 — 보유 ${owned} / ${defs.length * total}칸 · 최다 착용 ${bestWorn}칸` }),
     el('div', { class: 'row center wrap', style: { gap: '8px' } },
       el('span', { class: 'tiny faint', text: dayLabel() }),
       week ? el('span', { class: 'tag', style: { color: 'var(--gold)' }, text: `이번 주 개방: ${week}번 던전` }) : null,
@@ -790,7 +811,11 @@ function setPanel() {
       }, setPanelOpen ? '접기' : '펼치기'))));
 
   if (!setPanelOpen) {
-    panel.appendChild(el('div', { class: 'tiny faint', text: defs.map((d) => `${d.name} ${(col.get(d.id) || { count: 0 }).count}/${total}`).join('  ·  ') }));
+    panel.appendChild(el('div', { class: 'tiny faint', text: defs.map((d) => {
+      const c0 = (col.get(d.id) || { count: 0 }).count;
+      const w0 = maxWornOf(d.id);
+      return `${d.name} 보유 ${c0}/${total} · 착용 ${w0}`;
+    }).join('  ·  ') }));
     return panel;
   }
 
