@@ -74,6 +74,7 @@ const MODULE_LIST = [
   'art/parts_body.js',
   'art/parts_gear.js',
   'art/parts.js',
+  'art/parts_front.js',
   'art/palette.js',
   'art/spritegen.js',
   'art/fx.js',
@@ -1768,6 +1769,53 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
     ok(R.S_CHANCE_MAX > 0 && R.S_CHANCE_MAX <= 0.1 && R.S_LUCK_SLACK >= 2,
       '상한이 넉넉하다 (운 좋은 사람을 날리지 않는다)',
       `S 확률 ${R.S_CHANCE_MAX} × 여유 ${R.S_LUCK_SLACK} = 실효 ${(R.S_CHANCE_MAX * R.S_LUCK_SLACK * 100).toFixed(0)}%`);
+  }
+}
+
+section('정면 포즈 판·클래스 얼굴의 기하');
+{
+  /* ★ «포즈 판»(plate_*) 과 클래스 얼굴(face_*) 은 좌표 규약이 어긋나면
+   *   발이 땅에서 뜨거나 머리카락이 두개골 밖으로 샌다 — 화면 전체가 한꺼번에 이상해진다.
+   *   규약:
+   *     plate: ay === h - 66 (마지막 줄 = 화면 y113 = 발바닥) · 마지막 줄에 그림이 있다
+   *     face : 정확히 36x38 · 앵커 (18,36) · head_human 과 실루엣 거의 동일 (머리카락 호환)
+   *   아직 없는 파츠는 건너뛴다 — 계열별로 순차 반영 중일 수 있다. */
+  const FP = need('art/parts_front.js');
+  if (!FP) { ok(false, '정면 파츠 모듈을 못 읽었다'); } else {
+    const names = Object.keys(FP.FRONT_PARTS || {});
+    const plates = names.filter((n) => n.startsWith('plate_'));
+    const faces = names.filter((n) => n.startsWith('face_'));
+    const faults = [];
+    for (const n of plates) {
+      const p = FP.getFrontPart(n);
+      if (p.ay !== p.h - 66) faults.push(`${n}: ay(${p.ay}) != h-66(${p.h - 66}) — 발이 y113 에 안 닿는다`);
+      const last = p.px[p.h - 1] || '';
+      if ([...last].filter((c) => c !== '.').length < 4) faults.push(`${n}: 마지막 줄(발바닥)이 비었다`);
+      if (p.px.length !== p.h || p.px.some((r) => r.length !== p.w)) faults.push(`${n}: 행렬 크기가 어긋난다`);
+    }
+    const head = FP.getFrontPart('head_human');
+    for (const n of faces) {
+      const p = FP.getFrontPart(n);
+      if (p.w !== 36 || p.h !== 38 || p.ax !== 18 || p.ay !== 36) {
+        faults.push(`${n}: 36x38 앵커(18,36) 이어야 한다 (지금 ${p.w}x${p.h} 앵커 ${p.ax},${p.ay})`);
+        continue;
+      }
+      if (head) {
+        let diff = 0;
+        for (let y = 0; y < 38; y++) for (let x = 0; x < 36; x++) {
+          if (((p.px[y] || '')[x] === '.') !== ((head.px[y] || '')[x] === '.')) diff++;
+        }
+        if (diff > 80) faults.push(`${n}: head_human 과 실루엣이 ${diff}칸 다르다 (80 이하) — 머리카락이 안 맞는다`);
+      }
+    }
+    okAll(faults, `포즈 판 ${plates.length}개·얼굴 ${faces.length}개가 좌표 규약을 지킨다`,
+      Math.max(1, plates.length + faces.length));
+
+    /* 판이 있으면 canDraw 경로도 성립해야 한다 — 얼굴이 함께 있어야 조립이 선다 */
+    const archOf = (n) => n.replace(/^plate_/, '');
+    const missing = plates.map(archOf).filter((a) => !faces.includes(`face_${a}`));
+    okAll(missing.map((a) => `plate_${a} 는 있는데 face_${a} 가 없다`),
+      '판이 있는 계열은 얼굴도 있다', Math.max(1, plates.length));
   }
 }
 

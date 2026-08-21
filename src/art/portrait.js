@@ -82,6 +82,12 @@ const ORDER = [
   ['pauldron', 'shRight', false],
   ['weapon', 'handRight', false],
   ['offhand', 'handLeft', true],
+  /* «포즈 판» 경로 (클래스 정체성) — partsOf 가 plate 를 주면 위의 몸 슬롯들은 전부
+   * 비어 있으므로 실제로는 아래 넷만 그려진다. head2 가 판 **위에** 얹히는 게 핵심이다. */
+  ['plate', 'chest', false],
+  ['head2', 'head', false],
+  ['hair2', 'head', false],
+  ['helm2', 'head', false],
 ];
 
 /** 빛 반대편 파츠를 어둡게 하는 비율. 옆모습의 먼쪽 처리와 같은 값. */
@@ -100,13 +106,27 @@ const LEG_BY_ARMOR = {
 };
 
 function partsOf(recipe = {}) {
+  /* ★ 정면 전용 얼굴(frontHead). `recipe.head` 를 바꾸면 **옆모습까지** 그 이름을 찾다
+   *   머리가 사라진다 — spritegen 이 같은 레시피를 읽기 때문이다. 그래서 필드를 나눴다. */
+  const face = recipe.frontHead && hasFrontPart(recipe.frontHead) ? recipe.frontHead : null;
+  const head = face || recipe.head || 'head_human';
+
+  /* ★★ «포즈 판»(plate) — 몸·팔·다리·갑옷·무기·이펙트를 클래스마다 한 장에 구운 것 (HANDOFF §61).
+   *   제작자 질문 「정면은 굳이 파츠 조립 안 해도 되지 않나? 액션도 없는데」 가 계기다.
+   *   조립의 존재 이유는 액션이 아니라 장비·개인 편차 반영이었는데, **팔레트 교환은
+   *   통짜 그림에도 그대로 먹는다** (문자 행렬이라). 그래서 몸은 판으로 굽고
+   *   얼굴·머리카락·투구만 레이어로 남겼다 — 개인 색 편차와 등급 금장이 그대로 산다.
+   *   낀 갑옷·무기가 정면에 안 보이게 되는 대신, 전투 옆모습이 장비를 계속 보여 준다. */
+  const plate = recipe.plate && hasFrontPart(recipe.plate) ? recipe.plate : null;
+  if (plate) return { plate, head2: head, hair2: recipe.hair, helm2: recipe.helm };
+
   const body = recipe.body || 'body_normal';
   const armor = recipe.armor || 'armor_cloth';
   return {
     cape: recipe.cape, body, armor,
     arm: recipe.arm || ARM_BY_BODY[body] || 'arm_normal',
     leg: recipe.leg || LEG_BY_ARMOR[armor] || 'leg_cloth',
-    head: recipe.head || 'head_human',
+    head,
     pauldron: recipe.pauldron || PAULDRON_BY_ARMOR[armor],
     hair: recipe.hair,
     helm: recipe.helm,
@@ -124,13 +144,15 @@ function partsOf(recipe = {}) {
  */
 export function canDraw(recipe = {}) {
   const n = partsOf(recipe);
+  if (n.plate) return hasFrontPart(n.plate) && hasFrontPart(n.head2);
   return ['head', 'body', 'arm', 'leg'].every((k) => hasFrontPart(n[k]));
 }
 
 export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
-  return ['F', n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
+  return ['F', n.plate, n.head2, n.hair2, n.helm2,
+    n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura].join('|');
 }
 

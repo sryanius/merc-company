@@ -1066,6 +1066,18 @@ export function mercRecipe(merc, itemsById) {
     rec.aura = '#f0d24a';
   }
 
+  /* 5) ★ 클래스 정체성 — 정면 «포즈 판» + 클래스 얼굴 (제작자: 「모든 클래스가 같은
+   *   얼굴인데 구분이 안 간다. 궁수면 활 쏘는 모습, 마법사는 파이어볼 띄운 모습」).
+   *
+   *   계열(arch) 단위로 매핑한다 — 전직 클래스까지 한 번에 커버된다.
+   *   정면 전용 필드다: portrait.js 만 읽고 spritegen(옆모습)은 모르는 이름이라 무시한다.
+   *   파츠가 아직 없으면 portrait 의 hasFrontPart 검사가 조용히 기존 조립으로 되돌린다. */
+  const arch = c && c.arch;
+  if (arch) {
+    rec.plate = `plate_${arch}`;
+    rec.frontHead = `face_${arch}`;
+  }
+
   return rec;
 }
 
