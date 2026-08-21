@@ -1508,6 +1508,47 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
 }
 
+section('제출 필드가 서버 화이트리스트와 맞나');
+{
+  /* ★★ 실제로 당한 것 (HANDOFF §58):
+   *   rules.js 의 allSquadsOf 에 부대 전력 `p` 를 더했는데, 엣지 함수의
+   *   sanitizeSquadsFull 은 **아는 필드만 남기는 화이트리스트**라 `p` 를 통째로 버렸다.
+   *   클라이언트도 서버도 정상으로 보이는데 DB 에만 값이 안 들어간다 —
+   *   «부대 전력이 여전히 안 보인다» 로만 드러난다.
+   *
+   * ★ 두 파일의 필드 이름을 **글자로** 비교한다. 완벽하지는 않지만
+   *   «한쪽에만 있는 필드» 는 확실히 잡는다. */
+  const rulesSrc = readFileSync(srcDir('game/rules.js'), 'utf8');
+  const fnPath = fileURLToPath(new URL('supabase/functions/submit-score/index.ts', ROOT));
+  if (!existsSync(fnPath)) {
+    ok(true, '엣지 함수가 없어 건너뜀', fnPath);
+  } else {
+    const fnSrc = readFileSync(fnPath, 'utf8');
+    /* ★ 끝 표식을 **시작 표식 다음부터** 찾는다.
+     *   'function sanitizeSquad' 는 'function sanitizeSquadsFull' 의 접두사라,
+     *   같은 자리에서 찾으면 자기 자신을 만나 빈 문자열이 나온다 — 그러면
+     *   «서버에 필드가 하나도 없다» 로 오탐한다 (실제로 그랬다). */
+    const between = (src, from, to) => {
+      const i = src.indexOf(from);
+      if (i < 0) return '';
+      const j = to ? src.indexOf(to, i + from.length) : -1;
+      return src.slice(i, j > 0 ? j : i + 3000);
+    };
+    /* allSquadsOf 가 out.push({...}) 로 넣는 부대 필드 */
+    const squadFields = new Set(
+      [...between(rulesSrc, 'function allSquadsOf', 'function topSquadOf')
+        .matchAll(/^\s{6}([a-z])\s*:/gm)].map((m) => m[1]));
+    const serverFields = new Set(
+      [...between(fnSrc, 'function sanitizeSquadsFull', 'function sanitizeSquad')
+        .matchAll(/^\s{6}([a-z])\s*:/gm)].map((m) => m[1]));
+    const missing = [...squadFields].filter((f) => !serverFields.has(f));
+    okAll(missing.map((f) => `부대 필드 '${f}' 가 sanitizeSquadsFull 에 없다 — 서버가 버린다`),
+      'allSquadsOf 의 필드를 서버가 전부 통과시킨다', squadFields.size || 1);
+    ok(squadFields.size >= 3, '부대 필드를 실제로 읽어 냈다 (정규식이 헛돌지 않았다)',
+      `읽은 필드: ${[...squadFields].join(' ') || '없음'}`);
+  }
+}
+
 section('스프라이트 캐시');
 if (Spritegen) {
   /* ★ 해상도를 4배로 올리면서 아틀라스 한 벌이 약 0.25MB → 1MB 가 됐다.

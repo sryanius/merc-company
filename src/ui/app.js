@@ -213,8 +213,8 @@ function renderHud() {
       stat('현재 위치', city ? city.name : '—', 'x')),
     /* ★ 버튼을 셋으로 줄였다.
      *   · '저장' 은 뺐다 — 게임은 행동마다 자동 저장한다(47곳). 눌러도 더 하는 게 없다.
-     *   · '내보내기/불러오기' 는 지운 게 아니라 **세이브 모달 안으로 옮겼다.**
-     *     로그인 안 한 사람에게는 이게 유일한 백업 수단이라 없애면 안 된다.
+     *   · '내보내기/불러오기' 는 나중에 아예 뺐다 (제작자 결정) —
+     *     백업은 서버 동기화 하나로 간다. ui/savefile.js 는 그대로 남아 있다.
      *   머리에는 계정 상태만 남긴다 — 로그인 여부가 지금 가장 중요한 정보다. */
     el('div', { class: 'hud-actions' },
       el('button', {
@@ -347,70 +347,6 @@ export function confirmDlg(title, message, onYes, yesLabel = '확인') {
       { label: yesLabel, kind: 'primary', act: () => { onYes(); } },
     ],
   });
-}
-
-/* ---------------- 세이브 파일 ---------------- */
-// localStorage 세이브는 이 브라우저에만 남는다. 파일로 빼두면 기기를 옮기거나
-// 밸런스 수정으로 세이브를 버려야 할 때 되돌릴 수 있다.
-async function doExport() {
-  const { exportSave } = await import('./savefile.js');
-  try {
-    const { name } = exportSave();
-    toast(`${name} 으로 내보냈습니다.`, 'good');
-  } catch (e) {
-    console.error(e);
-    toast('내보내기에 실패했습니다.', 'bad');
-  }
-}
-
-async function doImport() {
-  const { pickSaveFile, importSaveText } = await import('./savefile.js');
-  confirmDlg('세이브 불러오기', '현재 진행 상황을 덮어씁니다. 계속할까요?', () => {
-    pickSaveFile((res, fileName, rawText) => {
-      if (res.ok) { finishImport(res, fileName); return; }
-      // 봉인 이전(평문) 파일이면 암호를 한 번 물어본다
-      if (res.needPassword) { askLegacyPassword(rawText, fileName, importSaveText); return; }
-      toast(res.error || '불러오기에 실패했습니다.', 'bad');
-    });
-  }, '파일 선택');
-}
-
-function finishImport(res, fileName) {
-  const s = res.summary || {};
-  toast(`${fileName} 불러옴 — ${s.day ?? '?'}일차 · 단원 ${s.roster ?? '?'}명`, 'good');
-  go('city');
-}
-
-/**
- * 예전 형식(암호화 전) 세이브 파일을 열려 할 때.
- * 그대로 두면 메모장으로 고친 파일이 그냥 들어오므로 한 번 막아 세운다.
- */
-function askLegacyPassword(rawText, fileName, importSaveText) {
-  const input = el('input', { type: 'password', class: 'co-in', placeholder: '암호' });
-  const msg = el('div', { class: 'tiny', style: { color: 'var(--bad)', minHeight: '16px' } });
-  modal({
-    title: '예전 형식 세이브 파일',
-    body: el('div', { class: 'col', style: { gap: '8px', minWidth: 'min(340px, 80vw)' } },
-      el('div', { class: 'tiny muted' },
-        '암호화 이전에 내보낸 파일입니다. 이런 파일은 내용을 손으로 고칠 수 있어 기본적으로 막습니다.'),
-      el('div', { class: 'tiny faint' },
-        '본인 세이브가 맞다면 암호를 넣어 이어서 하세요. 암호가 없으면 새 게임으로 시작해야 합니다.'),
-      input, msg),
-    actions: [
-      { label: '새 게임으로', kind: 'ghost', act: () => { promptNewGame({ overwrite: hasSave() }); } },
-      {
-        label: '이어서 하기',
-        kind: 'primary',
-        act: () => {
-          const res = importSaveText(rawText, { password: input.value });
-          if (!res.ok) { msg.textContent = res.needPassword ? '암호가 맞지 않습니다.' : (res.error || '불러오기 실패'); return false; }
-          finishImport(res, fileName);
-          return true;
-        },
-      },
-    ],
-  });
-  setTimeout(() => input.focus(), 60);
 }
 
 /* ---------------- 업데이트 내역 ---------------- */
@@ -623,12 +559,10 @@ function doCloud() {
       }, `가져오기 되돌리기 (${num(rollback.day)}일차)`)
       : null,
     el('div', { class: 'sep' }),
-    /* 파일 백업. 헤더에서 뺐지만 지우지는 않았다 —
-     * 로그인 안 한 사람에게는 이게 유일한 백업이고, 로그인한 사람도
-     * 서버 세이브가 잘못 덮였을 때 마지막으로 기댈 곳이다. */
-    el('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap' } },
-      el('button', { class: 'btn sm ghost', onClick: doExport }, '파일로 내보내기'),
-      el('button', { class: 'btn sm ghost', onClick: doImport }, '파일에서 불러오기')),
+    /* ★ 파일 내보내기/불러오기를 뺐다 (제작자 결정).
+     *   백업 경로가 **서버 동기화 하나로 좁아졌다** — 그래서 로그인 안 한 사람에게는
+     *   아래 문구가 «잃으면 끝» 이라는 뜻이 된다. index.html 의 첫 실행 안내도 같이 고쳤다.
+     *   되살릴 때는 ui/savefile.js 가 그대로 있으니 버튼만 다시 달면 된다. */
     el('div', { class: 'faint tiny', text: '게임은 행동마다 자동 저장된다 — 따로 저장 버튼은 없다.' }),
     el('div', { class: 'sep' }),
     st.on

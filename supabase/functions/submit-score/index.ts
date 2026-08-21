@@ -138,6 +138,11 @@ function sanitizeSquadsFull(raw: unknown) {
     return {
       n: cut(x.n, 16),
       f: cut(x.f, 24),
+      /* ★★ 부대 전력. **여기에 안 적으면 통째로 버려진다** — 이 함수는 «아는 필드만 남기는»
+       *   화이트리스트라, rules.js 에 필드를 더해도 여기를 같이 안 고치면 DB 에 안 들어간다.
+       *   실제로 그래서 «부대 전력이 여전히 안 보인다» 는 지적을 받았다 (HANDOFF §58).
+       *   상한은 rules.js 의 POWER_CAP 과 같은 값이다. */
+      p: Number.isFinite(Number(x.p)) ? Math.max(0, Math.min(5_000_000, Math.round(Number(x.p)))) : undefined,
       m: mems.slice(0, 7).map((m) => {
         const y = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
         const sets = Array.isArray(y.s) ? y.s.slice(0, 3).map((v) => cut(v, 28)) : undefined;
