@@ -1508,6 +1508,39 @@ section('브라우저 전용 파일 문법 (실행 없이 파싱)');
   okAll(bad, 'ui/renderer/main 문법 검사', files.length);
 }
 
+section('근접 연출에 «돌아가는 길» 이 없나');
+{
+  /* ★★ 실제로 당한 것: 근접이 왔다갔다 하는 게 안 보기 싫다고 해서 «다가가 머문다» 로
+   *   바꿨는데, «한참 안 때리면 제자리로» 라는 타임아웃을 하나 남겨 뒀다.
+   *   그게 그대로 왕복이었다 — 실측으로 ox 가 0→187→35→186 을 반복했다.
+   *   연출이 되돌아가는 길을 **하나라도** 가지고 있으면 왕복은 다시 생긴다.
+   *
+   * ★ 그래서 «v.stand 를 비우는 곳» 이 사망 처리 단 한 군데인지 글자로 확인한다.
+   *   렌더러는 DOM 을 써서 node 로 실행할 수 없으니 소스를 읽는 수밖에 없다. */
+  const check = (src) => {
+    const faults = [];
+    const hits = [];
+    for (let i = src.indexOf('stand = null'); i >= 0; i = src.indexOf('stand = null', i + 1)) hits.push(i);
+    if (!hits.length) faults.push('v.stand 를 비우는 곳이 아예 없다 (사망 시 정리가 빠졌다)');
+    if (hits.length > 1) faults.push(`v.stand 를 비우는 곳이 ${hits.length} 군데다 — 사망 처리 하나여야 한다`);
+    for (const i of hits) {
+      if (!src.slice(Math.max(0, i - 400), i).includes('v.dieT >= 0')) {
+        faults.push('사망 처리 밖에서 v.stand 를 비운다 — 그 길이 곧 왕복이다');
+      }
+    }
+    return faults;
+  };
+  const rsrc = readFileSync(srcDir('battle/renderer.js'), 'utf8');
+  okAll(check(rsrc), '근접은 붙으면 죽을 때까지 안 돌아온다', 1);
+
+  /* ★ 이 저장소에서 «통과만 하고 아무것도 안 잡는 검사» 를 여러 번 만들었다.
+   *   그래서 검사가 실제로 무는지 여기서 확인한다. */
+  const bitten = check(rsrc.replace('function onProj', 'function _x() { v.stand = null; } function onProj'));
+  /* ok() 는 통과하면 아무것도 안 찍는다 — 메타 검사야말로 «돌았다» 가 보여야 하므로 pass() 로 찍는다 */
+  if (bitten.length) pass('검사가 실제로 문다 (복귀 경로를 심으면 걸린다)', bitten[0]);
+  else ok(false, '검사가 실제로 문다', '복귀 경로를 심었는데 검사가 안 걸렸다');
+}
+
 section('고용 계량기 — S 가 나올 수 있는 횟수였나');
 {
   const R = need('game/rules.js');

@@ -73,7 +73,6 @@ const EASE_IN = (t) => t * t * t;
 /* 시작도 끝도 느린 곡선. ★ EASE_OUT 은 **시작이 가장 빠르다**(미분값 3) —
  * 돌진에 쓰면 첫 프레임이 평균의 3배로 튀어 «사라졌다가 나타나는» 도약이 된다.
  * 실측: 1배속에서 첫 프레임 89px (평균 32px). 그게 순간이동으로 읽히던 원인이다. */
-const EASE_SMOOTH = (t) => t * t * (3 - 2 * t);
 const hashStr = (s) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; };
 
 function hex2rgb(h) {
@@ -159,11 +158,10 @@ const CLIPS = {
   hit: [['hit0', 0.17]],
   die: [['die0', 0.13], ['die1', 0.13], ['die2', 0.14], ['die3', 0.60]],
 };
-/* 돌진 «한 걸음» — 목표까지 거리의 이 비율만 나아간다 (나머지는 타격 연출이 잇는다).
- * 0.28 이면 478px 짜리 간격에서 134px 를 0.25초에 간다 = 536px/초. 눈이 따라간다. */
-const LUNGE_FRAC = 0.28;
-/* 아주 가까운 상대에게도 최소한 이만큼은 내디딘다 (제자리 스윙처럼 보이지 않게) */
-const LUNGE_MIN_PX = 22;
+/* 근접 접근 속도 (지수 감쇠 계수). 6 이면 약 0.3초에 90% 도달 — 눈이 따라간다. */
+const STAND_SPEED = 6;
+/* 목표 자리까지 이만큼 넘게 남았으면 «걷는 중» 으로 본다 */
+const MOVE_FRAME_PX = 6;
 
 /* 돌진 잔상 — 프레임당 이동량이 이보다 크면 지나온 자리에 반투명 분신을 깐다.
  * 스프라이트 폭(96px)의 1/6 을 넘어가면 이미 «끊겨» 보이기 시작한다. */
@@ -1100,31 +1098,54 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     else play(v, magic ? 'cast' : 'shoot');
   }
 
+  /**
+   * 근접 공격 — **다가가서 머문다.** 돌아오지 않는다.
+   *
+   * ★★ 왜 왕복을 버렸나 (제작자: 「근접은 왔다갔다 하는 잔상만 보인다」)
+   *   행동은 0.05초마다 일어나는데 왕복 연출 한 번이 0.70초다.
+   *   즉 **항상 열네 명이 동시에 왕복 중**이라 전장 전체가 쉬지 않고 진동했다.
+   *   한 명의 돌진을 아무리 다듬어도(거리·곡선) 안 읽히는 이유가 이것이었다.
+   *
+   *   근접이 앞으로 나가 그 자리에 **머물면서** 제자리 스윙을 반복하면
+   *   왕복이 사라지고 «전선이 맞붙은» 그림이 된다.
+   *   ★ 한 번 붙으면 **죽을 때까지 안 돌아온다.** 처음엔 「한참 안 때리면 복귀」 를
+   *     넣어 봤는데, 그게 그대로 왕복이었다 — 실측으로 ox 가 0→187→35→186 을 반복했다.
+   *     연출이 «되돌아가는 길» 을 가진 순간 왕복은 다시 생긴다. 길 자체를 없애야 한다.
+   *
+   * ★ 엔진은 손대지 않는다 — 순차 턴으로 바꾸면 승률이 흔들린다(실측 5~7%p).
+   *   이건 **그리는 위치**만 바꾸는 것이라 전투 결과와 무관하다.
+   */
+  /** 그 진영의 최전선 화면 x (아군은 가장 큰 x, 적군은 가장 작은 x). */
+  function frontLineX(side) {
+    let best = null;
+    for (const v of vis.values()) {
+      if (v.gone || v.u.side !== side) continue;
+      const x = homeX(v.u);
+      if (best === null) best = x;
+      else if (side === 'ally' ? x > best : x < best) best = x;
+    }
+    return best === null ? 0 : best;
+  }
+
   function onLunge(e) {
     const v = vis.get(e.uid);
     const t = vis.get(e.targetUid);
     if (!v || !t || v.dieT >= 0) return;
     v.meleeWait = 0;
     const d = facing(v.u);
-    const tx = homeX(t.u) - d * meleeStand;
-    const ty = homeY(t.u);
-    /* ★★ 돌진은 **앞으로 한 걸음**이지 전장 횡단이 아니다.
-     *   진영 사이가 화면에서 478px 인데 그걸 0.25초에 왕복하면
-     *   («왔다갔다 하는 잔상만 보인다» — 제작자) 아무것도 안 읽힌다.
-     *   때리는 시각은 엔진이 정하므로(MELEE_DELAY) **시간은 못 늘린다** —
-     *   대신 **거리를 줄인다.** 목표까지의 일부만 나아가고, 닿았다는 신호는
-     *   무기 궤적과 피격 연출(섬광·넉백·피해 숫자)이 대신한다.
-     *   원거리 무기가 그렇듯, 화면에서 «맞았다» 를 만드는 건 이동이 아니라 타격 연출이다. */
-    const wantX = tx - homeX(v.u);
-    const wantY = ty - homeY(v.u);
-    const want = Math.hypot(wantX, wantY) || 1;
-    const step = Math.min(want, Math.max(LUNGE_MIN_PX, want * LUNGE_FRAC));
-    const k = step / want;
-    v.lunge = { t: 0, out: 0.25, hold: 0.13, back: 0.32, dx: wantX * k, dy: wantY * k,
-      /* 한 걸음으로 안 닿았으면(k<1) 대상 자리에도 베는 궤적을 남긴다 */
-      reach: k < 0.95, tv: t };
-    v.clip = null;
-    fx.spawn('dust', posX(v), posY(v), { dir: d, count: 5 });
+    /* ★★ 세로(dy)는 **자기 줄을 지킨다.**
+     *   목표의 줄까지 따라가게 했더니 근접 전원이 같은 자리로 몰려 겹쳤다.
+     *
+     * ★★ 가로도 **자기 깊이를 지킨다.**
+     *   전원을 «목표 앞» 으로 보내면 후열까지 같은 x 로 몰려 진형이 통째로 무너진다.
+     *   자기 진영 최전선에서 얼마나 뒤에 있었는지(depth)를 그대로 유지한 채
+     *   전선만 앞으로 당긴다 — 그래야 «줄이 맞물린» 그림이 된다. */
+    const depth = Math.abs(frontLineX(v.u.side) - homeX(v.u));
+    v.stand = { dx: (homeX(t.u) - d * (meleeStand + depth)) - homeX(v.u), dy: 0 };
+    play(v, 'atk');
+    // 발밑 먼지는 «자리를 옮길 때» 만 (제자리 스윙마다 피우면 지저분하다)
+    const far = Math.hypot(v.stand.dx - v.ox, v.stand.dy - v.oy);
+    if (far > 12) fx.spawn('dust', posX(v), posY(v), { dir: d, count: 4 });
   }
 
   function onProj(e) {
@@ -1306,7 +1327,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (v.bubble) { v.bubble.t += dt; if (v.bubble.t >= v.bubble.dur) v.bubble = null; }
     if (v.meleeWait > 0) {
       v.meleeWait -= dt;
-      if (v.meleeWait <= 0 && !v.lunge && v.dieT < 0) play(v, 'atk');
+      if (v.meleeWait <= 0 && !v.stand && v.dieT < 0) play(v, 'atk');
     }
 
     // 사망
@@ -1315,41 +1336,24 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       const len = clipLen(CLIPS.die);
       v.alpha = v.dieT <= len - 0.35 ? 1 : clamp(1 - (v.dieT - (len - 0.35)) / 0.55, 0, 1);
       if (v.alpha <= 0.01) v.gone = true;
-      v.lunge = null;
+      v.stand = null;
       return;
     }
 
-    // 돌진
-    if (v.lunge) {
-      const L = v.lunge;
-      L.t += dt;
-      const total = L.out + L.hold + L.back;
-      if (L.t >= total) {
-        v.lunge = null; v.ox = 0; v.oy = 0;
-      } else if (L.t < L.out) {
-        const p = EASE_SMOOTH(L.t / L.out);
-        v.ox = L.dx * p; v.oy = L.dy * p;
-        if (!L.dusted && L.t > L.out * 0.9) { L.dusted = true; fx.spawn('dust', posX(v), posY(v), { dir: facing(v.u), count: 4 }); }
-      } else if (L.t < L.out + L.hold) {
-        v.ox = L.dx; v.oy = L.dy;
-        // 무기가 지나간 자리에 호 잔상
-        if (!L.swung && L.t > L.out + L.hold * 0.2) {
-          L.swung = true;
-          weaponTrail(v);
-          /* ★ 한 걸음만 내디디므로 공격자와 대상 사이가 남는다.
-           *   그 사이를 **베는 궤적**으로 이어 «닿았다» 를 만든다 —
-           *   화면에서 명중을 만드는 건 이동이 아니라 타격 연출이다. */
-          if (L.reach && L.tv && !L.tv.gone) {
-            const d = facing(v.u);
-            fx.spawn('trail', posX(L.tv) - d * 8, chestY(L.tv) + 4, { dir: d, scale: 1.25 });
-          }
-        }
-      } else {
-        const p = EASE_SMOOTH((L.t - L.out - L.hold) / L.back);
-        v.ox = L.dx * (1 - p); v.oy = L.dy * (1 - p);
+    /* 근접 접근 — 목표 자리로 **부드럽게 다가가 머문다.**
+     * 지수 감쇠라 처음이 빠르고 끝이 느리다: 붙는 순간이 또렷하고 도착이 부드럽다. */
+    if (v.stand) {
+      const k = Math.min(1, dt * STAND_SPEED);
+      v.ox += (v.stand.dx - v.ox) * k;
+      v.oy += (v.stand.dy - v.oy) * k;
+      if (v.clip) {
+        v.clipT += dt;
+        if (v.clip === CLIPS.atk && !v.swung && v.clipT >= 0.10) { v.swung = true; weaponTrail(v); }
+        if (v.clipT >= clipLen(v.clip)) v.clip = null;
       }
       return;
     }
+
     v.ox += (0 - v.ox) * Math.min(1, dt * 12);
     v.oy += (0 - v.oy) * Math.min(1, dt * 12);
 
@@ -1364,14 +1368,12 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
 
   function frameOf(v) {
     if (v.dieT >= 0) return clipFrame(CLIPS.die, v.dieT) || 'die3';
-    if (v.lunge) {
-      const L = v.lunge;
-      if (L.t < L.out * 0.62) return WALK[Math.floor(L.t / 0.062) % 4];
-      if (L.t < L.out) return 'atk0';
-      if (L.t < L.out + L.hold * 0.55) return 'atk1';
-      if (L.t < L.out + L.hold) return 'atk2';
-      if (L.t < L.out + L.hold + 0.10) return 'atk3';
-      return WALK[3 - (Math.floor((L.t - L.out - L.hold) / 0.07) % 4)];
+    /* 자리를 옮기는 중이면 걷는다. 다 왔으면 아래 clip(스윙)이 나온다.
+     * ★ «옮기는 중» 은 목표 자리와의 거리로 판단한다 — 시간으로 재면
+     *   가까운 상대에게도 걷는 시늉을 해서 어색하다. */
+    if (v.stand) {
+      const rest = Math.hypot(v.stand.dx - v.ox, v.stand.dy - v.oy);
+      if (rest > MOVE_FRAME_PX) return WALK[Math.floor(animT / 0.11) % 4];
     }
     if (v.clip) {
       const f = clipFrame(v.clip, v.clipT);
@@ -1522,7 +1524,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
      *
      *   ★ 잔상은 프레임당 이동량이 클 때만 그린다. 느릴 때 그리면 그냥 지저분하다. */
     const gap = Math.abs(x - (v.lastX == null ? x : v.lastX));
-    if (v.lunge && gap > GHOST_MIN_PX) {
+    if (v.stand && gap > GHOST_MIN_PX) {
       const n = Math.min(GHOST_MAX, Math.round(gap / GHOST_STEP_PX));
       for (let i = 1; i <= n; i++) {
         const p2 = i / (n + 1);
@@ -2105,6 +2107,21 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     get height() { return H; },
     /** 세로 배치(폰 세로) 매핑을 쓰고 있는가. 검증 도구가 읽는다 */
     get portrait() { return portrait; },
+    /**
+     * 검증 도구가 읽는다 — 살아 있는 유닛의 **현재 화면 좌표**.
+     * 연출이 왔다갔다 흔들리는지(=근접 왕복) 재려면 이게 필요하다.
+     * 캔버스 그림에서 역산하려 하면 유닛 전원이 스프라이트 시트 하나를 공유해서 구분이 안 된다.
+     */
+    __positions() {
+      const out = [];
+      for (const v of vis.values()) {
+        if (v.gone) continue;
+        /* x/y 는 카메라(줌·흔들림)가 섞인 최종 화면 좌표라 전원이 똑같이 움직인다.
+         * «왔다갔다» 를 재려면 카메라가 안 섞인 연출 오프셋 ox/oy 를 봐야 한다. */
+        out.push({ uid: v.u.uid, side: v.u.side, x: posX(v), y: posY(v), ox: v.ox, oy: v.oy, stand: !!v.stand });
+      }
+      return out;
+    },
     /** 개발용 단계별 프로파일러 (기본 비활성). 위 PROF 주석 참고 */
     __prof: PROF,
   };
