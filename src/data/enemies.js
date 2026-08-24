@@ -825,6 +825,36 @@ export const ENEMIES = {};
 for (const e of ENEMY_DEFS) {
   ENEMIES[e.id] = { ...ENEMY_BASE, ...e, sprite: e.sprite || sp({}) };
 }
+
+/* ── 통짜 전투 시트(battleSheet) 배정 ─────────────────────────────────
+ *
+ * ★★ 파츠 조립은 «사람 몸 + 갈아끼우는 머리·무기» 다. 늑대·곰은 그래서 **사람 몸에
+ *   동물 머리만 얹힌 모습**이 됐고, 바위 골렘은 깡마른 사람이었다. 파츠를 아무리
+ *   고쳐도 구조가 틀린 것은 안 고쳐진다 — 이런 적만 통짜 그림(HANDOFF §61)으로 간다.
+ *
+ * ★ 한 장이 여러 적을 덮는다: 팔레트가 색을 정하므로 회색늑대·동굴곰·검치호·지옥견이
+ *   같은 그림을 쓰고, 화염/서리/폭풍 정령도 같은 그림이다. 그래서 시트 그림에는
+ *   «불꽃 빨강» 같은 고유색을 박지 않고 마력광 문자(f/g/G)로만 그린다.
+ *
+ * ★ 무기를 든 인간형 적은 여기 넣지 않는다 — 통짜 그림은 무기를 함께 굽기 때문에
+ *   «고블린 병졸(단검)» 과 «고블린 궁수(활)» 가 같은 그림을 쓸 수 없다. 그쪽은 조립이 맞다.
+ *
+ * 시트 열 장이 다 없으면 spritegen 의 sheetOf 가 조용히 조립으로 물러난다 (안전망).
+ */
+const BATTLE_SHEET = {
+  bt_beast: ['gray_wolf', 'wild_boar', 'dire_wolf', 'cave_bear', 'saber_cat', 'hellhound', 'alpha_wolf'],
+  bt_spirit: ['flame_wisp', 'frost_spirit', 'storm_wisp'],
+  /* 강철 거상은 방패·철퇴·판금을 갖춘 «중장 인간형» 이다 — 무기가 그림에 구워지면
+   * 안 되므로 조립에 남긴다. 통짜로 가는 것은 무기를 안 든 구조체뿐이다.
+   * bt_golem(바위 골렘)은 atk0 한 장이 남아 아직 배정하지 않았다 — 그림이 다 되면 여기 켠다. */
+};
+for (const [sheet, ids] of Object.entries(BATTLE_SHEET)) {
+  for (const id of ids) {
+    const e = ENEMIES[id];
+    if (e && e.sprite) e.sprite.battleSheet = sheet;
+  }
+}
+
 /** 순회용 배열 (ENEMIES 와 동일 객체 참조). */
 export const ENEMY_LIST = Object.values(ENEMIES);
 /** 보스 목록 (배열). ENEMIES 안에도 그대로 들어있다. */

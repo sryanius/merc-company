@@ -1873,6 +1873,34 @@ section('정면 포즈 판·클래스 얼굴의 기하');
   }
 }
 
+section('적 통짜 시트 배정');
+{
+  /* ★ 적에게 battleSheet 를 달아 놓고 시트를 안 그리면 spritegen 이 조용히 조립으로
+   *   물러난다 — 화면은 «예전 그대로» 라 안 잡힌다. 배정과 그림을 짝지어 검사한다.
+   *   반대로 무기 든 인간형에 시트를 달면 «고블린 궁수가 단검을 든다» 가 된다. */
+  const EN = need('data/enemies.js');
+  const FP = need('art/parts_front.js');
+  if (!EN || !FP) { ok(false, '적·파츠 모듈을 못 읽었다'); } else {
+    const names = Object.keys(FP.FRONT_PARTS || {});
+    const KEYS = ['idleA', 'idleB', 'walkA', 'walkB', 'atk0', 'atk1', 'atk2', 'hit0', 'die0', 'die1'];
+    const list = Object.values(EN.ENEMIES || {});
+    const assigned = list.filter((e) => e.sprite && e.sprite.battleSheet);
+    const faults = [];
+    const sheets = [...new Set(assigned.map((e) => e.sprite.battleSheet))];
+    for (const sh of sheets) {
+      const missing = KEYS.filter((k) => !names.includes(`${sh}_${k}`));
+      if (missing.length) faults.push(`${sh}: 배정된 적이 있는데 프레임이 없다 — ${missing.slice(0, 3).join(', ')}...`);
+    }
+    /* 시트는 무기를 함께 굽는다 — 무기를 든 적에게 달면 안 된다 (wpn_none/claw 만 허용) */
+    const OKW = ['wpn_none', 'wpn_claw', undefined, null, ''];
+    for (const e of assigned) {
+      const w = e.sprite.weapon;
+      if (!OKW.includes(w)) faults.push(`${e.name}: ${w} 를 들었는데 통짜 시트(${e.sprite.battleSheet})가 배정됐다 — 무기가 그림에 구워진다`);
+    }
+    okAll(faults, `통짜 시트를 쓰는 적 ${assigned.length}종이 시트·무기 규약을 지킨다`, Math.max(1, assigned.length));
+  }
+}
+
 section('던전 하루 1회 · 구걸');
 {
   /* ★★ 제작자 지적 두 건:
