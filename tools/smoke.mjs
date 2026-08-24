@@ -1897,7 +1897,15 @@ section('적 통짜 시트 배정');
       const w = e.sprite.weapon;
       if (!OKW.includes(w)) faults.push(`${e.name}: ${w} 를 들었는데 통짜 시트(${e.sprite.battleSheet})가 배정됐다 — 무기가 그림에 구워진다`);
     }
-    okAll(faults, `통짜 시트를 쓰는 적 ${assigned.length}종이 시트·무기 규약을 지킨다`, Math.max(1, assigned.length));
+    /* 펫도 같은 규약 — 다만 펫은 무기를 안 든다 (시트가 몸 전체를 그린다) */
+    const PT = need('data/pets.js');
+    const pets = PT ? Object.values(PT.PETS || {}).filter((p) => p.sprite && p.sprite.battleSheet) : [];
+    for (const sh of [...new Set(pets.map((p) => p.sprite.battleSheet))]) {
+      const missing = KEYS.filter((k) => !names.includes(`${sh}_${k}`));
+      if (missing.length) faults.push(`${sh}: 배정된 펫이 있는데 프레임이 없다 — ${missing.slice(0, 3).join(', ')}...`);
+    }
+    okAll(faults, `통짜 시트를 쓰는 적 ${assigned.length}종·펫 ${pets.length}종이 시트·무기 규약을 지킨다`,
+      Math.max(1, assigned.length + pets.length));
   }
 }
 
@@ -3247,6 +3255,7 @@ section('펫 / 무한의 탑');
     if (!(p.tier >= 1 && p.tier <= 5)) bad.push(`${p.id}: tier=${p.tier}`);
     if (!FX.includes(p.basicFx)) bad.push(`${p.id}: fx='${p.basicFx}'`);
     if (!DMG.includes(p.basicDmgType)) bad.push(`${p.id}: dmgType='${p.basicDmgType}'`);
+    const FPX = need('art/parts_front.js');
     if (!['melee', 'ranged'].includes(p.basicRange)) bad.push(`${p.id}: range='${p.basicRange}'`);
     for (const sk of p.skills || []) if (!Skills.getSkill(sk)) bad.push(`${p.id}: 없는 스킬 '${sk}'`);
     for (const [k, v] of Object.entries(p.sprite || {})) {
@@ -3256,6 +3265,13 @@ section('펫 / 무한의 탑');
           const names = Array.isArray(pool) ? pool : (pool ? Object.keys(pool) : null);
           if (!names || !names.includes(pv)) bad.push(`${p.id}: palette ${ps}='${pv}'`);
         }
+      } else if (k === 'battleSheet') {
+        /* ★ 통짜 시트는 조립 파츠 어휘가 아니다 — 대신 «열 장이 다 있는가» 로 검사한다.
+         *   이 갈래가 없으면 새 필드가 «없는 파츠» 로 걸려서, 화이트리스트가 조용히
+         *   기능을 막는 그 함정에 다시 빠진다 (sanitizeSquadsFull 의 p, setDefOf 의 prefer). */
+        const KEYS10 = ['idleA', 'idleB', 'walkA', 'walkB', 'atk0', 'atk1', 'atk2', 'hit0', 'die0', 'die1'];
+        const miss = KEYS10.filter((kk) => !FPX || !FPX.FRONT_PARTS[`${v}_${kk}`]);
+        if (miss.length) bad.push(`${p.id}: 시트 '${v}' 프레임 부족 (${miss.slice(0, 3).join(',')}…)`);
       } else if (typeof v === 'string' && !vocab.has(v)) bad.push(`${p.id}: 파츠 '${v}'`);
     }
   }

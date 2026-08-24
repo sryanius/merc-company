@@ -846,7 +846,8 @@ const BATTLE_SHEET = {
   bt_spirit: ['flame_wisp', 'frost_spirit', 'storm_wisp'],
   /* 강철 거상은 방패·철퇴·판금을 갖춘 «중장 인간형» 이다 — 무기가 그림에 구워지면
    * 안 되므로 조립에 남긴다. 통짜로 가는 것은 무기를 안 든 구조체뿐이다.
-   * bt_golem(바위 골렘)은 atk0 한 장이 남아 아직 배정하지 않았다 — 그림이 다 되면 여기 켠다. */
+   * 통짜로 가는 것은 무기를 안 든 구조체뿐이다. */
+  bt_golem: ['stone_golem'],
 };
 for (const [sheet, ids] of Object.entries(BATTLE_SHEET)) {
   for (const id of ids) {

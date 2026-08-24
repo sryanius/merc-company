@@ -243,6 +243,29 @@ const PET_DEFS = [
 
 /* ─────────────────────────── 조회 ─────────────────────────── */
 
+/* ── 통짜 전투 시트(battleSheet) 배정 ─────────────────────────────────
+ *
+ * ★★ 펫 16종이 **전부 사람 몸**이었다. 조립은 «사람 골격 + 갈아끼우는 머리·무기» 라
+ *   늑대 새끼도 두꺼비도 정령도 사람 형상으로 나왔다 (HANDOFF §62 의 적과 같은 원인,
+ *   다만 펫은 예외 없이 전부 해당됐다). 게다가 용병과 **같은 키**로 서서 동반자로 안 읽혔다.
+ *
+ * 통짜 그림은 크기까지 그림이 정한다 — 펫 시트는 키 40~62px 로 그려 용병의 절반쯤이 된다.
+ * 팔레트가 색을 정하므로 한 장이 여러 마리를 덮는다.
+ *
+ * 시트 열 장이 다 없으면 spritegen 의 sheetOf 가 조용히 조립으로 물러난다 (안전망).
+ */
+const PET_SHEET = {
+  bt_pbeast: ['pet_pup', 'pet_fang', 'pet_ember', 'pet_starcalf'],
+  bt_pwisp: ['pet_wisp', 'pet_moss', 'pet_lantern'],
+  bt_prelic: ['pet_saint', 'pet_banner', 'pet_chalice'],
+};
+for (const [sheet, ids] of Object.entries(PET_SHEET)) {
+  for (const id of ids) {
+    const pet = PET_DEFS.find((p) => p.id === id);
+    if (pet && pet.sprite) pet.sprite.battleSheet = sheet;
+  }
+}
+
 const BY_ID = new Map(PET_DEFS.map((p) => [p.id, p]));
 
 /** 전체 펫 종 목록 (읽기 전용으로 다뤄라) */
