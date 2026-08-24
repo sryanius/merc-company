@@ -848,6 +848,9 @@ const BATTLE_SHEET = {
    * 안 되므로 조립에 남긴다. 통짜로 가는 것은 무기를 안 든 구조체뿐이다.
    * 통짜로 가는 것은 무기를 안 든 구조체뿐이다. */
   bt_golem: ['stone_golem'],
+  bt_spider: ['cave_spider'],
+  bt_harpy: ['harpy'],
+  bt_dragon: ['flame_dragon'],
 };
 for (const [sheet, ids] of Object.entries(BATTLE_SHEET)) {
   for (const id of ids) {

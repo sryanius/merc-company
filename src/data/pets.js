@@ -258,6 +258,11 @@ const PET_SHEET = {
   bt_pbeast: ['pet_pup', 'pet_fang', 'pet_ember', 'pet_starcalf'],
   bt_pwisp: ['pet_wisp', 'pet_moss', 'pet_lantern'],
   bt_prelic: ['pet_saint', 'pet_banner', 'pet_chalice'],
+  bt_ptoad: ['pet_shell'],
+  bt_pimp: ['pet_imp'],
+  bt_pbird: ['pet_kite'],
+  bt_pward: ['pet_aegis', 'pet_warden'],
+  bt_psword: ['pet_eclipse'],
 };
 for (const [sheet, ids] of Object.entries(PET_SHEET)) {
   for (const id of ids) {
