@@ -36,6 +36,31 @@ export function newChallengeId() {
  * @param {Array<Array<object>>} p.squads  부대 순서대로의 UnitDef 배열
  * @param {number} p.power
  */
+/**
+ * 편성 지문 — «지금 편성이 등록해 둔 것과 같은가» 만 묻는다.
+ *
+ * ★ 보안 장치가 **아니다.** 서버는 이 값을 보지 않는다 — 위조 방어는
+ *   statbound.js 가 맡는다. 여기서 거짓말해봐야 손해는 본인 것이다
+ *   (낡은 편성으로 싸우게 된다).
+ *
+ * ★ 32비트로는 충돌 한 번이 «낡은 편성으로 싸움» 으로 이어져서
+ *   FNV-1a 두 벌을 엮어 64비트로 둔다. 값이 싸다.
+ *
+ * @param {any} units 등록할 모양 그대로의 부대 배열
+ * @returns {string} 16자 16진수
+ */
+export function lineupFp(units) {
+  const s = JSON.stringify(units);
+  let a = 2166136261 >>> 0;
+  let b = 2166136343 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    a = Math.imul(a ^ c, 16777619) >>> 0;
+    b = Math.imul(b ^ (c + i), 16777639) >>> 0;
+  }
+  return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0');
+}
+
 export async function registerDefense({ companyName, squads, power, saveRev }) {
   return authed(FN(), {
     method: 'POST',

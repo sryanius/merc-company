@@ -4613,6 +4613,186 @@ section('대표 부대를 바꾸면 순위표가 따라오는가');
   }
 }
 
+section('업데이트 내역 — 날짜와 밀림');
+{
+  /* ★★ 제작자가 화면을 보고 두 가지를 짚었다:
+   *     「업데이트때 업데이트 내역도 안쓰고있네」
+   *     「지금 8월 25일인데 날짜 왜이래」  ← 팝업에 2026-08-28 이 떠 있었다
+   *
+   *   실측해 보니 **내역 커밋은 전부 2026-08-21 인데 date 는 08-20~08-28** 이었다.
+   *   즉 날짜를 «앞으로» 지어내 적고 있었다. 그리고 마지막 내역 갱신 뒤로
+   *   커밋 27개(08-22·08-24·08-25)가 통째로 안 적혀 있었다 — PvP 한 벌이 통째로.
+   *
+   *   그래서 «사람이 기억하기» 대신 검사로 못 박는다. 기준 시각은 **최신 커밋 날짜**다 —
+   *   벽시계를 쓰면 검사가 날마다 결과를 바꾼다. */
+  const CL = need('data/changelog.js');
+  if (!CL) { ok(false, '업데이트 내역 모듈을 못 읽었다'); } else {
+    const list = Array.isArray(CL.CHANGELOG) ? CL.CHANGELOG : [];
+    ok(list.length > 0, '내역 항목을 읽어 냈다', `${list.length}개`);
+
+    let head = '';
+    try {
+      head = execFileSync('git', ['log', '-1', '--date=short', '--pretty=%ad'],
+        { cwd: rootDir, encoding: 'utf8' }).trim();
+    } catch { /* git 없는 환경 — 아래 검사들을 건너뛴다 */ }
+
+    const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+    okAll(list.filter((e) => !isDate(e.date)).map((e) => `${e.id}: date '${e.date}' 가 YYYY-MM-DD 가 아니다`),
+      '모든 항목이 날짜 모양을 갖췄다', list.length || 1);
+
+    /* ① 미래 날짜 금지 — 이번에 걸린 바로 그것 */
+    if (head) {
+      okAll(list.filter((e) => isDate(e.date) && e.date > head)
+        .map((e) => `${e.id}: ${e.date} 는 최신 커밋(${head})보다 미래다`),
+        `내역 날짜가 미래가 아니다 (기준 ${head})`, list.length || 1);
+    } else {
+      ok(true, 'git 이 없어 날짜 기준 검사를 건너뜀');
+    }
+
+    /* ② 위가 최신 — 팝업이 위에서부터 읽는다 */
+    const disorder = [];
+    for (let i = 1; i < list.length; i++) {
+      if (isDate(list[i - 1].date) && isDate(list[i].date) && list[i - 1].date < list[i].date) {
+        disorder.push(`${list[i - 1].id}(${list[i - 1].date}) 아래에 더 최신인 ${list[i].id}(${list[i].date}) 가 있다`);
+      }
+    }
+    okAll(disorder, '맨 위가 최신이다 (날짜가 내려간다)', Math.max(1, list.length - 1));
+
+    /* ③ id 는 «본 적 있는가» 의 열쇠다 — 겹치면 안 본 사람이 못 본다 */
+    const seen = new Set();
+    const dup = [];
+    for (const e of list) { if (seen.has(e.id)) dup.push(`id '${e.id}' 가 두 번 나온다`); seen.add(e.id); }
+    okAll(dup, 'id 가 겹치지 않는다', list.length || 1);
+    ok(CL.LATEST_ID === (list[0] && list[0].id), 'LATEST_ID 가 맨 위 항목이다',
+      `${CL.LATEST_ID} vs ${list[0] && list[0].id}`);
+
+    /* ④ 새 항목은 id 앞에 제 날짜를 단다.
+     *   ★ 옛 항목 20개는 날짜를 뒤로 고쳤는데 id 는 못 고친다 — id 를 바꾸면
+     *     이미 본 사람에게 팝업이 다시 뜬다 (파일 머리말의 규칙). 그래서 **날짜로 봐준다**:
+     *     2026-08-22 이후 항목만 본다. 그 앞은 어긋난 채로 굳었다. */
+    const GRANDFATHER = '2026-08-22';
+    okAll(list.filter((e) => isDate(e.date) && e.date >= GRANDFATHER && !String(e.id).startsWith(e.date))
+      .map((e) => `${e.id}: id 가 제 날짜(${e.date})로 시작하지 않는다`),
+      `새 항목은 id 가 날짜로 시작한다 (${GRANDFATHER} 이후)`, list.length || 1);
+
+    /* ⑤ **내역이 밀리지 않았는가** — 제작자가 짚은 진짜 문제.
+     *   일하고 나서 적기를 잊으면 여기서 걸린다. 도구·리팩터링만 한 날을 위해 이틀 봐준다. */
+    if (head && isDate(list[0] && list[0].date)) {
+      const dayOf = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 86400000;
+      const behind = dayOf(head) - dayOf(list[0].date);
+      ok(behind <= 2, '업데이트 내역이 밀리지 않았다',
+        `최신 커밋 ${head} 인데 최신 내역은 ${list[0].date} (${behind}일 밀렸다) — src/data/changelog.js 에 항목을 더해라`);
+    }
+  }
+}
+
+section('PvP 화면 — 남이 움직인 것이 보이는가 · 편성이 따라가는가');
+{
+  /* ★★ 제작자가 화면으로 짚은 두 가지:
+   *     「근데 난 왜 상대 안보이니」        — 서버엔 2행인데 화면엔 1행이었다
+   *     「부대 등록하면 자동 업데이트 되나?」 — 아니었다. 옛 편성으로 싸우고 있었다
+   *
+   *   ① 은 모듈 변수에 담은 캐시가 **세션 내내 살아 있어서**였다. 지우는 곳이
+   *      «내가 등록/도전했을 때» 뿐이라, 남이 등록하거나 나를 때린 건 영영 안 보였다.
+   *      (그래서 전적엔 5판이 찍혔는데 전적표는 0승 0패였다.)
+   *   ② 는 등록이 **얼어붙은 사본**이라서다. 그 사본이 곧 공격 편성이라 더 나빴다. */
+  /* ★ net/ 는 MODULE_LIST 에 없다 (브라우저 전용 모듈들이라). 직접 읽는다 —
+   *   pvp.js 는 DOM 없이도 들어온다 (모듈 몸신이 fetch 를 안 부른다). */
+  let P = null;
+  try { P = await import(srcUrl('net/pvp.js')); } catch (e) { ok(false, 'net/pvp.js 를 읽는다', String(e.message)); }
+  const psrc = readFileSync(srcDir('ui/pvp.js'), 'utf8');
+
+  const bodyOf = (src, name) => {
+    const at = src.indexOf(`function ${name}(`);
+    if (at < 0) return '';
+    const open = src.indexOf('{', at);
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) return src.slice(open, i + 1); }
+    }
+    return src.slice(open);
+  };
+
+  /* ── ① 캐시가 늙어 죽는가 ─────────────────────────────────────── */
+  const faults = [];
+  const ttlM = psrc.match(/const CACHE_MS = ([\d_]+)/);
+  const ttl = ttlM ? Number(String(ttlM[1]).replace(/_/g, '')) : 0;
+  ok(ttl > 0 && ttl <= 60_000, 'PvP 목록 캐시에 수명이 있다 (0 < TTL ≤ 60초)',
+    ttlM ? `CACHE_MS = ${ttl}` : 'CACHE_MS 를 못 찾았다 — 캐시가 영원히 살 수 있다');
+
+  const dataBody = bodyOf(psrc, 'pvpData');
+  ok(/Date\.now\(\)\s*-\s*dataAt\)?\s*<\s*CACHE_MS/.test(dataBody),
+    '캐시를 쓸지 말지를 시각으로 판단한다',
+    dataBody ? '수명 비교가 없다 — 한 번 담으면 계속 쓴다' : 'pvpData 를 못 찾았다');
+
+  /* 옛 «영원한 캐시» 가 되살아나지 않게 못 박는다 */
+  ok(!/\b(boardCache|meCache)\b\s*=/.test(psrc),
+    '세션 내내 사는 목록 캐시가 없다 (boardCache/meCache)',
+    '모듈 변수 캐시가 되살아났다');
+
+  /* me 와 board 를 한 곳에서 받는가 — 따로 받으면 «나» 표시가 비는 경합이 산다 */
+  ok(/Promise\.all\(\[/.test(dataBody) && /Pvp\.me\(\)/.test(dataBody) && /Pvp\.board\(/.test(dataBody),
+    'me 와 board 를 한 약속으로 묶어 받는다 (myHandle 경합 제거)');
+
+  /* ── ② 도전 직전에 편성을 맞추는가 ────────────────────────────── */
+  const chBody = bodyOf(psrc, 'doChallenge');
+  ok(chBody.length > 100, 'doChallenge 본문을 찾았다', `${chBody.length}자`);
+
+  const iStale = chBody.indexOf('lineupStale');
+  const iReg = chBody.indexOf('registerNow');
+  const iFight = chBody.indexOf('Pvp.challenge(');
+  const iGold = chBody.indexOf('state.gold =');
+  faults.push(
+    iStale < 0 ? '도전 전에 편성이 낡았는지 안 본다' : null,
+    iReg < 0 ? '도전 전에 다시 등록하지 않는다' : null,
+    iFight < 0 ? 'Pvp.challenge 호출이 없다' : null,
+    (iReg >= 0 && iFight >= 0 && iReg > iFight) ? '재등록이 도전보다 뒤에 있다 — 옛 편성으로 싸운다' : null,
+    (iGold >= 0 && iReg >= 0 && iGold < iReg) ? '골드를 재등록보다 먼저 깎는다 — 등록 실패 시 골드만 날린다' : null,
+    /needRebuild/.test(chBody) ? null : '엔진이 바뀌었을 때(needRebuild) 다시 접지 않는다',
+  );
+  okAll(faults.filter(Boolean), '도전은 최신 편성으로 나가고, 실패하면 골드를 안 쓴다', 6);
+
+  /* 등록에 성공했을 때만 지문을 적는가 — 실패했는데 적으면 «최신» 으로 굳는다 */
+  const regBody = bodyOf(psrc, 'registerNow');
+  const iBad = regBody.indexOf('if (!res.ok)');
+  const iFp = regBody.indexOf('writeFp(');
+  ok(iFp > iBad && iBad >= 0, '지문은 등록에 성공한 뒤에만 적는다',
+    iFp < 0 ? 'writeFp 가 없다' : '실패 경로에서도 지문을 적는다 — 낡은 편성이 «최신» 으로 굳는다');
+
+  /* ── ③ 지문이 편성 변화를 실제로 잡는가 (글자가 아니라 굴려서) ── */
+  if (!P || typeof P.lineupFp !== 'function') {
+    ok(false, 'lineupFp 를 읽었다', 'net/pvp.js 가 안 내보낸다');
+  } else {
+    const base = () => ([
+      [{ uid: 'a', name: '가', classId: 'swordsman', side: 'ally', stats: { hp: 900, atk: 120, def: 40 } },
+        { uid: 'b', name: '나', classId: 'archer', side: 'ally', stats: { hp: 500, atk: 200, def: 10 } }],
+      [{ uid: 'c', name: '다', classId: 'priest', side: 'ally', stats: { hp: 600, atk: 80, def: 20 } }],
+    ]);
+    const fp0 = P.lineupFp(base());
+    const miss = [];
+    if (P.lineupFp(base()) !== fp0) miss.push('같은 편성인데 지문이 달라진다 — 늘 «낡았다» 가 된다');
+
+    const mut = [
+      ['장비로 공격력이 올랐다', (u) => { u[0][0].stats.atk += 1; }],
+      ['체력이 1 올랐다', (u) => { u[0][0].stats.hp += 1; }],
+      ['단원 이름이 바뀌었다', (u) => { u[0][0].name = '라'; }],
+      ['클래스가 승급했다', (u) => { u[0][0].classId = 'knight'; }],
+      ['부대 안 순서가 바뀌었다', (u) => { u[0].reverse(); }],
+      ['부대 순서가 바뀌었다', (u) => { u.reverse(); }],
+      ['단원이 한 명 빠졌다', (u) => { u[0].pop(); }],
+      ['부대가 하나 늘었다', (u) => { u.push([{ uid: 'z', name: '마', classId: 'rogue', stats: { hp: 1 } }]); }],
+    ];
+    for (const [why, f] of mut) {
+      const u = base();
+      f(u);
+      if (P.lineupFp(u) === fp0) miss.push(`${why} — 지문이 안 바뀐다`);
+    }
+    okAll(miss, '지문이 편성 변화를 전부 잡는다', mut.length + 1);
+    ok(/^[0-9a-f]{16}$/.test(fp0), '지문이 64비트 16진수다', fp0);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

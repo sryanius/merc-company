@@ -21,13 +21,72 @@ export const meta = { id: 'pvp', title: 'PvP' };
 export const CHALLENGE_COST = 300_000;
 
 let styleDone = false;
-let boardCache = null;
-let meCache = null;
 let busy = false;
 /* 방금 끝난 도전 — 화면을 다시 그릴 때 맨 위에 보여준다 */
 let lastResult = null;
 
 export function dispose() { /* rAF 없음 */ }
+
+/* ── 서버에서 받아 오기 ───────────────────────────────────────────
+ *
+ * ★★ **캐시는 짧게 산다.**
+ *   예전엔 `boardCache`·`meCache` 에 한 번 담고 세션 내내 그대로 썼다 (지울 때는
+ *   내가 등록하거나 도전했을 때뿐). 그래서 **남이 움직인 건 영영 안 보였다**:
+ *     · 남이 새로 등록해도 내 순위 목록에 안 나타나고
+ *     · 남이 나를 때려 내 승점이 바뀌어도 「1000 · 0승 0패」 그대로였다.
+ *   제작자가 화면으로 알려 줬다 — 서버엔 2행이 있는데 화면엔 1행이었고,
+ *   전적에는 5판이 찍혀 있는데 전적표는 0승 0패였다.
+ *
+ * ★ 그렇다고 «그릴 때마다 다시 받기» 는 과하다 — `refresh()` 는 다른 화면 코드가
+ *   44군데에서 부른다. 10초면 화면을 다시 열 때는 새로 받고,
+ *   한 번 그리는 동안에는 한 번만 받는다.
+ *
+ * ★ me 와 board 를 **한 약속으로 묶는다.** 예전엔 둘이 따로 날아서
+ *   board 가 먼저 오면 «나» 표시(myHandle)가 비었다 — 눈에 잘 안 띄는 경합이었다.
+ */
+const CACHE_MS = 10_000;
+let dataAt = 0;
+let dataPromise = null;
+
+/** 다음 그리기에서 반드시 새로 받게 한다 */
+function dropCache() { dataPromise = null; dataAt = 0; }
+
+function pvpData() {
+  if (dataPromise && (Date.now() - dataAt) < CACHE_MS) return dataPromise;
+  dataAt = Date.now();
+  dataPromise = (async () => {
+    const signed = !!(Auth.signedIn && Auth.signedIn());
+    const [me, board] = await Promise.all([
+      signed ? Pvp.me() : Promise.resolve({ ok: false, data: null }),
+      Pvp.board(100),
+    ]);
+    return { signed, me, board };
+  })();
+  return dataPromise;
+}
+
+/* ── 등록이 낡았는가 ──────────────────────────────────────────────
+ *
+ * 서버가 보관하는 `pvp_defense.units` 는 **등록한 순간의 사본**이다. 장비를 갈아 끼우든
+ * 레벨을 올리든 서버 쪽은 그대로다. 그리고 그 사본이 곧 내 **공격** 편성이라,
+ * 재등록을 잊으면 옛 장비로 싸운다.
+ *
+ * ★ 그래서 «마지막으로 등록한 편성의 지문» 을 이 기기에 적어 두고 지금 편성과 견준다.
+ *   서버에 지문 칸을 두는 편이 더 정확하지만(다른 기기에서도 맞는다) 스키마를 건드려야 한다.
+ *   여기서 틀리는 방향은 **«낡았다» 로 잘못 보는 쪽**뿐이고(기기를 바꾸면 그렇다),
+ *   그 대가는 «필요 없는 재등록 한 번» 이라 안전하다.
+ */
+const FP_KEY = 'merc_pvp_lineup_fp_v1';
+const readFp = () => { try { return localStorage.getItem(FP_KEY) || ''; } catch { return ''; } };
+const writeFp = (v) => { try { localStorage.setItem(FP_KEY, v); } catch { /* 사파리 비공개 모드 */ } };
+
+/** 지금 편성이 마지막으로 등록한 것과 다른가 (등록 자체가 없으면 «다르다») */
+function lineupStale(lineup) {
+  if (!lineup) return false;                 // 편성이 없으면 물어볼 것도 없다
+  const now = Pvp.lineupFp(lineup.units);
+  const was = readFp();
+  return !was || was !== now;
+}
 
 function injectStyle() {
   if (styleDone) return;
@@ -62,30 +121,42 @@ function myLineup() {
   return units.length ? { units, power } : null;
 }
 
-async function doRegister(afterEl) {
-  if (busy) return;
+/**
+ * 지금 편성을 등록한다.
+ * @param {(msg:string)=>void} [say] 진행 표시
+ * @returns {Promise<{ok:boolean, error:string, n:number}>}
+ */
+async function registerNow(say) {
   const lineup = myLineup();
-  if (!lineup) { toast('먼저 부대를 편성해라', 'bad'); return; }
-  busy = true;
-  afterEl.textContent = '등록하는 중…';
+  if (!lineup) return { ok: false, error: '먼저 부대를 편성해라', n: 0 };
+  if (say) say('등록하는 중…');
+
+  /* ★ 지문은 **보낸 것 그대로**에서 뽑는다. 다른 모양에서 뽑으면 늘 «낡았다» 가 된다. */
+  const units = lineup.units;
   const res = await Pvp.registerDefense({
     companyName: state.companyName || '무명단',
-    squads: lineup.units,
+    squads: units,
     power: Math.round(lineup.power),
     saveRev: state.rev,
   });
-  busy = false;
+  if (say) say('');
   if (!res.ok) {
     /* ★ 서버가 «불가능한 값» 을 짚어 주면 그대로 보여준다 — 정상 플레이어가 고칠 수 있어야 한다 */
     const detail = res.data && Array.isArray(res.data.detail) ? res.data.detail.slice(0, 2).join(' / ') : '';
-    afterEl.textContent = '';
-    toast(`등록 실패: ${res.error || ''} ${detail}`.trim(), 'bad');
-    return;
+    return { ok: false, error: `${res.error || '등록 실패'} ${detail}`.trim(), n: 0 };
   }
-  meCache = null;
-  boardCache = null;
-  afterEl.textContent = '';
-  toast(`${lineup.units.length}개 부대를 등록했다`, 'good');
+  writeFp(Pvp.lineupFp(units));
+  dropCache();
+  return { ok: true, error: '', n: units.length };
+}
+
+async function doRegister(afterEl) {
+  if (busy) return;
+  busy = true;
+  const r = await registerNow((m) => { afterEl.textContent = m; });
+  busy = false;
+  if (!r.ok) { toast(`등록 실패: ${r.error}`, 'bad'); return; }
+  toast(`${r.n}개 부대를 등록했다`, 'good');
   go('pvp');
 }
 
@@ -96,13 +167,33 @@ async function doChallenge(handle, name) {
     return;
   }
   busy = true;
+
+  /* ★★ **도전 직전에 편성을 맞춘다.**
+   *   등록해 둔 편성이 곧 내 공격 편성이라, 장비를 갈아 끼우고 재등록을 잊으면
+   *   **옛 장비로 싸운다.** 제작자가 물었다: 「부대 등록하면 자동 업데이트 되나?」 — 아니었다.
+   *   ★ 등록이 실패하면 **도전을 접는다.** 골드는 아직 안 깎였다. */
+  if (lineupStale(myLineup())) {
+    toast('편성이 바뀌었다 — 다시 등록하고 도전한다', 'good');
+    const r = await registerNow();
+    if (!r.ok) { busy = false; toast(`등록 실패: ${r.error}`, 'bad'); return; }
+  }
+
   toast(`${name} 에게 도전한다…`, 'good');
 
   /* ★ 도전 id 를 **먼저 만들어 둔다.** 응답을 못 받아도 같은 id 로 다시 부르면
    *   서버가 «저장된 결과» 를 그대로 준다 — 골드만 날리고 결과를 잃는 일이 없다. */
   const challengeId = Pvp.newChallengeId();
 
-  const res = await Pvp.challenge(handle, challengeId);
+  let res = await Pvp.challenge(handle, challengeId);
+
+  /* ★ 엔진이 바뀌어 옛 지문으로 접힌 편성이면 서버가 «다시 등록해라» 를 준다.
+   *   그건 사람이 할 일이 아니다 — 여기서 한 번 다시 접고 같은 id 로 재시도한다.
+   *   (첫 시도가 409 면 도전권이 청구되지 않았으므로 같은 id 로 다시 불러도 안전하다.) */
+  if (!res.ok && res.data && res.data.needRebuild) {
+    const r = await registerNow();
+    if (r.ok) res = await Pvp.challenge(handle, challengeId);
+  }
+
   busy = false;
   if (!res.ok) {
     toast(res.data?.error || res.error || '도전 실패', 'bad');
@@ -114,8 +205,7 @@ async function doChallenge(handle, name) {
   state.gold = Math.max(0, (state.gold || 0) - CHALLENGE_COST);
   save();
 
-  meCache = null;
-  boardCache = null;
+  dropCache();
   lastResult = { ...(res.data || {}), opponentName: name };
   go('pvp');
 }
@@ -126,25 +216,34 @@ function meRow() {
   const box = el('div', { class: 'panel col', style: { gap: '8px' } });
   const body = el('div', { class: 'tiny faint', text: '불러오는 중…' });
   const status = el('span', { class: 'tiny faint' });
+  const stale = el('div', { class: 'tiny', style: { color: 'var(--gold)', display: 'none' } });
 
   box.appendChild(el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
     el('h3', { text: 'PvP', style: { margin: '0' } }),
     el('div', { class: 'row center', style: { gap: '6px' } },
       status,
+      /* ★ 남이 등록하거나 나를 때린 것은 **가만히 있으면 안 보인다.**
+       *   10초 캐시가 있어도 화면을 열어 둔 채로는 안 바뀌므로 손잡이를 하나 둔다. */
+      el('button', {
+        class: 'btn sm ghost',
+        title: '순위와 전적을 서버에서 다시 받는다',
+        onClick: () => { dropCache(); go('pvp'); },
+      }, '새로고침'),
       el('button', {
         class: 'btn sm',
         title: '지금 편성을 방어 부대로 등록한다 (이 편성이 곧 내 공격 편성이다)',
         onClick: () => doRegister(status),
       }, '내 부대 등록'))));
+  box.appendChild(stale);
   box.appendChild(body);
 
   (async () => {
-    if (!Auth.signedIn || !Auth.signedIn()) {
+    const d = await pvpData();
+    if (!d.signed) {
       body.textContent = '로그인하면 PvP 에 참여할 수 있다.';
       return;
     }
-    const res = meCache || await Pvp.me();
-    if (res.ok) meCache = res;
+    const res = d.me;
     const row = res.ok && Array.isArray(res.data) ? res.data[0] : null;
     if (!row) {
       body.textContent = '아직 등록하지 않았다. «내 부대 등록» 을 눌러라.';
@@ -156,6 +255,14 @@ function meRow() {
       el('span', { class: 'faint' }, `${row.rank}위`),
       el('span', { class: 'faint' }, `${row.wins}승 ${row.losses}패`),
       el('span', { class: 'faint' }, `전력 ${num(row.power || 0)}`)));
+
+    /* ★ 등록은 **얼어붙은 사본**이다 — 장비를 갈아 끼워도 서버 쪽은 그대로다.
+     *   도전할 때는 자동으로 다시 올리지만, 그 사이에 **방어**는 옛 편성으로 받는다.
+     *   그래서 알려는 준다. */
+    if (lineupStale(myLineup())) {
+      stale.style.display = '';
+      stale.textContent = '지금 편성이 등록된 것과 다르다 — 방어는 등록해 둔 편성으로 받는다. (도전할 때는 자동으로 다시 올린다)';
+    }
   })();
 
   return box;
@@ -166,14 +273,16 @@ function boardPanel() {
     el('div', { class: 'faint tiny', text: '불러오는 중…' }));
 
   (async () => {
-    const res = boardCache || await Pvp.board(100);
-    if (res.ok) boardCache = res;
+    /* ★ me 와 board 를 **한 약속에서** 꾺낸다 — 따로 받으면 board 가 먼저 왔을 때
+     *   «나» 표시(myHandle)가 빈다. 눈에 잘 안 띄는 경합이었다. */
+    const d = await pvpData();
+    const res = d.board;
     if (!res.ok) { list.textContent = '순위를 불러오지 못했다.'; return; }
     const rows = Array.isArray(res.data) ? res.data : [];
     if (!rows.length) { list.textContent = '아직 등록한 사람이 없다. 첫 번째가 되어라.'; return; }
 
-    const myHandle = meCache && Array.isArray(meCache.data) && meCache.data[0]
-      ? meCache.data[0].handle : null;
+    const myHandle = d.me.ok && Array.isArray(d.me.data) && d.me.data[0]
+      ? d.me.data[0].handle : null;
 
     list.textContent = '';
     for (const r of rows) {
