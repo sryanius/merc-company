@@ -2555,6 +2555,58 @@ section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
     `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
 }
 
+section('PvP 스키마 규약 (db/010_pvp.sql)');
+{
+  /* ★★ 이 SQL 은 **손으로 대시보드에 붙여넣는다.** 그래서 «틀리면 터지는» 실행 경로가 없다 —
+   *   검사가 없으면 정책 하나를 잘못 열어 놓고도 아무도 모른다.
+   *
+   *   랭킹 신뢰의 뿌리는 «pvp_* 테이블에 정책이 하나도 없다» 는 것이다.
+   *   정책이 없으면 anon·authenticated 는 아무것도 못 하고, 읽기는 security definer
+   *   함수로만, 쓰기는 Edge Function(service_role) 으로만 열린다. */
+  let sql = '';
+  try { sql = readFileSync(new URL('../db/010_pvp.sql', import.meta.url), 'utf8'); } catch { sql = ''; }
+  const faults = [];
+  if (!sql) {
+    faults.push('db/010_pvp.sql 을 못 읽었다');
+  } else {
+    /* 주석 안의 예시 문장이 «진짜 코드» 로 세어지면 검사가 헛돈다 — 먼저 걷어낸다
+     * (이 저장소에서 실제로 겪었다: 내 설명 주석이 옛 공식 검사에 걸렸다) */
+    const strip = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+    const tables = [...strip.matchAll(/create table if not exists public\.(pvp_\w+)/g)].map((m) => m[1]);
+    if (tables.length < 5) faults.push(`pvp_* 테이블이 ${tables.length}개뿐이다 (5개여야 한다)`);
+    for (const t of tables) {
+      if (!strip.includes(`alter table public.${t} enable row level security`)) {
+        faults.push(`${t} 에 RLS 를 안 켰다`);
+      }
+    }
+
+    /* ★ 정책이 하나라도 있으면 실패 — 이게 이 검사의 핵심이다 */
+    const pol = [...strip.matchAll(/create policy[^;]*on public\.(pvp_\w+)/g)].map((m) => m[1]);
+    if (pol.length) {
+      faults.push(`pvp_* 에 정책이 생겼다: ${[...new Set(pol)].join(', ')} — 읽기는 함수로만 연다`);
+    }
+
+    /* security definer 함수는 반드시 search_path 를 비워야 한다 (스키마 하이재킹 방지) */
+    const defs = [...strip.matchAll(/create or replace function public\.(\w+)([\s\S]*?)\$\$/g)];
+    for (const [, name, head] of defs) {
+      if (/security definer/.test(head) && !/set search_path\s*=\s*''/.test(head)) {
+        faults.push(`${name}() 이 security definer 인데 search_path 를 안 비웠다`);
+      }
+    }
+
+    /* 도전권 청구는 service_role 전용이어야 한다 —
+     * 클라가 직접 부를 수 있으면 쿨다운을 스스로 소모시키거나 우회한다 */
+    if (!/revoke all on function public\.pvp_claim[^;]*from public/.test(strip)) {
+      faults.push('pvp_claim 의 실행 권한을 public 에서 회수하지 않았다');
+    }
+    if (/grant execute on function public\.pvp_claim[^;]*to[^;]*(anon|authenticated)/.test(strip)) {
+      faults.push('pvp_claim 을 anon/authenticated 에게 열어 줬다 — service_role 만이어야 한다');
+    }
+  }
+  okAll(faults, 'PvP 테이블은 RLS 를 켜고 정책을 두지 않는다 (읽기는 함수로만)', 5);
+}
+
 section('배포될 엔진 사본이 실제로 도는가');
 {
   /* ★★ `syncshared` 는 **평탄화**한다 — `../core/rng.js` 를 `./rng.js` 로 고쳐 쓴다.
