@@ -35,7 +35,22 @@ export const FIXED = 1 / 60;
 
 const ST_KEYS = ['atk', 'def', 'res', 'spd', 'crit', 'critDmg', 'eva'];
 const GAUGE_MAX = 100;
-const MELEE_DELAY = 0.25;   // 돌진 후 타격까지
+const MELEE_DELAY = 0.25;   // 돌진 후 타격까지 (붙어 있을 때의 최소값)
+/* ★★ **근접도 거리만큼 시간을 쓴다.**
+ *
+ *   예전엔 근접이 `MELEE_DELAY` 하나로 끝이었다 — 거리와 무관하게 0.25초.
+ *   그래서 뒤로 파고드는 암살자가 **전열을 때리는 것과 같은 시간에** 후열을 때렸다.
+ *   원거리는 진작 `dist / PROJ_SPEED` 로 거리에 비례했는데 근접만 순간이동이었다.
+ *   화면에서는 걸어가게 고쳐 두고(§66) 엔진은 순간이동인 모순이였다.
+ *
+ * ★ 제작자 지적에서 출발했다: 「뒷라인을 0.3초만에 녹이는건 문제가 있는것같아」.
+ *   실측 — 고치기 전 0.4초 안 사망이 32%(앞 51 / 뒤 38명), 고친 뒤 6%(앞 17 / 뒤 **0**명).
+ *   보이지 않는 배율(램프업)이 아니라 «거리만큼 걸린다» 라 화면과 말이 맞는다.
+ *
+ * ★ 붙어 있는 상대(전열 대 전열, 거리 12칸)는 12/110 = 0.11초 → MELEE_DELAY 가 이긴다.
+ *   즉 **정면 싸움은 예전 그대로**고, 뒤로 파고드는 것만 느려진다. */
+const CHARGE_SPEED = 110;   // 돌진 속도 (필드 단위/초) — 투사체와 같게 둔다
+const CHARGE_MAX = 0.9;     // 아무리 멀어도 이 이상은 안 걸린다
 const CAST_DELAY = 0.2;     // 자기 대상 시전 후 발동까지
 const PROJ_SPEED = 110;     // 투사체 속도 (필드 단위/초)
 const PROJ_MIN = 0.08;
@@ -704,7 +719,9 @@ export function createBattle(cfg = {}) {
       schedule(at, () => { for (const e of perTarget) applyEffect(u, e, u, skill, { dmg: 0 }); });
     } else if (skill.range === 'melee') {
       push({ type: 'lunge', uid: u.uid, targetUid: targets[0].uid });
-      const at = B.time + MELEE_DELAY;
+      /* 거리는 **첫 목표 기준**이다 — 범위 기술이어도 돌진하는 건 한 번이다. */
+      const dist = Math.hypot(targets[0].x - u.x, targets[0].y - u.y);
+      const at = B.time + Math.max(MELEE_DELAY, clamp(dist / CHARGE_SPEED, 0, CHARGE_MAX));
       earliest = at;
       for (const t of targets) schedule(at, () => resolveHit(u, t, skill, damaging, perTarget));
     } else {

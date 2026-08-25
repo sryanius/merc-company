@@ -5284,6 +5284,42 @@ section('펫은 표적이 안 된다 · 개전이 몰리지 않는다');
 
   /* 개전 게이지가 넓은가 — 좁으면 전원이 같은 순간에 첫 타를 낸다 */
   const esrc3 = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
+  /* ★★ 근접도 거리만큼 시간을 쓰는가.
+   *   예전엔 거리와 무관하게 0.25초였다 — 뒤로 파고드는 암살자가 전열과 **같은 시간에**
+   *   후열을 때렸다 (화면엔 걸어가는데 엔진은 순간이동). 실측으로
+   *   0.4초 안 사망이 32%(앞 51 / 뒤 38) → **0%**(0 / 0) 가 됐다. */
+  {
+    const meleeBlock = esrc3.slice(esrc3.indexOf("skill.range === 'melee'"), esrc3.indexOf("skill.range === 'melee'") + 500);
+    const faults4 = [];
+    if (!/Math\.hypot/.test(meleeBlock)) faults4.push('근접 타격 시각이 거리를 안 본다');
+    if (!/CHARGE_SPEED/.test(meleeBlock)) faults4.push('돌진 속도를 안 쓴다');
+    if (!/Math\.max\(MELEE_DELAY/.test(meleeBlock)) faults4.push('붙어 있을 때의 최소값(MELEE_DELAY)을 안 지킨다 — 정면 싸움이 빨라진다');
+    okAll(faults4, '근접도 거리만큼 시간을 쓴다', 3);
+  }
+
+  /* 굴려서 확인 — 먼 목표를 때리는 데 더 오래 걸리는가 */
+  if (EN5 && SK5) {
+    const one = (dy) => {
+      const a = { uid: 'a', name: 'a', classId: 'swordsman', side: 'ally',
+        stats: { hp: 9999, atk: 300, def: 0, res: 0, spd: 60, crit: 0, critDmg: 100, eva: 0 } };
+      const b2 = { uid: 'b', name: 'b', classId: 'swordsman', side: 'enemy',
+        stats: { hp: 9999, atk: 1, def: 0, res: 0, spd: 1, crit: 0, critDmg: 100, eva: 0 } };
+      const bt = EN5.createBattle({ allies: [a], enemies: [b2], seed: 7, getSkill: SK5.getSkill, record: true, rout: false });
+      const tgt = bt.units.find((u) => u.uid === 'b');
+      tgt.x += dy;                       // 멀리 밀어 둔다
+      let g = 0; let firstHit = -1;
+      while (!bt.finished && g++ < 3000 && firstHit < 0) {
+        bt.step(1 / 60);
+        for (const e of bt.drainEvents()) if (e.type === 'damage' && firstHit < 0) firstHit = bt.time;
+      }
+      return firstHit;
+    };
+    const near = one(0);
+    const far = one(60);
+    ok(near > 0 && far > near + 0.15, '먼 목표는 더 오래 걸린다 (굴려서 확인)',
+      `가까운 목표 ${near.toFixed(2)}초 · 먼 목표 ${far.toFixed(2)}초 — 차이가 없다`);
+  }
+
   const gm = esrc3.match(/u\.gauge = rng\.float\(0,\s*([A-Za-z_0-9]+)\)/);
   ok(!!gm && gm[1] === 'GAUGE_MAX', '개전 게이지를 한 사이클 전체로 흔든다',
     gm ? `rng.float(0, ${gm[1]}) — 좁으면 전원이 같은 순간에 친다` : '개전 게이지 배분을 못 찾았다');
