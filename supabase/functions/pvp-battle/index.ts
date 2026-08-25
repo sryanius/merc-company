@@ -29,6 +29,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { selftest } from './selftest.js';
 import { tagMatch } from './tagmatch.js';
 import { applyRating, BASE_RATING } from './rating.js';
+import { checkSquads } from './statbound.js';
 import { getSkill } from './_engine/skills.js';
 import { ENGINE_HASH } from './_engine/enginever.js';
 
@@ -119,10 +120,18 @@ Deno.serve(async (req) => {
     for (const sq of squads) {
       if (!Array.isArray(sq) || !sq.length) return json({ error: '빈 부대가 있다' }, 400);
       if (sq.length > 12) return json({ error: '한 부대가 너무 크다' }, 400);   // 7 + 펫
-      for (const u of sq) {
-        const st = (u as Record<string, unknown>)?.stats as Record<string, number> | undefined;
-        if (!st || typeof st.hp !== 'number' || st.hp <= 0) return json({ error: '유닛 스탯이 이상하다' }, 400);
-      }
+    }
+
+    /* ★★ 위조 1차 방어선 — «물리적으로 가능한 값인가».
+     *   맨몸 스탯은 rng 없이 정해지고 장비 최대가산은 실측으로 안다 (statbound.js).
+     *   hp 999999 같은 값은 여기서 전부 걸린다. 미세 조작(+3%)은 못 잡는다 — 정직하게 적어 둔다.
+     *
+     * ★ 거절 사유를 **알려 준다.** 순위표(submit-score)는 일부러 안 알리지만(§55),
+     *   여기는 다르다 — 정상 플레이어가 등록에 실패하면 «왜» 를 알아야 고칠 수 있다.
+     *   그리고 이 검사는 «불가능한 값» 만 보므로 사유가 힌트가 되지 않는다. */
+    const bound = checkSquads(squads as unknown as Array<Array<Record<string, unknown>>>);
+    if (!bound.ok) {
+      return json({ error: '등록할 수 없는 값이 있다', detail: bound.bad }, 400);
     }
 
     const power = Math.max(0, Math.min(50_000_000, Math.round(Number(body.power) || 0)));

@@ -2555,6 +2555,107 @@ section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
     `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
 }
 
+section('PvP 스탯 상한 검사 (위조 1차 방어선)');
+{
+  /* ★★ 방어 편성은 **클라이언트가 계산해서 올린다** — 접사가 rng 로 굴려진 실수값이라
+   *   서버가 그대로 되살릴 수 없기 때문이다 (HANDOFF §68.1).
+   *   그래서 «정확한가» 대신 «물리적으로 가능한가» 를 묻는다.
+   *
+   * ★ 이 검사에서 가장 위험한 실패는 **오탐**이다 — 정상 플레이어가 등록을 못 하게 된다.
+   *   그래서 «최강 장비를 낀 정상 유닛이 통과하는가» 를 먼저 본다. */
+  let B = null;
+  let Merc = null;
+  let Gear = null;
+  let CL3 = null;
+  try {
+    B = await import('../supabase/functions/pvp-battle/statbound.js');
+    Merc = await import('../src/game/merc.js');
+    Gear = await import('../src/game/gear.js');
+    CL3 = await import('../src/data/classes.js');
+    await import('../src/data/classes_t4.js');
+  } catch (e) {
+    ok(false, '상한 검사 모듈을 읽는다', String((e && e.message) || e));
+  }
+
+  if (B && Merc && Gear && CL3) {
+    const faults = [];
+
+    /* ① 상수 중복이 merc.js 와 같은가 —
+     *   statbound.js 는 merc.js 의 상수를 옮겨 적었다 (merc.js 는 state.js 를 물어 서버로 못 옮긴다).
+     *   어긋나면 **정상 유닛이 걸린다.** 값을 하나씩 대조한다. */
+    const pairs = [
+      ['GRADE_MULT', B.GRADE_MULT, Merc.GRADE_MULT],
+      ['GRADE_IDX', B.GRADE_IDX, Merc.GRADE_IDX],
+      ['TIER_MULT', B.TIER_MULT, Merc.TIER_MULT],
+      ['SCALING_KEYS', B.SCALING_KEYS, Merc.SCALING_KEYS],
+      ['FLAT_KEYS', B.FLAT_KEYS, Merc.FLAT_KEYS],
+    ];
+    for (const [name, mine, real] of pairs) {
+      if (JSON.stringify(mine) !== JSON.stringify(real)) {
+        faults.push(`${name} 이 merc.js 와 다르다: ${JSON.stringify(mine)} vs ${JSON.stringify(real)}`);
+      }
+    }
+    if (B.GROWTH_RATE !== Merc.GROWTH_RATE) {
+      faults.push(`GROWTH_RATE 가 다르다: ${B.GROWTH_RATE} vs ${Merc.GROWTH_RATE}`);
+    }
+
+    /* ② 맨몸 계산이 merc.js 와 맞는가 (반올림 차이는 허용 — 상한이므로 조금 후한 건 안전하다) */
+    let worst = 0;
+    let worstAt = '';
+    for (const id of Object.keys(CL3.CLASSES)) {
+      for (const lv of [1, 40, 80]) {
+        for (const g of ['F', 'C', 'S']) {
+          const mine = B.bareStats(id, lv, g);
+          const real = Merc.mercStats({ uid: 'x', classId: id, level: lv, grade: g, equipment: {} }, {});
+          for (const k of Object.keys(real)) {
+            const d = ((mine[k] || 0) - real[k]) / Math.max(1, real[k]);
+            if (d < -0.02 && Math.abs((mine[k] || 0) - real[k]) > 1) {
+              /* 내 값이 **작으면** 위험하다 — 정상 유닛을 막게 된다 */
+              if (-d > worst) { worst = -d; worstAt = `${id} lv${lv} ${g} ${k}: 상한계산 ${(mine[k] || 0).toFixed(1)} < 실제 ${real[k]}`; }
+            }
+          }
+        }
+      }
+    }
+    if (worst > 0) faults.push(`맨몸 계산이 실제보다 작다 (${(worst * 100).toFixed(1)}%) — ${worstAt}`);
+
+    /* ③ 최강 장비를 낀 정상 유닛이 통과하는가 (오탐 0 이어야 한다) */
+    const maxRng = {
+      next: () => 0.999999, float: (a, b) => b, int: (a, b) => b, chance: () => true,
+      pick: (a) => a[a.length - 1], pickMany: (a, n) => a.slice(0, n), weighted: (a) => a[a.length - 1],
+    };
+    for (const id of ['swordsman', 'archer', 'apprentice', 'madgeneral_apex', 'archmage_abyss']) {
+      if (!CL3.CLASSES[id]) continue;
+      const items = {};
+      const equipment = {};
+      for (const slot of (Gear.SLOTS || [])) {
+        try {
+          const it = Gear.rollItem({ ilvl: 80, rarity: 5, slot, rng: maxRng });
+          if (it) { it.id = it.id || `i_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
+        } catch { /* 슬롯 실패는 무시 */ }
+      }
+      const stats = Merc.mercStats({ uid: 'u', classId: id, level: 80, grade: 'S', equipment }, items);
+      const bad = B.checkUnit({ uid: 'u', classId: id, level: 80, grade: 'S', stats });
+      if (bad.length) faults.push(`오탐: 최강 장비 ${id} 가 걸린다 — ${bad[0]}`);
+    }
+
+    /* ④ 명백한 조작은 잡아야 한다 */
+    const cheat = {
+      uid: 'c', classId: 'swordsman', level: 1, grade: 'F',
+      stats: { hp: 999999, atk: 50000, def: 1, res: 1, spd: 1, crit: 1, critDmg: 50, eva: 1 },
+    };
+    if (!B.checkUnit(cheat).length) faults.push('hp 999999 을 못 잡는다');
+    if (!B.checkUnit({ uid: 'c', classId: '없는클래스', level: 1, grade: 'C', stats: { hp: 1 } }).length) {
+      faults.push('없는 클래스를 못 잡는다');
+    }
+    if (!B.checkUnit({ uid: 'c', classId: 'swordsman', level: 999, grade: 'C', stats: { hp: 1 } }).length) {
+      faults.push('레벨 999 를 못 잡는다');
+    }
+
+    okAll(faults, '상한 검사가 조작을 잡고 정상 유닛은 통과시킨다', 4);
+  }
+}
+
 section('PvP 승점 — 골라 때리기가 이득이면 안 된다');
 {
   /* ★★ 실측(HANDOFF §73): 이 게임의 PvP 는 전력 5% 차이면 **확정 승리**다.
