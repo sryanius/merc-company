@@ -119,6 +119,16 @@ export function createBattle(cfg = {}) {
   const seed = (cfg.seed ?? 1) >>> 0 || 1;
   const rng = new RNG(seed);
   const record = cfg.record !== false;
+  /* ★★ 패주를 끔다 — PvP 전용.
+   *   의뢰에서는 패주가 있어야 한다 (없으면 질 때마다 단원이 전멸한다 — §24·§25).
+   *   그런데 PvP 는 다르다: 제작자가 화면을 보고 짚었다 —
+   *   「원거리가 아직 남아있는데 왜 승리로 표시되지」. 실측해 보니
+   *   PvP 급 전력에선 **200판 중 195판(98%)이 패주로** 끝나고 있었다.
+   *
+   * ★ 패주 판정은 **난수를 안 쓴다** (위 상수 주석). 그래서 이 스위치를 꺼도
+   *   rng 소비가 안 바뀌고, 나머지 전개는 그대로다 — «더 싸우는» 차이만 남는다.
+   *   기본값은 **켜짐**이라 의뢰·난락·탑은 손대지 않는다. */
+  const routEnabled = cfg.rout !== false;
 
   const resolve = (s) => {
     if (!s) return null;
@@ -793,7 +803,7 @@ export function createBattle(cfg = {}) {
     const e = aliveFighters('enemy');
     if (a > 0 && e > 0) {
       // 승부가 갈렸으면 전멸까지 안 간다 — 남은 사람은 살아 나온다
-      if (B.time >= ROUT_AFTER) {
+      if (routEnabled && B.time >= ROUT_AFTER) {
         const sa = strengthOf('ally');
         const se = strengthOf('enemy');
         if (sa < ROUT_FLOOR && se > sa * ROUT_LEAD) { routed = 'ally'; finish('enemy'); return; }

@@ -12,6 +12,7 @@ import { state, save } from '../game/state.js';
 import { allyUnitDefs } from '../game/quest.js';
 import { squadPower } from '../game/squad.js';
 import * as Pvp from '../net/pvp.js';
+import { ENGINE_HASH } from '../data/enginever.js';
 import * as Auth from '../net/auth.js';
 import { toast, go } from './app.js';
 
@@ -80,12 +81,25 @@ const FP_KEY = 'merc_pvp_lineup_fp_v1';
 const readFp = () => { try { return localStorage.getItem(FP_KEY) || ''; } catch { return ''; } };
 const writeFp = (v) => { try { localStorage.setItem(FP_KEY, v); } catch { /* 사파리 비공개 모드 */ } };
 
+/* ★★ 지문에 **엔진 지문을 같이 엮는다.**
+ *   서버는 등록된 편성의 `engine_hash` 가 지금과 다르면 전투를 거절한다
+ *   (`needRebuild`). 그런데 그건 **방어자 쪽도** 막는다 — 그 사람이 직접 다시
+ *   등록할 때까지 **아무도 그를 못 때린다.** 내가 대신 해 줄 수도 없다.
+ *   그래서 엔진이 움직이면 화면에 들어오는 것만으로 **조용히 다시 올린다.**
+ *   사람이 고른 편성을 바꾸는 게 아니라 **같은 편성을 다시 올리는 것**이라 놀람 일이 없다. */
+const stamp = (fp) => `${ENGINE_HASH}:${fp}`;
+
 /** 지금 편성이 마지막으로 등록한 것과 다른가 (등록 자체가 없으면 «다르다») */
 function lineupStale(lineup) {
   if (!lineup) return false;                 // 편성이 없으면 물어볼 것도 없다
-  const now = Pvp.lineupFp(lineup.units);
   const was = readFp();
-  return !was || was !== now;
+  return !was || was !== stamp(Pvp.lineupFp(lineup.units));
+}
+
+/** 편성은 그대로인데 **엔진만** 움직였는가 */
+function engineMoved() {
+  const was = readFp();
+  return !!was && was.slice(0, was.indexOf(':')) !== ENGINE_HASH;
 }
 
 function injectStyle() {
@@ -151,7 +165,7 @@ async function registerNow(say) {
     const detail = res.data && Array.isArray(res.data.detail) ? res.data.detail.slice(0, 2).join(' / ') : '';
     return { ok: false, error: `${res.error || '등록 실패'} ${detail}`.trim(), n: 0 };
   }
-  writeFp(Pvp.lineupFp(units));
+  writeFp(stamp(Pvp.lineupFp(units)));
   dropCache();
   return { ok: true, error: '', n: units.length };
 }
@@ -261,6 +275,16 @@ function meRow() {
       el('span', { class: 'faint' }, `${row.rank}위`),
       el('span', { class: 'faint' }, `${row.wins}승 ${row.losses}패`),
       el('span', { class: 'faint' }, `전력 ${num(row.power || 0)}`)));
+
+    /* ★★ **엔진이 움직였으면 묻지 않고 다시 올린다.**
+     *   서버는 방어자의 지문이 낡아도 전투를 거절한다 — 그러면 그 사람은
+     *   **아무도 때릴 수 없는 상태**로 순위표에 남아 있게 된다.
+     *   같은 편성을 다시 올리는 것뿐이라 사람이 고른 것을 바꾸지 않는다. */
+    if (engineMoved()) {
+      const r = await registerNow();
+      if (r.ok) { dropCache(); go('pvp'); return; }
+      /* 다시 올리기에 실패했으면 아래 배지로 넘어간다 — 조용히 무시하지 않는다 */
+    }
 
     /* ★ 등록은 **얼어붙은 사본**이다 — 장비를 갈아 끼워도 서버 쪽은 그대로다.
      *   도전할 때는 자동으로 다시 올리지만, 그 사이에 **방어**는 옛 편성으로 받는다.

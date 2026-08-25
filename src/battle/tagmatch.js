@@ -32,7 +32,9 @@ import { createBattle } from './engine.js';
 
 /** 한 판 끝까지 돌린다 (엔진의 고정 스텝) */
 function runOne(cfg, getSkill) {
-  const b = createBattle({ ...cfg, getSkill, record: false });
+  /* ★ `rout: false` — PvP 는 **끝까지 싸운다** (제작자 결정).
+   *   의뢰에서는 패주가 그대로 살아 있다 — 여기서만 끔는다. */
+  const b = createBattle({ ...cfg, getSkill, record: false, rout: false });
   let guard = 0;
   while (!b.finished && guard++ < 20000) b.step(1 / 60);
   return b;

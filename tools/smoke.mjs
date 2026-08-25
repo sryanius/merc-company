@@ -4908,6 +4908,106 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
     'roundLog 에 부대 전체가 실려 나간다');
 }
 
+section('PvP 는 끝까지 싸운다 (패주 끄기)');
+{
+  /* ★★ 제작자가 재생을 보고 짚었다: 「원거리가 아직 남아있는걸로 보이는데 왜 승리로 표시되지」.
+   *   버그가 아니라 **패주**였다 (§26) — 3초 뒤 한쪽 전력이 20% 밑이고 상대가 3배 이상이면
+   *   진 쪽이 살아서 물러난다. PvP 급 전력에선 **200판 중 195판(98%)** 이 그렇게 끝나고 있었다.
+   *
+   *   제작자 결정: **PvP 만 끝까지 싸운다.** 의뢰는 그대로다 —
+   *   거기서 패주를 빼면 질 때마다 단원이 전멸한다 (§24·§25 가 고친 바로 그 문제다).
+   *
+   *   그래서 검사는 «PvP 는 껐고 · 의뢰는 켜져 있고 · 기본값은 안 건드렸나» 세 갈래다. */
+  const EN3 = need('battle/engine.js');
+  let TM3 = null;
+  let SK3 = null;
+  try {
+    TM3 = await import(srcUrl('battle/tagmatch.js'));
+    SK3 = await import(srcUrl('data/skills.js'));
+  } catch (e) { ok(false, '태그매치를 읽는다', String(e.message)); }
+
+  if (EN3 && TM3 && SK3) {
+    /* 한쪽이 크게 세도록 만든다 — 패주가 반드시 걸리는 모양 */
+    const mk = (n, side, hp, atk) => Array.from({ length: n }, (_, i) => ({
+      uid: `${side}${i}`, name: `${side}${i}`, classId: 'swordsman', side,
+      stats: { hp, atk, def: 20, res: 10, spd: 100, crit: 5, critDmg: 150, eva: 3 },
+    }));
+    const run = (rout, seed) => {
+      const b = EN3.createBattle({
+        allies: mk(6, 'ally', 4000, 400), enemies: mk(6, 'enemy', 900, 60),
+        seed, getSkill: SK3.getSkill, record: false, rout,
+      });
+      let g = 0;
+      while (!b.finished && g++ < 20000) b.step(1 / 60);
+      const m = b.result.margin || {};
+      return { winner: b.winner, routed: m.routed, loseLeft: b.winner === 'ally' ? m.enemyAlive : m.allyAlive };
+    };
+
+    const seeds = [1, 2, 3, 5, 8, 13, 21, 34];
+    const onRout = seeds.map((s) => run(true, s));
+    const offRout = seeds.map((s) => run(false, s));
+
+    /* 기본값(안 넘기면)은 예전 그대로여야 한다 — 의뢰·나락·탑이 여기 달려 있다 */
+    const dflt = seeds.map((s) => {
+      const b = EN3.createBattle({
+        allies: mk(6, 'ally', 4000, 400), enemies: mk(6, 'enemy', 900, 60),
+        seed: s, getSkill: SK3.getSkill, record: false,
+      });
+      let g = 0;
+      while (!b.finished && g++ < 20000) b.step(1 / 60);
+      return { winner: b.winner, routed: (b.result.margin || {}).routed, loseLeft: (b.result.margin || {}).enemyAlive };
+    });
+    okAll(dflt.map((d, i) => (JSON.stringify(d) === JSON.stringify(onRout[i]) ? null
+      : `seed ${seeds[i]}: 기본값이 rout:true 와 다르다`)).filter(Boolean),
+      '옵션을 안 넘기면 예전(패주 켬) 그대로다', seeds.length);
+
+    ok(onRout.some((r) => r.routed), '패주를 켜면 실제로 패주가 일어난다 (검사 조건이 맞다)',
+      `${onRout.filter((r) => r.routed).length}/${seeds.length} 판만 패주`);
+
+    okAll(offRout.filter((r) => r.routed).map((r, i) => `seed ${seeds[i]}: 껐는데도 패주했다`),
+      'rout:false 면 패주가 안 일어난다', seeds.length);
+
+    okAll(offRout.filter((r) => r.loseLeft > 0).map((r, i) => `seed ${seeds[i]}: 진 쪽이 ${r.loseLeft}명 남았다`),
+      'rout:false 면 진 쪽이 전멸할 때까지 싸운다', seeds.length);
+
+    /* 승자는 바뀌면 안 된다 — 패주는 «언제 멈추나» 지 «누가 이기나» 가 아니다 */
+    okAll(offRout.map((r, i) => (r.winner === onRout[i].winner ? null
+      : `seed ${seeds[i]}: 패주를 껐더니 승자가 바뀌었다 ${onRout[i].winner} → ${r.winner}`)).filter(Boolean),
+      '패주를 꺼도 승자는 그대로다', seeds.length);
+
+    /* ── 태그매치가 실제로 끄고 있는가 (글자가 아니라 굴려서) ── */
+    const out = TM3.tagMatch({
+      attacker: [mk(6, 'ally', 4000, 400), mk(6, 'ally', 3000, 300)],
+      defender: [mk(6, 'enemy', 900, 60), mk(6, 'enemy', 900, 60)],
+      seed: 4242, getSkill: SK3.getSkill,
+    });
+    const alive = out.rounds.filter((r) => r.attackerLeft > 0 && r.defenderLeft > 0);
+    okAll(alive.map((r, i) => `${i}번째 합이 양쪽 다 살아 있는 채로 끝났다 (${r.attackerLeft}:${r.defenderLeft})`),
+      'PvP 는 합마다 한쪽이 전멸할 때까지 싸운다', out.rounds.length || 1);
+  }
+
+  /* ── 의뢰는 그대로여야 한다 ── */
+  const bsrc2 = readFileSync(srcDir('ui/battle.js'), 'utf8');
+  /* ★ 처음엔 `rout : false` 꼴만 봐서 **`cfg.rout = false` 를 놓쳤다.**
+   *   메타 검사로 그걸 심었는데 안 물어서 알았다 — 이제 둘 다 본다.
+   *   (`\b` 를 쓰면 셸 heredoc 이 백슬래시를 먹어 백스페이스 문자가 박힌다. 문자 부류로 쓴다.) */
+  const ROUT_OFF = /(^|[^A-Za-z0-9_$])rout\s*[:=]\s*false/m;
+  ok(!ROUT_OFF.test(bsrc2),
+    '의뢰 전투는 패주를 그대로 둔다 (빼면 질 때마다 단원이 전멸한다 — §24·§25)',
+    'ui/battle.js 가 패주를 끈다');
+
+  const tsrc2 = readFileSync(srcDir('battle/tagmatch.js'), 'utf8');
+  ok(ROUT_OFF.test(tsrc2), '태그매치가 패주를 끈다');
+
+  /* ── 엔진 지문이 움직였을 때 방어자가 «못 맞는 사람» 이 되지 않는가 ── */
+  const psrc3 = readFileSync(srcDir('ui/pvp.js'), 'utf8');
+  ok(/function engineMoved\(\)/.test(psrc3) && /if \(engineMoved\(\)\)/.test(psrc3),
+    '엔진 지문이 바뀌면 PvP 화면이 조용히 다시 등록한다',
+    '방어자가 재등록할 때까지 아무도 그를 못 때리는 상태로 남는다');
+  ok(/const stamp = \(fp\) => `\$\{ENGINE_HASH\}:\$\{fp\}`/.test(psrc3),
+    '등록 지문에 엔진 지문을 같이 엮는다');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
