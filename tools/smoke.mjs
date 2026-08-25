@@ -2555,6 +2555,68 @@ section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
     `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
 }
 
+section('PvP 승점 — 골라 때리기가 이득이면 안 된다');
+{
+  /* ★★ 실측(HANDOFF §73): 이 게임의 PvP 는 전력 5% 차이면 **확정 승리**다.
+   *   그래서 고정 점수제였다면 «나보다 조금 약한 상대만 고르기» 가 확정 이득이 되고,
+   *   순위가 실력이 아니라 도전 횟수를 재게 된다.
+   *
+   *   Elo 로 바꾼 이유가 정확히 그것이므로, **그 성질을 검사로 못 박는다.** */
+  let R = null;
+  try { R = await import('../supabase/functions/pvp-battle/rating.js'); } catch (e) {
+    ok(false, '승점 모듈을 읽는다', String((e && e.message) || e));
+  }
+
+  if (R) {
+    const faults = [];
+
+    /* ① 약자 사냥의 이득이 «같은 상대» 보다 뚜렷하게 작아야 한다 */
+    const even = R.applyRating('attacker', 1000, 1000).attackerDelta;
+    const farm = R.applyRating('attacker', 1400, 1000).attackerDelta;
+    if (!(farm < even / 2)) {
+      faults.push(`400 낮은 상대를 이겨 ${farm} 점 — 동급전 ${even} 점의 절반보다 커서는 안 된다`);
+    }
+
+    /* ② 약자에게 지면 크게 잃어야 한다 (그래야 «어차피 이기니까» 가 안 성립한다) */
+    const upset = R.applyRating('defender', 1400, 1000).attackerDelta;
+    if (!(upset < -even)) {
+      faults.push(`400 낮은 상대에게 져서 ${upset} 점 — 동급 승리(${even})보다 크게 잃어야 한다`);
+    }
+
+    /* ③ 강자에게 도전하는 것이 더 크게 보상돼야 한다 */
+    const up = R.applyRating('attacker', 600, 1000).attackerDelta;
+    if (!(up > even)) faults.push(`400 높은 상대를 이겨 ${up} 점 — 동급전(${even})보다 커야 한다`);
+
+    /* ④ 도전 프리미엄 — 도전자가 방어자보다 유리해야 한다 (가만히 있는 것보다 낫게) */
+    const r0 = R.applyRating('attacker', 1000, 1000);
+    if (!(r0.attackerDelta > Math.abs(r0.defenderDelta))) {
+      faults.push(`동급전 승리에서 도전자 ${r0.attackerDelta} / 방어자 ${r0.defenderDelta} — 도전자가 더 커야 한다`);
+    }
+
+    /* ⑤ 어떤 조합에서도 DB 트리거 한계(64)를 넘지 않아야 한다 —
+     *   넘으면 «전투는 끝났는데 점수 반영만 실패» 하는 상태가 된다 */
+    let mx = 0;
+    for (let a = 100; a <= 3000; a += 100) {
+      for (let d = 100; d <= 3000; d += 100) {
+        for (const w of ['attacker', 'defender', 'draw']) {
+          const r = R.applyRating(w, a, d);
+          mx = Math.max(mx, Math.abs(r.attackerDelta), Math.abs(r.defenderDelta));
+        }
+      }
+    }
+    if (mx > R.MAX_STEP) faults.push(`최대 이동폭 ${mx} 가 상한 ${R.MAX_STEP} 을 넘는다`);
+    if (mx > 64) faults.push(`최대 이동폭 ${mx} 가 DB 트리거 한계 64 를 넘는다 — 점수 반영이 실패한다`);
+
+    /* ⑥ 바닥 아래로 안 내려간다 */
+    const floorCase = R.applyRating('defender', R.RATING_FLOOR, 3000);
+    if (floorCase.attackerAfter < R.RATING_FLOOR) {
+      faults.push(`바닥(${R.RATING_FLOOR}) 아래로 내려간다: ${floorCase.attackerAfter}`);
+    }
+
+    okAll(faults, '승점이 점수차를 반영한다 (약자 사냥이 무가치)', 6);
+  }
+}
+
 section('태그매치 (부대가 이어 싸운다)');
 {
   /* ★★ 제작자 규칙: 「모든 부대가 태그매치로. 서로 1부대 전투하고 **이긴 쪽이 그 전투에서
