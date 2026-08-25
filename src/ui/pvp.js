@@ -227,6 +227,21 @@ async function doChallenge(handle, name) {
 
   dropCache();
   lastResult = { ...(res.data || {}), opponentName: name };
+
+  /* ★★ **바로 전투를 보여 준다.**
+   *   제작자: 「도전하면 전투를 보여줘야되는거 아니」 ·
+   *   「pvp 전투 누르면 전투는 안보이고 내 전적에서 봐야되네」.
+   *   결과 판은 재생을 닫으면(`닫기` → go('pvp')) 그대로 뜼다 — lastResult 를 남겨 둔다.
+   * ★ cfg 가 없으면(응답이 짤렸거나 예외) matchId 로 받아 오게 한다 —
+   *   재생 화면이 둘 다 받는다. 둔 쪽 다 없을 때만 결과 판으로 남는다. */
+  const d = res.data || {};
+  if (d.cfg || d.matchId) {
+    go('pvpreplay', {
+      cfg: d.cfg || null, matchId: d.matchId || null, winner: d.winner,
+      opponentName: name, role: 'attacker', returnTo: 'pvp',
+    });
+    return;
+  }
   go('pvp');
 }
 
@@ -361,14 +376,15 @@ function resultPanel() {
     el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
       el('h3', { style: { margin: '0' } }, `${d.opponentName} 전 — ${iWon ? '승리' : (d.winner === 'draw' ? '무승부' : '패배')}`),
       el('div', { class: 'row center', style: { gap: '6px' } },
-        /* ★ 서버가 cfg(양쪽 부대 + 시드)를 같이 준다 — 더 받을 것 없이 바로 재생한다. */
-        d.cfg ? el('button', {
+        /* ★ 서버가 cfg(양쪽 부대 + 시드)를 같이 준다 — 더 받을 것 없이 바로 재생한다.
+         *   cfg 가 없으면 matchId 로 받아 온다 — 한쪽만 있어도 볼 수 있어야 한다. */
+        (d.cfg || d.matchId) ? el('button', {
           class: 'btn sm primary',
           onClick: () => go('pvpreplay', {
-            cfg: d.cfg, winner: d.winner, opponentName: d.opponentName,
+            cfg: d.cfg || null, winner: d.winner, opponentName: d.opponentName,
             role: 'attacker', matchId: d.matchId || null, returnTo: 'pvp',
           }),
-        }, '전투 보기') : null,
+        }, '전투 다시 보기') : null,
         el('button', { class: 'btn sm ghost', onClick: () => { lastResult = null; go('pvp'); } }, '닫기'))),
     el('div', { class: 'row wrap', style: { gap: '14px' } },
       el('b', { style: { color: d.delta >= 0 ? 'var(--leaf)' : 'var(--ink-faint)' } }, `승점 ${sign}${d.delta}`),

@@ -2095,6 +2095,10 @@ function dismissBar(list) {
     }, `선택 해고 (${sel.length}명)`));
 }
 
+/** 계열 선택을 클래스 id 와 가르는 표시.
+ *  ★ 클래스 id 에 안 쓰이는 글자여야 한다 — 안 그러면 계열과 클래스가 섞인다. */
+const LINE_PREFIX = 'line:';
+
 function filterBar() {
   const usedClasses = [...new Set(state.roster.map((m) => m.classId))]
     .map((id) => getClass(id)).filter(Boolean)
@@ -2109,13 +2113,46 @@ function filterBar() {
 
   const mk = (opts, value, onchange) => {
     const s = el('select', { class: 'co-in', onChange: (e) => { onchange(e.target.value); redraw(); } });
-    for (const [v, label] of opts) s.appendChild(el('option', { value: v, selected: v === value, text: label }));
+    /* ★ [v, label] 외에 {group, items} 도 받는다 — 계열과 낱낱 클래스를
+     *   한 목록에 섮으면서도 섞이지 않게 하려면 묶음이 필요하다. */
+    for (const o of opts) {
+      if (Array.isArray(o)) {
+        s.appendChild(el('option', { value: o[0], selected: o[0] === value, text: o[1] }));
+        continue;
+      }
+      if (!o || !o.items || !o.items.length) continue;
+      const g = el('optgroup', { label: o.group });
+      for (const [v, label] of o.items) g.appendChild(el('option', { value: v, selected: v === value, text: label }));
+      s.appendChild(g);
+    }
     return s;
   };
 
+  /* ★★ **계열로도 걸러진다** (제작자 요청: 「방패병이면 방패병 계열 다 검색」).
+   *   4차까지 가면 이름이 전부 달라져서(개천검제·멸망의 군신…)
+   *   «이 사람이 원래 뭐였는지» 로 묶어 보려면 계열이 필요하다.
+   *   계열의 뿌리는 `classChain` 의 첫 칸(1차)이다. */
+  const rootOf = (id) => {
+    const chain = classChain(id);
+    return chain && chain.length ? chain[0] : null;
+  };
+  const lineCount = new Map();
+  for (const m of state.roster) {
+    const r = rootOf(m.classId);
+    if (r) lineCount.set(r.id, (lineCount.get(r.id) || 0) + 1);
+  }
+  const usedLines = [...lineCount.keys()].map((id) => getClass(id)).filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
   return el('div', { class: `row wrap center co-filters${filtersOpen ? ' open' : ''}`, style: { gap: '6px' } },
-    mk([['', '전체 클래스'], ...usedClasses.map((c) => [c.id, `${c.name} (${TIER_NAME[c.tier] || `${c.tier}차`})`])],
-      rosterFilter.classId, (v) => { rosterFilter.classId = v; }),
+    mk([
+      ['', '전체 클래스'],
+      /* 계열이 하나뿐이면 묶음이 의미가 없다 — 그때는 안 띄운다 */
+      usedLines.length > 1
+        ? { group: '계열', items: usedLines.map((c) => [`${LINE_PREFIX}${c.id}`, `${c.name} 계열 (${lineCount.get(c.id)}명)`]) }
+        : null,
+      { group: '클래스', items: usedClasses.map((c) => [c.id, `${c.name} (${TIER_NAME[c.tier] || `${c.tier}차`})`]) },
+    ].filter(Boolean), rosterFilter.classId, (v) => { rosterFilter.classId = v; }),
     // 차수 필터 — 2개 이상 차수가 섞여 있을 때만 띄운다 (초반엔 전부 1차라 무의미).
     usedTiers.length > 1
       ? mk([['', '전체 차수'], ...usedTiers.map((t) => [String(t), TIER_NAME[t]])],
@@ -2158,7 +2195,14 @@ function filteredRoster() {
   const gi = (g) => GRADES.indexOf(g);
   const tierOf = (m) => getClass(m.classId)?.tier || 1;
   let list = state.roster.filter((m) => {
-    if (rosterFilter.classId && m.classId !== rosterFilter.classId) return false;
+    if (rosterFilter.classId) {
+      /* ★ `line:` 이 붙으면 계열로 본다 — 1차 뿌리가 같은 사람을 전부 잡는다. */
+      if (rosterFilter.classId.startsWith(LINE_PREFIX)) {
+        const want = rosterFilter.classId.slice(LINE_PREFIX.length);
+        const chain = classChain(m.classId);
+        if (!chain.length || chain[0].id !== want) return false;
+      } else if (m.classId !== rosterFilter.classId) return false;
+    }
     if (rosterFilter.tier && String(tierOf(m)) !== rosterFilter.tier) return false;
     if (rosterFilter.grade && m.grade !== rosterFilter.grade) return false;
     if (rosterFilter.hideWounded && isWounded(m, state.day)) return false;

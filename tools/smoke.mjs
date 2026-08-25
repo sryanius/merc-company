@@ -4895,7 +4895,24 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
 
   /* ── ③ 들어가는 문이 둘 다 있는가 ──────────────────────────── */
   const psrc2 = readFileSync(srcDir('ui/pvp.js'), 'utf8');
+  const bodyOf = (src, name) => {
+    const at = src.indexOf(`function ${name}(`);
+    if (at < 0) return '';
+    const open = src.indexOf('{', at);
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) return src.slice(open, i + 1); }
+    }
+    return src.slice(open);
+  };
   const gaps = [];
+  /* ★ 도전이 끝나면 **바로** 재생으로 가야 한다 — 제작자가 두 번 짚었다:
+   *   「도전하면 전투를 보여줘야되는거 아니」 · 「전투는 안보이고 내 전적에서 봐야되네」 */
+  {
+    const chBody2 = bodyOf(psrc2, 'doChallenge');
+    if (!/go\('pvpreplay'/.test(chBody2)) gaps.push('도전이 끝나도 재생으로 안 간다 — 전적을 찾아가야 볼 수 있다');
+  }
   if (!/go\('pvpreplay',\s*\{[^}]*cfg:/.test(psrc2.replace(/\n/g, ' '))) gaps.push('도전 결과에서 «전투 보기» 로 못 들어간다');
   if (!/go\('pvpreplay',\s*\{[^}]*matchId:\s*r\.id/.test(psrc2.replace(/\n/g, ' '))) gaps.push('전적에서 «보기» 로 못 들어간다');
   okAll(gaps, '결과와 전적 두 곳에서 재생으로 들어간다', 2);
@@ -5131,6 +5148,68 @@ section('진 쪽 펫도 같이 쓰러진다');
   const esrc2 = readFileSync(srcDir('battle/engine.js'), 'utf8');
   ok(/kill\(u, null\)/.test(esrc2), '정리로 쓰러뜨린 펫은 처치 공으로 안 친다 (MVP 가 안 흔들린다)',
     'srcUid 를 넘기고 있다 — 마지막에 펫을 정리한 사람이 MVP 가 된다');
+}
+
+section('명부를 계열로도 거른다');
+{
+  /* 제작자 요청: 「계열로도 검색할수있게 해줘 방패병이면 방패병 계열 다 검색되는식으로」.
+   *   4차까지 가면 이름이 전부 달라져서(개천검제·멸망의 군신…) 「이 사람 원래 뭐였지」 로는
+   *   못 찾는다. 계열의 뿌리는 `classChain` 의 첫 칸(1차)이다. */
+  const CC = need('data/classes.js');
+  if (!CC) { ok(false, '클래스 모듈을 못 읽었다'); } else {
+    const all = Object.values(CC.CLASSES || {});
+    ok(all.length > 50, '클래스를 실제로 읽어 냈다', `${all.length}종`);
+
+    /* ① 모든 클래스가 뿌리를 갖는다 — 하나라도 없으면 그 사람은 어떤 계열에도 안 잡힌다 */
+    const orphan = all.filter((c) => {
+      const ch = CC.classChain(c.id);
+      return !ch.length || !ch[0];
+    });
+    okAll(orphan.map((c) => `${c.id} 가 계열 뿌리를 못 찾는다`), '모든 클래스가 계열 뿌리를 갖는다', all.length);
+
+    /* ② 뿌리는 1차여야 한다 — 2차가 뿌리로 잡히면 계열이 쪼개진다 */
+    const badRoot = all.filter((c) => {
+      const ch = CC.classChain(c.id);
+      return ch.length && ch[0] && (ch[0].tier || 1) !== 1;
+    });
+    okAll(badRoot.map((c) => `${c.id} 의 뿌리 ${CC.classChain(c.id)[0].id} 가 1차가 아니다`),
+      '계열 뿌리는 언제나 1차다', all.length);
+
+    /* ③ 계열이 실제로 여러 차수를 아우르는가 — 전부 1개짜리면 계열 검색이 무의미하다 */
+    const byRoot = new Map();
+    for (const c of all) {
+      const r = CC.classChain(c.id)[0];
+      if (!r) continue;
+      if (!byRoot.has(r.id)) byRoot.set(r.id, []);
+      byRoot.get(r.id).push(c);
+    }
+    const biggest = [...byRoot.values()].reduce((a, b) => (b.length > a.length ? b : a), []);
+    ok(byRoot.size >= 5 && biggest.length >= 8,
+      '계열이 여러 차수를 아우른다 (계열 검색이 뜻을 갖는다)',
+      `계열 ${byRoot.size}개 · 가장 큰 계열 ${biggest.length}종`);
+
+    /* ④ 자기 자신도 자기 계열에 들어간다 (1차를 고르면 1차도 나와야 한다) */
+    const selfMiss = [...byRoot.entries()].filter(([rid, list]) => !list.some((c) => c.id === rid));
+    okAll(selfMiss.map(([rid]) => `${rid} 계열에 ${rid} 자신이 없다`), '뿌리 자신도 제 계열에 들어간다', byRoot.size);
+  }
+
+  /* ⑤ 화면이 계열 선택을 실제로 다르게 다루는가 */
+  const csrc3 = decomment(readFileSync(srcDir('ui/company.js'), 'utf8'));
+  const faults3 = [];
+  if (!/const LINE_PREFIX = 'line:'/.test(csrc3)) faults3.push('계열 표시(LINE_PREFIX)가 없다');
+  if (!/rosterFilter\.classId\.startsWith\(LINE_PREFIX\)/.test(csrc3)) faults3.push('거르는 곳에서 계열을 안 본다');
+  /* ★ 단순히 `classChain(m.classId)` 만 보면 **다른 곳의 호출**을 보고 통과한다
+   *   (단원 상세 카드에도 같은 호출이 있다). 메타 검사가 그걸 드러냈다.
+   *   계열 판정에만 있는 «뿌리를 고른 값과 비교» 를 본다. */
+  if (!/chain\[0\]\.id !== want/.test(csrc3)) faults3.push('계열 판정이 뿌리를 고른 값과 비교하지 않는다');
+  if (!/group: '계열'/.test(csrc3)) faults3.push('드롭다운에 계열 묶음이 없다');
+  okAll(faults3, '명부 필터가 계열을 따로 다룬다', 4);
+
+  /* ★ 계열 표시가 클래스 id 와 안 겹쳐야 한다 — 겹치면 계열과 낱개가 섞인다 */
+  if (CC) {
+    const clash = Object.keys(CC.CLASSES || {}).filter((id) => id.startsWith('line:'));
+    okAll(clash.map((id) => `클래스 id '${id}' 가 계열 표시와 겹친다`), '계열 표시가 클래스 id 와 안 겹친다', 1);
+  }
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
