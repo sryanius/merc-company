@@ -1739,6 +1739,29 @@ section('근접이 목표를 «계속» 따라가나');
   };
   okAll(check(rsrc), '근접은 목표의 «집» 을 매 프레임 다시 조준한다', 3);
 
+  /* ★★ 제작자 지적 2: 「왜 근접이 서로 반대쪽에 있지」.
+   *   양쪽이 **상대의 집**을 조준하니 아군은 적 집의 왼쪽, 적은 아군 집의 오른쪽에 서려 했다.
+   *   둘 다 상대를 지나쳐 자리가 뒤바뀌었다 — 실측 181프레임 중 165프레임에서 통과, 최대 378px.
+   *   두 최전선의 한가운데를 벽으로 삼아 막는다. */
+  const wall = (src) => {
+    const f2 = [];
+    const i = src.indexOf('function aimStand');
+    const body = i >= 0 ? src.slice(i, i + 2600) : '';
+    if (!/frontLineX\('ally'\) \+ frontLineX\('enemy'\)/.test(body)) f2.push('중앙선(midline)을 안 구한다');
+    if (!/Math\.min\(wantX, mid - MIDLINE_GAP_PX\)/.test(body)) f2.push('아군이 중앙선을 넘는 걸 안 막는다');
+    if (!/Math\.max\(wantX, mid \+ MIDLINE_GAP_PX\)/.test(body)) f2.push('적군이 중앙선을 넘는 걸 안 막는다');
+    /* 부채꼴은 벽에 눌린 «뒤» 에 빼야 한다 — 먼저 빼면 벽이 먹어서 전원이 일렬로 눌린다 */
+    const clampAt = body.indexOf('MIDLINE_GAP_PX');
+    const backAt = body.indexOf('wantX -= d * back');
+    if (backAt < 0) f2.push('부채꼴(back)을 적용하지 않는다');
+    else if (backAt < clampAt) f2.push('부채꼴을 벽보다 먼저 적용한다 — 벽이 먹어서 일렬로 눌린다');
+    return f2;
+  };
+  okAll(wall(rsrc), '근접은 진영 중앙선을 넘지 않는다 (서로 통과 금지)', 4);
+  const wallBit = wall(rsrc.replace('wantX -= d * back;', ''));
+  if (wallBit.length) pass('검사가 실제로 문다 (부채꼴을 빼면 걸린다)', wallBit[0]);
+  else ok(false, '검사가 실제로 문다', '부채꼴을 뺐는데 검사가 안 걸렸다');
+
   /* 통과만 하는 검사를 여러 번 만들었다 — 실제로 무는지 확인한다 */
   const bitten = check(rsrc.replace('v.foe != null && v.dieT < 0) aimStand(v)', 'false) aimStand(v)'));
   if (bitten.length) pass('검사가 실제로 문다 (매 프레임 호출을 빼면 걸린다)', bitten[0]);

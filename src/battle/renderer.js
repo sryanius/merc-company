@@ -162,6 +162,8 @@ const CLIPS = {
 const STAND_SPEED = 6;
 /* 같은 적을 때리는 근접끼리 벌려 서는 간격(화면 px). 0 이면 전원이 겹친다. */
 const MELEE_SPREAD_PX = 30;
+/* 두 진영이 만나는 한가운데 선에서 각자 이만큼 물러선다 (서로 통과하지 못하게 하는 벽) */
+const MIDLINE_GAP_PX = 16;
 /* 목표 자리까지 이만큼 넘게 남았으면 «걷는 중» 으로 본다 */
 const MOVE_FRAME_PX = 6;
 
@@ -1190,8 +1192,21 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
      *   엔진에서 유닛은 움직이지 않는다 — 집이 곧 그 유닛의 진짜 자리다. */
     const tx = homeX(t.u);
     const ty = homeY(t.u);
+    /* ★★ 진영을 넘어가지 않는다 — 여기가 「왜 근접이 서로 반대쪽에 있지」의 원인이었다.
+     *   양쪽이 **상대의 집**을 조준하면 아군은 적 집의 왼쪽, 적은 아군 집의 오른쪽에 서려 한다.
+     *   둘 다 상대를 지나쳐 **자리가 뒤바뀐다.** 실제로 화면에서 아군이 적 오른쪽에 서 있었다.
+     *
+     *   두 진영 최전선의 한가운데(midline)를 벽으로 삼는다. 아군은 이 선을 못 넘고
+     *   적군도 못 넘는다 — 서로 마주 본 채 맞붙되 통과하지는 못한다. */
+    const mid = (frontLineX('ally') + frontLineX('enemy')) / 2;
+    let wantX = tx - d * meleeStand;
+    if (d > 0) wantX = Math.min(wantX, mid - MIDLINE_GAP_PX);
+    else wantX = Math.max(wantX, mid + MIDLINE_GAP_PX);
+    /* ★ 부채꼴은 **벽에 눌린 뒤에** 적용한다. 먼저 빼면 벽이 그걸 다시 먹어서
+     *   전원이 같은 x 에 일렬로 눌린다 — 실제로 그렇게 나왔다. */
+    wantX -= d * back;
     v.stand = {
-      dx: (tx - d * (meleeStand + back)) - homeX(v.u),
+      dx: wantX - homeX(v.u),
       dy: (ty + spread) - homeY(v.u),
     };
   }
