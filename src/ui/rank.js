@@ -110,7 +110,11 @@ export function render(root, params = {}) {
 function header() {
   return el('div', { class: 'panel col', style: { gap: '8px' } },
     // ★ '도시로' 버튼은 뺐다 — 이제 하단 탭에 걸려 있어서 아무 때나 돌아갈 수 있다.
-    el('h3', { text: '순위표', style: { margin: '0' } }),
+    el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
+      el('h3', { text: '순위표', style: { margin: '0' } }),
+      /* ★ PvP 진입점 — 제작자 요청대로 «순위표에서 상대를 지정» 한다.
+       *   하단 탭에는 안 건다 (8칸이 실측 한계다 — §53.4). */
+      el('button', { class: 'btn sm', onClick: () => go('pvp') }, '⚔️ PvP')),
     el('div', { class: 'faint tiny', text: '기록이 오르면 자동으로 올라간다. 따로 제출할 필요는 없다.' }));
 }
 
