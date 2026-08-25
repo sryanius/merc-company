@@ -17,12 +17,87 @@ import { createBattle, setSkillResolver } from '../battle/engine.js';
 import { tagMatch } from '../battle/tagmatch.js';
 import { getSkill } from '../data/skills.js';
 import * as Pvp from '../net/pvp.js';
+import { ENGINE_HASH } from '../data/enginever.js';
 import { go, toast } from './app.js';
 
 export const meta = { id: 'pvpreplay', title: 'PvP 재생' };
 
 /** 합이 끝나고 다음 합으로 넘어가기 전 멈춤 (초) */
 const GAP_S = 1.1;
+/* ── 진단 ────────────────────────────────────────────────────────
+ *
+ * ★★ 제작자: 「DB상에 있는데 그대로 구현 안되나?」
+ *   판 자체는 `pvp_matches.cfg` 에 다 들어 있다. 그런데 `pvp_replay` 는 **그 판의
+ *   당사자만** 읽게 잠겨 있다 — 아무나 열게 하면 남의 편성이 통째로 공개된다.
+ *   그래서 «서버를 열어 준다» 대신 **본인 화면에서 뽑아 갈 수 있게** 만든다.
+ *
+ * ★ 합마다 다시 돌리되 이번엔 **죽는 순서를 받아 적는다.** 재생과 같은 시드·같은 입력이라
+ *   화면에서 본 전개와 정확히 같다. 상태는 여전히 안 건드린다.
+ */
+function diagnose() {
+  if (!S) return '';
+  const lines = [];
+  lines.push(`# PvP 진단 — ${S.leftName}(공격) vs ${S.rightName}(방어)`);
+  lines.push(`판 ${S.matchId ?? '(방금 도전)'} · 시드 ${S.cfg.seed} · 엔진 ${ENGINE_HASH}`);
+  lines.push(`서버 승자 ${S.serverWinner || '?'} · 재생 승자 ${S.localWinner || '?'} · ${S.rounds.length}합`);
+
+  S.rounds.forEach((r, i) => {
+    /* ★★ `rout: false` 를 **반드시** 같이 넘긴다 — tagmatch 가 그렇게 돌렸기 때문이다.
+     *   빼먹었더니 진단이 «(7:0) 인데 생존자에 방어 용병이 있다» 를 뿜었다 —
+     *   진단이 자기가 만든 다른 판을 보고 있었다. 재생과 **한 글자도 달라지면 안 된다.** */
+    const b = createBattle({
+      allies: r.input.allies, enemies: r.input.enemies,
+      allyFormationId: r.input.allyFormationId, enemyFormationId: r.input.enemyFormationId,
+      seed: r.input.seed, getSkill, rout: false,
+    });
+    const died = [];
+    const seen = new Set();
+    let g = 0;
+    while (!b.finished && g++ < 20000) {
+      b.step(1 / 60);
+      b.drainEvents();
+      for (const u of b.units) {
+        if (!u.alive && !seen.has(u.uid)) { seen.add(u.uid); died.push({ t: b.time, u }); }
+      }
+    }
+    const who = (u) => `${u.side === 'ally' ? 'A' : 'D'}:${u.name || u.classId || '?'}${u.pet ? '(펫)' : ''}`;
+    lines.push('');
+    lines.push(`${i + 1}합  A ${r.attackerSquad + 1}부대 vs D ${r.defenderSquad + 1}부대 → ${r.winner} (${r.attackerLeft}:${r.defenderLeft}) ${r.time}초`);
+    lines.push(`  인원  A ${r.input.allies.length}명 · D ${r.input.enemies.length}명`);
+    lines.push(`  전사  ${died.map((d) => `${d.t.toFixed(1)}s ${who(d.u)}`).join(' → ') || '없음'}`);
+    const left = b.units.filter((u) => u.alive);
+    lines.push(`  생존  ${left.map((u) => `${who(u)} ${Math.round(u.hp / Math.max(1, u.maxHp) * 100)}%`).join(' · ') || '없음'}`);
+  });
+  return lines.join('\n');
+}
+
+function showDiag() {
+  if (!S || !S.diagNode) return;
+  if (S.diagNode.textContent) { S.diagNode.textContent = ''; S.diagNode.style.display = 'none'; return; }
+  let text = '';
+  try { text = diagnose(); } catch (e) { text = `진단 실패: ${String((e && e.message) || e)}`; }
+  S.diagNode.style.display = '';
+  S.diagNode.textContent = '';
+  S.diagNode.appendChild(el('div', { class: 'row center', style: { gap: '6px', marginBottom: '6px' } },
+    el('button', {
+      class: 'btn sm ghost',
+      onClick: () => {
+        try {
+          navigator.clipboard.writeText(text);
+          toast('진단을 복사했다 — 그대로 붙여 넣으면 된다', 'good');
+        } catch { toast('복사가 막혔다 — 아래 글을 직접 긁어라', 'bad'); }
+      },
+    }, '복사'),
+    el('span', { class: 'tiny faint', text: '이 글을 그대로 붙여 주면 같은 판을 재현할 수 있다' })));
+  S.diagNode.appendChild(el('pre', {
+    style: {
+      whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '11px', lineHeight: '1.5',
+      margin: '0', maxHeight: '320px', overflow: 'auto', color: 'var(--ink-dim)',
+    },
+    text,
+  }));
+}
+
 /** 한 합이 아무리 길어도 이 시간이면 접는다 — 엔진이 무한히 돌 리는 없지만 화면은 지켜야 한다 */
 const MAX_ROUND_S = 90;
 
@@ -66,6 +141,11 @@ function startRound(i) {
     enemyFormationId: inp.enemyFormationId,
     seed: inp.seed,
     getSkill,
+    /* ★★ `rout: false` — **tagmatch 가 그렇게 돌렸기 때문이다.**
+     *   이걸 빼먹으면 합 목록은 «전멸(0)» 이라 적힌 판을 화면에서는
+     *   패주로 일찍 끝낸다 — 목록과 화면이 서로 다른 말을 하게 된다.
+     *   메타 검사가 진단 쪽 구멍을 물지 않는 걸 보다가 이걸 찾았다. */
+    rout: false,
   });
   S.battle = b;
   S.gap = 0;
@@ -199,11 +279,13 @@ function build(root) {
   const verdictNode = el('div', { class: 'tiny' });
   const listNode = el('div', { class: 'col', style: { gap: '0' } });
   const speedRow = el('div', { class: 'row center', style: { gap: '4px' } });
+  const diagNode = el('div', { class: 'col', style: { gap: '4px', display: 'none' } });
 
   S.stepNode = stepNode;
   S.verdictNode = verdictNode;
   S.listNode = listNode;
   S.speedRow = speedRow;
+  S.diagNode = diagNode;
   paintSpeed();
 
   root.appendChild(el('div', { class: 'rp-wrap' },
@@ -221,9 +303,12 @@ function build(root) {
           stepNode,
           speedRow,
           el('button', { class: 'btn sm ghost', onClick: () => skipAll() }, '건너뛰기'),
+          /* ★ «왜 저렇게 끝났나» 를 글로 뽑는다 — 서버를 안 열고도 전해 줄 수 있게 */
+          el('button', { class: 'btn sm ghost', title: '죽은 순서·생존자를 글로 뽑는다', onClick: () => showDiag() }, '진단'),
           el('button', { class: 'btn sm ghost', onClick: () => go(S.returnTo) }, '닫기'))),
       verdictNode,
-      canvas),
+      canvas,
+      diagNode),
     el('div', { class: 'panel col', style: { gap: '4px' } },
       el('h3', { text: '합', style: { margin: '0' } }),
       listNode)));

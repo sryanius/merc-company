@@ -821,6 +821,26 @@ export function createBattle(cfg = {}) {
 
   function finish(winner) {
     if (B.finished) return;
+
+    /* ★★ **진 쪽 펫도 같이 쓰러진다.**
+     *
+     *   승패는 `aliveFighters` 로 정하는데 그건 **펫을 안 센다**
+     *   (수호 펫은 피해가 0이라 펫까지 잡게 하면 «목적 없는 마무리 사냥» 이 된다).
+     *   그래서 단원이 전멸해도 **펫은 서 있는 채로 전투가 끝난다** —
+     *   화면에는 「적이 서 있는데 승리」 로 보인다. 제작자가 그걸 두 번 짚었고,
+     *   재 보니 **펫을 넣은 60판 중 60판**이 그렇게 끝나고 있었다.
+     *
+     * ★ 승패 판정은 이미 끝난 뒤다 — 여기서 뭐를 하든 **결과는 안 바뀜다.**
+     *   난수도 안 쓴다(`kill` 은 rng 를 안 불러다). 화면만 정직해진다.
+     * ★ `srcUid` 를 안 넘긴다 — 처치 공으로 안 치면 MVP 계산이 안 흔들린다. */
+    for (const side of ['ally', 'enemy']) {
+      /* ★ «진 쪽» 이 아니라 **싸울 사람이 한 명도 안 남은 쪽**을 본다.
+       *   패주로 물러난 경우는 단원이 살아 나가는 것이니 펫도 같이 살아 나가야 한다
+       *   (의뢰에서는 패주가 보통의 끝이다 — 거기서 펫을 죽이면 안 된다). */
+      if (aliveFighters(side) > 0) continue;
+      for (const u of units) if (u.alive && u.pet && u.side === side) kill(u, null);
+    }
+
     B.finished = true;
     B.winner = winner;
     result.winner = winner;

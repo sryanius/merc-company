@@ -35,6 +35,20 @@ function pass(label, extra) {
   checks++;
   process.stdout.write(`   ✓ ${label}${extra ? ` (${extra})` : ''}\n`);
 }
+
+/** 소스에서 주석을 지운다.
+ *  ★ 글자로 보는 검사는 **주석을 같이 센다.** 그러면 코드에서 빼도
+ *  설명 주석이 대신 세어져 검사가 안 물다 — 실제로 그러다 메타 검사에 걸렸다. */
+function decomment(x) {
+  let out = ''; let i = 0;
+  while (i < x.length) {
+    if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
+    if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
+    out += x[i]; i++;
+  }
+  return out;
+}
+
 /** 여러 개를 모아 한 줄로 보고 (첫 8개만 상세) */
 function okAll(bad, label, total) {
   checks++;
@@ -4886,6 +4900,20 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
   if (!/go\('pvpreplay',\s*\{[^}]*matchId:\s*r\.id/.test(psrc2.replace(/\n/g, ' '))) gaps.push('전적에서 «보기» 로 못 들어간다');
   okAll(gaps, '결과와 전적 두 곳에서 재생으로 들어간다', 2);
 
+  /* ★★ 재생의 **모든** 전투 생성이 tagmatch 와 같은 조건이어야 한다.
+   *   한 군데라도 `rout: false` 를 빼먹으면 **합 목록과 화면이 다른 말을 한다** —
+   *   목록은 «전멸(0)» 인데 화면은 패주로 일찍 끝난다. 실제로 재생 본편이 빼먹고 있었다.
+   *
+   * ★ 처음 쓴 검사는 **주석 안의 `rout: false` 까지 셌다.** 그래서 코드에서 빼도
+   *   주석이 대신 세어져 안 물었다 — 메타 검사가 그걸 잡았다. 주석을 지우고 센다.
+   *   (같은 이유로 아래 의뢰/태그매치 검사도 주석을 지운 소스로 본다.) */
+  const rcode = decomment(rsrc);
+  const rcalls = (rcode.match(/createBattle\(\{/g) || []).length;
+  const rrout = (rcode.match(/rout:\s*false/g) || []).length;
+  ok(rcalls > 0 && rrout >= rcalls, '재생의 모든 전투가 tagmatch 와 같은 조건으로 돌아간다 (rout 꺼짐)',
+    `createBattle ${rcalls}군데 중 rout:false 는 ${rrout}군데`);
+
+
   /* 화면이 등록돼 있고 오프라인 목록에도 들어갔는가 */
   const asrc = readFileSync(srcDir('ui/app.js'), 'utf8');
   ok(/id: 'pvpreplay'/.test(asrc), 'pvpreplay 화면이 SCREENS 에 등록돼 있다');
@@ -4992,7 +5020,7 @@ section('PvP 는 끝까지 싸운다 (패주 끄기)');
    *   메타 검사로 그걸 심었는데 안 물어서 알았다 — 이제 둘 다 본다.
    *   (`\b` 를 쓰면 셸 heredoc 이 백슬래시를 먹어 백스페이스 문자가 박힌다. 문자 부류로 쓴다.) */
   const ROUT_OFF = /(^|[^A-Za-z0-9_$])rout\s*[:=]\s*false/m;
-  ok(!ROUT_OFF.test(bsrc2),
+  ok(!ROUT_OFF.test(decomment(bsrc2)),
     '의뢰 전투는 패주를 그대로 둔다 (빼면 질 때마다 단원이 전멸한다 — §24·§25)',
     'ui/battle.js 가 패주를 끈다');
 
@@ -5006,6 +5034,103 @@ section('PvP 는 끝까지 싸운다 (패주 끄기)');
     '방어자가 재등록할 때까지 아무도 그를 못 때리는 상태로 남는다');
   ok(/const stamp = \(fp\) => `\$\{ENGINE_HASH\}:\$\{fp\}`/.test(psrc3),
     '등록 지문에 엔진 지문을 같이 엮는다');
+}
+
+section('진 쪽 펫도 같이 쓰러진다');
+{
+  /* ★★ 제작자가 「적이 서 있는데 왜 승리」 를 두 번 짚었다. 첫 번째는 패주였고(§82),
+   *   패주를 끄고 나서도 **한 갈래가 남아 있었다** — 펫이다.
+   *
+   *   승패는 `aliveFighters` 로 정하는데 그건 **펫을 안 센다** (수호 펫은 피해가 0이라
+   *   펫까지 잡게 하면 «목적 없는 마무리 사냥» 이 된다). 그래서 단원이 전멸해도
+   *   펫은 서 있는 채로 끝났다 — 실측 **펫을 넣은 60판 중 60판**이 그랬다.
+   *
+   *   승패 판정은 이미 끝난 뒤에 정리하는 것이라 **결과는 한 판도 안 바뀐다.**
+   *   그것까지 검사한다 — 안 그러면 화면 고치려다 밸런스를 흔든 게 된다. */
+  const EN4 = need('battle/engine.js');
+  let SK4 = null;
+  try { SK4 = await import(srcUrl('data/skills.js')); } catch (e) { ok(false, '스킬 모듈을 읽는다', String(e.message)); }
+
+  if (EN4 && SK4) {
+    const merc = (i, side, hp, atk) => ({
+      uid: `${side}m${i}`, name: `${side}m${i}`, classId: 'swordsman', side,
+      stats: { hp, atk, def: 20, res: 10, spd: 100, crit: 5, critDmg: 150, eva: 3 },
+    });
+    const pet = (i, side) => ({
+      uid: `${side}p${i}`, name: `펫${i}`, side, pet: true, petRole: 'guard',
+      stats: { hp: 30000, atk: 1, def: 300, res: 300, spd: 80, crit: 0, critDmg: 100, eva: 0 },
+    });
+    const squad = (side, hp, atk, nPets) => [
+      ...Array.from({ length: 5 }, (_, i) => merc(i, side, hp, atk)),
+      ...Array.from({ length: nPets }, (_, i) => pet(i, side)),
+    ];
+    const play = (nPets, seed) => {
+      const b = EN4.createBattle({
+        allies: squad('ally', 5000, 500, nPets), enemies: squad('enemy', 800, 40, nPets),
+        seed, getSkill: SK4.getSkill, record: false, rout: false,
+      });
+      let g = 0;
+      while (!b.finished && g++ < 20000) b.step(1 / 60);
+      const loser = b.winner === 'ally' ? 'enemy' : 'ally';
+      return {
+        winner: b.winner,
+        time: Math.round(b.time * 100) / 100,
+        loserLeft: b.units.filter((u) => u.alive && u.side === loser).length,
+        winnerPets: b.units.filter((u) => u.alive && u.pet && u.side === b.winner).length,
+      };
+    };
+
+    const seeds = [1, 2, 3, 5, 8, 13, 21, 34];
+
+    /* ① 진 쪽에 아무것도 안 남는다 — 펫이 있어도 */
+    const withPets = seeds.map((s) => play(3, s));
+    okAll(withPets.filter((r) => r.loserLeft > 0).map((r, i) => `seed ${seeds[i]}: 진 쪽에 ${r.loserLeft}개 남았다`),
+      '단원이 전멸하면 그 쪽 펫도 같이 쓰러진다', seeds.length);
+
+    /* ② 이긴 쪽 펫은 살아 있어야 한다 — 다음 합으로 같이 가야 하니까 */
+    okAll(withPets.filter((r) => r.winnerPets !== 3).map((r, i) => `seed ${seeds[i]}: 이긴 쪽 펫이 ${r.winnerPets}마리만 남았다`),
+      '이긴 쪽 펫은 그대로 살아 있다 (다음 합으로 간다)', seeds.length);
+
+    /* ③ ★ 결과가 안 바뀐다 — 펫이 없는 판은 이 변경 전후로 완전히 같아야 한다.
+     *   승자·시각이 흔들리면 화면 고치려다 밸런스를 건드린 것이다. */
+    const noPets = seeds.map((s) => play(0, s));
+    okAll(noPets.filter((r) => !r.winner || r.loserLeft > 0).map((r, i) => `seed ${seeds[i]}: 펫 없는 판이 이상하다`),
+      '펫이 없으면 예전과 똑같이 전멸로 끝난다', seeds.length);
+
+    /* ④ 승패 자체는 펫 유무와 무관해야 한다 (펫은 머릿수에 안 들어간다) */
+    okAll(seeds.map((s, i) => (withPets[i].winner === noPets[i].winner ? null
+      : `seed ${s}: 펫을 넣었더니 승자가 바뀌었다 ${noPets[i].winner} → ${withPets[i].winner}`)).filter(Boolean),
+      '펫이 승패를 바꾸지 않는다', seeds.length);
+
+    /* ⑤ ★ 패주로 «물러난» 경우에는 단원이 살아 나간다 — 그 쪽 펫도 같이 살아 나가야 한다.
+     *   처음엔 «진 쪽 펫» 을 전부 죽였는데, 그러면 의뢰에서 패주할 때마다(의뢰는 그게 보통의 끝이다)
+     *   단원은 멀쩡한데 펫만 죽는 그림이 된다. 조건을 «전투원이 하나도 안 남은 진영» 으로 좁혔다. */
+    const routKeep = (seed) => {
+      const b = EN4.createBattle({
+        allies: squad('ally', 5000, 500, 3), enemies: squad('enemy', 900, 60, 3),
+        seed, getSkill: SK4.getSkill, record: false, rout: true,
+      });
+      let g = 0;
+      while (!b.finished && g++ < 20000) b.step(1 / 60);
+      const loser = b.winner === 'ally' ? 'enemy' : 'ally';
+      const fighters = b.units.filter((u) => u.alive && !u.pet && u.side === loser).length;
+      const pets = b.units.filter((u) => u.alive && u.pet && u.side === loser).length;
+      return { routed: (b.result.margin || {}).routed, fighters, pets };
+    };
+    const routed = seeds.map(routKeep).filter((r) => r.routed && r.fighters > 0);
+    if (!routed.length) {
+      ok(true, '패주로 단원이 살아 나간 판이 없어 건너뜀 (조건이 안 만들어졌다)');
+    } else {
+      okAll(routed.filter((r) => r.pets === 0)
+        .map((r) => `단원 ${r.fighters}명이 살아 나갔는데 펫은 ${r.pets}마리다 — 펫만 죽었다`),
+        '패주로 물러날 때는 펫도 같이 살아 나간다', routed.length);
+    }
+  }
+
+  /* 처치 공으로 안 치는가 — 치면 MVP 가 «펫 정리» 로 뽑힌다 */
+  const esrc2 = readFileSync(srcDir('battle/engine.js'), 'utf8');
+  ok(/kill\(u, null\)/.test(esrc2), '정리로 쓰러뜨린 펫은 처치 공으로 안 친다 (MVP 가 안 흔들린다)',
+    'srcUid 를 넘기고 있다 — 마지막에 펫을 정리한 사람이 MVP 가 된다');
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
