@@ -4,6 +4,7 @@
 
 import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve, relative, sep } from 'node:path';
@@ -3039,19 +3040,90 @@ section('제출 필드가 서버 화이트리스트와 맞나');
       return out;
     };
 
-    const squadFields = fieldsOf(rulesSrc, 'function allSquadsOf', 'function topSquadOf');
-    const serverFields = fieldsOf(fnSrc, 'function sanitizeSquadsFull', 'function sanitizeSquad');
+    /* ★★ **쌍이 하나가 아니다.** 스냅샷에는 두 갈래가 있다:
+     *     · 상세 (누른 한 사람) : rules.js allSquadsOf  ↔ 서버 sanitizeSquadsFull
+     *     · 요약 (순위표 목록)  : rules.js topSquadOf   ↔ 서버 sanitizeSquad
+     *   §58 을 막으라고 만든 이 검사는 **위쪽 쌍만 봤다.** 그래서 단원 이름 `nm` 을
+     *   allSquadsOf 에만 넣고 topSquadOf 를 빠뜨렸을 때 통과해 버렸고,
+     *   목록은 그대로 클래스명이 떴다 (제작자가 화면으로 알려 줬다).
+     *   같은 함정에 다섯 번째로 걸린 자리다 — 이제 두 쌍을 다 본다. */
+    const PAIRS = [
+      {
+        label: '상세', from: 'function allSquadsOf', to: 'function topSquadOf',
+        sFrom: 'function sanitizeSquadsFull', sTo: 'function sanitizeSquad', min: 5,
+      },
+      {
+        label: '요약', from: 'function topSquadOf', to: 'A등급: 불가능',
+        sFrom: 'function sanitizeSquad(', sTo: 'const keepMax', min: 4,
+      },
+    ];
 
-    /* rules.js 쪽에만 있는 «지역 변수·헬퍼» 는 서버가 통과시킬 대상이 아니다 —
-     * 실제로 스냅샷에 실리는 이름만 남긴다 (한두 글자 축약 + nm 처럼 짧은 것). */
     const IGNORE = new Set(['const', 'let', 'return', 'if', 'for', 'try', 'catch', 'function']);
-    const wanted = [...squadFields].filter((f) => !IGNORE.has(f));
+    const drift = [];
+    const seen = [];
+    for (const P of PAIRS) {
+      const wanted = [...fieldsOf(rulesSrc, P.from, P.to)].filter((f) => !IGNORE.has(f));
+      const server = fieldsOf(fnSrc, P.sFrom, P.sTo);
+      for (const f of wanted) {
+        if (!server.has(f)) drift.push(`${P.label}: 필드 '${f}' 가 ${P.sFrom.replace('function ', '').replace('(', '')} 에 없다 — 서버가 조용히 버린다`);
+      }
+      seen.push({ label: P.label, wanted, min: P.min });
+    }
 
-    const missing = wanted.filter((f) => !serverFields.has(f));
-    okAll(missing.map((f) => `부대/단원 필드 '${f}' 가 sanitizeSquadsFull 에 없다 — 서버가 조용히 버린다`),
-      'allSquadsOf 의 필드를 서버가 전부 통과시킨다', wanted.length || 1);
-    ok(wanted.length >= 5, '부대·단원 필드를 실제로 읽어 냈다 (정규식이 헛돌지 않았다)',
-      `읽은 필드: ${wanted.join(' ') || '없음'}`);
+    okAll(drift, '클라이언트가 싣는 필드를 서버가 전부 통과시킨다 (상세·요약 두 쌍)',
+      seen.reduce((a, s) => a + s.wanted.length, 0) || 1);
+
+    /* 정규식이 헛돌면 «어긋난 게 없다» 로 조용히 통과한다 — 읽어 낸 개수를 못 박는다 */
+    okAll(seen.filter((s) => s.wanted.length < s.min)
+      .map((s) => `${s.label} 쪽에서 필드를 ${s.wanted.length}개만 읽었다 (최소 ${s.min}) — 정규식이 헛돈다`),
+      '두 쌍 모두에서 필드를 실제로 읽어 냈다', seen.length);
+
+    /* 요약 쌍이 목록의 핵심인 «단원 이름» 을 정말 싣는지 못 박는다 */
+    const sumFields = fieldsOf(rulesSrc, 'function topSquadOf', 'A등급: 불가능');
+    ok(sumFields.has('nm'), '순위표 목록 요약이 단원 이름(nm)을 싣는다',
+      `읽은 필드: ${[...sumFields].join(' ') || '없음'}`);
+
+    /* ★★ 스냅샷 **형식이 바뀌면 SNAPSHOT_REV 를 올려야 한다.**
+     *
+     *   필드를 더하고 서버까지 맞춰도, 이미 제출을 끝낸 사람은 «기록이 다시 오를 때»
+     *   까지 재제출하지 않는다 — 나락은 주 단위, 탑은 월 단위다. 그래서 새 필드가
+     *   순위표에 **영영 안 나타난다.** 제작자가 그걸로 겪었다:
+     *   단원 이름을 넣었는데 목록은 그대로 클래스명이었다.
+     *
+     *   그래서 «필드 목록의 지문» 을 여기 못 박는다. 필드가 바뀌면 이 검사가 깨지고,
+     *   고치려면 cloud.js 의 SNAPSHOT_REV 를 올린 다음 아래 두 값을 갱신해야 한다. */
+    const PINNED_REV = 2;
+    const PINNED_FP = '0e59e0a8e248';
+
+    const fpFields = [
+      ...[...fieldsOf(rulesSrc, 'function allSquadsOf', 'function topSquadOf')].sort(),
+      '|',
+      ...[...fieldsOf(rulesSrc, 'function topSquadOf', 'A등급: 불가능')].sort(),
+    ];
+    const fp = createHash('sha1').update(fpFields.join(',')).digest('hex').slice(0, 12);
+
+    const cloudSrc = readFileSync(srcDir('net/cloud.js'), 'utf8');
+    const revM = cloudSrc.match(/export const SNAPSHOT_REV = (\d+);/);
+    const rev = revM ? Number(revM[1]) : 0;
+
+    ok(rev === PINNED_REV && fp === PINNED_FP,
+      '스냅샷 필드가 바뀌었으면 SNAPSHOT_REV 도 올렸다',
+      fp !== PINNED_FP
+        ? `필드가 바뀌었다 (지문 ${PINNED_FP} → ${fp}: ${fpFields.join(' ')}) — cloud.js 의 SNAPSHOT_REV 를 ${rev + 1} 로 올리고 이 검사의 PINNED_REV/PINNED_FP 도 갱신해라`
+        : `SNAPSHOT_REV 가 ${rev} 다 (검사가 못 박은 값은 ${PINNED_REV}) — 필드가 그대로인데 번호만 움직였다면 이 검사도 같이 갱신해라`);
+
+    /* 번호를 올려도 «기억에 안 적히면» 아무 소용이 없다 — 매번 재제출하게 된다 */
+    const memos = (cloudSrc.match(/rev: SNAPSHOT_REV/g) || []).length;
+    /* ★ «null 로 지우는 곳»(로그아웃·계정 교체)은 세지 않는다 —
+     *   처음엔 그것까지 세서 이 검사가 오탐을 냈다. 기억을 **채우는** 곳만 본다. */
+    const writes = [...cloudSrc.matchAll(/writeLS\(SUBMITTED_KEY,\s*(\S+)/g)]
+      .filter((m) => !m[1].startsWith('null')).length;
+    ok(writes > 0 && memos === writes,
+      '제출 기억을 채우는 곳마다 형식 번호를 적는다',
+      `기억을 채우는 곳 ${writes}군데 중 ${memos}군데만 rev 를 적는다`);
+
+    ok(/\(Number\(done\.rev\) \|\| 1\) !== SNAPSHOT_REV/.test(cloudSrc),
+      '형식 번호가 다르면 재제출한다 (옛 기억은 rev 없음 → 1 로 본다)');
   }
 }
 
@@ -4454,6 +4526,91 @@ section('서버 공유 규칙');
   const bsrc = fsq.readFileSync('src/ui/battle.js', 'utf8');
   ok(!/const\s+WAVE_HEAL\s*=/.test(bsrc),
     'ui/battle.js 가 WAVE_HEAL 사본을 두지 않는다 (quest.js 가 유일한 출처)');
+}
+
+section('대표 부대를 바꾸면 순위표가 따라오는가');
+{
+  /* ★★ 제작자가 겪은 것: 「방금 대표를 2부대에서 1부대로 바꿨는데 그대로인데」.
+   *
+   *   원인은 «표시만 바뀌는 변경» 이다. cloud.js 의 worthSubmitting 은
+   *   나락·탑·의뢰·S용병·전력 다섯 축이 **올랐을 때만** 제출을 내보낸다
+   *   (save() 는 시간당 수백 번인데 서버 함수를 그때마다 돌릴 수는 없다).
+   *   대표 부대 변경은 그 다섯 중 어느 것도 아니다 — 게다가 topPower 는
+   *   «모든 부대 중 최대» 라서 대표를 누구로 바꾸든 **아예 안 움직인다.**
+   *   그래서 강제 제출이 없으면 순위표는 옛 부대를 영원히 내걸고 있는다.
+   *
+   *   검사는 두 겹이다:
+   *     ① 실측 — flagSquadId 만 바꿨을 때 «내걸리는 부대는 바뀌는데 다섯 축은 그대로» 인가
+   *     ② 그러므로 대표를 바꾸는 자리가 force 제출을 하는가
+   *   ①이 깨지면(대표가 제출 축에 들어가면) ②는 필요 없어진다 — 그때 이 검사를 고친다. */
+  const R = need('game/rules.js');
+  if (!R) { ok(false, '규칙 모듈을 못 읽었다'); } else {
+    const mkState = () => ({
+      seed: 7, dataVersion: 1, companyName: '실측단', day: 30, gold: 0, renown: 0,
+      abyss: { best: 3 }, tower: { best: 5 }, stats: { questsDone: 9, hires: 0, specHires: 0 },
+      roster: [
+        { uid: 'a1', name: '가', classId: 'swordsman', level: 40, grade: 'A', hiredDay: 2, equipment: {} },
+        { uid: 'b1', name: '나', classId: 'archer', level: 20, grade: 'C', hiredDay: 3, equipment: {} },
+      ],
+      items: [],
+      squads: [
+        { id: 's1', name: '1부대', formationId: 'basic', memberUids: ['a1'], power: 100 },
+        { id: 's2', name: '2부대', formationId: 'basic', memberUids: ['b1'], power: 900 },
+      ],
+      flagSquadId: null,
+    });
+
+    /* ① 대표만 바꿔 본다 — 2부대(센 쪽) → 1부대(약한 쪽), 제작자가 한 그대로 */
+    const before = mkState(); before.flagSquadId = 's2';
+    const after = mkState(); after.flagSquadId = 's1';
+    const sB = R.extractScore(before);
+    const sA = R.extractScore(after);
+
+    ok(sB && sA && sB.squad && sA.squad, '두 상태에서 점수를 읽어 냈다',
+      `before=${sB && sB.squad && sB.squad.name} after=${sA && sA.squad && sA.squad.name}`);
+
+    if (sB && sA && sB.squad && sA.squad) {
+      /* 내걸리는 부대는 **분명히** 바뀐다 */
+      ok(sB.squad.name === '2부대' && sA.squad.name === '1부대',
+        '대표를 바꾸면 순위표에 실리는 부대가 바뀐다',
+        `${sB.squad.name} → ${sA.squad.name}`);
+
+      /* 그런데 제출을 트리거하는 다섯 축은 하나도 안 움직인다 */
+      const AXES = ['abyssBest', 'towerBest', 'questsDone', 'sMercs', 'topPower'];
+      const moved = AXES.filter((k) => sB[k] !== sA[k]);
+      ok(moved.length === 0,
+        '제출 트리거 다섯 축은 대표 변경에 반응하지 않는다 (= 평소 경로로는 안 나간다)',
+        moved.length ? `움직인 축: ${moved.join(' ')} — 이 검사의 전제가 바뀌었다` : `축 ${AXES.join(' ')} 전부 동일`);
+    }
+
+    /* ② 그러므로 대표를 바꾸는 자리는 강제 제출을 해야 한다.
+     *   setFlagSquad 함수 **본문 안**에서만 찾는다 — 파일 어딘가에 있기만 하면
+     *   통과하는 검사는 이 버그를 못 잡았을 것이다 (다른 버튼의 제출을 보고 통과한다). */
+    const csrc = readFileSync(srcDir('ui/company.js'), 'utf8');
+    const bodyOf = (src, name) => {
+      const at = src.indexOf(`function ${name}(`);
+      if (at < 0) return '';
+      const open = src.indexOf('{', at);
+      let depth = 0;
+      for (let i = open; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') { depth--; if (!depth) return src.slice(open, i + 1); }
+      }
+      return src.slice(open);
+    };
+    const flagBody = bodyOf(csrc, 'setFlagSquad');
+    ok(flagBody.length > 40, 'setFlagSquad 본문을 찾았다', `${flagBody.length}자`);
+    ok(/submitScore\s*\(\s*\{[^}]*force\s*:\s*true/.test(flagBody),
+      '대표를 바꾸면 그 자리에서 강제 제출한다',
+      flagBody.includes('submitScore') ? 'submitScore 는 있는데 force 가 아니다' : '본문에 submitScore 가 없다');
+
+    /* ★ 메타 검사 — 강제 제출을 지우면 위 검사가 실제로 무는가.
+     *   이 저장소에서 «통과만 하고 아무것도 안 잡는 검사» 를 여러 번 만들었다. */
+    const planted = flagBody.replace(/if \(Cloud\.ready\(\)\) Cloud\.submitScore\(\{ force: true \}\)[^\n]*\n/, '');
+    ok(planted !== flagBody && !/submitScore\s*\(\s*\{[^}]*force\s*:\s*true/.test(planted),
+      '검사가 실제로 문다 (강제 제출을 지우면 걸린다)',
+      planted === flagBody ? '심을 줄을 못 찾았다 — 검사가 헛돈다' : '지웠는데도 통과한다');
+  }
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

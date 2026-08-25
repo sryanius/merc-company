@@ -393,11 +393,28 @@ function readSubmitted() {
   } catch { return null; }
 }
 
+/**
+ * 순위표에 싶는 **스냅샷의 형식** 번호.
+ *
+ * ★★ 스냅샷에 필드를 더하면 **이 숫자를 올려라.**
+ *   안 올리면 기록이 다시 오를 때까지 아무도 재제출하지 않아
+ *   새 필드가 순위표에 **영영 안 나타난다** — 나락·탑은 주/월 단위로 오른다.
+ *   실제로 거기 걸렸다: 단원 이름(nm)을 넣었는데 목록은 그대로
+ *   클래스명이었다 — 코드는 맞는데 서버에 있는 건 옛 스냅샷이었기 때문이다.
+ *
+ * 1: 처음  →  2: 단원 이름(nm) · 대표 부대(flagSquadId) 반영
+ */
+export const SNAPSHOT_REV = 2;
+
 /** 지금 값이 마지막으로 제출한 것보다 나은가 */
 function worthSubmitting(score) {
   if (!score) return false;
   const done = readSubmitted();
   if (!done || done.seed !== score.seed) return true;      // 새 판이면 무조건 한 번
+
+  /* ★★ 스냅샷 형식이 바뀌었으면 **한 번 다시 올린다.**
+   *   새 필드는 기록을 올리지 않으므로 아래 다섯 축으로는 절대 나가지 않는다. */
+  if ((Number(done.rev) || 1) !== SNAPSHOT_REV) return true;
 
   /* ★★ **세이브 버전이 바뀌었으면 기억을 버린다.**
    *   서버 기록을 리셋해도 이 «이미 올렸다» 기억은 로컬에 남는다. 그래서 리셋 뒤
@@ -458,7 +475,7 @@ export async function submitScore(opt = {}) {
       writeLS(SUBMITTED_KEY, JSON.stringify({
         seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
         sMercs: score.sMercs, topPower: score.topPower,
-        dataVersion: score.dataVersion || 0,
+        dataVersion: score.dataVersion || 0, rev: SNAPSHOT_REV,
       }));
       /* ★ 서버가 사유를 안 준다 (일부러 그렇게 만들었다 — submit-score 주석 참고).
        *   여기서도 지어내지 않는다. 오탐이면 사람이 알려 오는 쪽으로 유도한다. */
@@ -467,7 +484,7 @@ export async function submitScore(opt = {}) {
     writeLS(SUBMITTED_KEY, JSON.stringify({
       seed: score.seed, abyss: score.abyssBest, tower: score.towerBest, quests: score.questsDone,
       sMercs: score.sMercs, topPower: score.topPower,
-      dataVersion: score.dataVersion || 0,
+      dataVersion: score.dataVersion || 0, rev: SNAPSHOT_REV,
     }));
     return { ok: true, error: '' };
   })();

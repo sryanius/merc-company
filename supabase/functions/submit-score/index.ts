@@ -198,6 +198,7 @@ function sanitizeSquad(raw: unknown) {
         c: cut(x.c, 24),
         l: Math.max(1, Math.min(80, Math.round(Number(x.l) || 1))),
         g: cut(x.g, 1),
+        nm: cut(x.nm, 16),     // 단원 이름 — rules.js topSquadOf 와 쌍이다
       };
     }).filter((m) => m.c),
   };

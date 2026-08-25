@@ -208,6 +208,12 @@ function topSquadOf(st) {
       c: cut(m.classId, 24),                       // 클래스 id — 이름은 받는 쪽이 찾는다
       l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
       g: cut(m.grade, 1),
+      /* ★★ 단원 이름. 제작자 요청—「클래스명 대신 내 용병 이름으로」.
+       *   상세용 allSquadsOf 에만 넣었다가 **목록은 그대로 클래스명이었다** —
+       *   순위표에 실리는 건 이쪽(topSquadOf)이다. 둘은 별도의 함수라 같이 고쳐야 한다.
+       *   ★ 뒤따라 서버 sanitizeSquad 도 같이 고쳐야 한다 — 안 그러면 조용히 버려진다.
+       *   크기: 200행 기준 원본 +41KB(행당 +210B), gzip +0.2KB — 재 보고 넣었다. */
+      nm: cut(m.name, 16),
     })),
   };
 }

@@ -13,6 +13,7 @@ import { getClass, classChain } from '../data/classes.js';
 import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
 import { getShowcase, drawShowcase } from '../art/showcase.js';
 import {
@@ -224,6 +225,15 @@ function setFlagSquad(sq) {
   }
   save();
   redraw();
+
+  /* ★★ 순위표에 **바로** 반영한다.
+   *   평소 제출 경로(cloud.js worthSubmitting)는 «나락·탑·의뢰·S용병·전력»
+   *   다섯 축이 올랐을 때만 나간다. 대표 부대 변경은 그 어느 축도 아니다 —
+   *   오히려 **더 약한 부대로 바꾸면 전력이 내려가** 영영 안 올라간다.
+   *   제작자가 그걸 겪었다: 「방금 대표를 2부대에서 1부대로 바꿔는데 그대로인데」.
+   *   단장 이름 변경(app.js)과 같은 처리다. 실패해도 조용히 넘어간다 —
+   *   대표는 이미 바뀌었고 다음 기록 때 어차피 따라간다. */
+  if (Cloud.ready()) Cloud.submitScore({ force: true }).catch(() => {});
 }
 
 function addSquadCheck() {
