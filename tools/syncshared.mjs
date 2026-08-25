@@ -52,7 +52,9 @@ const BUNDLES = [
     /* ★ 진입점만 적는다. 나머지는 import 를 따라 걷는다 (goldenbattle.mjs 의 ENTRY 와 같아야 한다 —
      *   다르면 ENGINE_HASH 가 서버에 실제로 올라간 파일과 다른 것을 가리키게 된다). */
     entry: ['src/battle/engine.js', 'src/data/skills.js', 'src/data/classes.js',
-      'src/data/classes_t4.js', 'src/data/formations.js'],
+      'src/data/classes_t4.js', 'src/data/formations.js',
+      /* 엔진 지문 상수 — 서버와 클라가 «같은 상수» 를 각자 import 한다 */
+      'src/data/enginever.js'],
     walk: true,
     extra: ['tests/fixtures/battle-golden.json'],   // 자가검사가 읽는다
     next: 'supabase functions deploy pvp-battle',

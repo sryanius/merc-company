@@ -2555,6 +2555,104 @@ section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
     `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
 }
 
+section('태그매치 (부대가 이어 싸운다)');
+{
+  /* ★★ 제작자 규칙: 「모든 부대가 태그매치로. 서로 1부대 전투하고 **이긴 쪽이 그 전투에서
+   *   이어서** 2부대랑 바로 이어서 전투」. 다음 웨이브 버튼 없이 한 번에 이어진다.
+   *
+   *   서버가 이 결과로 승패를 정하고 클라가 같은 시드로 재생한다 —
+   *   **결정적이지 않으면 «화면에선 이겼는데 점수는 졌다» 가 된다.** 그래서 여기서 잰다. */
+  const F = '../supabase/functions/pvp-battle/';
+  let TM = null;
+  let SK = null;
+  let FM = null;
+  let CL2 = null;
+  try {
+    TM = await import(F + 'tagmatch.js');
+    SK = await import(F + '_engine/skills.js');
+    FM = await import(F + '_engine/formations.js');
+    CL2 = await import(F + '_engine/classes.js');
+    await import(F + '_engine/classes_t4.js');
+  } catch (e) {
+    ok(false, '태그매치 모듈을 읽는다', String((e && e.message) || e));
+  }
+
+  if (TM && SK && FM && CL2) {
+    const f = FM.getFormation('basic');
+    const sq = (side, s, ids, lv) => ids.map((c, i) => ({
+      uid: `${side}${s}_${i}`, name: c, classId: c, level: lv, grade: 'C',
+      side, slot: f.slots[i], basicRange: CL2.CLASSES[c].range,
+    }));
+    const A = [
+      sq('ally', 0, ['swordsman', 'shieldman', 'archer', 'apprentice', 'acolyte'], 30),
+      sq('ally', 1, ['spearman', 'rogue', 'archer', 'apprentice', 'monk'], 28),
+      sq('ally', 2, ['swordsman', 'swordsman', 'archer', 'acolyte', 'monk'], 26),
+    ];
+    const D = [
+      sq('enemy', 0, ['spearman', 'shieldman', 'archer', 'apprentice', 'acolyte'], 29),
+      sq('enemy', 1, ['swordsman', 'rogue', 'archer', 'apprentice', 'monk'], 30),
+      sq('enemy', 2, ['monk', 'shieldman', 'archer', 'acolyte', 'rogue'], 27),
+    ];
+    const run = (seed) => TM.tagMatch({ attacker: A, defender: D, seed, getSkill: SK.getSkill });
+
+    const faults = [];
+
+    /* ① 같은 시드는 항상 같은 전개 — 재생이 성립하는 근거다 */
+    const r1 = run(12345);
+    const r2 = run(12345);
+    if (JSON.stringify(r1) !== JSON.stringify(r2)) faults.push('같은 시드인데 결과가 다르다 (재생이 불가능해진다)');
+
+    /* ② 반드시 한쪽이 끝난다 — 무한 루프가 나면 서버가 멈춘다 */
+    if (!['attacker', 'defender', 'draw'].includes(r1.winner)) faults.push(`승자가 이상하다: ${r1.winner}`);
+    if (r1.roundCount < 1) faults.push('한 합도 안 싸웠다');
+    if (r1.roundCount > 32) faults.push(`합이 ${r1.roundCount} 이다 — 논리가 샌다`);
+
+    /* ③ **이긴 쪽이 생존자 그대로 이어 싸운다** — 이게 태그매치의 핵심 규칙이다.
+     *   한 합에서 이긴 쪽의 다음 합 시작 인원이 «그 합의 생존자 수» 와 같아야 한다. */
+    /* ★ «어딘가 한 번이라도 계승되면 통과» 로 짜면 안 된다 — 한쪽만 고장 나도 다른 쪽이
+     *   통과시켜 준다. 실제로 그렇게 짰다가 메타 검사에서 안 물려서 고쳤다.
+     *   합마다 **위반을 직접 본다.** */
+    for (let i = 0; i + 1 < r1.rounds.length; i++) {
+      const cur = r1.rounds[i];
+      const nxt = r1.rounds[i + 1];
+      if (cur.winner === 'attacker') {
+        if (nxt.attackerSquad !== cur.attackerSquad) {
+          faults.push(`${i}합에서 도전자가 이겼는데 다음 합에 새 부대가 나온다 (${cur.attackerSquad}→${nxt.attackerSquad})`);
+        }
+        if (nxt.defenderSquad !== cur.defenderSquad + 1) {
+          faults.push(`${i}합에서 방어자가 졌는데 다음 부대로 안 넘어간다 (${cur.defenderSquad}→${nxt.defenderSquad})`);
+        }
+      } else if (cur.winner === 'defender') {
+        if (nxt.defenderSquad !== cur.defenderSquad) {
+          faults.push(`${i}합에서 방어자가 이겼는데 다음 합에 새 부대가 나온다 (${cur.defenderSquad}→${nxt.defenderSquad})`);
+        }
+        if (nxt.attackerSquad !== cur.attackerSquad + 1) {
+          faults.push(`${i}합에서 도전자가 졌는데 다음 부대로 안 넘어간다 (${cur.attackerSquad}→${nxt.attackerSquad})`);
+        }
+      } else {
+        if (nxt.attackerSquad !== cur.attackerSquad + 1 || nxt.defenderSquad !== cur.defenderSquad + 1) {
+          faults.push(`${i}합이 무승부인데 양쪽이 다음 부대로 안 넘어간다`);
+        }
+      }
+    }
+
+    /* ④ 진 쪽은 다음 부대로 넘어간다 — 같은 두 부대가 다시 붙으면 안 된다 */
+    const pairs = new Set();
+    for (const x of r1.rounds) {
+      const key = `${x.attackerSquad}:${x.defenderSquad}`;
+      if (pairs.has(key)) faults.push(`같은 부대 짝이 두 번 붙었다 (${key}) — 무한 재대결이 된다`);
+      pairs.add(key);
+    }
+
+    /* ⑤ 다른 시드는 대체로 다른 전개여야 한다 (전부 같으면 시드가 안 먹는 것이다) */
+    const seeds = [1, 7, 99, 4242, 31337];
+    const sigs = new Set(seeds.map((s) => JSON.stringify(run(s).rounds.map((x) => x.winner))));
+    if (sigs.size < 2) faults.push('시드를 바꿔도 전개가 하나뿐이다 — 시드가 안 먹는다');
+
+    okAll(faults, '태그매치가 결정적이고 이긴 쪽이 이어 싸운다', 5);
+  }
+}
+
 section('PvP 스키마 규약 (db/010_pvp.sql)');
 {
   /* ★★ 이 SQL 은 **손으로 대시보드에 붙여넣는다.** 그래서 «틀리면 터지는» 실행 경로가 없다 —
@@ -2602,6 +2700,13 @@ section('PvP 스키마 규약 (db/010_pvp.sql)');
     }
     if (/grant execute on function public\.pvp_claim[^;]*to[^;]*(anon|authenticated)/.test(strip)) {
       faults.push('pvp_claim 을 anon/authenticated 에게 열어 줬다 — service_role 만이어야 한다');
+    }
+    /* 결과 반영도 마찬가지다 — 클라가 부를 수 있으면 자기 레이팅을 마음대로 올린다 */
+    if (!/revoke all on function public\.pvp_bump[^;]*from public/.test(strip)) {
+      faults.push('pvp_bump 의 실행 권한을 public 에서 회수하지 않았다');
+    }
+    if (/grant execute on function public\.pvp_bump[^;]*to[^;]*(anon|authenticated)/.test(strip)) {
+      faults.push('pvp_bump 를 anon/authenticated 에게 열어 줬다 — service_role 만이어야 한다');
     }
   }
   okAll(faults, 'PvP 테이블은 RLS 를 켜고 정책을 두지 않는다 (읽기는 함수로만)', 5);

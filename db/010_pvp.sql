@@ -384,3 +384,58 @@ revoke all on function public.pvp_claim(uuid, uuid, integer, interval) from publ
 --
 -- ② pvp_* 에 정책이 있나 — **0행이어야 한다**
 --   select tablename, policyname from pg_policies where tablename like 'pvp_%';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 10. 결과 반영 — **한 문장** (레이팅 + 승패 카운트)
+-- ════════════════════════════════════════════════════════════════════════════
+
+/* ★★ 왜 한 문장인가
+ *   레이팅과 승패를 따로 update 하면 두 가지가 깨진다:
+ *   ① 6번 트리거가 «판수는 한 번에 하나만 는다» 를 보는데, 레이팅만 먼저 올리면
+ *      그 update 는 판수가 안 늘어난 상태라 통과하고, 다음 update 에서 또 검사받는다.
+ *      두 갱신 사이에 다른 판이 끼어들면 한쪽만 반영된 채로 남는다.
+ *   ② 도전자와 방어자를 따로 올리면 «한쪽만 반영» 이 가능해진다.
+ *
+ *   행이 없으면 만들어 준다 (첫 도전·첫 방어).
+ *
+ * ★ service_role 전용이다. 클라가 부를 수 있으면 자기 레이팅을 마음대로 올린다. */
+create or replace function public.pvp_bump(
+  p_attacker uuid,
+  p_defender uuid,
+  p_attacker_rating integer,
+  p_defender_rating integer,
+  p_winner text
+)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_a_win boolean := (p_winner = 'attacker');
+  v_d_win boolean := (p_winner = 'defender');
+  v_draw  boolean := (p_winner = 'draw');
+begin
+  if p_winner not in ('attacker', 'defender', 'draw') then
+    raise exception 'winner 값이 이상하다: %', p_winner;
+  end if;
+
+  insert into public.pvp_ratings (user_id) values (p_attacker) on conflict (user_id) do nothing;
+  insert into public.pvp_ratings (user_id) values (p_defender) on conflict (user_id) do nothing;
+
+  update public.pvp_ratings
+     set rating = p_attacker_rating,
+         wins   = wins   + (case when v_a_win then 1 else 0 end),
+         losses = losses + (case when v_d_win then 1 else 0 end)
+   where user_id = p_attacker;
+
+  update public.pvp_ratings
+     set rating = p_defender_rating,
+         wins   = wins   + (case when v_d_win then 1 else 0 end),
+         losses = losses + (case when v_a_win then 1 else 0 end)
+   where user_id = p_defender;
+
+  /* 무승부는 판수를 안 센다 — 트리거의 «한 번에 하나» 규칙과도 어긋나지 않는다 */
+  if v_draw then null; end if;
+end $$;
+
+revoke all on function public.pvp_bump(uuid, uuid, integer, integer, text) from public;
+-- 실행은 service_role(Edge Function) 만.

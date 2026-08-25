@@ -5,6 +5,7 @@
   "src/core/util.js": "863340d8",
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
+  "src/data/enginever.js": "5cfc2f67",
   "src/data/formations.js": "a767f504",
   "src/data/skills.js": "f3c5abd6",
   "tests/fixtures/battle-golden.json": "b94b8ff5"
