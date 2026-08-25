@@ -1041,7 +1041,10 @@ function mercSpecials(m, itemsById) {
   return out;
 }
 
-function allyUnitDefs(st, squad) {
+/* ★ PvP 방어 편성 등록이 이걸 그대로 쓴다 (src/net/pvp.js).
+ *   «전투에 실제로 나가는 유닛» 과 «순위표에 올리는 유닛» 이 다르면 그 자체가 구멍이다 —
+ *   같은 함수를 쓰는 것이 그걸 막는 가장 싼 방법이다. */
+export function allyUnitDefs(st, squad) {
   const items = State.itemsById(st.items);
   const slots = slotsOf(squad.formationId);
   const day = st?.day || 0;

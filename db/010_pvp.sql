@@ -323,8 +323,8 @@ grant execute on function public.pvp_replay(bigint)   to authenticated;
 create or replace function public.pvp_claim(
   p_attacker uuid,
   p_defender uuid,
-  p_daily_cap integer default 10,
-  p_cooldown interval default interval '6 hours'
+  p_daily_cap integer default 0,          -- 0 = 상한 없음
+  p_cooldown interval default interval '10 seconds'
 )
 returns table (ok boolean, reason text)
 language plpgsql security definer set search_path = '' as $$
@@ -348,7 +348,9 @@ begin
     v_used := 0;
   end if;
 
-  if v_used >= p_daily_cap then
+  /* ★ p_daily_cap = 0 이면 «상한 없음» 이다 (제작자 결정: 계속 도전해도 된다).
+   *   0 을 «즉시 거부» 로 읽으면 아무도 도전을 못 하게 된다 — 그 실수를 여기서 막는다. */
+  if p_daily_cap > 0 and v_used >= p_daily_cap then
     return query select false, 'daily'; return;
   end if;
 
@@ -439,3 +441,57 @@ end $$;
 
 revoke all on function public.pvp_bump(uuid, uuid, integer, integer, text) from public;
 -- 실행은 service_role(Edge Function) 만.
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 11. 재생 불일치 신고 — **클라이언트가 부르는 유일한 쓰기 경로**
+-- ════════════════════════════════════════════════════════════════════════════
+
+/* ★★ 왜 클라에게 여는가
+ *   서버가 정한 승패와 클라가 재생한 결과가 다르면 «화면에선 이겼는데 점수는 졌다» 가 된다.
+ *   그 일이 얼마나 일어나는지는 **클라만 안다.** 골든 픽스처(§68)는 고정 편성만 보므로
+ *   실제 편성에서 갈리는 것은 이 통로로만 수치가 된다.
+ *
+ * ★ 열되 **좁게** 연다:
+ *   · 자기가 낀 판에만 남길 수 있다 (아래 exists 검사)
+ *   · 남기는 것은 승자 두 값과 지문뿐 — 레이팅에 손대지 못한다
+ *   · 판당 한 줄 (unique) — 반복 호출로 테이블을 채우지 못한다
+ */
+create unique index if not exists pvp_desync_once
+  on public.pvp_desync (match_id, user_id);
+
+create or replace function public.pvp_desync_log(
+  p_match bigint,
+  p_engine_hash text,
+  p_server_winner text,
+  p_client_winner text,
+  p_detail jsonb default null,
+  p_ua text default null
+)
+returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := (select auth.uid());
+begin
+  if v_me is null then return false; end if;
+
+  -- 자기가 낀 판인가 (남의 판에 낙서할 수 없다)
+  if not exists (
+    select 1 from public.pvp_matches m
+     where m.id = p_match and (m.attacker_id = v_me or m.defender_id = v_me)
+  ) then
+    return false;
+  end if;
+
+  insert into public.pvp_desync
+    (match_id, user_id, engine_hash, client_ua, server_winner, client_winner, detail)
+  values
+    (p_match, v_me, left(coalesce(p_engine_hash, ''), 32), left(coalesce(p_ua, ''), 200),
+     left(coalesce(p_server_winner, ''), 16), left(coalesce(p_client_winner, ''), 16), p_detail)
+  on conflict (match_id, user_id) do nothing;
+
+  return true;
+end $$;
+
+revoke all on function public.pvp_desync_log(bigint, text, text, text, jsonb, text) from public;
+grant execute on function public.pvp_desync_log(bigint, text, text, text, jsonb, text) to authenticated;

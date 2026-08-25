@@ -46,9 +46,19 @@ const json = (body: unknown, status = 200) =>
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** 하루 도전 상한 · 같은 상대 재도전 쿨다운 */
-const DAILY_CAP = 10;
-const COOLDOWN = '6 hours';
+/* ── 도전 제한 ──────────────────────────────────────────────────
+ * ★ 제작자 결정: 「쿨다운 6시간은 너무 빡세. **10초**. 계속 도전해도 상관없다」.
+ *   그래서 이 둘은 «게임 설계상의 제동» 이 아니라 **폭주 방지**다.
+ *   진짜 제동은 골드 30만이다 (다만 골드는 클라 세이브라 서버가 강제 못 한다 — §70.2).
+ *
+ * ★ 제작자 결정: **일일 상한도 없앤다.** 0 은 «상한 없음» 이다.
+ *   남는 제동은 같은 상대 10초 쿨다운뿐이다.
+ *
+ *   정직하게 적어 둔다 — 쿨다운은 **(도전자, 상대) 짝마다** 걸린다. 상대를 바꿔 가며
+ *   때리면 초당 여러 판이 가능하고, 골드는 클라 세이브라 서버가 못 막는다.
+ *   지금은 아는 사람들끼리 쓰는 판이라 이대로 둔다. 남용이 보이면 여기 상수만 되살리면 된다. */
+const DAILY_CAP = 0;              // 0 = 상한 없음
+const COOLDOWN = '10 seconds';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -88,6 +98,50 @@ Deno.serve(async (req) => {
   /* ── 2) 본문 ── */
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json({ error: '본문이 JSON 이 아니다' }, 400); }
+
+  /* ══ 방어 편성 등록 ══════════════════════════════════════════════════
+   *  POST { register: true, companyName, squads: [[UnitDef,...], ...], power }
+   *
+   *  ★ 여기서 오는 UnitDef 는 **클라이언트가 계산한 값**이다. 이 단계에서는 그대로 받는다 —
+   *    그리고 그 사실을 숨기지 않는다. 위조를 잡는 것은 6단계의 «가능한 최대치» 검사다
+   *    (base 스탯은 rng 를 안 쓰고 접사 개수가 희귀도에 고정이라 상한을 정확히 계산할 수 있다).
+   *
+   *  ★ 등록한 편성이 **곧 내 공격 편성**이다 (아래 도전 처리). «약한 방어 + 강한 공격» 이
+   *    구조적으로 불가능해진다.
+   */
+  if (body.register === true) {
+    const squads = Array.isArray(body.squads) ? body.squads : null;
+    const companyName = String(body.companyName || '').slice(0, 24);
+    if (!squads || !squads.length) return json({ error: '부대가 비었다' }, 400);
+    if (squads.length > 5) return json({ error: '부대는 최대 5개다' }, 400);
+    if (!companyName) return json({ error: '용병단 이름이 없다' }, 400);
+
+    for (const sq of squads) {
+      if (!Array.isArray(sq) || !sq.length) return json({ error: '빈 부대가 있다' }, 400);
+      if (sq.length > 12) return json({ error: '한 부대가 너무 크다' }, 400);   // 7 + 펫
+      for (const u of sq) {
+        const st = (u as Record<string, unknown>)?.stats as Record<string, number> | undefined;
+        if (!st || typeof st.hp !== 'number' || st.hp <= 0) return json({ error: '유닛 스탯이 이상하다' }, 400);
+      }
+    }
+
+    const power = Math.max(0, Math.min(50_000_000, Math.round(Number(body.power) || 0)));
+    const { data: saved, error: regErr } = await db.from('pvp_defense').upsert({
+      user_id: attackerId,
+      company_name: companyName,
+      units: squads,
+      raw: (body.raw ?? null) as unknown,
+      engine_hash: ENGINE_HASH,
+      save_rev: Number(body.saveRev) || null,
+      power,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' }).select('handle').single();
+
+    if (regErr) return json({ error: '등록 실패' }, 500);
+    /* 처음 등록하는 사람에게 레이팅 행을 만들어 준다 (기본 1000) */
+    await db.from('pvp_ratings').insert({ user_id: attackerId }).select().maybeSingle();
+    return json({ ok: true, handle: saved.handle, engineHash: ENGINE_HASH });
+  }
 
   const challengeId = String(body.challengeId || '');
   const opponent = String(body.opponent || '');
