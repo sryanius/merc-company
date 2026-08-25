@@ -160,6 +160,8 @@ const CLIPS = {
 };
 /* 근접 접근 속도 (지수 감쇠 계수). 6 이면 약 0.3초에 90% 도달 — 눈이 따라간다. */
 const STAND_SPEED = 6;
+/* 같은 적을 때리는 근접끼리 벌려 서는 간격(화면 px). 0 이면 전원이 겹친다. */
+const MELEE_SPREAD_PX = 30;
 /* 목표 자리까지 이만큼 넘게 남았으면 «걷는 중» 으로 본다 */
 const MOVE_FRAME_PX = 6;
 
@@ -1127,6 +1129,73 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     return best === null ? 0 : best;
   }
 
+  /** 살아 있는 적 중 가장 가까운 하나 (연출용 — 엔진의 다음 목표와 달라도 된다) */
+  function pickFoe(v) {
+    let best = null; let bd = Infinity;
+    for (const o of vis.values()) {
+      if (o.gone || o.dieT >= 0 || o.u.side === v.u.side) continue;
+      const dx = homeX(o.u) - homeX(v.u);
+      const dy = homeY(o.u) - homeY(v.u);
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bd) { bd = d2; best = o; }
+    }
+    return best;
+  }
+
+  /**
+   * 근접 서 있을 자리 — **자기 목표 옆에** 선다.
+   *
+   * ★★ 제작자 지적: 「접근이 그냥 앞으로만 가서 타겟에 안 붙는다. 타겟이 죽으면
+   *   다음 타겟으로 가야 하는데 어정쩡하게 멈춰 있다」. 실측으로 확인했다 —
+   *   근접 **전원이 ox=187·oy=0** 한 자리에 모여 그대로 굳어 있었다.
+   *
+   *   원인 둘:
+   *   ① 예전엔 lunge 순간의 좌표로 stand 를 한 번 계산하고 얼렸다. 목표가 죽거나
+   *      움직여도 그 자리에 남는다.
+   *   ② dy 를 0 으로 못박아 **줄을 절대 안 옮겼다.** 그래서 다른 줄의 적을 때릴 때
+   *      허공에 칼을 휘두르는 그림이 됐다.
+   *
+   *   이제 목표의 **현재 위치**를 매 프레임 따라간다. 목표가 죽으면 pickFoe 로
+   *   가장 가까운 적을 새로 잡아 그쪽으로 걸어간다.
+   *
+   * ★ 왕복(§52)은 다시 안 생긴다 — 돌아갈 «집» 이 없기 때문이다. 목표가 앞에 있으면
+   *   앞으로, 옆줄이면 옆으로 갈 뿐 제자리로 돌아오는 길은 어디에도 없다.
+   *   (v.stand 를 비우는 곳은 여전히 사망 처리 한 군데뿐이다 — 스모크가 이걸 지킨다.)
+   *
+   * ★ 겹침 방지: 같은 목표를 때리는 근접이 여럿이면 목표의 줄을 기준으로 위아래로 벌린다.
+   *   예전에 dy 를 0 으로 둔 이유가 이 겹침이었는데, 벌려 세우면 줄을 옮겨도 안 겹친다.
+   */
+  function aimStand(v) {
+    let t = v.foe != null ? vis.get(v.foe) : null;
+    if (!t || t.gone || t.dieT >= 0) {           // 목표가 죽었다 → 다음 목표로
+      t = pickFoe(v);
+      if (!t) return;                            // 적이 하나도 없으면 그 자리에 둔다
+      v.foe = t.u.uid;
+    }
+    const d = facing(v.u);
+    /* 같은 목표를 노리는 근접들 사이에서 내 순번 — 목표 줄 위아래로 나눠 선다 */
+    let n = 0; let idx = 0;
+    for (const o of vis.values()) {
+      if (o.gone || o.dieT >= 0 || o.foe !== v.foe) continue;
+      if (o.u.uid === v.u.uid) idx = n;
+      n++;
+    }
+    /* 줄에서 멀리 선 놈일수록 조금 뒤에 — 목표를 **부채꼴로 둘러싼다.**
+     * 전원을 같은 x 에 세우면 한 줄로 겹쳐 쌓인다 (예전 depth 항이 막던 문제다). */
+    const spread = (idx - (n - 1) / 2) * MELEE_SPREAD_PX;
+    const back = Math.abs(spread) * 0.45;
+    /* ★★ 목표의 «집» 을 기준으로 잰다 — 현재 그려지는 위치(+ox/+oy)를 쫓으면 안 된다.
+     *   서로가 서로의 현재 위치를 쫓으면 양쪽이 밀어내며 **발산한다.**
+     *   실측으로 겪었다: 이 자리에 +t.ox/+t.oy 를 넣었더니 oy 가 14초 만에 -1976 까지 날아갔다.
+     *   엔진에서 유닛은 움직이지 않는다 — 집이 곧 그 유닛의 진짜 자리다. */
+    const tx = homeX(t.u);
+    const ty = homeY(t.u);
+    v.stand = {
+      dx: (tx - d * (meleeStand + back)) - homeX(v.u),
+      dy: (ty + spread) - homeY(v.u),
+    };
+  }
+
   function onLunge(e) {
     const v = vis.get(e.uid);
     const t = vis.get(e.targetUid);
@@ -1140,8 +1209,8 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
      *   전원을 «목표 앞» 으로 보내면 후열까지 같은 x 로 몰려 진형이 통째로 무너진다.
      *   자기 진영 최전선에서 얼마나 뒤에 있었는지(depth)를 그대로 유지한 채
      *   전선만 앞으로 당긴다 — 그래야 «줄이 맞물린» 그림이 된다. */
-    const depth = Math.abs(frontLineX(v.u.side) - homeX(v.u));
-    v.stand = { dx: (homeX(t.u) - d * (meleeStand + depth)) - homeX(v.u), dy: 0 };
+    v.foe = e.targetUid;          // ★ 좌표가 아니라 «누구» 를 기억한다 (아래 aimStand 가 매 프레임 따라간다)
+    aimStand(v);
     play(v, 'atk');
     // 발밑 먼지는 «자리를 옮길 때» 만 (제자리 스윙마다 피우면 지저분하다)
     const far = Math.hypot(v.stand.dx - v.ox, v.stand.dy - v.oy);
@@ -1339,6 +1408,10 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       v.stand = null;
       return;
     }
+
+    /* ★ 한 번 붙은 근접은 **목표를 계속 따라간다.** 목표가 죽으면 다음 목표로 옮겨 선다.
+     *   (자리를 얼려 두면 적이 죽은 빈자리에 혼자 남아 허공을 때린다 — 실제로 그랬다) */
+    if (v.foe != null && v.dieT < 0) aimStand(v);
 
     /* 근접 접근 — 목표 자리로 **부드럽게 다가가 머문다.**
      * 지수 감쇠라 처음이 빠르고 끝이 느리다: 붙는 순간이 또렷하고 도착이 부드럽다. */

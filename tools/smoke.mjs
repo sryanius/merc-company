@@ -1710,6 +1710,41 @@ function plantSoldLineInsideElse(src) {
   return without.slice(0, eol + 1) + '  ' + two + String.fromCharCode(10) + without.slice(eol + 1);
 }
 
+section('근접이 목표를 «계속» 따라가나');
+{
+  /* ★★ 제작자 지적: 「접근이 앞으로만 가고 타겟에 안 붙는다. 타겟이 죽으면 어정쩡하게 멈춘다」.
+   *   원인은 lunge 순간의 좌표로 stand 를 한 번 계산하고 **얼렸던** 것이다.
+   *   실측: 근접 전원이 ox=187·oy=0 한 자리에 모여 굳어 있었다.
+   *
+   *   고친 뒤에는 매 프레임 aimStand 가 목표의 현재 위치를 다시 잰다.
+   *   ★ 이 «매 프레임 호출» 이 사라지면 증상이 그대로 돌아온다 — 그래서 글자로 지킨다.
+   *     (렌더러는 DOM 을 써서 node 로 실행할 수 없다.)
+   *
+   * ★ 목표는 **집(homeX/homeY)** 으로 잰다. 현재 그려지는 위치(+ox)를 서로 쫓으면 발산한다 —
+   *   실측으로 겪었다: oy 가 14초 만에 -1976 까지 날아갔다. */
+  const rsrc = readFileSync(srcDir('battle/renderer.js'), 'utf8');
+  const check = (src) => {
+    const faults = [];
+    if (!/function aimStand\s*\(/.test(src)) faults.push('aimStand 가 없다');
+    if (!/v\.foe != null && v\.dieT < 0\) aimStand\(v\)/.test(src)) {
+      faults.push('매 프레임 aimStand 호출이 없다 — 자리를 얼리면 타겟이 죽어도 안 움직인다');
+    }
+    /* 목표 좌표에 +ox/+oy 를 더하면 서로 쫓다가 발산한다 */
+    const i = src.indexOf('function aimStand');
+    const body = i >= 0 ? src.slice(i, i + 2200) : '';
+    if (/const tx = homeX\(t\.u\) \+/.test(body) || /const ty = homeY\(t\.u\) \+/.test(body)) {
+      faults.push('목표를 현재 위치(+ox/+oy)로 잰다 — 서로 쫓으면 발산한다');
+    }
+    return faults;
+  };
+  okAll(check(rsrc), '근접은 목표의 «집» 을 매 프레임 다시 조준한다', 3);
+
+  /* 통과만 하는 검사를 여러 번 만들었다 — 실제로 무는지 확인한다 */
+  const bitten = check(rsrc.replace('v.foe != null && v.dieT < 0) aimStand(v)', 'false) aimStand(v)'));
+  if (bitten.length) pass('검사가 실제로 문다 (매 프레임 호출을 빼면 걸린다)', bitten[0]);
+  else ok(false, '검사가 실제로 문다', '호출을 뺐는데 검사가 안 걸렸다');
+}
+
 section('근접 연출에 «돌아가는 길» 이 없나');
 {
   /* ★★ 실제로 당한 것: 근접이 왔다갔다 하는 게 안 보기 싫다고 해서 «다가가 머문다» 로
