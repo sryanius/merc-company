@@ -212,6 +212,9 @@ function defaultState() {
     roster: [],
     items: [],
     squads: [],
+    /* 순위표에 내걸 «대표 부대» id. null 이면 첫 부대(1부대)를 쓴다.
+     * ★ 이름이 아니라 id 로 잡는다 — 이름은 바뀌고 순서도 바뀐다. */
+    flagSquadId: null,
     formations: ['basic'],
     /** 도시별 평판 0~100. 세이브 직렬화 대상 */
     reputation: defaultReputation(),
@@ -444,6 +447,11 @@ function replaceState(src) {
   state.roster = Array.isArray(state.roster) ? state.roster : [];
   state.items = Array.isArray(state.items) ? state.items : [];
   state.squads = Array.isArray(state.squads) ? state.squads : [];
+  /* 해산된 부대를 대표로 걸어 둔 세이브 — 걸어 둔 부대가 없으면 없던 일로 한다
+   * (그대로 두면 topSquadOf 가 아무것도 못 찾아 순위표에서 부대가 통째로 사라진다) */
+  if (state.flagSquadId && !state.squads.some((q) => q && q.id === state.flagSquadId)) {
+    state.flagSquadId = null;
+  }
   state.log = Array.isArray(state.log) ? state.log : [];
   state.formations = Array.isArray(state.formations) && state.formations.length ? state.formations : ['basic'];
   for (const key of ['quests', 'tavern', 'shop', 'repTouch']) {

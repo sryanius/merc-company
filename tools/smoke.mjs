@@ -1710,6 +1710,30 @@ function plantSoldLineInsideElse(src) {
   return without.slice(0, eol + 1) + '  ' + two + String.fromCharCode(10) + without.slice(eol + 1);
 }
 
+section('순위표 대표 부대');
+{
+  /* ★★ 제작자 요청: 「대표부대를 지정할 수 있게. 지정 안 하면 1부대」.
+   *   예전엔 **레벨 합이 가장 높은 부대**가 자동으로 올라갔다 — 내걸고 싶은 부대와
+   *   가장 키운 부대가 늘 같지는 않다. 글자로 막지 말고 **실제로 굴려서** 잰다. */
+  const Rules3 = need('game/rules.js');
+  const st = State.newGame('검사용');
+  const r = st.roster;
+  st.squads.push({ id: 'squad_2', name: '제2부대', memberUids: [r[0].uid], formationId: 'basic' });
+  st.squads[0].memberUids = [r[1].uid, r[2].uid, r[3].uid];
+  r[0].level = 80; r[1].level = 1; r[2].level = 1; r[3].level = 1;
+  const pick = () => { const sc = Rules3 && Rules3.extractScore(st); return sc && sc.squad && sc.squad.name; };
+
+  const faults = [];
+  /* 지정이 없으면 «가장 센 부대» 가 아니라 첫 부대다 — 이 구분이 요청의 핵심이다 */
+  if (pick() !== '제1부대') faults.push(`지정이 없을 때 ${pick()} 가 올라간다 — 1부대여야 한다`);
+  st.flagSquadId = 'squad_2';
+  if (pick() !== '제2부대') faults.push(`대표로 지정했는데 ${pick()} 가 올라간다`);
+  /* 해산된 부대를 걸어 둔 세이브 — 부대가 통째로 사라지면 안 된다 */
+  st.flagSquadId = 'squad_사라짐';
+  if (pick() !== '제1부대') faults.push(`없는 부대를 지정했을 때 ${pick()} 가 올라간다 — 1부대로 물러나야 한다`);
+  okAll(faults, '대표 부대 지정이 순위표에 반영된다 (미지정=1부대)', 3);
+}
+
 section('순위표 «착용 칸 수» 가 실제 착용 수인가');
 {
   /* ★★ state.js 의 normalizeEquipment 가 장비 10칸을 **null 로 채운다.**

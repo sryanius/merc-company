@@ -177,14 +177,22 @@ function topSquadOf(st) {
   if (!squads.length || !roster.length) return null;
   const byUid = new Map(roster.filter((m) => m && m.uid).map((m) => [m.uid, m]));
 
+  /* ★★ 순위표에 내거는 부대는 **제작자가 고른다** (state.flagSquadId).
+   *   예전엔 «레벨 합이 가장 높은 부대» 를 자동으로 골랐는데, 내걸고 싶은 부대와
+   *   가장 키운 부대가 늘 같지는 않다 (제작자 지적: 「대표부대를 지정할 수 있게」).
+   *   고르지 않았으면 **첫 부대(1부대)** 다 — «자동으로 제일 센 놈» 이 아니다. */
+  const memsOf = (sq) => (sq?.memberUids || []).map((u) => byUid.get(u)).filter(Boolean);
   let best = null;
-  let bestScore = -1;
-  for (const sq of squads) {
-    const mems = (sq?.memberUids || []).map((u) => byUid.get(u)).filter(Boolean);
-    if (!mems.length) continue;
-    // 서버가 못 믿는 값이라 정교할 필요가 없다 — 레벨 합이면 «가장 키운 부대» 가 잡힌다.
-    const score = mems.reduce((a, m) => a + (Number(m.level) || 1), 0);
-    if (score > bestScore) { bestScore = score; best = { sq, mems }; }
+  const flagged = st?.flagSquadId && squads.find((q) => q && q.id === st.flagSquadId);
+  if (flagged) {
+    const mems = memsOf(flagged);
+    if (mems.length) best = { sq: flagged, mems };
+  }
+  if (!best) {
+    for (const sq of squads) {
+      const mems = memsOf(sq);
+      if (mems.length) { best = { sq, mems }; break; }
+    }
   }
   if (!best) return null;
 

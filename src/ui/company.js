@@ -201,6 +201,31 @@ function squadCostOf(nextCount) {
 }
 
 /** 부대를 하나 더 만들 수 있는가 → {ok, reason, cost, count, max} */
+/* ── 대표 부대 ────────────────────────────────────────────────
+ * 순위표 목록에 내걸 부대. 지정이 없으면 **첫 부대**다 (rules.js topSquadOf 와 같은 규칙).
+ * ★ 예전엔 «레벨 합이 가장 높은 부대» 가 자동으로 올라갔다 — 내걸고 싶은 부대와
+ *   가장 키운 부대가 늘 같지는 않아서 제작자가 지정 기능을 요청했다.
+ */
+function isFlagSquad(sq) {
+  if (!sq) return false;
+  if (state.flagSquadId) return sq.id === state.flagSquadId;
+  const first = state.squads.find((q) => q && (q.memberUids || []).filter(Boolean).length);
+  return !!first && first.id === sq.id;      // 지정 없음 → 사람이 있는 첫 부대가 대표
+}
+
+function setFlagSquad(sq) {
+  if (!sq) return;
+  if (state.flagSquadId === sq.id) {         // 다시 누르면 «지정 해제» (자동으로 되돌아간다)
+    state.flagSquadId = null;
+    toast('대표 지정을 풀었다 — 1부대가 올라간다', 'good');
+  } else {
+    state.flagSquadId = sq.id;
+    toast(`${sq.name} 을(를) 대표 부대로 내걸었다`, 'good');
+  }
+  save();
+  redraw();
+}
+
 function addSquadCheck() {
   const count = Array.isArray(state.squads) ? state.squads.length : 0;
   const cost = squadCostOf(count + 1);
@@ -1142,7 +1167,7 @@ function squadBar() {
       },
     },
       el('div', { class: 'row spread center', style: { gap: '8px' } },
-        el('b', { style: { fontSize: '12px' }, text: sq.name }),
+        el('b', { style: { fontSize: '12px' }, text: (isFlagSquad(sq) ? '★ ' : '') + sq.name }),
         el('span', { class: 'tag', style: { color: count ? 'var(--leaf)' : 'var(--ink-faint)' }, text: `${count}/${SQUAD_SIZE}` })),
       el('div', { class: 'tiny faint', text: `${f ? f.name : '진형 없음'} · 전력 ${num(squadPower(state, sq.id))}` }),
       // 원정 상태는 항상 보인다 — 어느 부대가 나가 있는지 편성 화면에서 바로 알아야 한다
@@ -1159,6 +1184,11 @@ function squadBar() {
     strip,
     el('div', { class: 'row center', style: { gap: '6px', flex: '0 0 auto' } },
       addSquadButton(),
+      sel ? el('button', {
+        class: `btn sm ${isFlagSquad(sel) ? 'primary' : 'ghost'}`,
+        title: '순위표에 이 부대를 내건다 (지정 안 하면 1부대)',
+        onClick: () => setFlagSquad(sel),
+      }, isFlagSquad(sel) ? '★ 대표' : '대표 지정') : null,
       sel ? el('button', { class: 'btn sm ghost', onClick: () => renameSquad(sel) }, '이름') : null,
       sel ? el('button', { class: 'btn sm ghost danger', onClick: () => askDisband(sel) }, '해산') : null,
       /* ★ 펫 화면은 라우팅에 있었지만 **들어갈 길이 사실상 없었다** —
