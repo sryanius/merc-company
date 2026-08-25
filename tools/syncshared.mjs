@@ -1,5 +1,5 @@
 /**
- * 검증 규칙을 Edge Function 쪽으로 복사한다
+ * 서버(Edge Function)로 소스를 복사한다 — **묶음(bundle) 단위**
  * ────────────────────────────────────────────────────────────────
  *
  * ★ 왜 복사인가
@@ -13,6 +13,20 @@
  *
  * ★ 이건 "빌드"가 아니라 **배포 절차**다. 게임 클라이언트는 여전히 빌드 없이 뜬다.
  *
+ * ════════════════════════════════════════════════════════════════
+ * ★★ 왜 «묶음» 인가 (PvP 를 만들며 바꿨다 — HANDOFF §69)
+ *
+ *   예전엔 파일 목록이 **전역 하나**였고 허용 집합도 하나였다. 거기에 전투 엔진을
+ *   더하는 순간 두 가지가 무너진다:
+ *   ① `_shared` 의 «의존성 0» 계약이 사라진다 — rules.js 가 engine.js 를 물어도 통과하게 된다.
+ *   ② basename 으로 평탄화하는데 저장소에 `src/data/abyss.js` 와 `src/game/abyss.js` 가
+ *      **둘 다 실재한다.** 목록이 길어지면 조용한 덮어쓰기가 실제로 일어난다.
+ *
+ *   그래서 묶음마다 **자기 허용 집합**을 갖고, **같은 묶음 안의 basename 충돌은 실패**다.
+ *
+ * ★★ 손목록은 썩는다 — 엔진 묶음은 **진입점만 적고 import 를 따라 스스로 걷는다.**
+ *   (`_shared` 는 «이 목록 밖을 물면 안 된다» 가 계약 자체라 손목록을 유지한다.)
+ *
  * 실행: node tools/syncshared.mjs        (복사 + 해시 기록)
  *       node tools/syncshared.mjs --check (검사만 — 스모크가 쓴다)
  */
@@ -21,18 +35,28 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'supabase', 'functions', '_shared');
 
-/**
- * 복사할 파일.
- * ★ 전부 **import 가 0이거나 이 목록 안만 참조**해야 한다. 아래에서 검사한다 —
- *   게임 전체를 서버로 끌고 가면 배포가 느려지고 Deno 에서 깨질 여지가 생긴다.
- */
-const FILES = [
-  'src/data/limits.js',
-  'src/data/abyss.js',
-  'src/data/tower.js',
-  'src/game/rules.js',
+const BUNDLES = [
+  {
+    name: '검증 규칙',
+    dest: 'supabase/functions/_shared',
+    /* ★ 이 묶음은 «목록이 곧 계약» 이다 — 목록 밖을 물면 실패.
+     *   게임 전체를 서버로 끌고 가면 배포가 느려지고 Deno 에서 깨질 여지가 생긴다. */
+    entry: ['src/data/limits.js', 'src/data/abyss.js', 'src/data/tower.js', 'src/game/rules.js'],
+    walk: false,
+    next: 'supabase functions deploy submit-score',
+  },
+  {
+    name: '전투 엔진',
+    dest: 'supabase/functions/pvp-battle/_engine',
+    /* ★ 진입점만 적는다. 나머지는 import 를 따라 걷는다 (goldenbattle.mjs 의 ENTRY 와 같아야 한다 —
+     *   다르면 ENGINE_HASH 가 서버에 실제로 올라간 파일과 다른 것을 가리키게 된다). */
+    entry: ['src/battle/engine.js', 'src/data/skills.js', 'src/data/classes.js',
+      'src/data/classes_t4.js', 'src/data/formations.js'],
+    walk: true,
+    extra: ['tests/fixtures/battle-golden.json'],   // 자가검사가 읽는다
+    next: 'supabase functions deploy pvp-battle',
+  },
 ];
 
 /** FNV-1a 32bit */
@@ -45,77 +69,147 @@ function hash(str) {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** 이 파일이 어떤 모듈을 import 하는가 (상대 경로만) */
+/**
+ * 이 파일이 어떤 모듈을 참조하는가 (상대 경로만).
+ * ★ 옛 정규식은 `import ... from '...'` 홑따옴표 한 형태만 봤다. 지금 코드에는 다른 형태가
+ *   없어서 «안 물리고» 있었을 뿐이다 — 부수효과 import(`import './x.js';`), `export … from`,
+ *   큰따옴표, 동적 import 를 하나라도 쓰는 순간 그 파일이 조용히 빠진 채 배포된다.
+ */
 function importsOf(src) {
-  return [...src.matchAll(/^import[\s\S]*?from\s+'([^']+)'/gm)].map((m) => m[1]);
+  const out = [];
+  const re = /(?:^|[\s;])(?:import|export)\s*(?:[\s\S]*?\sfrom\s*)?['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(src))) out.push(m[1]);
+  const dyn = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  while ((m = dyn.exec(src))) out.push(m[1]);
+  return out;
+}
+
+/** 진입점에서 import 를 따라 걷는다 */
+function closureOf(entries, problems) {
+  const seen = new Set();
+  const stack = entries.slice();
+  while (stack.length) {
+    const rel = stack.pop();
+    if (seen.has(rel)) continue;
+    const abs = path.join(ROOT, rel);
+    if (!fs.existsSync(abs)) { problems.push(`${rel} 이 없다`); continue; }
+    seen.add(rel);
+    const src = fs.readFileSync(abs, 'utf8');
+    for (const spec of importsOf(src)) {
+      if (!spec.startsWith('.')) continue;                    // 외부 모듈은 없다 (의존성 0)
+      stack.push(path.relative(ROOT, path.resolve(path.dirname(abs), spec)).replace(/\\/g, '/'));
+    }
+  }
+  return [...seen].sort();
 }
 
 const check = process.argv.includes('--check');
 const problems = [];
-const manifest = {};
-const allowed = new Set(FILES.map((f) => path.basename(f)));
+const summary = [];
 
-for (const rel of FILES) {
-  const abs = path.join(ROOT, rel);
-  if (!fs.existsSync(abs)) { problems.push(`${rel} 이 없다`); continue; }
-  const src = fs.readFileSync(abs, 'utf8').replace(/\r\n/g, '\n');
+for (const b of BUNDLES) {
+  const OUT = path.join(ROOT, b.dest);
+  const files = b.walk ? closureOf(b.entry, problems) : b.entry.slice();
 
-  // 의존성 검사 — 목록 밖 모듈을 물면 서버에서 못 쓴다
-  for (const dep of importsOf(src)) {
-    const name = path.basename(dep);
-    if (!allowed.has(name)) {
-      problems.push(`${rel} 이 목록 밖 모듈을 import 한다: ${dep}\n`
-        + `      → 그 모듈도 FILES 에 넣거나, 쓰는 상수를 data/limits.js 로 옮겨라`);
+  /* ★ 같은 묶음 안에서 basename 이 겹치면 **실패한다.** 평탄화가 조용히 덮어쓰던 자리다. */
+  const byBase = new Map();
+  for (const rel of files) {
+    const base = path.basename(rel);
+    if (byBase.has(base)) {
+      problems.push(`[${b.name}] 이름이 겹친다: ${byBase.get(base)} 와 ${rel}\n`
+        + '      → 한 폴더로 평탄화하므로 하나가 덮어써진다. 파일 이름을 다르게 해라');
     }
+    byBase.set(base, rel);
   }
 
-  manifest[rel] = hash(src);
+  const manifest = {};
+  const allowed = new Set(files.map((f) => path.basename(f)));
 
-  if (!check) {
-    // 서로를 참조하는 경로를 평평하게 만든다 (전부 _shared 한 폴더에 둔다)
-    const flat = src.replace(/from\s+'(\.\.?\/[^']+)'/g, (m, p) => `from './${path.basename(p)}'`);
-    fs.mkdirSync(OUT, { recursive: true });
-    const dest = path.join(OUT, path.basename(rel));
-    fs.writeFileSync(dest, flat, 'utf8');
-    /* ★★ **써 놓고 되읽는다.**
-     *   한 번 이런 일이 있었다: 이 도구가 «복사했다» 고 해시까지 찍었는데
-     *   복사본은 옛 내용 그대로였고, 그 상태로 Edge Function 을 배포했다.
-     *   서버는 옛 규칙으로 판정하는데 도구는 성공이라고 말한 것이다.
-     *   쓴 결과를 확인 안 하는 도구는 «성공했다는 말» 만 파는 셈이다. */
-    const back = fs.readFileSync(dest, 'utf8');
-    if (back !== flat) problems.push(`${rel} 을 썼는데 되읽은 내용이 다르다 (복사 실패)`);
-  }
-}
+  for (const rel of files) {
+    const abs = path.join(ROOT, rel);
+    if (!fs.existsSync(abs)) { problems.push(`${rel} 이 없다`); continue; }
+    const src = fs.readFileSync(abs, 'utf8').replace(/\r\n/g, '\n');
 
-const manifestPath = path.join(OUT, 'HASHES.json');
-
-if (check) {
-  if (!fs.existsSync(manifestPath)) {
-    problems.push('HASHES.json 이 없다 — `node tools/syncshared.mjs` 를 먼저 돌려라');
-  } else {
-    let old = {};
-    try { old = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { old = {}; }
-    for (const [rel, h] of Object.entries(manifest)) {
-      if (old[rel] !== h) {
-        problems.push(`${rel} 이 복사본과 다르다 (원본 ${h} / 복사본 ${old[rel] || '없음'})\n`
-          + '      → 게임 규칙을 고쳤으면 `node tools/syncshared.mjs` 로 다시 복사하고\n'
-          + '        `supabase functions deploy submit-score` 로 재배포해라');
+    /* 묶음 밖 모듈을 물면 서버에서 못 쓴다. walk 묶음은 닫힘을 이미 걸었으니 자동으로 통과한다 —
+     * 이 검사가 진짜 일을 하는 곳은 «목록이 곧 계약» 인 _shared 다. */
+    for (const dep of importsOf(src)) {
+      if (!dep.startsWith('.')) continue;
+      if (!allowed.has(path.basename(dep))) {
+        problems.push(`[${b.name}] ${rel} 이 묶음 밖 모듈을 import 한다: ${dep}\n`
+          + `      → 그 모듈도 이 묶음에 넣거나, 쓰는 상수를 data/limits.js 로 옮겨라`);
       }
     }
+
+    manifest[rel] = hash(src);
+
+    if (!check) {
+      // 서로를 참조하는 경로를 평평하게 만든다 (묶음 하나를 한 폴더에 둔다)
+      const flat = src.replace(/from\s*['"](\.\.?\/[^'"]+)['"]/g, (m0, p) => `from './${path.basename(p)}'`)
+        .replace(/(^|[\s;])import\s*['"](\.\.?\/[^'"]+)['"]/gm, (m0, pre, p) => `${pre}import './${path.basename(p)}'`);
+      fs.mkdirSync(OUT, { recursive: true });
+      const dest = path.join(OUT, path.basename(rel));
+      fs.writeFileSync(dest, flat, 'utf8');
+      /* ★★ **써 놓고 되읽는다.**
+       *   한 번 이런 일이 있었다: 이 도구가 «복사했다» 고 해시까지 찍었는데
+       *   복사본은 옛 내용 그대로였고, 그 상태로 Edge Function 을 배포했다.
+       *   서버는 옛 규칙으로 판정하는데 도구는 성공이라고 말한 것이다. */
+      const back = fs.readFileSync(dest, 'utf8');
+      if (back !== flat) problems.push(`${rel} 을 썼는데 되읽은 내용이 다르다 (복사 실패)`);
+    }
   }
-  if (problems.length) {
-    console.log('❌ 공유 규칙이 어긋났다\n   ' + problems.join('\n   '));
-    process.exit(1);
+
+  /* JS 가 아닌 곁들이 파일 (픽스처 등) — 평탄화 없이 그대로 옮긴다 */
+  for (const rel of b.extra || []) {
+    const abs = path.join(ROOT, rel);
+    if (!fs.existsSync(abs)) { problems.push(`${rel} 이 없다`); continue; }
+    const src = fs.readFileSync(abs, 'utf8').replace(/\r\n/g, '\n');
+    manifest[rel] = hash(src);
+    if (!check) {
+      fs.mkdirSync(OUT, { recursive: true });
+      const dest = path.join(OUT, path.basename(rel));
+      fs.writeFileSync(dest, src, 'utf8');
+      if (fs.readFileSync(dest, 'utf8') !== src) problems.push(`${rel} 복사 실패`);
+    }
   }
-  console.log(`✅ 공유 규칙 일치 — ${FILES.length}개 파일`);
+
+  const manifestPath = path.join(OUT, 'HASHES.json');
+  if (check) {
+    if (!fs.existsSync(manifestPath)) {
+      problems.push(`[${b.name}] HASHES.json 이 없다 — \`node tools/syncshared.mjs\` 를 먼저 돌려라`);
+    } else {
+      let old = {};
+      try { old = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { old = {}; }
+      for (const [rel, h] of Object.entries(manifest)) {
+        if (old[rel] !== h) {
+          problems.push(`[${b.name}] ${rel} 이 복사본과 다르다 (원본 ${h} / 복사본 ${old[rel] || '없음'})\n`
+            + '      → 고쳤으면 `node tools/syncshared.mjs` 로 다시 복사하고\n'
+            + `        \`${b.next}\` 로 재배포해라`);
+        }
+      }
+      /* 복사본에만 남아 있는 파일 — 진입점에서 빠졌는데 서버에는 옛 파일이 남은 상태 */
+      for (const rel of Object.keys(old)) {
+        if (!(rel in manifest)) problems.push(`[${b.name}] ${rel} 이 더 이상 필요 없는데 복사본에 남아 있다`);
+      }
+    }
+  } else {
+    fs.mkdirSync(OUT, { recursive: true });
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  }
+  summary.push({ b, files, extra: (b.extra || []).length });
+}
+
+if (problems.length) {
+  console.log(`❌ ${check ? '공유 소스가 어긋났다' : '복사 실패'}\n   ` + problems.join('\n   '));
+  process.exit(1);
+}
+
+if (check) {
+  console.log(`✅ 공유 소스 일치 — ${summary.map((s) => `${s.b.name} ${s.files.length + s.extra}개`).join(' · ')}`);
 } else {
-  if (problems.length) {
-    console.log('❌ 복사 실패\n   ' + problems.join('\n   '));
-    process.exit(1);
+  for (const s of summary) {
+    console.log(`✅ [${s.b.name}] ${s.files.length + s.extra}개 → ${s.b.dest}/`);
+    for (const rel of s.files) console.log(`     ${rel}`);
   }
-  fs.mkdirSync(OUT, { recursive: true });
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-  console.log(`✅ ${FILES.length}개 파일을 supabase/functions/_shared/ 로 복사했다`);
-  for (const [rel, h] of Object.entries(manifest)) console.log(`   ${h}  ${rel}`);
-  console.log('\n다음: supabase functions deploy submit-score');
+  console.log('\n다음: ' + BUNDLES.map((b) => b.next).join('  /  '));
 }

@@ -1,0 +1,419 @@
+{
+  "engineHash": "f94fde4c",
+  "lineups": {
+    "melee": {
+      "ally": [
+        {
+          "c": "swordsman",
+          "l": 30
+        },
+        {
+          "c": "shieldman",
+          "l": 28
+        },
+        {
+          "c": "archer",
+          "l": 32
+        },
+        {
+          "c": "apprentice",
+          "l": 26
+        },
+        {
+          "c": "acolyte",
+          "l": 24
+        }
+      ],
+      "enemy": [
+        {
+          "c": "spearman",
+          "l": 29
+        },
+        {
+          "c": "rogue",
+          "l": 31
+        },
+        {
+          "c": "monk",
+          "l": 27
+        },
+        {
+          "c": "archer",
+          "l": 30
+        },
+        {
+          "c": "apprentice",
+          "l": 25
+        }
+      ]
+    },
+    "ranged": {
+      "ally": [
+        {
+          "c": "archer",
+          "l": 34
+        },
+        {
+          "c": "archer",
+          "l": 30
+        },
+        {
+          "c": "apprentice",
+          "l": 33
+        },
+        {
+          "c": "apprentice",
+          "l": 28
+        },
+        {
+          "c": "acolyte",
+          "l": 31
+        }
+      ],
+      "enemy": [
+        {
+          "c": "archer",
+          "l": 32
+        },
+        {
+          "c": "apprentice",
+          "l": 34
+        },
+        {
+          "c": "acolyte",
+          "l": 29
+        },
+        {
+          "c": "shieldman",
+          "l": 35
+        },
+        {
+          "c": "rogue",
+          "l": 27
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "tag": "melee",
+      "seed": 1,
+      "winner": "enemy",
+      "time": 40.4,
+      "survivors": 3,
+      "hpsum": 178
+    },
+    {
+      "tag": "melee",
+      "seed": 7718,
+      "winner": "ally",
+      "time": 55.367,
+      "survivors": 1,
+      "hpsum": 41
+    },
+    {
+      "tag": "melee",
+      "seed": 15435,
+      "winner": "enemy",
+      "time": 47.8,
+      "survivors": 1,
+      "hpsum": 90
+    },
+    {
+      "tag": "melee",
+      "seed": 23152,
+      "winner": "ally",
+      "time": 62.717,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "melee",
+      "seed": 30869,
+      "winner": "enemy",
+      "time": 62.65,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "melee",
+      "seed": 38586,
+      "winner": "ally",
+      "time": 60.4,
+      "survivors": 1,
+      "hpsum": 21
+    },
+    {
+      "tag": "melee",
+      "seed": 46303,
+      "winner": "ally",
+      "time": 45.35,
+      "survivors": 1,
+      "hpsum": 100
+    },
+    {
+      "tag": "melee",
+      "seed": 54020,
+      "winner": "ally",
+      "time": 57.9,
+      "survivors": 1,
+      "hpsum": 29
+    },
+    {
+      "tag": "melee",
+      "seed": 61737,
+      "winner": "ally",
+      "time": 60.217,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "melee",
+      "seed": 69454,
+      "winner": "ally",
+      "time": 42.767,
+      "survivors": 3,
+      "hpsum": 133
+    },
+    {
+      "tag": "melee",
+      "seed": 77171,
+      "winner": "ally",
+      "time": 57.85,
+      "survivors": 1,
+      "hpsum": 32
+    },
+    {
+      "tag": "melee",
+      "seed": 84888,
+      "winner": "ally",
+      "time": 62.817,
+      "survivors": 1,
+      "hpsum": 10
+    },
+    {
+      "tag": "melee",
+      "seed": 92605,
+      "winner": "ally",
+      "time": 62.917,
+      "survivors": 1,
+      "hpsum": 1
+    },
+    {
+      "tag": "melee",
+      "seed": 100322,
+      "winner": "enemy",
+      "time": 52.833,
+      "survivors": 1,
+      "hpsum": 70
+    },
+    {
+      "tag": "melee",
+      "seed": 108039,
+      "winner": "ally",
+      "time": 57.7,
+      "survivors": 1,
+      "hpsum": 21
+    },
+    {
+      "tag": "melee",
+      "seed": 115756,
+      "winner": "enemy",
+      "time": 62.733,
+      "survivors": 1,
+      "hpsum": 7
+    },
+    {
+      "tag": "melee",
+      "seed": 123473,
+      "winner": "ally",
+      "time": 42.85,
+      "survivors": 2,
+      "hpsum": 109
+    },
+    {
+      "tag": "melee",
+      "seed": 131190,
+      "winner": "ally",
+      "time": 65.25,
+      "survivors": 1,
+      "hpsum": 11
+    },
+    {
+      "tag": "melee",
+      "seed": 138907,
+      "winner": "ally",
+      "time": 57.633,
+      "survivors": 1,
+      "hpsum": 30
+    },
+    {
+      "tag": "melee",
+      "seed": 146624,
+      "winner": "ally",
+      "time": 42.817,
+      "survivors": 2,
+      "hpsum": 140
+    },
+    {
+      "tag": "ranged",
+      "seed": 1,
+      "winner": "enemy",
+      "time": 39.967,
+      "survivors": 3,
+      "hpsum": 188
+    },
+    {
+      "tag": "ranged",
+      "seed": 7718,
+      "winner": "enemy",
+      "time": 47.7,
+      "survivors": 1,
+      "hpsum": 90
+    },
+    {
+      "tag": "ranged",
+      "seed": 15435,
+      "winner": "enemy",
+      "time": 57.633,
+      "survivors": 1,
+      "hpsum": 41
+    },
+    {
+      "tag": "ranged",
+      "seed": 23152,
+      "winner": "enemy",
+      "time": 62.6,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "ranged",
+      "seed": 30869,
+      "winner": "ally",
+      "time": 60.4,
+      "survivors": 1,
+      "hpsum": 18
+    },
+    {
+      "tag": "ranged",
+      "seed": 38586,
+      "winner": "ally",
+      "time": 62.9,
+      "survivors": 1,
+      "hpsum": 2
+    },
+    {
+      "tag": "ranged",
+      "seed": 46303,
+      "winner": "enemy",
+      "time": 62.633,
+      "survivors": 1,
+      "hpsum": 8
+    },
+    {
+      "tag": "ranged",
+      "seed": 54020,
+      "winner": "ally",
+      "time": 57.9,
+      "survivors": 1,
+      "hpsum": 29
+    },
+    {
+      "tag": "ranged",
+      "seed": 61737,
+      "winner": "ally",
+      "time": 42.717,
+      "survivors": 3,
+      "hpsum": 139
+    },
+    {
+      "tag": "ranged",
+      "seed": 69454,
+      "winner": "enemy",
+      "time": 42.533,
+      "survivors": 3,
+      "hpsum": 154
+    },
+    {
+      "tag": "ranged",
+      "seed": 77171,
+      "winner": "enemy",
+      "time": 42.583,
+      "survivors": 3,
+      "hpsum": 150
+    },
+    {
+      "tag": "ranged",
+      "seed": 84888,
+      "winner": "enemy",
+      "time": 62.733,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "ranged",
+      "seed": 92605,
+      "winner": "enemy",
+      "time": 62.633,
+      "survivors": 1,
+      "hpsum": 11
+    },
+    {
+      "tag": "ranged",
+      "seed": 100322,
+      "winner": "enemy",
+      "time": 55.167,
+      "survivors": 1,
+      "hpsum": 50
+    },
+    {
+      "tag": "ranged",
+      "seed": 108039,
+      "winner": "enemy",
+      "time": 62.5,
+      "survivors": 1,
+      "hpsum": 1
+    },
+    {
+      "tag": "ranged",
+      "seed": 115756,
+      "winner": "enemy",
+      "time": 60.067,
+      "survivors": 1,
+      "hpsum": 27
+    },
+    {
+      "tag": "ranged",
+      "seed": 123473,
+      "winner": "ally",
+      "time": 45.25,
+      "survivors": 1,
+      "hpsum": 100
+    },
+    {
+      "tag": "ranged",
+      "seed": 131190,
+      "winner": "enemy",
+      "time": 65.117,
+      "survivors": 1,
+      "hpsum": 11
+    },
+    {
+      "tag": "ranged",
+      "seed": 138907,
+      "winner": "ally",
+      "time": 62.633,
+      "survivors": 1,
+      "hpsum": 9
+    },
+    {
+      "tag": "ranged",
+      "seed": 146624,
+      "winner": "ally",
+      "time": 42.817,
+      "survivors": 2,
+      "hpsum": 131
+    }
+  ]
+}

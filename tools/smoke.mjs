@@ -2555,6 +2555,28 @@ section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
     `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
 }
 
+section('배포될 엔진 사본이 실제로 도는가');
+{
+  /* ★★ `syncshared` 는 **평탄화**한다 — `../core/rng.js` 를 `./rng.js` 로 고쳐 쓴다.
+   *   이 재작성이 깨지면 사본은 파일로는 멀쩡한데 **import 가 안 되는 상태**가 된다.
+   *   해시 대조는 원본과 사본의 «내용» 만 보므로 이걸 못 잡는다.
+   *   그래서 사본을 실제로 import 해서 골든 픽스처를 돌린다.
+   *
+   * ★ 서버(리눅스)에서도 같은 검사를 할 수 있게 같은 모듈을 함수에 실어 뒀다:
+   *   `GET /pvp-battle?selftest=1` (§69). 여기서 도는 것과 같은 코드다. */
+  let r = null;
+  let err = '';
+  try {
+    const { selftest } = await import('../supabase/functions/pvp-battle/selftest.js');
+    r = await selftest();
+  } catch (e) {
+    err = String((e && e.message) || e);
+  }
+  ok(!!(r && r.ok), '배포용 엔진 사본이 골든 픽스처와 일치한다',
+    err || (r ? `${r.bad.length}건 어긋남: ${r.bad.slice(0, 3).join(' | ')}` : '실행 실패'));
+  if (r) ok(r.total >= 40, `자가검사가 ${r.total}판을 돈다 (40+)`, `${r.total}판뿐이다`);
+}
+
 section('랭킹 검증 계측기 (tools/cheatcheck.mjs)');
 {
   /* ★★ 왜 여기서 돌리나.
