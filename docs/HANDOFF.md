@@ -5312,3 +5312,62 @@ Node·Deno 양쪽에서 60판 일치, 자가검사 84~86ms.
 `ui/battle.js` 가 이미 `params.battleCfg` 를 받는다. 다만 태그매치는 여러 합이라
 합을 이어 재생하는 오케스트레이션이 필요해서 다음으로 미뤘다.
 **반쯤 만든 재생을 넣느니 «합별 기록» 을 온전히 주는 쪽을 택했다.**
+
+## 77. PvP 를 실제로 적용·배포하면서 드러난 두 가지
+
+제작자: 「네가 직접해줘」 — `db/010_pvp.sql` 적용과 `pvp-battle` 배포를 직접 했다.
+
+### 77.1 ★★ `revoke ... from public` 만으로는 **안 잠긴다**
+
+적용 직후 `pg_proc.proacl` 을 읽어 확인했더니 이렇게 나왔다:
+
+    pvp_claim : postgres=X | anon=X | authenticated=X | service_role=X
+    pvp_bump  : postgres=X | anon=X | authenticated=X | service_role=X
+
+**`pvp_bump` 는 레이팅을 직접 쓰는 함수다 — 로그인한 누구나 자기 점수를 정할 수 있었다.**
+
+이유: `revoke all on function ... from public` 은 **PUBLIC 의사 역할**의 권한만 회수한다.
+Supabase 는 public 스키마에 default privileges 로 `anon`·`authenticated` 에게 EXECUTE 를
+**따로** 준다. 그래서 PUBLIC 을 회수해도 그 둘은 그대로 남는다.
+
+⇒ 두 역할을 **이름으로 지목해** 회수해야 한다:
+`revoke all on function ... from anon, authenticated, public;`
+
+★★ **내 스모크 검사가 이걸 놓쳤다.** SQL 텍스트에 «revoke ... from public» 이 있는지만 봤기
+때문이다 — «적었나» 를 재고 «잠겼나» 를 안 쟀다. 검사를 «회수 대상에 anon·authenticated 가
+들어 있나» 로 고치고, 뚫렸던 형태를 다시 심어 물리는지 확인했다.
+
+★ 교훈: **권한은 «SQL 에 뭐라고 적었나» 가 아니라 «실제 ACL 이 어떤가» 로 확인해라.**
+이번엔 배포 후 `pg_proc.proacl` 을 실제로 읽어 봐서 잡았다. 안 읽었으면 그대로 열려 있었다.
+
+### 77.2 Edge Function 은 **JS 모듈만 번들한다**
+
+첫 배포 후 자가검사가 이렇게 죽었다:
+
+    path not found: /var/tmp/sb-compile-edge-runtime/pvp-battle/_engine/battle-golden.json
+
+업로드 로그를 보니 `.js` 만 올라가고 `.json` 은 아예 안 올라갔다.
+번들러는 **import 를 따라간 모듈만** 담는다 — 런타임에 파일로 읽는 자산은 안 담는다.
+
+⇒ `syncshared` 가 `.json` 을 **JS 모듈로 감싸서** 옮기게 고쳤다
+(`export default { … }`). 원본은 여전히 `.json` 이다 — 사람이 읽고 diff 해야 하니까.
+`selftest.js` 도 `fetch`/`readTextFile` 대신 **정적 import** 로 바꿨다.
+
+★ 이걸 잡아 준 것이 바로 그 자가검사다. «배포된 서버에서 진짜 도는가» 를 묻는 통로가
+없었다면 첫 도전에서야 알았을 것이다.
+
+### 77.3 실제 서버에서 확인 (이 단계의 목적)
+
+    GET /pvp-battle?selftest=1
+    → {"ok":true,"total":60,"bad":[],"engineHash":"f94fde4c","engineHashConst":"f94fde4c","ms":118}
+
+**리눅스 서버에서 60판 전부 일치.** 이로써 세 곳이 같은 결과를 낸다:
+Windows Node 22 · Windows Deno 2.9 · **Linux Supabase Edge Runtime**.
+«서버가 전투를 돌려 승패를 정한다» 는 전제가 실제 배포 환경에서 확인됐다.
+
+### 77.4 적용 결과
+
+- 테이블 5개 · RLS 전부 켜짐 · **정책 0개** (확인 쿼리로 검증)
+- 함수 8개. 권한: `pvp_bump`·`pvp_claim`·`pvp_ratings_guard` = **service_role 전용**,
+  `pvp_me`·`pvp_history`·`pvp_replay`·`pvp_desync_log` = authenticated,
+  `pvp_board` = anon+authenticated

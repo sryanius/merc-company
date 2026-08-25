@@ -2856,20 +2856,25 @@ section('PvP 스키마 규약 (db/010_pvp.sql)');
       }
     }
 
-    /* 도전권 청구는 service_role 전용이어야 한다 —
-     * 클라가 직접 부를 수 있으면 쿨다운을 스스로 소모시키거나 우회한다 */
-    if (!/revoke all on function public\.pvp_claim[^;]*from public/.test(strip)) {
-      faults.push('pvp_claim 의 실행 권한을 public 에서 회수하지 않았다');
-    }
-    if (/grant execute on function public\.pvp_claim[^;]*to[^;]*(anon|authenticated)/.test(strip)) {
-      faults.push('pvp_claim 을 anon/authenticated 에게 열어 줬다 — service_role 만이어야 한다');
-    }
-    /* 결과 반영도 마찬가지다 — 클라가 부를 수 있으면 자기 레이팅을 마음대로 올린다 */
-    if (!/revoke all on function public\.pvp_bump[^;]*from public/.test(strip)) {
-      faults.push('pvp_bump 의 실행 권한을 public 에서 회수하지 않았다');
-    }
-    if (/grant execute on function public\.pvp_bump[^;]*to[^;]*(anon|authenticated)/.test(strip)) {
-      faults.push('pvp_bump 를 anon/authenticated 에게 열어 줬다 — service_role 만이어야 한다');
+    /* ★★ service_role 전용 함수는 **anon·authenticated 를 이름으로 지목해** 회수해야 한다.
+     *   `from public` 만 적으면 안 잠긴다 — Supabase 가 default privileges 로 그 두 역할에
+     *   EXECUTE 를 따로 주기 때문이다. 실제로 그렇게 적어 두고 배포했다가 뚫렸다:
+     *   pg_proc.proacl 에 anon=X,authenticated=X 가 남아 있었고 pvp_bump 는 레이팅을 직접 쓴다.
+     *   → **로그인한 누구나 자기 점수를 정할 수 있었다** (HANDOFF §77).
+     *
+     * ★ 이 검사는 그때 «revoke from public 이 있나» 만 봐서 **놓쳤다.**
+     *   글자가 아니라 «두 역할이 회수 대상에 들어 있나» 를 본다. */
+    for (const fn of ['pvp_claim', 'pvp_bump', 'pvp_ratings_guard']) {
+      const rev = new RegExp('revoke[^;]*on function public\\.' + fn + '\\b[^;]*from([^;]*);', 'i');
+      const m = strip.match(rev);
+      if (!m) { faults.push(`${fn} 의 실행 권한 회수(revoke)가 없다`); continue; }
+      const roles = m[1];
+      if (!/\banon\b/.test(roles)) faults.push(`${fn} 을 anon 에서 회수하지 않았다 (from public 만으로는 안 잠긴다)`);
+      if (!/\bauthenticated\b/.test(roles)) faults.push(`${fn} 을 authenticated 에서 회수하지 않았다 (from public 만으로는 안 잠긴다)`);
+      const gr = new RegExp('grant execute on function public\\.' + fn + '\\b[^;]*to[^;]*(anon|authenticated)');
+      if (gr.test(strip)) {
+        faults.push(`${fn} 을 anon/authenticated 에게 다시 열어 줬다 — service_role 만이어야 한다`);
+      }
     }
   }
   okAll(faults, 'PvP 테이블은 RLS 를 켜고 정책을 두지 않는다 (읽기는 함수로만)', 5);

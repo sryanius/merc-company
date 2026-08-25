@@ -16,21 +16,11 @@
 import { createBattle } from './_engine/engine.js';
 import { getSkill } from './_engine/skills.js';
 
-/** 픽스처를 읽는다 (배포 번들에 같이 들어간다) */
-async function loadGolden() {
-  const url = new URL('./_engine/battle-golden.json', import.meta.url);
-  /* Deno(서버) — 파일로 읽는다 */
-  if (typeof Deno !== 'undefined' && Deno.readTextFile) {
-    return JSON.parse(await Deno.readTextFile(url));
-  }
-  /* Node(개발 PC) — fetch 는 file:// 을 못 읽는다. 스모크가 여기로 온다. */
-  if (url.protocol === 'file:' && typeof process !== 'undefined' && process.versions?.node) {
-    const { readFile } = await import('node:fs/promises');
-    return JSON.parse(await readFile(url, 'utf8'));
-  }
-  const res = await fetch(url);
-  return await res.json();
-}
+/* ★★ 픽스처는 **JS 모듈로** 들어온다 (`syncshared` 가 .json 을 감싼다).
+ *   .json 을 그대로 두면 Edge Function 번들에 **아예 안 들어가서** 배포본이
+ *   `path not found: .../battle-golden.json` 으로 죽는다 — 실제로 겪었다 (HANDOFF §77.2).
+ *   정적 import 라 번들러가 확실히 집어 간다. */
+import GOLDEN from './_engine/battle-golden.js';
 
 /**
  * 픽스처에 굳어 있는 **완성된 UnitDef 를 그대로** 쓴다.
@@ -61,7 +51,7 @@ function runCase(lineup, seed) {
  */
 export async function selftest() {
   const t0 = Date.now();
-  const golden = await loadGolden();
+  const golden = GOLDEN;
   const bad = [];
   for (const c of golden.cases || []) {
     const lineup = (golden.lineups || {})[c.tag];

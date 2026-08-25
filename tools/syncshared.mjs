@@ -161,7 +161,14 @@ for (const b of BUNDLES) {
     }
   }
 
-  /* JS 가 아닌 곁들이 파일 (픽스처 등) — 평탄화 없이 그대로 옮긴다 */
+  /* 곁들이 데이터 파일 (픽스처 등).
+   *
+   * ★★ **JSON 을 그대로 옮기면 안 된다.** Supabase Edge Function 은 **JS 모듈만 번들한다** —
+   *   .json 은 업로드조차 안 되고, 배포된 함수가 읽으려 하면
+   *   `path not found: .../battle-golden.json` 으로 죽는다. 실제로 겪었다 (HANDOFF §77.2).
+   *   그래서 **JS 모듈로 감싸서** 옮긴다: `export default { … }`.
+   *
+   * ★ 원본은 여전히 .json 이다 — 사람이 읽고 diff 하기 좋아야 하니까. 변환은 여기서만 한다. */
   for (const rel of b.extra || []) {
     const abs = path.join(ROOT, rel);
     if (!fs.existsSync(abs)) { problems.push(`${rel} 이 없다`); continue; }
@@ -169,9 +176,18 @@ for (const b of BUNDLES) {
     manifest[rel] = hash(src);
     if (!check) {
       fs.mkdirSync(OUT, { recursive: true });
-      const dest = path.join(OUT, path.basename(rel));
-      fs.writeFileSync(dest, src, 'utf8');
-      if (fs.readFileSync(dest, 'utf8') !== src) problems.push(`${rel} 복사 실패`);
+      const base = path.basename(rel);
+      const isJson = base.endsWith('.json');
+      const destName = isJson ? base.replace(/\.json$/, '.js') : base;
+      const body = isJson
+        ? `/* 자동 생성 — 원본은 ${rel}. Edge Function 은 JS 모듈만 번들해서 감싸 둔다. */\nexport default ${src.trim()};\n`
+        : src;
+      const dest = path.join(OUT, destName);
+      fs.writeFileSync(dest, body, 'utf8');
+      if (fs.readFileSync(dest, 'utf8') !== body) problems.push(`${rel} 복사 실패`);
+      /* 옛 .json 사본이 남아 있으면 지운다 — 배포 번들에 쓰레기를 남기지 않는다 */
+      const stale = path.join(OUT, base);
+      if (isJson && fs.existsSync(stale)) fs.rmSync(stale);
     }
   }
 

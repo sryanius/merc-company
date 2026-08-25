@@ -370,8 +370,13 @@ begin
   return query select true, 'ok';
 end $$;
 
-revoke all on function public.pvp_claim(uuid, uuid, integer, interval) from public;
--- 실행은 service_role(Edge Function) 만. anon·authenticated 에게는 주지 않는다.
+/* ★★ **`from public` 만으로는 안 잠긴다.** Supabase 는 public 스키마에 default privileges 로
+ *   `anon`·`authenticated` 에게 EXECUTE 를 **따로** 준다 — PUBLIC 의사 역할을 회수해도 그 둘은 남는다.
+ *   실제로 적용 후 `pg_proc.proacl` 을 읽어 보니 `anon=X,authenticated=X` 가 그대로 있었고,
+ *   `pvp_bump` 는 레이팅을 직접 쓰는 함수라 **로그인한 누구나 자기 점수를 정할 수 있었다.**
+ *   두 역할을 이름으로 지목해 회수해야 한다. (HANDOFF §77) */
+revoke all on function public.pvp_claim(uuid, uuid, integer, interval) from anon, authenticated, public;
+-- 실행은 service_role(Edge Function) 만.
 
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -439,8 +444,9 @@ begin
   if v_draw then null; end if;
 end $$;
 
-revoke all on function public.pvp_bump(uuid, uuid, integer, integer, text) from public;
--- 실행은 service_role(Edge Function) 만.
+revoke all on function public.pvp_bump(uuid, uuid, integer, integer, text) from anon, authenticated, public;
+revoke all on function public.pvp_ratings_guard() from anon, authenticated, public;
+-- 실행은 service_role(Edge Function) 만. (위 pvp_claim 주석 참고 — from public 만으로는 안 잠긴다)
 
 
 -- ════════════════════════════════════════════════════════════════════════════
