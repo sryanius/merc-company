@@ -2522,6 +2522,39 @@ section('단원이 늘어나는 길이 둘뿐인가');
   else ok(false, '검사가 실제로 문다', `코드 ${bit1} / 주석무시 ${bit2}`);
 }
 
+section('전투 골든 픽스처 (tools/goldenbattle.mjs)');
+{
+  /* ★★ PvP 는 **서버가 전투를 돌려** 승패를 정한다. 그러려면 «같은 입력 + 같은 시드 →
+   *   항상 같은 결과» 가 보장돼야 한다. 깨지면 서버가 정한 승패와 클라 화면이 어긋난다.
+   *   고정 편성 × 고정 시드 20판을 파일에 굳혀 두고 매번 대조한다.
+   *   실측: Node 22 와 Deno 2.9 가 이 픽스처에서 지문까지 일치했다.
+   *
+   * ★ 밸런스를 **일부러** 고쳤으면 `node tools/goldenbattle.mjs --update` 로 다시 굳힌다.
+   *   이 검사는 «달라진 줄 모르고 지나가는 것» 을 막는 것이지 변경을 막는 게 아니다. */
+  const { execFileSync: ex2 } = await import('node:child_process');
+  let out2 = '';
+  let bad2 = false;
+  try {
+    out2 = ex2(process.execPath, ['tools/goldenbattle.mjs'], { encoding: 'utf8' });
+  } catch (e) {
+    bad2 = true;
+    out2 = String(e.stdout || e.message);
+  }
+  const NL3 = String.fromCharCode(10);
+  const detail = out2.split(NL3).filter((l) => l.includes('·')).slice(0, 5).join(' | ');
+  ok(!bad2, '전투 결과가 골든 픽스처와 일치한다', detail || out2.trim().split(NL3).slice(-2).join(' | '));
+
+  /* 생성된 ENGINE_HASH 상수가 픽스처와 같은 값인지 — 클라와 서버가 이 상수로 버전을 맞춘다 */
+  const EV = need('data/enginever.js');
+  let goldenHash = null;
+  try {
+    goldenHash = JSON.parse(readFileSync(new URL('../tests/fixtures/battle-golden.json', import.meta.url), 'utf8')).engineHash;
+  } catch { /* 픽스처 없음은 위에서 이미 걸린다 */ }
+  ok(!!(EV && EV.ENGINE_HASH) && EV.ENGINE_HASH === goldenHash,
+    'ENGINE_HASH 상수가 픽스처와 같다',
+    `상수 ${EV && EV.ENGINE_HASH} vs 픽스처 ${goldenHash}`);
+}
+
 section('랭킹 검증 계측기 (tools/cheatcheck.mjs)');
 {
   /* ★★ 왜 여기서 돌리나.
