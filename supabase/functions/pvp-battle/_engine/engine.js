@@ -53,7 +53,7 @@ const MELEE_DELAY = 0.25;   // 돌진 후 타격까지 (붙어 있을 때의 최
  * ★ 엔진은 data/ 를 안 물어야 하서(공유 묶음 제약) 숫자를 옮겨 적는다.
  *   어긋나면 smoke 가 막는다. */
 const AURA_CAP = 0.30;
-const SLOW_CAP = 0.25;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
+const SLOW_CAP = 0.35;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
 const CHARGE_SPEED = 110;   // 돌진 속도 (필드 단위/초) — 투사체와 같게 둔다
 const CHARGE_MAX = 0.9;     // 아무리 멀어도 이 이상은 안 걸린다
 const CAST_DELAY = 0.2;     // 자기 대상 시전 후 발동까지
