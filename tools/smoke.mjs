@@ -5212,6 +5212,95 @@ section('명부를 계열로도 거른다');
   }
 }
 
+section('펫은 표적이 안 된다 · 개전이 몰리지 않는다');
+{
+  /* 제작자 결정 두 가지:
+   *   「펫은 그냥 버퍼로만 활용하고 안맞도록 하자」
+   *   「뒷라인을 0.3초만에 녹이는건 문제가 있는것같아」 → 개전 게이지를 넓게 흔든다
+   *
+   * ★ 펫은 **역할을 유지**한다 (공격·수호·치유·버퍼). 표적만 안 될 뿐이다.
+   *   실측: 공격 펫의 피해 비중이 전체의 0.3% 라 «공짜 딜러» 문제는 없다. */
+  const EN5 = need('battle/engine.js');
+  let SK5 = null;
+  try { SK5 = await import(srcUrl('data/skills.js')); } catch (e) { ok(false, '스킬 모듈을 읽는다', String(e.message)); }
+
+  if (EN5 && SK5) {
+    const merc = (i, side) => ({
+      uid: `${side}m${i}`, name: `${side}m${i}`, classId: 'archer', side,
+      stats: { hp: 4000, atk: 400, def: 20, res: 10, spd: 120, crit: 5, critDmg: 150, eva: 0 },
+    });
+    /* 펫을 **아주 물렁하게** 만든다 — 표적이 된다면 반드시 먼저 죽을 몸이다 */
+    const pet = (i, side) => ({
+      uid: `${side}p${i}`, name: `펫${i}`, side, pet: true, petRole: 'attacker',
+      stats: { hp: 60, atk: 10, def: 0, res: 0, spd: 100, crit: 0, critDmg: 100, eva: 0 },
+    });
+    const squad = (side, n, nPets) => [
+      ...Array.from({ length: n }, (_, i) => merc(i, side)),
+      ...Array.from({ length: nPets }, (_, i) => pet(i, side)),
+    ];
+
+    const seeds = [1, 2, 3, 5, 8, 13];
+    const bad = [];
+    let petHits = 0;
+    for (const s of seeds) {
+      const b = EN5.createBattle({
+        allies: squad('ally', 4, 2), enemies: squad('enemy', 4, 2),
+        seed: s, getSkill: SK5.getSkill, record: true, rout: false,
+      });
+      const byUid = new Map(b.units.map((u) => [u.uid, u]));
+      let g = 0;
+      let firstEnd = -1;
+      while (!b.finished && g++ < 20000) {
+        b.step(1 / 60);
+        for (const e of b.drainEvents()) {
+          if (e.type === 'damage' && e.amount > 0) {
+            const t = byUid.get(e.targetUid);
+            if (t && t.pet) petHits++;
+          }
+        }
+        /* 전투가 끝나기 **전에** 펫이 죽었는지 본다 (끝난 뒤 정리는 정상이다) */
+        if (firstEnd < 0 && b.finished) firstEnd = b.time;
+      }
+      /* 물렁한 펫이 한 대라도 맞았으면 표적이 된 것이다 */
+    }
+    ok(petHits === 0, '펫은 적에게 한 대도 안 맞는다',
+      `펫이 ${petHits}대 맞았다 — 표적 풀에서 안 빠졌다`);
+
+    /* 펫이 여전히 «일은 한다» — 역할을 지웠는지 확인 */
+    const b2 = EN5.createBattle({
+      allies: squad('ally', 4, 2), enemies: squad('enemy', 4, 0),
+      seed: 99, getSkill: SK5.getSkill, record: false, rout: false,
+    });
+    let g2 = 0;
+    while (!b2.finished && g2++ < 20000) b2.step(1 / 60);
+    const petDmg = Object.entries(b2.result.damageDealt || {})
+      .filter(([k]) => k.includes('p')).reduce((a, [, v]) => a + v, 0);
+    ok(petDmg > 0, '펫은 여전히 제 역할을 한다 (표적만 안 될 뿐 싸운다)',
+      '펫 피해가 0 이다 — 역할까지 지워졌다');
+
+    /* 승패는 여전히 펫을 안 센다 */
+    okAll(bad, '펫이 승패 판정에 안 들어간다', 1);
+  }
+
+  /* 개전 게이지가 넓은가 — 좁으면 전원이 같은 순간에 첫 타를 낸다 */
+  const esrc3 = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
+  const gm = esrc3.match(/u\.gauge = rng\.float\(0,\s*([A-Za-z_0-9]+)\)/);
+  ok(!!gm && gm[1] === 'GAUGE_MAX', '개전 게이지를 한 사이클 전체로 흔든다',
+    gm ? `rng.float(0, ${gm[1]}) — 좁으면 전원이 같은 순간에 친다` : '개전 게이지 배분을 못 찾았다');
+
+  /* 적 표적 풀이 전부 펫을 뺐는가 — 한 군데라도 남으면 거기로 새어 나간다 */
+  const foePools = (esrc3.match(/side !== [a-z.]+\.side/g) || []).length;
+  const petFree = (esrc3.match(/side !== [a-z.]+\.side && !\w+\.pet/g) || []).length;
+  ok(foePools > 0 && petFree >= foePools, '엔진의 모든 적 목록이 펫을 뺀다',
+    `적 목록 ${foePools}군데 중 펫을 뺀 곳 ${petFree}군데`);
+
+  const asrc3 = decomment(readFileSync(srcDir('battle/ai.js'), 'utf8'));
+  /* ★ «foesOf 가 어딘가 나오나» 만 보면 폴백 가지가 남아 있어도 통과한다 —
+   *   메타 검사에서 그 가지에 버그를 심었는데 안 물어서 알았다. 한 갈래인지를 본다. */
+  ok(/const foes = battle\.foesOf\(unit\);/.test(asrc3),
+    'AI 는 엔진이 주는 적 목록 하나만 쓴다 (갈래가 하나여야 규칙이 안 갈라진다)');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

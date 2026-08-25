@@ -74,7 +74,11 @@ export function selectTargets(unit, skill, battle) {
   if (scope === 'self') return unit.alive ? [unit] : [];
 
   const allies = battle.units.filter((u) => u.alive && u.side === unit.side);
-  const foes = battle.units.filter((u) => u.alive && u.side !== unit.side);
+  /* ★★ 적 목록은 **엔진이 주는 하나만** 쓴다 (`foesOf` — 펫을 벀다).
+   *   처음엕 «엔진이 없으면» 폴백을 두었는데, 그 가지는 **실제로 절대 안 탄다** —
+   *   메타 검사에서 거기 버그를 심었는데 아무도 못 잡아서 알았다.
+   *   안 타는 가지는 규칙이 갈라질 자리만 만든다 — 지우고 한 갈래로 둔다. */
+  const foes = battle.foesOf(unit);
   if (scope === 'allAlly') return allies;
   if (scope === 'allEnemy') return foes;
 

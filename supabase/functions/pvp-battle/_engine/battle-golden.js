@@ -1,6 +1,6 @@
 /* 자동 생성 — 원본은 tests/fixtures/battle-golden.json. Edge Function 은 JS 모듈만 번들해서 감싸 둔다. */
 export default {
-  "engineHash": "cafe3c81",
+  "engineHash": "68a1ddca",
   "lineups": {
     "melee": {
       "ally": [
@@ -847,481 +847,481 @@ export default {
       "tag": "melee",
       "seed": 1,
       "winner": "enemy",
-      "time": 12.25,
+      "time": 12.817,
       "survivors": 4,
-      "hpsum": 7105
+      "hpsum": 6906
     },
     {
       "tag": "melee",
       "seed": 7718,
       "winner": "enemy",
-      "time": 13.3,
+      "time": 14.067,
       "survivors": 4,
-      "hpsum": 6889
+      "hpsum": 6292
     },
     {
       "tag": "melee",
       "seed": 15435,
       "winner": "enemy",
-      "time": 13.85,
+      "time": 12.483,
       "survivors": 4,
-      "hpsum": 6518
+      "hpsum": 7053
     },
     {
       "tag": "melee",
       "seed": 23152,
       "winner": "enemy",
-      "time": 14.383,
-      "survivors": 4,
-      "hpsum": 6295
+      "time": 11.85,
+      "survivors": 5,
+      "hpsum": 7555
     },
     {
       "tag": "melee",
       "seed": 30869,
       "winner": "enemy",
-      "time": 14.8,
+      "time": 14,
       "survivors": 4,
-      "hpsum": 6145
+      "hpsum": 6141
     },
     {
       "tag": "melee",
       "seed": 38586,
-      "winner": "enemy",
-      "time": 12.8,
-      "survivors": 4,
-      "hpsum": 7002
-    },
-    {
-      "tag": "melee",
-      "seed": 46303,
-      "winner": "enemy",
-      "time": 12.783,
-      "survivors": 4,
-      "hpsum": 6930
-    },
-    {
-      "tag": "melee",
-      "seed": 54020,
-      "winner": "enemy",
-      "time": 13.567,
-      "survivors": 4,
-      "hpsum": 6574
-    },
-    {
-      "tag": "melee",
-      "seed": 61737,
-      "winner": "enemy",
-      "time": 12.2,
-      "survivors": 5,
-      "hpsum": 7576
-    },
-    {
-      "tag": "melee",
-      "seed": 69454,
-      "winner": "enemy",
-      "time": 15.2,
-      "survivors": 4,
-      "hpsum": 6743
-    },
-    {
-      "tag": "melee",
-      "seed": 77171,
-      "winner": "enemy",
-      "time": 12.783,
-      "survivors": 4,
-      "hpsum": 7497
-    },
-    {
-      "tag": "melee",
-      "seed": 84888,
-      "winner": "enemy",
-      "time": 13.9,
-      "survivors": 4,
-      "hpsum": 6250
-    },
-    {
-      "tag": "melee",
-      "seed": 92605,
       "winner": "enemy",
       "time": 12.617,
+      "survivors": 4,
+      "hpsum": 6774
+    },
+    {
+      "tag": "melee",
+      "seed": 46303,
+      "winner": "enemy",
+      "time": 14.05,
+      "survivors": 4,
+      "hpsum": 6306
+    },
+    {
+      "tag": "melee",
+      "seed": 54020,
+      "winner": "enemy",
+      "time": 11.567,
       "survivors": 5,
-      "hpsum": 7213
+      "hpsum": 7654
+    },
+    {
+      "tag": "melee",
+      "seed": 61737,
+      "winner": "enemy",
+      "time": 13.383,
+      "survivors": 4,
+      "hpsum": 6672
+    },
+    {
+      "tag": "melee",
+      "seed": 69454,
+      "winner": "enemy",
+      "time": 12.5,
+      "survivors": 5,
+      "hpsum": 7309
+    },
+    {
+      "tag": "melee",
+      "seed": 77171,
+      "winner": "enemy",
+      "time": 12.833,
+      "survivors": 4,
+      "hpsum": 7236
+    },
+    {
+      "tag": "melee",
+      "seed": 84888,
+      "winner": "enemy",
+      "time": 12.583,
+      "survivors": 4,
+      "hpsum": 6727
+    },
+    {
+      "tag": "melee",
+      "seed": 92605,
+      "winner": "enemy",
+      "time": 12.883,
+      "survivors": 4,
+      "hpsum": 6953
     },
     {
       "tag": "melee",
       "seed": 100322,
       "winner": "enemy",
-      "time": 12.767,
+      "time": 11.833,
       "survivors": 4,
-      "hpsum": 7079
+      "hpsum": 7498
     },
     {
       "tag": "melee",
       "seed": 108039,
       "winner": "enemy",
-      "time": 11.733,
+      "time": 12.017,
       "survivors": 5,
-      "hpsum": 7526
+      "hpsum": 7569
     },
     {
       "tag": "melee",
       "seed": 115756,
       "winner": "enemy",
-      "time": 12.75,
+      "time": 12.267,
       "survivors": 4,
-      "hpsum": 6571
+      "hpsum": 6830
     },
     {
       "tag": "melee",
       "seed": 123473,
       "winner": "enemy",
-      "time": 12.783,
-      "survivors": 5,
-      "hpsum": 7503
+      "time": 13.617,
+      "survivors": 4,
+      "hpsum": 7094
     },
     {
       "tag": "melee",
       "seed": 131190,
       "winner": "enemy",
-      "time": 13.333,
+      "time": 12.833,
       "survivors": 4,
-      "hpsum": 7073
+      "hpsum": 7250
     },
     {
       "tag": "melee",
       "seed": 138907,
       "winner": "enemy",
-      "time": 13.317,
+      "time": 12.95,
       "survivors": 4,
-      "hpsum": 7077
+      "hpsum": 6860
     },
     {
       "tag": "melee",
       "seed": 146624,
       "winner": "enemy",
-      "time": 12.283,
+      "time": 12.583,
       "survivors": 4,
-      "hpsum": 6996
+      "hpsum": 7026
     },
     {
       "tag": "ranged",
       "seed": 1,
       "winner": "enemy",
-      "time": 14.983,
-      "survivors": 4,
-      "hpsum": 7382
+      "time": 19.267,
+      "survivors": 3,
+      "hpsum": 5629
     },
     {
       "tag": "ranged",
       "seed": 7718,
       "winner": "enemy",
-      "time": 26.25,
-      "survivors": 2,
-      "hpsum": 1750
+      "time": 25.217,
+      "survivors": 3,
+      "hpsum": 2250
     },
     {
       "tag": "ranged",
       "seed": 15435,
       "winner": "enemy",
-      "time": 19.733,
+      "time": 19.567,
       "survivors": 3,
-      "hpsum": 4526
+      "hpsum": 4772
     },
     {
       "tag": "ranged",
       "seed": 23152,
       "winner": "enemy",
-      "time": 22.333,
+      "time": 20.4,
       "survivors": 3,
-      "hpsum": 3852
+      "hpsum": 4270
     },
     {
       "tag": "ranged",
       "seed": 30869,
       "winner": "enemy",
-      "time": 21,
+      "time": 23.25,
       "survivors": 3,
-      "hpsum": 4017
+      "hpsum": 3214
     },
     {
       "tag": "ranged",
       "seed": 38586,
       "winner": "enemy",
-      "time": 24.5,
+      "time": 18.833,
       "survivors": 3,
-      "hpsum": 2401
+      "hpsum": 5118
     },
     {
       "tag": "ranged",
       "seed": 46303,
       "winner": "enemy",
-      "time": 15.833,
-      "survivors": 4,
-      "hpsum": 6296
+      "time": 20.867,
+      "survivors": 3,
+      "hpsum": 3858
     },
     {
       "tag": "ranged",
       "seed": 54020,
       "winner": "enemy",
-      "time": 21.017,
-      "survivors": 3,
-      "hpsum": 4143
+      "time": 16.15,
+      "survivors": 4,
+      "hpsum": 6035
     },
     {
       "tag": "ranged",
       "seed": 61737,
       "winner": "enemy",
-      "time": 20.583,
+      "time": 19.433,
       "survivors": 3,
-      "hpsum": 4339
+      "hpsum": 4679
     },
     {
       "tag": "ranged",
       "seed": 69454,
       "winner": "enemy",
-      "time": 15.383,
-      "survivors": 4,
-      "hpsum": 6019
+      "time": 19.433,
+      "survivors": 3,
+      "hpsum": 4367
     },
     {
       "tag": "ranged",
       "seed": 77171,
       "winner": "enemy",
-      "time": 24.5,
-      "survivors": 2,
-      "hpsum": 1966
+      "time": 18.233,
+      "survivors": 3,
+      "hpsum": 5063
     },
     {
       "tag": "ranged",
       "seed": 84888,
       "winner": "enemy",
-      "time": 24.25,
+      "time": 22.583,
       "survivors": 3,
-      "hpsum": 3573
+      "hpsum": 3921
     },
     {
       "tag": "ranged",
       "seed": 92605,
       "winner": "enemy",
-      "time": 21,
+      "time": 19.317,
       "survivors": 3,
-      "hpsum": 4823
+      "hpsum": 4984
     },
     {
       "tag": "ranged",
       "seed": 100322,
       "winner": "enemy",
-      "time": 19.3,
-      "survivors": 3,
-      "hpsum": 4571
+      "time": 16.333,
+      "survivors": 4,
+      "hpsum": 5993
     },
     {
       "tag": "ranged",
       "seed": 108039,
       "winner": "enemy",
-      "time": 22.75,
+      "time": 21.983,
       "survivors": 3,
-      "hpsum": 2805
+      "hpsum": 4531
     },
     {
       "tag": "ranged",
       "seed": 115756,
       "winner": "enemy",
-      "time": 19.717,
-      "survivors": 3,
-      "hpsum": 4572
+      "time": 15.017,
+      "survivors": 4,
+      "hpsum": 6452
     },
     {
       "tag": "ranged",
       "seed": 123473,
       "winner": "enemy",
-      "time": 16.7,
+      "time": 14.817,
       "survivors": 4,
-      "hpsum": 6439
+      "hpsum": 7092
     },
     {
       "tag": "ranged",
       "seed": 131190,
       "winner": "enemy",
-      "time": 15.4,
+      "time": 17.383,
       "survivors": 4,
-      "hpsum": 7183
+      "hpsum": 6292
     },
     {
       "tag": "ranged",
       "seed": 138907,
       "winner": "enemy",
-      "time": 20.383,
-      "survivors": 3,
-      "hpsum": 4307
+      "time": 14.95,
+      "survivors": 4,
+      "hpsum": 7056
     },
     {
       "tag": "ranged",
       "seed": 146624,
       "winner": "enemy",
-      "time": 20.617,
+      "time": 20.567,
       "survivors": 3,
-      "hpsum": 4507
+      "hpsum": 4275
     },
     {
       "tag": "apex",
       "seed": 1,
       "winner": "enemy",
-      "time": 3.617,
+      "time": 4.15,
       "survivors": 5,
-      "hpsum": 54441
+      "hpsum": 53971
     },
     {
       "tag": "apex",
       "seed": 7718,
       "winner": "enemy",
-      "time": 3.2,
-      "survivors": 6,
-      "hpsum": 56402
+      "time": 3.55,
+      "survivors": 5,
+      "hpsum": 54760
     },
     {
       "tag": "apex",
       "seed": 15435,
       "winner": "enemy",
-      "time": 3.15,
-      "survivors": 6,
-      "hpsum": 56702
+      "time": 3.967,
+      "survivors": 5,
+      "hpsum": 53758
     },
     {
       "tag": "apex",
       "seed": 23152,
       "winner": "enemy",
-      "time": 3.483,
+      "time": 3.667,
       "survivors": 5,
-      "hpsum": 55179
+      "hpsum": 54110
     },
     {
       "tag": "apex",
       "seed": 30869,
       "winner": "enemy",
       "time": 3.133,
-      "survivors": 5,
-      "hpsum": 54608
+      "survivors": 6,
+      "hpsum": 54414
     },
     {
       "tag": "apex",
       "seed": 38586,
       "winner": "enemy",
-      "time": 4.083,
+      "time": 3.5,
       "survivors": 5,
-      "hpsum": 50047
+      "hpsum": 55167
     },
     {
       "tag": "apex",
       "seed": 46303,
       "winner": "enemy",
-      "time": 4.167,
+      "time": 3.367,
       "survivors": 5,
-      "hpsum": 50175
+      "hpsum": 55188
     },
     {
       "tag": "apex",
       "seed": 54020,
       "winner": "enemy",
-      "time": 5.017,
+      "time": 3.833,
       "survivors": 5,
-      "hpsum": 40064
+      "hpsum": 55148
     },
     {
       "tag": "apex",
       "seed": 61737,
       "winner": "enemy",
-      "time": 3.617,
+      "time": 3.017,
       "survivors": 5,
-      "hpsum": 55233
+      "hpsum": 54824
     },
     {
       "tag": "apex",
       "seed": 69454,
       "winner": "enemy",
-      "time": 4.083,
-      "survivors": 5,
-      "hpsum": 53415
+      "time": 3.3,
+      "survivors": 6,
+      "hpsum": 55662
     },
     {
       "tag": "apex",
       "seed": 77171,
       "winner": "enemy",
-      "time": 3.4,
-      "survivors": 5,
-      "hpsum": 53817
+      "time": 3.017,
+      "survivors": 6,
+      "hpsum": 53957
     },
     {
       "tag": "apex",
       "seed": 84888,
       "winner": "enemy",
-      "time": 3.55,
+      "time": 3.35,
       "survivors": 5,
-      "hpsum": 54796
+      "hpsum": 54826
     },
     {
       "tag": "apex",
       "seed": 92605,
       "winner": "enemy",
-      "time": 4.05,
+      "time": 3.367,
       "survivors": 5,
-      "hpsum": 54887
+      "hpsum": 55219
     },
     {
       "tag": "apex",
       "seed": 100322,
       "winner": "enemy",
-      "time": 3.017,
-      "survivors": 6,
-      "hpsum": 55203
+      "time": 3.5,
+      "survivors": 5,
+      "hpsum": 53332
     },
     {
       "tag": "apex",
       "seed": 108039,
       "winner": "enemy",
-      "time": 3.35,
+      "time": 3.417,
       "survivors": 6,
-      "hpsum": 58185
+      "hpsum": 56644
     },
     {
       "tag": "apex",
       "seed": 115756,
       "winner": "enemy",
-      "time": 3.283,
-      "survivors": 6,
-      "hpsum": 56042
+      "time": 3.783,
+      "survivors": 5,
+      "hpsum": 55239
     },
     {
       "tag": "apex",
       "seed": 123473,
       "winner": "enemy",
-      "time": 3.717,
-      "survivors": 5,
-      "hpsum": 49484
+      "time": 3.233,
+      "survivors": 6,
+      "hpsum": 55200
     },
     {
       "tag": "apex",
       "seed": 131190,
       "winner": "enemy",
-      "time": 3.267,
-      "survivors": 6,
-      "hpsum": 56152
+      "time": 3.667,
+      "survivors": 5,
+      "hpsum": 53893
     },
     {
       "tag": "apex",
       "seed": 138907,
       "winner": "enemy",
-      "time": 3.783,
+      "time": 4.25,
       "survivors": 5,
-      "hpsum": 55251
+      "hpsum": 49686
     },
     {
       "tag": "apex",
       "seed": 146624,
       "winner": "enemy",
-      "time": 3.817,
-      "survivors": 5,
-      "hpsum": 47791
+      "time": 3.267,
+      "survivors": 6,
+      "hpsum": 55224
     }
   ]
 };

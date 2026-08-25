@@ -160,7 +160,15 @@ export function createBattle(cfg = {}) {
   const hasGuardians = units.some((u) => u.pet && u.petRole === 'guardian');
 
   // 행동 순서가 한꺼번에 겹치지 않도록 아주 작은 시작 게이지 편차를 준다 (시드 결정론 유지)
-  for (const u of units) u.gauge = rng.float(0, 12);
+  /* ★★ **개전 행동 순서를 넓게 흔든다.**
+   *   예전에는 `rng.float(0, 12)` 였다 — 게이지 최대가 100인데 흔들림이 12%뿐이라
+   *   80렘 풀장비(spd 가 높아 한 사이클이 0.3초 내외)에서 **14명이 전부 0.25~0.30초에
+   *   첫 타를 냈다.** 뒷라인 한 명에게 서너 대가 동시에 꿂혀 그대로 죽는다 —
+   *   실측으로 **사망의 31%가 0.4초 안**에 일어나고 있었다 (제작자 지적).
+   *
+   * ★ 난수 소비는 그대로다 (같은 호출 한 번). 범위만 넓혀서
+   *   첫 타격이 한 사이클에 고르게 퍼진다 — 스탯은 한 글자도 안 건드렸다. */
+  for (const u of units) u.gauge = rng.float(0, GAUGE_MAX);
 
   const events = [];
   const sched = [];
@@ -188,6 +196,12 @@ export function createBattle(cfg = {}) {
     enemyFormationId: cfg.enemyFormationId || null,
     aliveAllies: () => units.filter((u) => u.alive && u.side === 'ally'),
     aliveEnemies: () => units.filter((u) => u.alive && u.side === 'enemy'),
+    /** ★★ 적으로 **고를 수 있는** 유닛 — 펫은 뺀다.
+     *   제작자 결정: 「펫은 그냥 버퍼로만 활용하고 안맞도록 하자」.
+     *   실측으로 PvP 에선 펫이 **모든 합에서 0.3초에 전멸**하고 있었다 —
+     *   부대 10칸 중 3칸이 사실상 빈칸로 돈다.
+     *   ★ 수호 펫의 «대신 맞기»(guardChance)는 별도 경로라 그대로 산다. */
+    foesOf: (u) => units.filter((t) => t.alive && t.side !== u.side && !t.pet),
     unitOf: (uid) => units.find((u) => u.uid === uid) || null,
     drainEvents,
     step,
@@ -422,7 +436,7 @@ export function createBattle(cfg = {}) {
    */
   function spTargets(u, key) {
     if (key === 'self') return u.alive ? [u] : [];
-    if (key === 'allEnemy') return units.filter((a) => a.alive && a.side !== u.side);
+    if (key === 'allEnemy') return units.filter((a) => a.alive && a.side !== u.side && !a.pet);
     return livingAllies(u);
   }
 
@@ -515,7 +529,7 @@ export function createBattle(cfg = {}) {
         const n = Math.max(0, Math.round(spNum(p.splashCount, 0)));
         const ratio = spNum(p.splashPower, 0);
         if (n <= 0 || ratio <= 0) return false;
-        const foes = units.filter((t) => t.alive && t.side !== u.side && t !== ctx.target);
+        const foes = units.filter((t) => t.alive && t.side !== u.side && !t.pet && t !== ctx.target);
         if (!foes.length) return false;
         // splashSelect — 원 대상에서 가장 가까운 적, 동률이면 idx 오름차순 (난수 금지)
         const picks = spSelect(ctx.target || u, foes, Math.min(n, foes.length), p.splashSelect || 'nearest');
@@ -635,7 +649,7 @@ export function createBattle(cfg = {}) {
   /** target 이 명시된 효과는 스킬 사용당 1회, 지정된 범위에 적용한다 */
   function applyScopedEffect(src, e, skill) {
     const allies = units.filter((u) => u.alive && u.side === src.side);
-    const foes = units.filter((u) => u.alive && u.side !== src.side);
+    const foes = units.filter((u) => u.alive && u.side !== src.side && !u.pet);
     let list;
     switch (e.target) {
       case 'self': list = src.alive ? [src] : []; break;
