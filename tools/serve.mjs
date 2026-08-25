@@ -9,7 +9,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = Number(process.argv[2] || 5173);
+/* ★ 기본 5174 — 제작자가 이 주소를 열어 두고 본다 (CLAUDE.md).
+ *   예전 기본값 5173 때문에 «서버가 안 뜬다» 를 여러 번 겪었다. */
+const PORT = Number(process.argv[2] || 5174);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
