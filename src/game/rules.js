@@ -145,6 +145,10 @@ function allSquadsOf(st) {
           .map(([id, n]) => `${cut(id, 24)}:${n}`);
         return {
           c: cut(m.classId, 24),
+          /* ★ 단원 이름 — 제작자 요청: 「클래스명 대신 내 용병 이름으로. 용병이름 (클래스)」.
+           *   ★★ 이 필드를 더했으면 **submit-score 의 sanitizeSquadsFull 도 같이** 고쳐야 한다.
+           *      거기는 «아는 필드만 남기는» 화이트리스트라 안 고치면 조용히 버려진다 (§58). */
+          nm: cut(m.name, 16),
           l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
           g: cut(m.grade, 1),
           /* ★ **실제로 낀 것만** 센다. state.js 의 normalizeEquipment 가 10칸을 null 로

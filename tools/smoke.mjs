@@ -2567,17 +2567,19 @@ section('PvP 스탯 상한 검사 (위조 1차 방어선)');
   let Merc = null;
   let Gear = null;
   let CL3 = null;
+  let SETS3 = null;
   try {
     B = await import('../supabase/functions/pvp-battle/statbound.js');
     Merc = await import('../src/game/merc.js');
     Gear = await import('../src/game/gear.js');
     CL3 = await import('../src/data/classes.js');
+    SETS3 = await import('../src/data/sets.js');
     await import('../src/data/classes_t4.js');
   } catch (e) {
     ok(false, '상한 검사 모듈을 읽는다', String((e && e.message) || e));
   }
 
-  if (B && Merc && Gear && CL3) {
+  if (B && Merc && Gear && CL3 && SETS3) {
     const faults = [];
 
     /* ① 상수 중복이 merc.js 와 같은가 —
@@ -2619,24 +2621,32 @@ section('PvP 스탯 상한 검사 (위조 1차 방어선)');
     }
     if (worst > 0) faults.push(`맨몸 계산이 실제보다 작다 (${(worst * 100).toFixed(1)}%) — ${worstAt}`);
 
-    /* ③ 최강 장비를 낀 정상 유닛이 통과하는가 (오탐 0 이어야 한다) */
+    /* ③ ★★ **풀 신화 세트**를 낀 정상 유닛이 통과하는가 (오탐 0 이어야 한다).
+     *   처음엔 `rollItem`(무작위)으로 검사했는데 그러면 **세트 보너스가 통째로 빠져서**
+     *   상한이 낮게 잡혔고, 그 상태로 배포해 **정상 플레이어의 등록을 막았다.**
+     *   세트로 껴야 실제 최강 빌드다 — `rollSetItem` 을 쓴다. */
     const maxRng = {
       next: () => 0.999999, float: (a, b) => b, int: (a, b) => b, chance: () => true,
       pick: (a) => a[a.length - 1], pickMany: (a, n) => a.slice(0, n), weighted: (a) => a[a.length - 1],
     };
-    for (const id of ['swordsman', 'archer', 'apprentice', 'madgeneral_apex', 'archmage_abyss']) {
+    const setColl = Object.values(SETS3).find((v) => v && typeof v === 'object' && v.ironrampart) || {};
+    const setIds = Object.keys(setColl);
+    for (const id of ['swordsman', 'shieldman', 'apprentice', 'rogue', 'skysplitter_apex', 'archmage_abyss']) {
       if (!CL3.CLASSES[id]) continue;
-      const items = {};
-      const equipment = {};
-      for (const slot of (Gear.SLOTS || [])) {
-        try {
-          const it = Gear.rollItem({ ilvl: 80, rarity: 5, slot, rng: maxRng });
-          if (it) { it.id = it.id || `i_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
-        } catch { /* 슬롯 실패는 무시 */ }
+      for (const setId of setIds) {
+        const items = {};
+        const equipment = {};
+        for (const slot of (Gear.SLOTS || [])) {
+          try {
+            const it = Gear.rollSetItem({ setId, slot, ilvl: 80, rng: maxRng });
+            if (it) { it.id = it.id || `${setId}_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
+          } catch { /* 그 세트에 없는 부위 */ }
+        }
+        if (Object.keys(equipment).length < 7) continue;
+        const stats = Merc.mercStats({ uid: 'u', classId: id, level: 80, grade: 'S', equipment }, items);
+        const bad = B.checkUnit({ uid: 'u', classId: id, level: 80, grade: 'S', stats });
+        if (bad.length) faults.push(`오탐: ${id} + ${setId} 풀세트가 걸린다 — ${bad[0]}`);
       }
-      const stats = Merc.mercStats({ uid: 'u', classId: id, level: 80, grade: 'S', equipment }, items);
-      const bad = B.checkUnit({ uid: 'u', classId: id, level: 80, grade: 'S', stats });
-      if (bad.length) faults.push(`오탐: 최강 장비 ${id} 가 걸린다 — ${bad[0]}`);
     }
 
     /* ④ 명백한 조작은 잡아야 한다 */
@@ -3014,18 +3024,34 @@ section('제출 필드가 서버 화이트리스트와 맞나');
       const j = to ? src.indexOf(to, i + from.length) : -1;
       return src.slice(i, j > 0 ? j : i + 3000);
     };
-    /* allSquadsOf 가 out.push({...}) 로 넣는 부대 필드 */
-    const squadFields = new Set(
-      [...between(rulesSrc, 'function allSquadsOf', 'function topSquadOf')
-        .matchAll(/^\s{6}([a-z])\s*:/gm)].map((m) => m[1]));
-    const serverFields = new Set(
-      [...between(fnSrc, 'function sanitizeSquadsFull', 'function sanitizeSquad')
-        .matchAll(/^\s{6}([a-z])\s*:/gm)].map((m) => m[1]));
-    const missing = [...squadFields].filter((f) => !serverFields.has(f));
-    okAll(missing.map((f) => `부대 필드 '${f}' 가 sanitizeSquadsFull 에 없다 — 서버가 버린다`),
-      'allSquadsOf 의 필드를 서버가 전부 통과시킨다', squadFields.size || 1);
-    ok(squadFields.size >= 3, '부대 필드를 실제로 읽어 냈다 (정규식이 헛돌지 않았다)',
-      `읽은 필드: ${[...squadFields].join(' ') || '없음'}`);
+    /* ★★ 부대 **와 단원** 두 층을 모두 본다.
+     *
+     *   옛 검사는 `/^\s{6}([a-z])\s*:/gm` 이었다 — «들여쓰기 정확히 6칸 + 한 글자 소문자».
+     *   그래서 **단원 필드(m: 배열 안이라 더 깊다)** 도, **두 글자 이름**도 못 봤다.
+     *   §58 재발을 막으라고 만든 검사가 정작 이번 작업(단원 이름 `nm` 추가)에 눈이 멀어 있었다.
+     *
+     *   이제 두 층을 다 훑고 이름 길이도 안 가린다. 흔한 오탐(주석·문자열)은
+     *   «값이 있는 속성 정의» 모양으로만 잡아 걸러 낸다. */
+    const fieldsOf = (src, from, to) => {
+      const body = between(src, from, to);
+      const out = new Set();
+      for (const m of body.matchAll(/^\s{4,}([a-z][a-z0-9]{0,7})\s*:\s*[^\s/]/gm)) out.add(m[1]);
+      return out;
+    };
+
+    const squadFields = fieldsOf(rulesSrc, 'function allSquadsOf', 'function topSquadOf');
+    const serverFields = fieldsOf(fnSrc, 'function sanitizeSquadsFull', 'function sanitizeSquad');
+
+    /* rules.js 쪽에만 있는 «지역 변수·헬퍼» 는 서버가 통과시킬 대상이 아니다 —
+     * 실제로 스냅샷에 실리는 이름만 남긴다 (한두 글자 축약 + nm 처럼 짧은 것). */
+    const IGNORE = new Set(['const', 'let', 'return', 'if', 'for', 'try', 'catch', 'function']);
+    const wanted = [...squadFields].filter((f) => !IGNORE.has(f));
+
+    const missing = wanted.filter((f) => !serverFields.has(f));
+    okAll(missing.map((f) => `부대/단원 필드 '${f}' 가 sanitizeSquadsFull 에 없다 — 서버가 조용히 버린다`),
+      'allSquadsOf 의 필드를 서버가 전부 통과시킨다', wanted.length || 1);
+    ok(wanted.length >= 5, '부대·단원 필드를 실제로 읽어 냈다 (정규식이 헛돌지 않았다)',
+      `읽은 필드: ${wanted.join(' ') || '없음'}`);
   }
 }
 

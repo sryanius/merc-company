@@ -12,22 +12,27 @@
  *   (계열, 클래스 보정, 티어, 레벨, 등급) 만으로 rng 없이 정해지고,
  *   장비가 더할 수 있는 최대치는 실측으로 안다.
  *
- *   ⇒ `보고값 ≤ (맨몸 + 장비 최대가산) × 여유` 를 넘으면 거절한다.
+ *   ⇒ `보고값 ≤ 맨몸 × 실측최대배율 × 여유` 를 넘으면 거절한다.
  *     hp 999999 같은 값은 여기서 전부 걸린다. 미세 조작(+3%)은 못 잡는다 —
  *     그건 다음 단계(원본 재계산)의 몫이다.
  *
- * ★ 상한은 **추측이 아니라 실측**이다. 게임의 아이템 생성기로 10칸 전부
- *   신화(rarity 5)·ilvl 80·**모든 굴림 최대**로 만들어 «장비가 더하는 절대량» 을 쟀다:
+ * ★★ 상한은 **게임 자신의 생성기로 만든 최강 빌드**에서 잰다.
  *
- *     hp +8998 · atk +1210 · def +1357 · res +720 · spd +68 · crit +26 · critDmg +50 · eva +11
+ *   처음엔 `rollItem` 으로 무작위 장비를 껴서 쟀다. **그게 틀렸다** — 무작위 아이템은
+ *   신화 «세트» 가 성립하지 않아 세트 보너스(가산 + 배율)가 통째로 빠진다.
+ *   그 상한으로 배포했더니 **정상 플레이어의 등록이 막혔다** (제작자 실제 편성:
+ *   skysplitter_apex atk 8514 / critDmg 278 이 거절됐다). 내가 가장 나쁘다고 적어 둔 실패다.
  *
- *   ★★ **배율이 아니라 가산량이다.** 처음엔 «맨몸 × 최대배율» 로 잡았다가 궁수가 걸렸다 —
- *     장비는 고정값을 더하므로 **기본 수치가 낮은 스탯일수록 배율이 커진다.**
- *     실측으로 확인: 위 가산량은 9개 클래스에서 **전부 동일**했다 (장비는 클래스와 무관하다).
- *     그래서 «맨몸 + 최대가산 × 여유» 가 옳은 모양이다.
+ *   다시 쟀다 — `rollSetItem` 으로 **전 클래스 × 전 세트**의 풀세트 빌드를 만들어
+ *   «맨몸 대비 최대 배율» 을 구했다:
  *
- *   세트 효과는 가산 뒤에 **배율로** 붙으므로 그것만 배수로 남긴다.
- *   여유를 넉넉히 두는 이유: **정상 플레이어를 막는 쪽이 조작을 놓치는 쪽보다 훨씬 나쁘다.**
+ *     hp ×5.92 · atk ×20.84 · def ×15.31 · res ×8.75 · spd ×3.04 · crit ×8.15 · critDmg ×5.62 · eva ×2.64
+ *
+ *   (제작자의 critDmg 278 은 `swordsman/bloodoath` 실측 281 과 같은 자리다 — 정상 빌드였다.)
+ *
+ * ★ 배율로 잡는다. 장비는 고정값을 더하지만 세트는 **배율로** 곱하고, 기본 수치가 낮은
+ *   클래스일수록 비율이 커진다 — 그 최악을 이미 포함해 쟀으므로 배율이 안전한 모양이다.
+ *   여기에 여유 2배. **정상 플레이어를 막는 쪽이 조작을 놓치는 쪽보다 훨씬 나쁘다.**
  */
 import { ARCHETYPES, CLASSES } from './_engine/classes.js';
 
@@ -43,11 +48,11 @@ export const FLAT_KEYS = ['crit', 'critDmg', 'eva'];
 export const FALLBACK_ARCH = { hp: 220, atk: 30, def: 15, res: 12, spd: 46, crit: 6, critDmg: 50, eva: 5 };
 export const MAX_LEVEL = 80;
 
-/** 장비가 더할 수 있는 **절대 가산량** (실측 — 신화 10칸 최대 굴림. 클래스 무관) */
-export const GEAR_ADD = {
-  hp: 8998, atk: 1210, def: 1357, res: 720, spd: 68, crit: 26, critDmg: 50, eva: 11,
+/** 맨몸 대비 최대 배율 (실측 — 전 클래스 × 전 신화 세트 풀빌드, ilvl 80, 모든 굴림 최대) */
+export const MAX_RATIO = {
+  hp: 5.92, atk: 20.84, def: 15.31, res: 8.75, spd: 3.04, crit: 8.15, critDmg: 5.62, eva: 2.64,
 };
-/** 세트 효과(가산 뒤 배율) · 지휘 펫 배율 · 앞으로의 밸런스 변화를 위한 여유 */
+/** 앞으로의 밸런스 변화·펫 배율을 위한 여유 */
 export const SLACK = 2.0;
 
 /** 절대 상한 — 배율과 무관하게 이 값을 넘으면 무조건 거절한다 */
@@ -96,10 +101,10 @@ export function checkUnit(u) {
     if (!Number.isFinite(v)) { bad.push(`${k} 가 숫자가 아니다`); continue; }
     if (v < 0) { bad.push(`${k} 가 음수다 (${v})`); continue; }
     if (ABSOLUTE[k] != null && v > ABSOLUTE[k]) { bad.push(`${k} ${v} 가 절대 상한 ${ABSOLUTE[k]} 을 넘는다`); continue; }
-    /* ★ 맨몸 + 장비 최대가산, 그 뒤에 세트·펫 여유 배수 */
-    const cap = ((base[k] || 0) + (GEAR_ADD[k] || 0)) * SLACK;
-    if (v > cap) {
-      bad.push(`${k} ${Math.round(v)} 가 가능한 최대 ${Math.round(cap)} 을 넘는다 (맨몸 ${Math.round(base[k])} + 장비 ${GEAR_ADD[k] || 0})`);
+    /* ★ 맨몸 × 실측 최대배율 × 여유 */
+    const cap = (base[k] || 0) * (MAX_RATIO[k] || 1) * SLACK;
+    if (base[k] > 0 && v > cap) {
+      bad.push(`${k} ${Math.round(v)} 가 가능한 최대 ${Math.round(cap)} 을 넘는다 (맨몸 ${Math.round(base[k])} × ${MAX_RATIO[k]})`);
     }
   }
   return bad;
@@ -118,7 +123,14 @@ export function checkSquads(squads) {
     sq.forEach((u, ui) => {
       /* 펫은 클래스가 없다 — 이 검사는 용병만 본다 (펫은 별도 상한이 필요하다) */
       if (u && u.pet) return;
-      for (const m of checkUnit(u)) bad.push(`${si + 1}부대 ${ui + 1}번(${u?.classId || '?'}): ${m}`);
+      /* ★ 클래스 id 가 아니라 **용병 이름(클래스명)** 으로 짚어 준다 —
+       *   제작자가 자기 단원 중 누구인지 바로 알아야 고칠 수 있다.
+       *   (id 는 `skysplitter_apex` 처럼 사람이 못 알아본다) */
+      const cls = CLASSES[u?.classId];
+      const who = u?.name
+        ? `${u.name}(${cls?.name || u?.classId || '?'})`
+        : (cls?.name || u?.classId || '?');
+      for (const m of checkUnit(u)) bad.push(`${si + 1}부대 ${ui + 1}번 ${who}: ${m}`);
     });
   });
   return { ok: bad.length === 0, bad: bad.slice(0, 20) };

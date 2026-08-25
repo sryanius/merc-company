@@ -197,11 +197,15 @@ function squadLine(squad) {
   for (const m of mems) {
     const cls = m && m.c ? getClass(m.c) : null;
     if (!cls) continue;
+    /* ★ 제작자 요청: 「클래스명 대신 내 용병 이름으로. **용병이름 (클래스)**」.
+     *   옛 세이브에서 온 스냅샷에는 이름(nm)이 없다 — 그때는 클래스명만 쓴다. */
     row.appendChild(el('span', {
       class: 'rk-mem',
       style: { color: GRADE_COLOR[m.g] || 'var(--ink-dim)' },
-      title: `${cls.name} · ${m.g || '?'}등급 · Lv${m.l || 1}`,
-    }, `${cls.name}`, el('i', { text: ` ${m.g || ''}${m.l || ''}` })));
+      title: `${m.nm ? `${m.nm} · ` : ''}${cls.name} · ${m.g || '?'}등급 · Lv${m.l || 1}`,
+    }, m.nm || cls.name,
+    m.nm ? el('i', { text: ` (${cls.name})` }) : null,
+    el('i', { text: ` ${m.g || ''}${m.l || ''}` })));
   }
   if (!row.childNodes.length) return null;
   return row;
@@ -258,7 +262,8 @@ async function openSquads(kind, rank, name) {
       }) : [];
       grid.appendChild(el('div', { class: 'rk-sqmem' },
         el('div', {},
-          el('b', { style: { color: GRADE_COLOR[m.g] || 'var(--ink)' }, text: cls.name }),
+          el('b', { style: { color: GRADE_COLOR[m.g] || 'var(--ink)' }, text: m.nm || cls.name }),
+          m.nm ? el('span', { class: 'faint', text: ` (${cls.name})` }) : null,
           el('span', { class: 'faint', text: ` ${m.g || ''}${m.l || ''}` })),
         el('div', { class: 'faint tiny' },
           m.e ? `장비 ${m.e}칸` : '장비 없음',

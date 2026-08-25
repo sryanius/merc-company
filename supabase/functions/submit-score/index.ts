@@ -169,6 +169,8 @@ function sanitizeSquadsFull(raw: unknown) {
         const sets = Array.isArray(y.s) ? y.s.slice(0, 3).map((v) => cut(v, 28)) : undefined;
         return {
           c: cut(y.c, 24),
+          /* ★ 단원 이름 (rules.js 의 nm). 여기 안 적으면 **조용히 버려진다** — §58 의 그 함정이다. */
+          nm: cut(y.nm, 16) || undefined,
           l: Math.max(1, Math.min(80, Math.round(Number(y.l) || 1))),
           g: cut(y.g, 1),
           e: Math.max(0, Math.min(10, Math.round(Number(y.e) || 0))),
