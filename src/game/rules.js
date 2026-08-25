@@ -147,7 +147,10 @@ function allSquadsOf(st) {
           c: cut(m.classId, 24),
           l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
           g: cut(m.grade, 1),
-          e: Object.keys(m.equipment || {}).length,     // 착용 칸 수
+          /* ★ **실제로 낀 것만** 센다. state.js 의 normalizeEquipment 가 10칸을 null 로
+           *   채워 두므로 Object.keys 로 세면 **누구나 항상 10** 이 된다 —
+           *   순위표의 «착용 칸 수» 가 전원 10 으로 올라가고 있었다 (실측: 실제 2, 표시 10). */
+          e: Object.values(m.equipment || {}).filter(Boolean).length,
           s: sets.length ? sets : undefined,
         };
       }),

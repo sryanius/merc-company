@@ -1710,6 +1710,27 @@ function plantSoldLineInsideElse(src) {
   return without.slice(0, eol + 1) + '  ' + two + String.fromCharCode(10) + without.slice(eol + 1);
 }
 
+section('순위표 «착용 칸 수» 가 실제 착용 수인가');
+{
+  /* ★★ state.js 의 normalizeEquipment 가 장비 10칸을 **null 로 채운다.**
+   *   그래서 Object.keys(equipment).length 로 세면 **누구나 항상 10** 이 나온다 —
+   *   순위표에 전원 «착용 10칸» 으로 올라가고 있었다 (실측: 실제 2, 표시 10).
+   *   글자로 막지 말고 **실제로 굴려서** 잰다 — rules.js 는 node 로 돌아간다. */
+  const Rules2 = need('game/rules.js');
+  const st = State.newGame('검사용');
+  const sc = Rules2 && Rules2.extractScore(st);
+  const m0 = sc && sc.squadsFull && sc.squadsFull[0] && sc.squadsFull[0].m && sc.squadsFull[0].m[0];
+  if (!m0) { ok(false, '순위표 스냅샷에서 단원을 못 꺼냈다'); } else {
+    const st2 = State.newGame('검사용');
+    const raw = (st2.roster || [])[0] || {};
+    const real = Object.values(raw.equipment || {}).filter(Boolean).length;
+    const slots = Object.keys(raw.equipment || {}).length;
+    ok(m0.e === real && slots > real,
+      `착용 칸 수가 실제 착용 수다 (칸 ${slots} 중 ${real} 착용 → e=${m0.e})`,
+      `e=${m0.e} 인데 실제 착용은 ${real} 이다 (칸은 ${slots})`);
+  }
+}
+
 section('근접이 목표를 «계속» 따라가나');
 {
   /* ★★ 제작자 지적: 「접근이 앞으로만 가고 타겟에 안 붙는다. 타겟이 죽으면 어정쩡하게 멈춘다」.
