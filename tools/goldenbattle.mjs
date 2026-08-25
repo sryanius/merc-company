@@ -79,58 +79,84 @@ function engineHash() {
   return { hash: hash(blob), files };
 }
 
-/* ── 고정 편성 — 픽스처 안에 입력까지 함께 굳힌다 (파일 하나로 재현된다)
+/* ── 고정 편성 ────────────────────────────────────────────────────────
  *
- * ★ **두 벌**을 쓴다. 처음엔 근접 위주 한 벌만 뒀는데, 메타 검사에서
- *   `PROJ_SPEED`(투사체 속도)를 바꿔도 **20판 결과가 하나도 안 달라졌다** —
- *   행동 검사가 그 축을 아예 안 건드리고 있었다는 뜻이다.
- *   원거리·주문 위주 한 벌을 더해 투사체 비행시간이 결과에 닿게 만든다.
+ * ★★ **완성된 UnitDef 를 통째로 굳힌다** (클래스 id + 레벨만 적지 않는다).
+ *   처음엔 `{c, l}` 만 적고 돌릴 때마다 다시 만들었는데, 거기에 `stats` 를 안 넣어서
+ *   **엔진이 기본값(hp 100)으로 40판을 돌고 있었다** — 스탯 계산 경로를 아예 안 지났다
+ *   (HANDOFF §73.5). 레벨을 0~20 바꿔도 승률이 전부 같게 나와서 들통났다.
  *
- * ★ 이 «달라진 판 수» 는 --update 때 «내가 의도한 만큼만 바뀌었나» 를 보는 눈이다.
- *   눈이 멀면 0 이라는 거짓 안심을 준다. */
-const LINEUPS = {
+ *   완성본을 굳히면 두 가지가 같이 해결된다:
+ *   ① 생성기와 서버 자가검사가 **같은 입력**을 재계산 없이 쓴다 (어긋날 자리가 없다)
+ *   ② 실제 스탯·스킬로 도는 전투가 된다
+ *
+ * ★ 편성 세 벌: 근접 위주 · 원거리 위주(투사체 비행시간이 결과에 닿게) ·
+ *   4차 클래스(스킬이 둘씩이라 스킬 경로가 실제로 돈다).
+ */
+const LINEUP_SPEC = {
   melee: {
-    ally: [
-      { c: 'swordsman', l: 30 }, { c: 'shieldman', l: 28 }, { c: 'archer', l: 32 },
-      { c: 'apprentice', l: 26 }, { c: 'acolyte', l: 24 },
-    ],
-    enemy: [
-      { c: 'spearman', l: 29 }, { c: 'rogue', l: 31 }, { c: 'monk', l: 27 },
-      { c: 'archer', l: 30 }, { c: 'apprentice', l: 25 },
-    ],
+    ally: [['swordsman', 30], ['shieldman', 28], ['archer', 32], ['apprentice', 26], ['acolyte', 24]],
+    enemy: [['spearman', 29], ['rogue', 31], ['monk', 27], ['archer', 30], ['apprentice', 25]],
   },
   ranged: {
-    ally: [
-      { c: 'archer', l: 34 }, { c: 'archer', l: 30 }, { c: 'apprentice', l: 33 },
-      { c: 'apprentice', l: 28 }, { c: 'acolyte', l: 31 },
-    ],
-    enemy: [
-      { c: 'archer', l: 32 }, { c: 'apprentice', l: 34 }, { c: 'acolyte', l: 29 },
-      { c: 'shieldman', l: 35 }, { c: 'rogue', l: 27 },
-    ],
+    ally: [['archer', 34], ['archer', 30], ['apprentice', 33], ['apprentice', 28], ['acolyte', 31]],
+    enemy: [['archer', 32], ['apprentice', 34], ['acolyte', 29], ['shieldman', 35], ['rogue', 27]],
+  },
+  /* ★ 4차 — 스킬이 둘씩이라 스킬 선택·쿨다운 경로가 실제로 돈다 */
+  apex: {
+    ally: [['madgeneral_apex', 70], ['swordgod_apex', 68], ['skysplitter_apex', 72],
+      ['archmage_apex', 66], ['paladin_apex', 64]],
+    enemy: [['bloodfiend_apex', 69], ['madgeneral_abyss', 71], ['swordgod_abyss', 67],
+      ['archmage_abyss', 70], ['paladin_abyss', 65]],
   },
 };
+
 const SEEDS = Array.from({ length: 20 }, (_, i) => 1 + i * 7717);
 
-async function runCases() {
+/**
+ * 편성 규격을 **완성된 UnitDef** 로 굽는다.
+ * ★ 여기서만 `mercStats` 를 쓴다 — 구운 결과는 픽스처에 들어가므로
+ *   서버 자가검사는 이 함수를 몰라도 된다 (엔진 묶음에 merc.js 를 넣을 필요가 없다).
+ */
+async function bakeLineups() {
   const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-  const { createBattle } = await import(url('src/battle/engine.js'));
-  const { getSkill } = await import(url('src/data/skills.js'));
   const { getFormation } = await import(url('src/data/formations.js'));
   const CL = await import(url('src/data/classes.js'));
   await import(url('src/data/classes_t4.js'));
+  const { mercStats } = await import(url('src/game/merc.js'));
   const f = getFormation('basic');
 
-  const side = (lineup, key) => lineup[key].map((u, i) => ({
-    uid: `${key}${i}`, name: u.c, classId: u.c, level: u.l, grade: 'C',
-    side: key, slot: f.slots[i], basicRange: CL.CLASSES[u.c] ? CL.CLASSES[u.c].range : 'melee',
-  }));
+  const bake = (rows, side) => rows.map(([c, l], i) => {
+    const cls = CL.CLASSES[c];
+    if (!cls) throw new Error(`픽스처 편성에 없는 클래스: ${c}`);
+    const stats = mercStats({ uid: `${side}${i}`, classId: c, level: l, grade: 'C', equipment: {} }, {});
+    return {
+      uid: `${side}${i}`, name: c, classId: c, level: l, grade: 'C',
+      stats,
+      side, slot: f.slots[i],
+      basicRange: cls.range,
+      basicDmgType: cls.dmgType,
+      skills: cls.skills || [],
+    };
+  });
+
+  const out = {};
+  for (const [tag, spec] of Object.entries(LINEUP_SPEC)) {
+    out[tag] = { ally: bake(spec.ally, 'ally'), enemy: bake(spec.enemy, 'enemy') };
+  }
+  return out;
+}
+
+async function runCases(lineups) {
+  const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+  const { createBattle } = await import(url('src/battle/engine.js'));
+  const { getSkill } = await import(url('src/data/skills.js'));
 
   const out = [];
-  for (const [tag, lineup] of Object.entries(LINEUPS)) {
+  for (const [tag, lineup] of Object.entries(lineups)) {
     for (const seed of SEEDS) {
       const b = createBattle({
-        allies: side(lineup, 'ally'), enemies: side(lineup, 'enemy'),
+        allies: lineup.ally, enemies: lineup.enemy,
         allyFormationId: 'basic', enemyFormationId: 'basic', seed, getSkill, record: false,
       });
       let guard = 0;
@@ -150,7 +176,8 @@ async function runCases() {
 }
 
 const { hash: eh, files } = engineHash();
-const cases = await runCases();
+const lineups = await bakeLineups();
+const cases = await runCases(lineups);
 
 if (update) {
   fs.mkdirSync(path.dirname(FIXTURE), { recursive: true });
@@ -164,7 +191,7 @@ if (update) {
       }
     } catch { /* 처음 만드는 중 */ }
   }
-  fs.writeFileSync(FIXTURE, JSON.stringify({ engineHash: eh, lineups: LINEUPS, cases }, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(FIXTURE, JSON.stringify({ engineHash: eh, lineups, cases }, null, 2) + '\n', 'utf8');
   fs.writeFileSync(VERFILE,
     '/* 자동 생성 — 손으로 고치지 마라. `node tools/goldenbattle.mjs --update` 가 쓴다.\n'
     + ' * 엔진 의존 파일 전체를 접은 지문. 클라와 서버가 **같은 상수를 각자 import** 한다.\n'

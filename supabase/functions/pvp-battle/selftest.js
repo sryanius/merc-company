@@ -15,9 +15,6 @@
  */
 import { createBattle } from './_engine/engine.js';
 import { getSkill } from './_engine/skills.js';
-import { getFormation } from './_engine/formations.js';
-import { CLASSES } from './_engine/classes.js';
-import './_engine/classes_t4.js';
 
 /** 픽스처를 읽는다 (배포 번들에 같이 들어간다) */
 async function loadGolden() {
@@ -35,15 +32,16 @@ async function loadGolden() {
   return await res.json();
 }
 
-/** 픽스처의 편성 그대로 한 판을 돌린다 — goldenbattle.mjs 와 같은 계산이어야 한다 */
+/**
+ * 픽스처에 굳어 있는 **완성된 UnitDef 를 그대로** 쓴다.
+ *
+ * ★★ 예전엔 픽스처에 `{클래스, 레벨}` 만 있어서 여기서 다시 유닛을 만들었다.
+ *   그때 `stats` 를 안 채워서 **엔진이 기본값(hp 100)으로 돌고 있었다** (HANDOFF §73.5).
+ *   생성기와 이 함수가 «각자 만들면» 언제든 어긋난다 — 굳은 것을 그냥 쓰는 것이 정답이다.
+ */
 function runCase(lineup, seed) {
-  const f = getFormation('basic');
-  const side = (key) => lineup[key].map((u, i) => ({
-    uid: `${key}${i}`, name: u.c, classId: u.c, level: u.l, grade: 'C',
-    side: key, slot: f.slots[i], basicRange: CLASSES[u.c] ? CLASSES[u.c].range : 'melee',
-  }));
   const b = createBattle({
-    allies: side('ally'), enemies: side('enemy'),
+    allies: lineup.ally, enemies: lineup.enemy,
     allyFormationId: 'basic', enemyFormationId: 'basic', seed, getSkill, record: false,
   });
   let guard = 0;

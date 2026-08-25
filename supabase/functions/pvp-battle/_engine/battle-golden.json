@@ -4,92 +4,839 @@
     "melee": {
       "ally": [
         {
-          "c": "swordsman",
-          "l": 30
+          "uid": "ally0",
+          "name": "swordsman",
+          "classId": "swordsman",
+          "level": 30,
+          "grade": "C",
+          "stats": {
+            "hp": 2293,
+            "atk": 131,
+            "def": 66,
+            "res": 37,
+            "spd": 176,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "slash"
+          ]
         },
         {
-          "c": "shieldman",
-          "l": 28
+          "uid": "ally1",
+          "name": "shieldman",
+          "classId": "shieldman",
+          "level": 28,
+          "grade": "C",
+          "stats": {
+            "hp": 3180,
+            "atk": 72,
+            "def": 115,
+            "res": 56,
+            "spd": 133,
+            "crit": 5.4,
+            "critDmg": 50,
+            "eva": 3.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "shield_bash"
+          ]
         },
         {
-          "c": "archer",
-          "l": 32
+          "uid": "ally2",
+          "name": "archer",
+          "classId": "archer",
+          "level": 32,
+          "grade": "C",
+          "stats": {
+            "hp": 1798,
+            "atk": 144,
+            "def": 42,
+            "res": 39,
+            "spd": 204,
+            "crit": 14.4,
+            "critDmg": 55,
+            "eva": 9.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "phys",
+          "skills": [
+            "aimed_shot"
+          ]
         },
         {
-          "c": "apprentice",
-          "l": 26
+          "uid": "ally3",
+          "name": "apprentice",
+          "classId": "apprentice",
+          "level": 26,
+          "grade": "C",
+          "stats": {
+            "hp": 1419,
+            "atk": 139,
+            "def": 27,
+            "res": 70,
+            "spd": 139,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "magic_bolt"
+          ]
         },
         {
-          "c": "acolyte",
-          "l": 24
+          "uid": "ally4",
+          "name": "acolyte",
+          "classId": "acolyte",
+          "level": 24,
+          "grade": "C",
+          "stats": {
+            "hp": 1661,
+            "atk": 75,
+            "def": 41,
+            "res": 76,
+            "spd": 144,
+            "crit": 7.4,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "mend"
+          ]
         }
       ],
       "enemy": [
         {
-          "c": "spearman",
-          "l": 29
+          "uid": "enemy0",
+          "name": "spearman",
+          "classId": "spearman",
+          "level": 29,
+          "grade": "C",
+          "stats": {
+            "hp": 2375,
+            "atk": 118,
+            "def": 73,
+            "res": 39,
+            "spd": 161,
+            "crit": 8.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "thrust"
+          ]
         },
         {
-          "c": "rogue",
-          "l": 31
+          "uid": "enemy1",
+          "name": "rogue",
+          "classId": "rogue",
+          "level": 31,
+          "grade": "C",
+          "stats": {
+            "hp": 1761,
+            "atk": 127,
+            "def": 38,
+            "res": 34,
+            "spd": 258,
+            "crit": 22.4,
+            "critDmg": 65,
+            "eva": 15.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "backstab"
+          ]
         },
         {
-          "c": "monk",
-          "l": 27
+          "uid": "enemy2",
+          "name": "monk",
+          "classId": "monk",
+          "level": 27,
+          "grade": "C",
+          "stats": {
+            "hp": 2930,
+            "atk": 168,
+            "def": 88,
+            "res": 44,
+            "spd": 242,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 8
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "mend",
+            "palm_strike"
+          ]
         },
         {
-          "c": "archer",
-          "l": 30
+          "uid": "enemy3",
+          "name": "archer",
+          "classId": "archer",
+          "level": 30,
+          "grade": "C",
+          "stats": {
+            "hp": 1714,
+            "atk": 138,
+            "def": 40,
+            "res": 37,
+            "spd": 195,
+            "crit": 14.4,
+            "critDmg": 55,
+            "eva": 9.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "phys",
+          "skills": [
+            "aimed_shot"
+          ]
         },
         {
-          "c": "apprentice",
-          "l": 25
+          "uid": "enemy4",
+          "name": "apprentice",
+          "classId": "apprentice",
+          "level": 25,
+          "grade": "C",
+          "stats": {
+            "hp": 1380,
+            "atk": 135,
+            "def": 26,
+            "res": 68,
+            "spd": 135,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "magic_bolt"
+          ]
         }
       ]
     },
     "ranged": {
       "ally": [
         {
-          "c": "archer",
-          "l": 34
+          "uid": "ally0",
+          "name": "archer",
+          "classId": "archer",
+          "level": 34,
+          "grade": "C",
+          "stats": {
+            "hp": 1882,
+            "atk": 151,
+            "def": 44,
+            "res": 40,
+            "spd": 214,
+            "crit": 14.4,
+            "critDmg": 55,
+            "eva": 9.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "phys",
+          "skills": [
+            "aimed_shot"
+          ]
         },
         {
-          "c": "archer",
-          "l": 30
+          "uid": "ally1",
+          "name": "archer",
+          "classId": "archer",
+          "level": 30,
+          "grade": "C",
+          "stats": {
+            "hp": 1714,
+            "atk": 138,
+            "def": 40,
+            "res": 37,
+            "spd": 195,
+            "crit": 14.4,
+            "critDmg": 55,
+            "eva": 9.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "phys",
+          "skills": [
+            "aimed_shot"
+          ]
         },
         {
-          "c": "apprentice",
-          "l": 33
+          "uid": "ally2",
+          "name": "apprentice",
+          "classId": "apprentice",
+          "level": 33,
+          "grade": "C",
+          "stats": {
+            "hp": 1689,
+            "atk": 165,
+            "def": 32,
+            "res": 83,
+            "spd": 166,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "magic_bolt"
+          ]
         },
         {
-          "c": "apprentice",
-          "l": 28
+          "uid": "ally3",
+          "name": "apprentice",
+          "classId": "apprentice",
+          "level": 28,
+          "grade": "C",
+          "stats": {
+            "hp": 1496,
+            "atk": 146,
+            "def": 28,
+            "res": 73,
+            "spd": 147,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "magic_bolt"
+          ]
         },
         {
-          "c": "acolyte",
-          "l": 31
+          "uid": "ally4",
+          "name": "acolyte",
+          "classId": "acolyte",
+          "level": 31,
+          "grade": "C",
+          "stats": {
+            "hp": 1996,
+            "atk": 90,
+            "def": 49,
+            "res": 91,
+            "spd": 173,
+            "crit": 7.4,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "mend"
+          ]
         }
       ],
       "enemy": [
         {
-          "c": "archer",
-          "l": 32
+          "uid": "enemy0",
+          "name": "archer",
+          "classId": "archer",
+          "level": 32,
+          "grade": "C",
+          "stats": {
+            "hp": 1798,
+            "atk": 144,
+            "def": 42,
+            "res": 39,
+            "spd": 204,
+            "crit": 14.4,
+            "critDmg": 55,
+            "eva": 9.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "phys",
+          "skills": [
+            "aimed_shot"
+          ]
         },
         {
-          "c": "apprentice",
-          "l": 34
+          "uid": "enemy1",
+          "name": "apprentice",
+          "classId": "apprentice",
+          "level": 34,
+          "grade": "C",
+          "stats": {
+            "hp": 1727,
+            "atk": 169,
+            "def": 32,
+            "res": 85,
+            "spd": 169,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "magic_bolt"
+          ]
         },
         {
-          "c": "acolyte",
-          "l": 29
+          "uid": "enemy2",
+          "name": "acolyte",
+          "classId": "acolyte",
+          "level": 29,
+          "grade": "C",
+          "stats": {
+            "hp": 1900,
+            "atk": 86,
+            "def": 47,
+            "res": 87,
+            "spd": 165,
+            "crit": 7.4,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "mend"
+          ]
         },
         {
-          "c": "shieldman",
-          "l": 35
+          "uid": "enemy3",
+          "name": "shieldman",
+          "classId": "shieldman",
+          "level": 35,
+          "grade": "C",
+          "stats": {
+            "hp": 3754,
+            "atk": 85,
+            "def": 135,
+            "res": 66,
+            "spd": 157,
+            "crit": 5.4,
+            "critDmg": 50,
+            "eva": 3.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "shield_bash"
+          ]
         },
         {
-          "c": "rogue",
-          "l": 27
+          "uid": "enemy4",
+          "name": "rogue",
+          "classId": "rogue",
+          "level": 27,
+          "grade": "C",
+          "stats": {
+            "hp": 1592,
+            "atk": 115,
+            "def": 34,
+            "res": 31,
+            "spd": 234,
+            "crit": 22.4,
+            "critDmg": 65,
+            "eva": 15.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "backstab"
+          ]
+        }
+      ]
+    },
+    "apex": {
+      "ally": [
+        {
+          "uid": "ally0",
+          "name": "madgeneral_apex",
+          "classId": "madgeneral_apex",
+          "level": 70,
+          "grade": "C",
+          "stats": {
+            "hp": 11097,
+            "atk": 790,
+            "def": 220,
+            "res": 131,
+            "spd": 792,
+            "crit": 13.2,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "mad_cleave",
+            "t4_madgeneral_apex"
+          ]
+        },
+        {
+          "uid": "ally1",
+          "name": "swordgod_apex",
+          "classId": "swordgod_apex",
+          "level": 68,
+          "grade": "C",
+          "stats": {
+            "hp": 8734,
+            "atk": 740,
+            "def": 236,
+            "res": 149,
+            "spd": 887,
+            "crit": 17.2,
+            "critDmg": 70,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "divine_blade",
+            "t4_swordgod_apex"
+          ]
+        },
+        {
+          "uid": "ally2",
+          "name": "skysplitter_apex",
+          "classId": "skysplitter_apex",
+          "level": 72,
+          "grade": "C",
+          "stats": {
+            "hp": 10773,
+            "atk": 799,
+            "def": 265,
+            "res": 157,
+            "spd": 827,
+            "crit": 13.2,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "sky_cleave",
+            "t4_skysplitter_apex"
+          ]
+        },
+        {
+          "uid": "ally3",
+          "name": "archmage_apex",
+          "classId": "archmage_apex",
+          "level": 66,
+          "grade": "C",
+          "stats": {
+            "hp": 5839,
+            "atk": 929,
+            "def": 116,
+            "res": 384,
+            "spd": 647,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "meteor",
+            "t4_archmage_apex"
+          ]
+        },
+        {
+          "uid": "ally4",
+          "name": "paladin_apex",
+          "classId": "paladin_apex",
+          "level": 64,
+          "grade": "C",
+          "stats": {
+            "hp": 14506,
+            "atk": 448,
+            "def": 482,
+            "res": 294,
+            "spd": 538,
+            "crit": 6.2,
+            "critDmg": 50,
+            "eva": 3.5
+          },
+          "side": "ally",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "melee",
+          "basicDmgType": "magic",
+          "skills": [
+            "holy_smite",
+            "t4_paladin_apex"
+          ]
+        }
+      ],
+      "enemy": [
+        {
+          "uid": "enemy0",
+          "name": "bloodfiend_apex",
+          "classId": "bloodfiend_apex",
+          "level": 69,
+          "grade": "C",
+          "stats": {
+            "hp": 6074,
+            "atk": 717,
+            "def": 115,
+            "res": 136,
+            "spd": 1255,
+            "crit": 37.4,
+            "critDmg": 84.5,
+            "eva": 21.1
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.25
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "blood_reave",
+            "t4_bloodfiend_apex"
+          ]
+        },
+        {
+          "uid": "enemy1",
+          "name": "madgeneral_abyss",
+          "classId": "madgeneral_abyss",
+          "level": 71,
+          "grade": "C",
+          "stats": {
+            "hp": 19147,
+            "atk": 395,
+            "def": 633,
+            "res": 292,
+            "spd": 564,
+            "crit": 5.4,
+            "critDmg": 50,
+            "eva": 3.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.5
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "war_cry",
+            "t4_madgeneral_abyss"
+          ]
+        },
+        {
+          "uid": "enemy2",
+          "name": "swordgod_abyss",
+          "classId": "swordgod_abyss",
+          "level": 67,
+          "grade": "C",
+          "stats": {
+            "hp": 7575,
+            "atk": 651,
+            "def": 132,
+            "res": 148,
+            "spd": 1262,
+            "crit": 32.4,
+            "critDmg": 65,
+            "eva": 25.3
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.14,
+            "y": 0.75
+          },
+          "basicRange": "melee",
+          "basicDmgType": "phys",
+          "skills": [
+            "thousand_cuts",
+            "t4_swordgod_abyss"
+          ]
+        },
+        {
+          "uid": "enemy3",
+          "name": "archmage_abyss",
+          "classId": "archmage_abyss",
+          "level": 70,
+          "grade": "C",
+          "stats": {
+            "hp": 8681,
+            "atk": 777,
+            "def": 152,
+            "res": 462,
+            "spd": 706,
+            "crit": 10.4,
+            "critDmg": 50,
+            "eva": 5.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.35
+          },
+          "basicRange": "ranged",
+          "basicDmgType": "magic",
+          "skills": [
+            "arcane_surge",
+            "t4_archmage_abyss"
+          ]
+        },
+        {
+          "uid": "enemy4",
+          "name": "paladin_abyss",
+          "classId": "paladin_abyss",
+          "level": 65,
+          "grade": "C",
+          "stats": {
+            "hp": 9691,
+            "atk": 330,
+            "def": 253,
+            "res": 475,
+            "spd": 646,
+            "crit": 7.4,
+            "critDmg": 50,
+            "eva": 6.5
+          },
+          "side": "enemy",
+          "slot": {
+            "x": 0.46,
+            "y": 0.65
+          },
+          "basicRange": "melee",
+          "basicDmgType": "magic",
+          "skills": [
+            "sanctuary",
+            "t4_paladin_abyss"
+          ]
         }
       ]
     }
@@ -99,321 +846,481 @@
       "tag": "melee",
       "seed": 1,
       "winner": "enemy",
-      "time": 40.4,
-      "survivors": 3,
-      "hpsum": 178
+      "time": 12.25,
+      "survivors": 4,
+      "hpsum": 7105
     },
     {
       "tag": "melee",
       "seed": 7718,
-      "winner": "ally",
-      "time": 55.367,
-      "survivors": 1,
-      "hpsum": 41
+      "winner": "enemy",
+      "time": 13.3,
+      "survivors": 4,
+      "hpsum": 6889
     },
     {
       "tag": "melee",
       "seed": 15435,
       "winner": "enemy",
-      "time": 47.8,
-      "survivors": 1,
-      "hpsum": 90
+      "time": 13.85,
+      "survivors": 4,
+      "hpsum": 6518
     },
     {
       "tag": "melee",
       "seed": 23152,
-      "winner": "ally",
-      "time": 62.717,
-      "survivors": 1,
-      "hpsum": 9
+      "winner": "enemy",
+      "time": 14.383,
+      "survivors": 4,
+      "hpsum": 6295
     },
     {
       "tag": "melee",
       "seed": 30869,
       "winner": "enemy",
-      "time": 62.65,
-      "survivors": 1,
-      "hpsum": 9
+      "time": 14.8,
+      "survivors": 4,
+      "hpsum": 6145
     },
     {
       "tag": "melee",
       "seed": 38586,
-      "winner": "ally",
-      "time": 60.4,
-      "survivors": 1,
-      "hpsum": 21
+      "winner": "enemy",
+      "time": 12.8,
+      "survivors": 4,
+      "hpsum": 7002
     },
     {
       "tag": "melee",
       "seed": 46303,
-      "winner": "ally",
-      "time": 45.35,
-      "survivors": 1,
-      "hpsum": 100
+      "winner": "enemy",
+      "time": 12.783,
+      "survivors": 4,
+      "hpsum": 6930
     },
     {
       "tag": "melee",
       "seed": 54020,
-      "winner": "ally",
-      "time": 57.9,
-      "survivors": 1,
-      "hpsum": 29
+      "winner": "enemy",
+      "time": 13.567,
+      "survivors": 4,
+      "hpsum": 6574
     },
     {
       "tag": "melee",
       "seed": 61737,
-      "winner": "ally",
-      "time": 60.217,
-      "survivors": 1,
-      "hpsum": 9
+      "winner": "enemy",
+      "time": 12.2,
+      "survivors": 5,
+      "hpsum": 7576
     },
     {
       "tag": "melee",
       "seed": 69454,
-      "winner": "ally",
-      "time": 42.767,
-      "survivors": 3,
-      "hpsum": 133
+      "winner": "enemy",
+      "time": 15.2,
+      "survivors": 4,
+      "hpsum": 6743
     },
     {
       "tag": "melee",
       "seed": 77171,
-      "winner": "ally",
-      "time": 57.85,
-      "survivors": 1,
-      "hpsum": 32
+      "winner": "enemy",
+      "time": 12.783,
+      "survivors": 4,
+      "hpsum": 7497
     },
     {
       "tag": "melee",
       "seed": 84888,
-      "winner": "ally",
-      "time": 62.817,
-      "survivors": 1,
-      "hpsum": 10
+      "winner": "enemy",
+      "time": 13.9,
+      "survivors": 4,
+      "hpsum": 6250
     },
     {
       "tag": "melee",
       "seed": 92605,
-      "winner": "ally",
-      "time": 62.917,
-      "survivors": 1,
-      "hpsum": 1
+      "winner": "enemy",
+      "time": 12.617,
+      "survivors": 5,
+      "hpsum": 7213
     },
     {
       "tag": "melee",
       "seed": 100322,
       "winner": "enemy",
-      "time": 52.833,
-      "survivors": 1,
-      "hpsum": 70
+      "time": 12.767,
+      "survivors": 4,
+      "hpsum": 7079
     },
     {
       "tag": "melee",
       "seed": 108039,
-      "winner": "ally",
-      "time": 57.7,
-      "survivors": 1,
-      "hpsum": 21
+      "winner": "enemy",
+      "time": 11.733,
+      "survivors": 5,
+      "hpsum": 7526
     },
     {
       "tag": "melee",
       "seed": 115756,
       "winner": "enemy",
-      "time": 62.733,
-      "survivors": 1,
-      "hpsum": 7
+      "time": 12.75,
+      "survivors": 4,
+      "hpsum": 6571
     },
     {
       "tag": "melee",
       "seed": 123473,
-      "winner": "ally",
-      "time": 42.85,
-      "survivors": 2,
-      "hpsum": 109
+      "winner": "enemy",
+      "time": 12.783,
+      "survivors": 5,
+      "hpsum": 7503
     },
     {
       "tag": "melee",
       "seed": 131190,
-      "winner": "ally",
-      "time": 65.25,
-      "survivors": 1,
-      "hpsum": 11
+      "winner": "enemy",
+      "time": 13.333,
+      "survivors": 4,
+      "hpsum": 7073
     },
     {
       "tag": "melee",
       "seed": 138907,
-      "winner": "ally",
-      "time": 57.633,
-      "survivors": 1,
-      "hpsum": 30
+      "winner": "enemy",
+      "time": 13.317,
+      "survivors": 4,
+      "hpsum": 7077
     },
     {
       "tag": "melee",
       "seed": 146624,
-      "winner": "ally",
-      "time": 42.817,
-      "survivors": 2,
-      "hpsum": 140
+      "winner": "enemy",
+      "time": 12.283,
+      "survivors": 4,
+      "hpsum": 6996
     },
     {
       "tag": "ranged",
       "seed": 1,
       "winner": "enemy",
-      "time": 39.967,
-      "survivors": 3,
-      "hpsum": 188
+      "time": 14.983,
+      "survivors": 4,
+      "hpsum": 7382
     },
     {
       "tag": "ranged",
       "seed": 7718,
       "winner": "enemy",
-      "time": 47.7,
-      "survivors": 1,
-      "hpsum": 90
+      "time": 26.25,
+      "survivors": 2,
+      "hpsum": 1750
     },
     {
       "tag": "ranged",
       "seed": 15435,
       "winner": "enemy",
-      "time": 57.633,
-      "survivors": 1,
-      "hpsum": 41
+      "time": 19.733,
+      "survivors": 3,
+      "hpsum": 4526
     },
     {
       "tag": "ranged",
       "seed": 23152,
       "winner": "enemy",
-      "time": 62.6,
-      "survivors": 1,
-      "hpsum": 9
+      "time": 22.333,
+      "survivors": 3,
+      "hpsum": 3852
     },
     {
       "tag": "ranged",
       "seed": 30869,
-      "winner": "ally",
-      "time": 60.4,
-      "survivors": 1,
-      "hpsum": 18
+      "winner": "enemy",
+      "time": 21,
+      "survivors": 3,
+      "hpsum": 4017
     },
     {
       "tag": "ranged",
       "seed": 38586,
-      "winner": "ally",
-      "time": 62.9,
-      "survivors": 1,
-      "hpsum": 2
+      "winner": "enemy",
+      "time": 24.5,
+      "survivors": 3,
+      "hpsum": 2401
     },
     {
       "tag": "ranged",
       "seed": 46303,
       "winner": "enemy",
-      "time": 62.633,
-      "survivors": 1,
-      "hpsum": 8
+      "time": 15.833,
+      "survivors": 4,
+      "hpsum": 6296
     },
     {
       "tag": "ranged",
       "seed": 54020,
-      "winner": "ally",
-      "time": 57.9,
-      "survivors": 1,
-      "hpsum": 29
+      "winner": "enemy",
+      "time": 21.017,
+      "survivors": 3,
+      "hpsum": 4143
     },
     {
       "tag": "ranged",
       "seed": 61737,
-      "winner": "ally",
-      "time": 42.717,
+      "winner": "enemy",
+      "time": 20.583,
       "survivors": 3,
-      "hpsum": 139
+      "hpsum": 4339
     },
     {
       "tag": "ranged",
       "seed": 69454,
       "winner": "enemy",
-      "time": 42.533,
-      "survivors": 3,
-      "hpsum": 154
+      "time": 15.383,
+      "survivors": 4,
+      "hpsum": 6019
     },
     {
       "tag": "ranged",
       "seed": 77171,
       "winner": "enemy",
-      "time": 42.583,
-      "survivors": 3,
-      "hpsum": 150
+      "time": 24.5,
+      "survivors": 2,
+      "hpsum": 1966
     },
     {
       "tag": "ranged",
       "seed": 84888,
       "winner": "enemy",
-      "time": 62.733,
-      "survivors": 1,
-      "hpsum": 9
+      "time": 24.25,
+      "survivors": 3,
+      "hpsum": 3573
     },
     {
       "tag": "ranged",
       "seed": 92605,
       "winner": "enemy",
-      "time": 62.633,
-      "survivors": 1,
-      "hpsum": 11
+      "time": 21,
+      "survivors": 3,
+      "hpsum": 4823
     },
     {
       "tag": "ranged",
       "seed": 100322,
       "winner": "enemy",
-      "time": 55.167,
-      "survivors": 1,
-      "hpsum": 50
+      "time": 19.3,
+      "survivors": 3,
+      "hpsum": 4571
     },
     {
       "tag": "ranged",
       "seed": 108039,
       "winner": "enemy",
-      "time": 62.5,
-      "survivors": 1,
-      "hpsum": 1
+      "time": 22.75,
+      "survivors": 3,
+      "hpsum": 2805
     },
     {
       "tag": "ranged",
       "seed": 115756,
       "winner": "enemy",
-      "time": 60.067,
-      "survivors": 1,
-      "hpsum": 27
+      "time": 19.717,
+      "survivors": 3,
+      "hpsum": 4572
     },
     {
       "tag": "ranged",
       "seed": 123473,
-      "winner": "ally",
-      "time": 45.25,
-      "survivors": 1,
-      "hpsum": 100
+      "winner": "enemy",
+      "time": 16.7,
+      "survivors": 4,
+      "hpsum": 6439
     },
     {
       "tag": "ranged",
       "seed": 131190,
       "winner": "enemy",
-      "time": 65.117,
-      "survivors": 1,
-      "hpsum": 11
+      "time": 15.4,
+      "survivors": 4,
+      "hpsum": 7183
     },
     {
       "tag": "ranged",
       "seed": 138907,
-      "winner": "ally",
-      "time": 62.633,
-      "survivors": 1,
-      "hpsum": 9
+      "winner": "enemy",
+      "time": 20.383,
+      "survivors": 3,
+      "hpsum": 4307
     },
     {
       "tag": "ranged",
       "seed": 146624,
-      "winner": "ally",
-      "time": 42.817,
-      "survivors": 2,
-      "hpsum": 131
+      "winner": "enemy",
+      "time": 20.617,
+      "survivors": 3,
+      "hpsum": 4507
+    },
+    {
+      "tag": "apex",
+      "seed": 1,
+      "winner": "enemy",
+      "time": 3.617,
+      "survivors": 5,
+      "hpsum": 54441
+    },
+    {
+      "tag": "apex",
+      "seed": 7718,
+      "winner": "enemy",
+      "time": 3.2,
+      "survivors": 6,
+      "hpsum": 56402
+    },
+    {
+      "tag": "apex",
+      "seed": 15435,
+      "winner": "enemy",
+      "time": 3.15,
+      "survivors": 6,
+      "hpsum": 56702
+    },
+    {
+      "tag": "apex",
+      "seed": 23152,
+      "winner": "enemy",
+      "time": 3.483,
+      "survivors": 5,
+      "hpsum": 55179
+    },
+    {
+      "tag": "apex",
+      "seed": 30869,
+      "winner": "enemy",
+      "time": 3.133,
+      "survivors": 5,
+      "hpsum": 54608
+    },
+    {
+      "tag": "apex",
+      "seed": 38586,
+      "winner": "enemy",
+      "time": 4.083,
+      "survivors": 5,
+      "hpsum": 50047
+    },
+    {
+      "tag": "apex",
+      "seed": 46303,
+      "winner": "enemy",
+      "time": 4.167,
+      "survivors": 5,
+      "hpsum": 50175
+    },
+    {
+      "tag": "apex",
+      "seed": 54020,
+      "winner": "enemy",
+      "time": 5.017,
+      "survivors": 5,
+      "hpsum": 40064
+    },
+    {
+      "tag": "apex",
+      "seed": 61737,
+      "winner": "enemy",
+      "time": 3.617,
+      "survivors": 5,
+      "hpsum": 55233
+    },
+    {
+      "tag": "apex",
+      "seed": 69454,
+      "winner": "enemy",
+      "time": 4.083,
+      "survivors": 5,
+      "hpsum": 53415
+    },
+    {
+      "tag": "apex",
+      "seed": 77171,
+      "winner": "enemy",
+      "time": 3.4,
+      "survivors": 5,
+      "hpsum": 53817
+    },
+    {
+      "tag": "apex",
+      "seed": 84888,
+      "winner": "enemy",
+      "time": 3.55,
+      "survivors": 5,
+      "hpsum": 54796
+    },
+    {
+      "tag": "apex",
+      "seed": 92605,
+      "winner": "enemy",
+      "time": 4.05,
+      "survivors": 5,
+      "hpsum": 54887
+    },
+    {
+      "tag": "apex",
+      "seed": 100322,
+      "winner": "enemy",
+      "time": 3.017,
+      "survivors": 6,
+      "hpsum": 55203
+    },
+    {
+      "tag": "apex",
+      "seed": 108039,
+      "winner": "enemy",
+      "time": 3.35,
+      "survivors": 6,
+      "hpsum": 58185
+    },
+    {
+      "tag": "apex",
+      "seed": 115756,
+      "winner": "enemy",
+      "time": 3.283,
+      "survivors": 6,
+      "hpsum": 56042
+    },
+    {
+      "tag": "apex",
+      "seed": 123473,
+      "winner": "enemy",
+      "time": 3.717,
+      "survivors": 5,
+      "hpsum": 49484
+    },
+    {
+      "tag": "apex",
+      "seed": 131190,
+      "winner": "enemy",
+      "time": 3.267,
+      "survivors": 6,
+      "hpsum": 56152
+    },
+    {
+      "tag": "apex",
+      "seed": 138907,
+      "winner": "enemy",
+      "time": 3.783,
+      "survivors": 5,
+      "hpsum": 55251
+    },
+    {
+      "tag": "apex",
+      "seed": 146624,
+      "winner": "enemy",
+      "time": 3.817,
+      "survivors": 5,
+      "hpsum": 47791
     }
   ]
 }
