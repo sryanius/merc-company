@@ -57,6 +57,9 @@ const SCREENS = [
    * ★ 하단 탭에 **안 건다.** 이미 8칸이고, 320px 에서 칸당 39px 라 9칸째는 그리드가 삐져나간다
    *   (§53.4 — 실측으로 정한 한계다. 늘리려면 다시 재라). */
   { id: 'pvp', title: 'PvP', nav: false, load: () => import('./pvp.js') },
+  /* ★ PvP 재생은 별도 화면이다 — battle.js 는 경험치·부상·전리품 정산과 얽혀 있어
+   *   그걸 재생에 쓰면 «다시 보기로 경험치 벌기» 가 된다. */
+  { id: 'pvpreplay', title: 'PvP 재생', nav: false, load: () => import('./pvpreplay.js') },
 ];
 
 /* HUD 날짜 표기용 소량 CSS. 모듈 안에서 한 번만 주입한다.

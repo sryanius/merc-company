@@ -2742,7 +2742,10 @@ section('태그매치 (부대가 이어 싸운다)');
   let FM = null;
   let CL2 = null;
   try {
-    TM = await import(F + 'tagmatch.js');
+    /* ★ tagmatch 는 이제 **서버·클라 공용**이라 `_engine/` 으로 복사된다
+     *   (원본은 src/battle/tagmatch.js). 가져다 쓴 사본을 보는 것이 맞다 —
+     *   서버가 실제로 돌리는 게 그것이고, 원본과 어긋나면 HASHES 검사가 따로 막는다. */
+    TM = await import(F + '_engine/tagmatch.js');
     SK = await import(F + '_engine/skills.js');
     FM = await import(F + '_engine/formations.js');
     CL2 = await import(F + '_engine/classes.js');
@@ -4791,6 +4794,118 @@ section('PvP 화면 — 남이 움직인 것이 보이는가 · 편성이 따라
     okAll(miss, '지문이 편성 변화를 전부 잡는다', mut.length + 1);
     ok(/^[0-9a-f]{16}$/.test(fp0), '지문이 64비트 16진수다', fp0);
   }
+}
+
+section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
+{
+  /* ★★ 제작자: 「도전하면 전투를 보여줘야되는거 아니니」 「전적에서도 전투 보는게 없는데」.
+   *
+   *   재생은 **서버가 준 cfg(양쪽 부대 + 시드 하나)만으로** 다시 돌린다. 그래서 두 가지가
+   *   깨지면 안 된다:
+   *     ① 재생이 서버와 **같은 답**을 내야 한다 — 아니면 「화면에선 이겼는데 점수는 졌다」
+   *     ② 재생은 **아무것도 정산하면 안 된다** — 아니면 「다시 보기로 경험치 벌기」
+   *
+   *   ②가 `ui/battle.js` 를 그대로 못 쓴 이유다. 그쪽은 경험치·부상·전리품이 얽혀 있다. */
+  const rsrc = readFileSync(srcDir('ui/pvpreplay.js'), 'utf8');
+
+  /* ── ① 재생이 서버와 같은 답을 내는가 (굴려서) ───────────────── */
+  let TM2 = null;
+  let EN2 = null;
+  let SK2 = null;
+  try {
+    TM2 = await import(srcUrl('battle/tagmatch.js'));
+    EN2 = await import(srcUrl('battle/engine.js'));
+    SK2 = await import(srcUrl('data/skills.js'));
+  } catch (e) {
+    ok(false, '재생에 쓰는 모듈을 읽는다', String(e.message));
+  }
+
+  if (TM2 && EN2 && SK2) {
+    const mk = (n, side, hp, atk) => Array.from({ length: n }, (_, i) => ({
+      uid: `${side}${i}`, name: `${side}${i}`, classId: 'swordsman', side,
+      stats: { hp, atk, def: 20, res: 10, spd: 100, crit: 5, critDmg: 150, eva: 3 },
+    }));
+    const cfg = {
+      attacker: [mk(3, 'ally', 800, 90), mk(3, 'ally', 700, 110)],
+      defender: [mk(3, 'enemy', 750, 95), mk(3, 'enemy', 820, 85), mk(2, 'enemy', 600, 130)],
+    };
+    const trim = (r) => r.map((x) => `${x.attackerSquad}:${x.defenderSquad}:${x.winner}:${x.attackerLeft}:${x.defenderLeft}:${x.time}`);
+
+    const drift = [];
+    for (const seed of [1, 7, 12345, 0xC0FFEE, 999983]) {
+      const server = TM2.tagMatch({ ...cfg, seed, getSkill: SK2.getSkill });
+      const client = TM2.tagMatch({ ...cfg, seed, getSkill: SK2.getSkill });
+      if (server.winner !== client.winner) drift.push(`seed ${seed}: 승자가 갈린다 ${server.winner}/${client.winner}`);
+      if (JSON.stringify(trim(server.rounds)) !== JSON.stringify(trim(client.rounds))) {
+        drift.push(`seed ${seed}: 합 전개가 갈린다`);
+      }
+
+      /* ★★ 재생은 **화면용이라 record:true** 로 돈다 (이벤트가 있어야 타격이 그려진다).
+       *   서버는 record:false 다. 이게 시뮬레이션을 바꾸면 재생이 통째로 어긋난다 —
+       *   그래서 «합마다 실제로 다시 돌려» 서버 결과와 대조한다. */
+      for (const r of server.rounds) {
+        const play = EN2.createBattle({ ...r.input, getSkill: SK2.getSkill });   // record 기본값 = true
+        let g = 0;
+        while (!play.finished && g++ < 20000) play.step(1 / 60);
+        const w = play.winner === 'ally' ? 'attacker' : play.winner === 'enemy' ? 'defender' : 'draw';
+        if (w !== r.winner) drift.push(`seed ${seed} ${r.attackerSquad}:${r.defenderSquad} 합 — 재생 ${w} vs 서버 ${r.winner}`);
+      }
+    }
+    okAll(drift, '재생(record:true)이 서버(record:false)와 같은 답을 낸다', 5 * 3);
+
+    /* 합마다의 입력이 실려 있는가 — 없으면 클라가 재생할 방법이 없다 */
+    const one = TM2.tagMatch({ ...cfg, seed: 42, getSkill: SK2.getSkill });
+    const noInput = one.rounds.filter((r) => !r.input || !Array.isArray(r.input.allies) || !r.input.enemies || !r.input.seed);
+    okAll(noInput.map((r, i) => `${i}번째 합에 input 이 없다`), '합마다 재생 입력(input)이 실려 있다', one.rounds.length || 1);
+
+    /* 이긴 쪽이 **회복 없이** 이어 싸우는가 — 재생이 이걸 못 지키면 화면이 서버와 갈린다 */
+    const carried = one.rounds.some((r, i) => i > 0 && (r.input.allies.some((u) => u.hp != null) || r.input.enemies.some((u) => u.hp != null)));
+    ok(carried, '생존자가 HP 를 들고 다음 합으로 넘어간다 (input 에 hp 가 실린다)',
+      `합 ${one.rounds.length}개 중 hp 를 들고 간 합이 없다`);
+  }
+
+  /* ── ② 재생이 아무것도 정산하지 않는가 ──────────────────────── */
+  const forbidden = [
+    [/\bsave\s*\(/, 'save() 를 부른다 — 재생이 세이브를 건드린다'],
+    [/\baddGold\s*\(/, 'addGold() 를 부른다'],
+    [/\baddLog\s*\(/, 'addLog() 를 부른다'],
+    [/\bstate\.[A-Za-z_$][\w$]*\s*(?:=|\+=|-=|\+\+|--)/, 'state 를 쓴다 — 재생으로 보상을 벌 수 있다'],
+    [/\bgrantExp\b|\bapplyInjury\b|\brollLoot\b/, '경험치·부상·전리품 정산을 부른다'],
+  ];
+  okAll(forbidden.filter(([re]) => re.test(rsrc)).map(([, why]) => why),
+    '재생은 상태를 한 글자도 안 건드린다', forbidden.length);
+
+  /* 실제로 state 를 «읽기만» 하는지도 본다 — 이름만 지운 우회를 막는다 */
+  ok(/import \{ state \} from '\.\.\/game\/state\.js'/.test(rsrc) && !/from '\.\.\/game\/state\.js';[\s\S]*\bsave\b/.test(rsrc),
+    '재생은 state 를 읽기 전용으로만 가져온다');
+
+  /* ── ③ 들어가는 문이 둘 다 있는가 ──────────────────────────── */
+  const psrc2 = readFileSync(srcDir('ui/pvp.js'), 'utf8');
+  const gaps = [];
+  if (!/go\('pvpreplay',\s*\{[^}]*cfg:/.test(psrc2.replace(/\n/g, ' '))) gaps.push('도전 결과에서 «전투 보기» 로 못 들어간다');
+  if (!/go\('pvpreplay',\s*\{[^}]*matchId:\s*r\.id/.test(psrc2.replace(/\n/g, ' '))) gaps.push('전적에서 «보기» 로 못 들어간다');
+  okAll(gaps, '결과와 전적 두 곳에서 재생으로 들어간다', 2);
+
+  /* 화면이 등록돼 있고 오프라인 목록에도 들어갔는가 */
+  const asrc = readFileSync(srcDir('ui/app.js'), 'utf8');
+  ok(/id: 'pvpreplay'/.test(asrc), 'pvpreplay 화면이 SCREENS 에 등록돼 있다');
+  const sw = readFileSync(fileURLToPath(new URL('sw.js', ROOT)), 'utf8');
+  okAll(['./src/ui/pvpreplay.js', './src/battle/tagmatch.js']
+    .filter((f) => !sw.includes(f)).map((f) => `${f} 가 APP_SHELL 에 없다`),
+    '새 모듈이 APP_SHELL 에 들어갔다', 2);
+
+  /* ── ④ tagmatch 가 ENGINE_HASH 를 건드리지 않는가 ───────────── */
+  const gsrc = readFileSync(fileURLToPath(new URL('tools/goldenbattle.mjs', ROOT)), 'utf8');
+  const entryBlock = gsrc.slice(gsrc.indexOf('ENTRY'), gsrc.indexOf('ENTRY') + 600);
+  ok(!/tagmatch/.test(entryBlock),
+    'tagmatch 는 ENGINE_HASH 대상이 아니다 (넣으면 모든 사람의 PvP 등록이 한꺼번에 무효가 된다)',
+    'goldenbattle 의 ENTRY 에 tagmatch 가 들어갔다');
+
+  /* 서버가 응답에서 input 을 떼는가 — 안 떼면 응답이 합 수만큼 불어난다 */
+  const isrc = readFileSync(fileURLToPath(new URL('supabase/functions/pvp-battle/index.ts', ROOT)), 'utf8');
+  ok(/roundLog:\s*result\.rounds\.map\(\(\{\s*input:[^)]*\)\s*=>/.test(isrc),
+    '서버가 응답에서 합별 input 을 떼고 보낸다',
+    'roundLog 에 부대 전체가 실려 나간다');
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

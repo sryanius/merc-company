@@ -18,8 +18,17 @@
  *
  * ★ 이 모듈은 엔진만 쓴다 — DOM 도, 시각(Date.now)도, 난수(Math.random)도 안 쓴다.
  *   그래야 서버와 클라가 같은 답을 낸다.
+ *
+ * ★★ **서버와 클라이 이 파일을 같이 쓴다.**
+ *   예전엔 서버에만 있었는데, 그러면 클라가 전투를 **재생할 수 없다** —
+ *   합마다의 입력(누가 남았고 HP 가 얼마인가)을 여기서만 알 수 있기 때문이다.
+ *   `tools/syncshared.mjs` 가 `_engine/` 로 복사하고 어깸리면 smoke 가 막는다.
+ *   ★ `./engine.js` 는 **양쪽 모두에서 같은 상대 경로**다 (src/battle/ 와 _engine/).
+ *   ★ ENGINE_HASH 에는 **안 넣는다.** 넣으면 지문이 바뀌어
+ *     **모든 사람의 등록이 한꺼번에 무효**가 되고, 방어자는 내가 다시 등록해 줄 수도 없다.
+ *     지문은 «유닛을 접은 엔진» 을 가리키는 것이지 순서 규칙을 가리키는 게 아니다.
  */
-import { createBattle } from './_engine/engine.js';
+import { createBattle } from './engine.js';
 
 /** 한 판 끝까지 돌린다 (엔진의 고정 스텝) */
 function runOne(cfg, getSkill) {
@@ -85,6 +94,17 @@ export function tagMatch({ attacker, defender, attackerFormations = [], defender
       seed: roundSeed,
       attackerSquad: ai,
       defenderSquad: di,
+      /* ★★ 이 합의 **입력 그대로**. 클라가 이걸 `createBattle` 에 그대로 넣어
+       *   화면으로 다시 돌린다 — 생존자 HP 까지 들어 있어야 같은 전개가 나온다.
+       * ★ 서버는 응답에 실을 때 이 칸을 **떼고 보낸다** (부대가 cfg 에 이미 있어
+       *   그대로 실으면 응답이 합 수만큼 불어난다). 클라는 같은 tagMatch 를 돌려 다시 얻는다. */
+      input: {
+        allies: aCur,
+        enemies: dCur,
+        allyFormationId: attackerFormations[ai] || 'basic',
+        enemyFormationId: defenderFormations[di] || 'basic',
+        seed: roundSeed,
+      },
       winner: b.winner === 'ally' ? 'attacker' : b.winner === 'enemy' ? 'defender' : 'draw',
       time: Number((b.time ?? 0).toFixed(3)),
       attackerLeft: aLeft.length,

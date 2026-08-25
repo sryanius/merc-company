@@ -56,7 +56,14 @@ const BUNDLES = [
       /* 엔진 지문 상수 — 서버와 클라가 «같은 상수» 를 각자 import 한다 */
       'src/data/enginever.js'],
     walk: true,
-    extra: ['tests/fixtures/battle-golden.json'],   // 자가검사가 읽는다
+    /* ★ extra 는 «복사만 하고 import 를 따라 걷지 않는» 칸이다.
+     *   tagmatch 를 entry 가 아니라 여기 둘다 — entry 에 넣으면 goldenbattle 의
+     *   ENTRY 와 같아야 하고(아래 주석), 그러면 ENGINE_HASH 가 바뀌어
+     *   **모든 사람의 PvP 등록이 한꺼번에 무효**가 된다.
+     *   순서 규칙은 «유닛을 접은 엔진» 이 아니므로 지문에 넣을 이유도 없다.
+     *   어긋나는 것은 HASHES.json 이 막는다. */
+    extra: ['tests/fixtures/battle-golden.json',   // 자가검사가 읽는다
+      'src/battle/tagmatch.js'],                   // 서버·클라 공용 (재생)
     next: 'supabase functions deploy pvp-battle',
   },
 ];

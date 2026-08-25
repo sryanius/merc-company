@@ -27,7 +27,7 @@
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { selftest } from './selftest.js';
-import { tagMatch } from './tagmatch.js';
+import { tagMatch } from './_engine/tagmatch.js';
 import { applyRating, BASE_RATING } from './rating.js';
 import { checkSquads } from './statbound.js';
 import { getSkill } from './_engine/skills.js';
@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
     cfg,
     winner: result.winner,
     rounds: result.roundCount,
-    roundLog: result.rounds,
+    /* ★ 합마다의 `input`(부대 전체)은 **빼고 보낸다** — cfg 에 이미 들어 있어
+     *   그대로 실으면 응답이 합 수만큼 불어난다. 클라는 같은 tagMatch 를 돌려 다시 얻는다. */
+    roundLog: result.rounds.map(({ input: _drop, ...r }) => r),
     delta: R.attackerDelta,
     rating: R.attackerAfter,
     opponentName: def.company_name,

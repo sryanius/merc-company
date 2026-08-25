@@ -99,7 +99,13 @@ function injectStyle() {
 .pv-rank { font-weight:700; text-align:right; color:var(--ink-faint); }
 .pv-me { background:var(--bg-2); border-radius:var(--radius); }
 .pv-rt { font-weight:700; min-width:52px; text-align:right; }
-@media (max-width: 520px) { .pv-row { grid-template-columns: 34px 1fr auto; } .pv-pow { display:none; } }
+/* 전적 행은 «보기» 단추가 더 붙어 다섯 칸이다 */
+.pv-row.pv-5 { grid-template-columns: 42px 1fr auto auto auto; }
+@media (max-width: 520px) {
+  .pv-row { grid-template-columns: 34px 1fr auto; }
+  .pv-row.pv-5 { grid-template-columns: 30px 1fr auto auto; }
+  .pv-pow { display:none; }
+}
 `,
   }));
 }
@@ -330,7 +336,16 @@ function resultPanel() {
   return el('div', { class: 'panel col', style: { gap: '8px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
       el('h3', { style: { margin: '0' } }, `${d.opponentName} 전 — ${iWon ? '승리' : (d.winner === 'draw' ? '무승부' : '패배')}`),
-      el('button', { class: 'btn sm ghost', onClick: () => { lastResult = null; go('pvp'); } }, '닫기')),
+      el('div', { class: 'row center', style: { gap: '6px' } },
+        /* ★ 서버가 cfg(양쪽 부대 + 시드)를 같이 준다 — 더 받을 것 없이 바로 재생한다. */
+        d.cfg ? el('button', {
+          class: 'btn sm primary',
+          onClick: () => go('pvpreplay', {
+            cfg: d.cfg, winner: d.winner, opponentName: d.opponentName,
+            role: 'attacker', matchId: d.matchId || null, returnTo: 'pvp',
+          }),
+        }, '전투 보기') : null,
+        el('button', { class: 'btn sm ghost', onClick: () => { lastResult = null; go('pvp'); } }, '닫기'))),
     el('div', { class: 'row wrap', style: { gap: '14px' } },
       el('b', { style: { color: d.delta >= 0 ? 'var(--leaf)' : 'var(--ink-faint)' } }, `승점 ${sign}${d.delta}`),
       el('span', { class: 'faint' }, `현재 ${num(d.rating)}`),
@@ -373,13 +388,22 @@ function historyPanel() {
       const iWon = (r.role === 'attacker' && r.winner === 'attacker')
         || (r.role === 'defender' && r.winner === 'defender');
       const sign = r.delta > 0 ? '+' : '';
-      list.appendChild(el('div', { class: 'pv-row' },
+      list.appendChild(el('div', { class: 'pv-row pv-5' },
         el('div', { class: 'pv-rank', text: r.role === 'attacker' ? '공' : '방' }),
         el('div', { class: 'col', style: { gap: '1px', minWidth: '0' } },
           el('b', { style: { fontSize: '13px' }, text: r.opponent }),
           el('div', { class: 'tiny faint', text: iWon ? '승리' : (r.winner === 'draw' ? '무승부' : '패배') })),
         el('div', { class: 'pv-rt', style: { color: r.delta >= 0 ? 'var(--leaf)' : 'var(--ink-faint)' },
           text: `${sign}${r.delta}` }),
+        /* ★ 전적에서도 다시 볼 수 있어야 한다 — 당한 판을 못 보면
+         *   «왜 졌는지» 를 알 길이 없다. pvp_replay 는 공격자·방어자 둘 다 볼 수 있다. */
+        el('button', {
+          class: 'btn sm ghost',
+          title: '이 전투를 다시 본다',
+          onClick: () => go('pvpreplay', {
+            matchId: r.id, opponentName: r.opponent, role: r.role, returnTo: 'pvp',
+          }),
+        }, '보기'),
         el('span', { class: 'tiny faint', text: `${r.rating_after}` })));
     }
   })();
