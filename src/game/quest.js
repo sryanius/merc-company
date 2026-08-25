@@ -3,7 +3,8 @@
 import { clamp, num, scaleStats } from '../core/util.js';
 import { rng } from '../core/rng.js';
 import { getCity, REGIONS } from '../data/world.js';
-import { ARCHETYPES, getClass, promoteOptions } from '../data/classes.js';
+import { ARCHETYPES, getClass, promoteOptions, classChain } from '../data/classes.js';
+import { traitOfChain } from '../data/lineage.js';
 import { getFormation, formationMods } from '../data/formations.js';
 import { buildEnemySquad, getEnemy, enemiesFor } from '../data/enemies.js';
 import * as State from './state.js';
@@ -1114,6 +1115,10 @@ export function allyUnitDefs(st, squad) {
       boss: false,
       // 세트 고유 효과 (풀세트에서만 붙는다). 아군 전용 — enemyUnitDefs 에는 싣지 않는다.
       specials: mercSpecials(m, items),
+      /* ★★ 계열 특성 — «즉사를 스킬 조합으로 막는다» (data/lineage.js).
+       *   펎name 의 `guardChance` 와 같은 방식으로 **숫자로 박아서** 넘긴다 —
+       *   엔진이 클래스 표를 몰라도 도고, PvP 처럼 편성을 통째로 올리는 경로에도 실린다. */
+      ...(traitOfChain(classChain(m.classId)) || {}),
     });
   });
 

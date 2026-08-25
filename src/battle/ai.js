@@ -89,9 +89,26 @@ export function selectTargets(unit, skill, battle) {
   const sel = skill.select || (toAlly ? 'lowestHpAlly' : 'front');
   if (sel === 'self') return unit.alive ? [unit] : [];
 
+  /* ★★ 계열 특성 — 근접 표적을 바꿈 (data/lineage.js)
+   *
+   *   · 도발(taunt, 방패병) : 도발하는 상대가 있으면 **그쪽만** 고른다.
+   *     도적류의 back(후열 침투)도 막는다 — 그게 도발의 존재 이유다.
+   *   · 은신(shy, 도적) : 다른 표적이 있으면 도적을 안 고른다.
+   *
+   *   ★ 난수를 안 쓴다 — 걸러내기만 한다. 둘 다 비면 원래 묶음으로 돌아간다. */
+  let pool2 = pool;
+  if (!toAlly && skill.range === 'melee') {
+    const taunters = pool2.filter((u) => u.taunt > 0);
+    if (taunters.length) pool2 = taunters;
+    else {
+      const notShy = pool2.filter((u) => !(u.shy > 0));
+      if (notShy.length) pool2 = notShy;
+    }
+  }
+
   // 근접 유닛은 전열을 노린다. 단 도적류의 back(후열 침투)은 그대로 존중한다.
-  let cand = pool;
-  if (!toAlly && skill.range === 'melee' && sel !== 'back' && sel !== 'front') cand = frontGroup(pool);
+  let cand = pool2;
+  if (!toAlly && skill.range === 'melee' && sel !== 'back' && sel !== 'front') cand = frontGroup(pool2);
 
   const count = clamp(Math.round(skill.count || 1), 1, cand.length);
   switch (sel) {

@@ -49,6 +49,11 @@ const MELEE_DELAY = 0.25;   // 돌진 후 타격까지 (붙어 있을 때의 최
  *
  * ★ 붙어 있는 상대(전열 대 전열, 거리 12칸)는 12/110 = 0.11초 → MELEE_DELAY 가 이긴다.
  *   즉 **정면 싸움은 예전 그대로**고, 뒤로 파고드는 것만 느려진다. */
+/* 계열 특성의 상한 — data/lineage.js 와 **같은 값**이어야 한다.
+ * ★ 엔진은 data/ 를 안 물어야 하서(공유 묶음 제약) 숫자를 옮겨 적는다.
+ *   어긋나면 smoke 가 막는다. */
+const AURA_CAP = 0.30;
+const SLOW_CAP = 0.25;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
 const CHARGE_SPEED = 110;   // 돌진 속도 (필드 단위/초) — 투사체와 같게 둔다
 const CHARGE_MAX = 0.9;     // 아무리 멀어도 이 이상은 안 걸린다
 const CAST_DELAY = 0.2;     // 자기 대상 시전 후 발동까지
@@ -172,7 +177,44 @@ export function createBattle(cfg = {}) {
    * 전투 rng 는 **단일 스트림**이라 난수를 한 번만 더 굴려도 그 뒤의 치명타·회피가
    * 통째로 밀린다. 즉 조건 없이 굴리면 랭크별 승률·던전 WAVE_POWER·세트 효과 측정치가
    * 전부 무효가 된다. 수호 펫이 실제로 있을 때만 굴리도록 여기서 막는다. */
-  const hasGuardians = units.some((u) => u.pet && u.petRole === 'guardian');
+  /* ★ 수호 펫만이 아니라 **방패병 계열**도 대신 맞는다 (계열 특성). */
+  const hasGuardians = units.some((u) => u.guardChance > 0 && (!u.pet || u.petRole === 'guardian'));
+  /* ★ 진영 피해 감소(수도승)와 즉사 방지(사제)도 «있을 때만» 도는 경로다 */
+  const hasAura = units.some((u) => u.dmgCutAura > 0);
+  const hasWard = units.some((u) => u.wardLeft > 0);
+  const hasRiposte = units.some((u) => u.riposte > 0);
+  const hasSlow = units.some((u) => u.chargeSlow > 0);
+  const hasIntercept = units.some((u) => u.intercept > 0);
+
+  /**
+   * 뒤로 파고드는 근접을 가로책 창병을 고른다.
+   * ★ «목표보다 공격자 쪽에 가까운» 창병만 자격이 있다 — 그래야 «중간에서 막는» 게 된다.
+   * ★ 순서는 units 배열 그대로라 결정론이 유지된다.
+   */
+  function pickInterceptor(victim, attacker) {
+    for (const d of units) {
+      if (!d.alive || d.side !== victim.side || d === victim) continue;
+      if (!(d.intercept > 0)) continue;
+      /* 공격자와 목표 사이에 서 있는가 (x 기준) */
+      const between = Math.abs(d.x - attacker.x) < Math.abs(victim.x - attacker.x);
+      if (!between) continue;
+      if (rng.chance(clamp(d.intercept, 0, 1))) return d;
+    }
+    return null;
+  }
+
+  /* ★ 마법사 계열은 방패를 두르고 시작한다 — 난수를 안 쓴다 */
+  for (const u of units) {
+    if (u.wardShield > 0) { u.shield = Math.round(u.maxHp * u.wardShield); u.shieldDur = Infinity; }
+  }
+
+  /** 그 진영의 피해 감소 합 (살아 있는 수도승만) — 상한까지 */
+  const auraOf = (side) => {
+    if (!hasAura) return 0;
+    let a = 0;
+    for (const u of units) if (u.alive && u.side === side) a += u.dmgCutAura;
+    return Math.min(a, AURA_CAP);
+  };
 
   // 행동 순서가 한꺼번에 겹치지 않도록 아주 작은 시작 게이지 편차를 준다 (시드 결정론 유지)
   /* ★★ **개전 행동 순서를 넓게 흔든다.**
@@ -295,8 +337,15 @@ export function createBattle(cfg = {}) {
      *      대신 맞는 쪽이 자기 방어력으로 다시 계산하지 않는다 — 대신 guardCut 으로 깎는다.
      *      "물렁한 후열 대신 맞아서 오히려 더 아프다" 같은 역전을 피하려는 의도적 선택이다.
      *   4. 지속 피해(dot)는 넘기지 않는다 — 이미 몸에 붙은 것을 남이 대신 앓을 수는 없다. */
+    /* ★ 수도승 계열의 진영 피해 감소. 대신 맞기보다 **먼저** 걸어서
+     *   «누가 맞든 같은 비율로 깎인다» 를 보장한다. 난수를 안 쓴다. */
+    if (hasAura) {
+      const cut = auraOf(tgt.side);
+      if (cut > 0) amount *= (1 - cut);
+    }
+
     if (hasGuardians && !tgt.pet && !opts.fromDot) {
-      const g = pickGuardian(tgt.side);
+      const g = pickGuardian(tgt.side, tgt);
       if (g) {
         amount = amount * (1 - clamp(g.guardCut || 0, 0, 0.9));
         push({ type: 'guard', uid: g.uid, targetUid: tgt.uid });
@@ -325,7 +374,37 @@ export function createBattle(cfg = {}) {
       if (applySpecial(tgt, 'lethal', ctx)) { killed = false; after = ctx.after; }
     }
 
+    /* ★★ 즉사 방지 — 사제 계열의 «체력 1로 버티기».
+     *   자기 것을 먼저 쓰고, 없으면 진영의 사제(wardParty)에게 빌린다.
+     * ★ 난수를 안 쓴다 — 횟수가 다하면 그만이다. 세트 부활이 먼저다(위). */
+    if (killed && hasWard) {
+      let ward = null;
+      if (tgt.wardLeft > 0) ward = tgt;
+      else {
+        for (const u of units) {
+          if (u.alive && u.side === tgt.side && u.wardParty > 0 && u.wardLeft > 0) { ward = u; break; }
+        }
+      }
+      if (ward) {
+        ward.wardLeft--;
+        tgt.hp = 1;
+        killed = false;
+        push({ type: 'ward', uid: ward.uid, targetUid: tgt.uid });
+      }
+    }
+
     push({ type: 'damage', uid: srcUid, targetUid: tgt.uid, amount: total, crit: !!crit, dmgType, fx, killed });
+
+    /* ★ 반격 — 검사 계열. **근접으로 맞았을 때만**, 살아 있을 때만.
+     *   반격의 반격을 막기 위해 `fromRiposte` 를 달아 보낸다. */
+    if (hasRiposte && !killed && !opts.fromDot && !opts.fromRiposte
+        && tgt.alive && tgt.riposte > 0 && opts.melee && srcUid != null) {
+      const back = B.unitOf(srcUid);
+      if (back && back.alive && back.side !== tgt.side) {
+        const amt = Math.max(1, Math.round(total * tgt.riposte));
+        applyDamage(tgt.uid, back, amt, false, dmgType, 'slash', { fromRiposte: true });
+      }
+    }
     if (after) for (const fn of after) fn();
     if (killed) kill(tgt, srcUid);
 
@@ -354,10 +433,13 @@ export function createBattle(cfg = {}) {
    * 여러 마리면 앞선 쪽이 먼저 기회를 갖는다 — 순서가 고정이라 결정론이 유지된다.
    * @returns {object|null} 없으면 null (이때도 굴린 난수는 소비된 상태다)
    */
-  function pickGuardian(side) {
+  function pickGuardian(side, victim) {
     for (const u of units) {
-      if (u.side !== side || !u.alive || !u.pet || u.petRole !== 'guardian') continue;
-      if (rng.chance(clamp(u.guardChance || 0, 0, 1))) return u;
+      if (u.side !== side || !u.alive || u === victim) continue;
+      /* 펫은 수호 역할만, 용병은 계열 특성으로 대신 맞는다 */
+      if (u.pet && u.petRole !== 'guardian') continue;
+      if (!(u.guardChance > 0)) continue;
+      if (rng.chance(clamp(u.guardChance, 0, 1))) return u;
     }
     return null;
   }
@@ -687,7 +769,8 @@ export function createBattle(cfg = {}) {
         return;
       }
       const { amount, crit } = rollDamage(src, tgt, skill.power || 1, skill.dmgType);
-      dealt = applyDamage(src.uid, tgt, amount, crit, skill.dmgType, skill.fx || 'slash', { skill });
+      /* ★ melee 를 실어 보낸다 — 검사 계열의 반격은 **근접 피격에만** 발동한다 */
+      dealt = applyDamage(src.uid, tgt, amount, crit, skill.dmgType, skill.fx || 'slash', { skill, melee: skill.range === 'melee' });
     }
     const ctx = { dmg: dealt };
     for (const e of perTarget) {
@@ -721,9 +804,37 @@ export function createBattle(cfg = {}) {
       push({ type: 'lunge', uid: u.uid, targetUid: targets[0].uid });
       /* 거리는 **첫 목표 기준**이다 — 범위 기술이어도 돌진하는 건 한 번이다. */
       const dist = Math.hypot(targets[0].x - u.x, targets[0].y - u.y);
-      const at = B.time + Math.max(MELEE_DELAY, clamp(dist / CHARGE_SPEED, 0, CHARGE_MAX));
+      /* ★ 견제(궁수 계열) — **맞는 쪽 진영**의 궁수가 적의 돌진을 느리게 한다.
+       *   살아 있는 궁수들의 합을 쓰되 상한을 둔다 — 난수를 안 쓴다. */
+      let slow = 0;
+      if (hasSlow) {
+        for (const d of units) if (d.alive && d.side !== u.side && d.chargeSlow > 0) slow += d.chargeSlow;
+        slow = Math.min(slow, SLOW_CAP);
+      }
+      /* ★★ 견제는 **오로지 이동 구간에만** 걸린다.
+       *   처음엕 `Math.max(...) * (1 + slow)` 로 써서 붙어 있는 상대를 치는 것까지
+       *   느려졌다 — 사실상 «공격속도 감소» 가 되어 라운드로빈에서 100% 를 찍었다.
+       *   이젠 멀리서 파고드는 것만 느려진다. */
+      const travel = clamp(dist / CHARGE_SPEED, 0, CHARGE_MAX) * (1 + slow);
+      const at = B.time + Math.max(MELEE_DELAY, travel);
       earliest = at;
-      for (const t of targets) schedule(at, () => resolveHit(u, t, skill, damaging, perTarget));
+      for (const t of targets) {
+        /* ★★ 요격(창병 계열) — **뒤로 파고드는** 근접을 중간에서 가로채다.
+         *   전열끼리 붙는 건 그대로 둔다 — «파고드는 것» 만 막는 게 이 특성의 뜻이다.
+         *   그래서 목표가 그 진영의 **창병보다 뒤에** 있을 때만 굴린다. */
+        let hitTgt = t;
+        /* ★★ **진짜 파고드는 경우에만** 가로채다.
+         *   처음엕 모든 근접 타격에 걸었다 — 전열끼리 붙는 것까지 가로채서
+         *   라운드로빈에서 100% 를 찍었다. «돌진이 최소값을 넘었는가» 로 가른다.
+         * ★ 가로참 때는 대신 맞기처럼 피해를 깎지 **않는다** — 창병은 버티는 게 아니라
+         *   «대신 받아 주는» 것이다. 그만큼 체력으로 갚는다. */
+        const diving = clamp(dist / CHARGE_SPEED, 0, CHARGE_MAX) > MELEE_DELAY;
+        if (hasIntercept && diving && skill.range === 'melee') {
+          const g = pickInterceptor(t, u);
+          if (g) { push({ type: 'guard', uid: g.uid, targetUid: t.uid }); hitTgt = g; }
+        }
+        schedule(at, () => resolveHit(u, hitTgt, skill, damaging, perTarget));
+      }
     } else {
       const fx = skill.fx || (damaging ? 'arrow' : 'buff');
       for (const t of targets) {
@@ -993,6 +1104,20 @@ function makeUnit(def, side, idx, resolve) {
     // ★ 세트 고유 효과 — `...def` 를 덮어써서 항상 정규화된 배열을 보장한다 (없으면 빈 배열)
     specials: normalizeSpecials(def.specials),
     specialState: {},   // 효과 id -> 런타임 상태 (중첩 수 / 발동 여부 / 누산기)
+    /* ★★ 계열 특성 (data/lineage.js 가 UnitDef 에 박아 보낸다).
+     *   엔진은 클래스 표를 모른다 — 숫자만 읽는다. 펫의 guardChance 와 같은 방식. */
+    traitLabel: def.traitLabel || null,
+    guardChance: Number(def.guardChance) || 0,
+    guardCut: Number(def.guardCut) || 0,
+    taunt: Number(def.taunt) || 0,
+    riposte: Number(def.riposte) || 0,
+    intercept: Number(def.intercept) || 0,
+    chargeSlow: Number(def.chargeSlow) || 0,
+    shy: Number(def.shy) || 0,
+    dmgCutAura: Number(def.dmgCutAura) || 0,
+    wardLeft: Math.max(0, Math.round(Number(def.deathWard) || 0)),
+    wardParty: Number(def.deathWardParty) || 0,
+    wardShield: Number(def.wardShield) || 0,
   };
   u.basic = makeBasicSkill(u);
   for (const s of def.skills || []) {

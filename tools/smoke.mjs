@@ -5289,7 +5289,10 @@ section('펫은 표적이 안 된다 · 개전이 몰리지 않는다');
    *   후열을 때렸다 (화면엔 걸어가는데 엔진은 순간이동). 실측으로
    *   0.4초 안 사망이 32%(앞 51 / 뒤 38) → **0%**(0 / 0) 가 됐다. */
   {
-    const meleeBlock = esrc3.slice(esrc3.indexOf("skill.range === 'melee'"), esrc3.indexOf("skill.range === 'melee'") + 500);
+    /* ★ `skill.range === 'melee'` 는 여러 군데 나온다 (resolveHit 에도 있다).
+     *   돌진을 미는 자리는 `lunge` 이벤트가 유일하게 가리킨다. */
+    const mAt = esrc3.indexOf("type: 'lunge'");
+    const meleeBlock = mAt < 0 ? '' : esrc3.slice(mAt, mAt + 500);
     const faults4 = [];
     if (!/Math\.hypot/.test(meleeBlock)) faults4.push('근접 타격 시각이 거리를 안 본다');
     if (!/CHARGE_SPEED/.test(meleeBlock)) faults4.push('돌진 속도를 안 쓴다');
@@ -5325,8 +5328,12 @@ section('펫은 표적이 안 된다 · 개전이 몰리지 않는다');
     gm ? `rng.float(0, ${gm[1]}) — 좁으면 전원이 같은 순간에 친다` : '개전 게이지 배분을 못 찾았다');
 
   /* 적 표적 풀이 전부 펫을 뺐는가 — 한 군데라도 남으면 거기로 새어 나간다 */
-  const foePools = (esrc3.match(/side !== [a-z.]+\.side/g) || []).length;
-  const petFree = (esrc3.match(/side !== [a-z.]+\.side && !\w+\.pet/g) || []).length;
+  /* ★ `side !== ...side` 를 그냥 세면 **목록이 아닌 비교**까지 센다
+   *   (검사 계열 반격의 `back.side !== tgt.side` 가 거기 걸려 오탐을 냈다).
+   *   «같은 줄에 filter 가 있는» 것만 = 진짜 표적 목록이다. */
+  const poolLines = esrc3.split(String.fromCharCode(10)).filter((l) => /\.filter\(/.test(l) && /side !== [a-z.]+\.side/.test(l));
+  const foePools = poolLines.length;
+  const petFree = poolLines.filter((l) => /!\w+\.pet/.test(l)).length;
   ok(foePools > 0 && petFree >= foePools, '엔진의 모든 적 목록이 펫을 뺀다',
     `적 목록 ${foePools}군데 중 펫을 뺀 곳 ${petFree}군데`);
 
@@ -5335,6 +5342,87 @@ section('펫은 표적이 안 된다 · 개전이 몰리지 않는다');
    *   메타 검사에서 그 가지에 버그를 심었는데 안 물어서 알았다. 한 갈래인지를 본다. */
   ok(/const foes = battle\.foesOf\(unit\);/.test(asrc3),
     'AI 는 엔진이 주는 적 목록 하나만 쓴다 (갈래가 하나여야 규칙이 안 갈라진다)');
+}
+
+section('계열 특성 — 7계열이 저마다 즉사를 막는다');
+{
+  /* 제작자 배분: 방패병 수호 · 검사 반격 · 창병 요격 · 궁수 견제 ·
+   *   도적 은신 · 마법사 방벽 · 수도사(사제 축복 / 수도승 금강).
+   *   「방패병 역할이 커지는데 다른 계열들도 특화가 있으면 좋겠다」 에서 나왔다. */
+  let LG = null;
+  let CL5 = null;
+  try {
+    LG = await import(srcUrl('data/lineage.js'));
+    CL5 = await import(srcUrl('data/classes.js'));
+    await import(srcUrl('data/classes_t4.js'));
+  } catch (e) { ok(false, '계열 특성 모듈을 읽는다', String(e.message)); }
+
+  if (LG && CL5) {
+    /* ① 7계열 전부에 특성이 있는가 — 하나라도 비면 그 계열은 «즉사를 막을 자기 방식» 이 없다 */
+    const roots = Object.values(CL5.CLASSES).filter((c) => (c.tier || 1) === 1);
+    okAll(roots.filter((r) => !LG.traitOfChain([r])).map((r) => `${r.name}(${r.id}) 계열에 특성이 없다`),
+      '7계열 전부가 자기 특성을 갖는다', roots.length);
+
+    /* ② 모든 클래스가 특성을 받는가 (105종) */
+    const all = Object.values(CL5.CLASSES);
+    const miss = all.filter((c) => !LG.traitOfChain(CL5.classChain(c.id)));
+    okAll(miss.slice(0, 5).map((c) => `${c.id} 가 특성을 못 받는다`), '모든 클래스가 특성을 받는다', all.length);
+
+    /* ③ 차수가 오를수록 세지는가 — 1차가 4차보다 세면 승급이 손해다 */
+    const backfire = [];
+    for (const r of roots) {
+      const line = all.filter((c) => { const ch = CL5.classChain(c.id); return ch.length && ch[0].id === r.id; });
+      const t1 = LG.traitOfChain(CL5.classChain(r.id)) || {};
+      for (const c of line.filter((x) => x.tier === 4)) {
+        const t4 = LG.traitOfChain(CL5.classChain(c.id)) || {};
+        for (const k of Object.keys(t1)) {
+          if (k === 'traitLabel') continue;
+          /* 갈래가 갈리면 다른 특성이 된다 — 같은 열쇠일 때만 견준다 */
+          if (t4[k] == null) continue;
+          if (t4[k] < t1[k]) backfire.push(`${c.id} 의 ${k} 가 1차보다 작다 (${t4[k]} < ${t1[k]})`);
+        }
+      }
+    }
+    okAll(backfire.slice(0, 5), '차수가 오르면 특성도 세진다', roots.length);
+
+    /* ④ 수도사만 갈래가 갈리는가 — 사제/수도승이 서로 다른 특성이어야 배분이 성립한다 */
+    const priest = LG.traitOfChain(CL5.classChain('priest')) || {};
+    const monk = LG.traitOfChain(CL5.classChain('monk')) || {};
+    ok(priest.traitLabel && monk.traitLabel && priest.traitLabel !== monk.traitLabel,
+      '수도사 계열이 사제 / 수도승으로 갈린다',
+      `사제 [${priest.traitLabel}] · 수도승 [${monk.traitLabel}] — 같으면 배분이 무너진다`);
+    ok((priest.deathWard || 0) > 0 && (monk.dmgCutAura || 0) > 0,
+      '사제는 즉사 방지 · 수도승은 피해 감소 (제작자 배분)');
+
+    /* ⑤ ★ 상한 상수가 엔진과 같은가 — 엔진은 data/ 를 못 물어서 숫자를 옮겨 적었다.
+     *   어긋나면 «표에는 0.25 인데 실제로는 0.6» 같은 조용한 어긋남이 생긴다. */
+    const esrc5 = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
+    const pick = (name) => {
+      const m = esrc5.match(new RegExp(`const ${name} = ([0-9.]+)`));
+      return m ? Number(m[1]) : null;
+    };
+    const pairs = [['AURA_CAP', LG.AURA_CAP], ['SLOW_CAP', LG.SLOW_CAP]];
+    okAll(pairs.filter(([n, v]) => pick(n) !== v)
+      .map(([n, v]) => `${n} 이 엔진 ${pick(n)} vs 표 ${v} 로 어긋났다`),
+      '상한 상수가 엔진과 표에서 같다', pairs.length);
+  }
+
+  /* ⑥ 특성이 실제 편성 경로에 실리는가 — 여기가 끊기면 표만 있고 전투엔 안 나온다 */
+  const qsrc = decomment(readFileSync(srcDir('game/quest.js'), 'utf8'));
+  ok(/traitOfChain\(classChain\(m\.classId\)\)/.test(qsrc),
+    '아군 편성(allyUnitDefs)이 계열 특성을 실어 보낸다',
+    'quest.js 가 특성을 안 붙인다 — 표만 있고 전투엔 안 나온다');
+
+  /* ⑦ 엔진이 그 숫자를 실제로 읽는가 */
+  const esrc6 = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
+  const keys = ['guardChance', 'taunt', 'riposte', 'intercept', 'chargeSlow', 'shy', 'dmgCutAura', 'wardLeft', 'wardShield'];
+  okAll(keys.filter((k) => !esrc6.includes(k)).map((k) => `엔진이 '${k}' 를 안 읽는다`),
+    '엔진이 특성 숫자를 전부 읽는다', keys.length);
+
+  /* 도발·은신은 표적 선택이라 ai.js 몫이다 */
+  const asrc6 = decomment(readFileSync(srcDir('battle/ai.js'), 'utf8'));
+  ok(/u\.taunt > 0/.test(asrc6) && /u\.shy > 0/.test(asrc6),
+    'AI 의 근접 표적 선택이 도발과 은신을 본다');
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
