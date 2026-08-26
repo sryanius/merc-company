@@ -1045,7 +1045,7 @@ function mercSpecials(m, itemsById) {
 /* ★ PvP 방어 편성 등록이 이걸 그대로 쓴다 (src/net/pvp.js).
  *   «전투에 실제로 나가는 유닛» 과 «순위표에 올리는 유닛» 이 다르면 그 자체가 구멍이다 —
  *   같은 함수를 쓰는 것이 그걸 막는 가장 싼 방법이다. */
-export function allyUnitDefs(st, squad) {
+export function allyUnitDefs(st, squad, opts = {}) {
   const items = State.itemsById(st.items);
   const slots = slotsOf(squad.formationId);
   const day = st?.day || 0;
@@ -1061,7 +1061,16 @@ export function allyUnitDefs(st, squad) {
   const filled = [];
   squad.memberUids.forEach((mu, i) => {
     const m = mu ? roster.find((x) => x.uid === mu) : null;
-    if (m && !isBenched(m, day) && getClass(m.classId)) filled.push({ merc: m, slotIndex: i });
+    /* ★★ `ignoreWounds` — **PvP 등록은 부상을 안 본다.**
+     *
+     *   의뢰에서 부상자를 빼는 건 맞다 — 지금 못 나가는 사람이니까.
+     *   그런데 PvP 등록은 «내 용병단의 사진» 이라 그대로 적용하면
+     *   나락·탑을 돌고 온 직후엔 부대가 **통째로 비어버린다.**
+     *   제작자가 그걸 겪었다 — 3·4·5부대가 «용병 1명 + 펫 3» 으로 등록돼
+     *   0.5초만에 녹았다 (진단 판 53). 게다가 등록은 스냅샷이라
+     *   나중에 다 나아도 그 상태로 굳어 있는다. */
+    const skip = opts.ignoreWounds ? !m : (!m || isBenched(m, day));
+    if (!skip && getClass(m.classId)) filled.push({ merc: m, slotIndex: i });
   });
   const slotX = (i) => {
     const s = slots[i] || FALLBACK_SLOTS[i];

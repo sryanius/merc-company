@@ -199,7 +199,8 @@ function myLineup() {
   const units = [];
   let power = 0;
   for (const sq of squads) {
-    const defs = allyUnitDefs(state, sq);
+    /* ★ 부상을 무시한다 — 이유는 quest.js 의 주석 참조 */
+    const defs = allyUnitDefs(state, sq, { ignoreWounds: true });
     if (!defs.length) continue;
     units.push(defs);
     power += squadPower(state, sq.id) || 0;
@@ -229,11 +230,12 @@ async function registerNow(say) {
   if (!res.ok) {
     /* ★ 서버가 «불가능한 값» 을 짚어 주면 그대로 보여준다 — 정상 플레이어가 고칠 수 있어야 한다 */
     const detail = res.data && Array.isArray(res.data.detail) ? res.data.detail.slice(0, 2).join(' / ') : '';
-    return { ok: false, error: `${res.error || '등록 실패'} ${detail}`.trim(), n: 0 };
+    return { ok: false, error: `${res.error || '등록 실패'} ${detail}`.trim(), n: 0, mercs: 0 };
   }
   writeFp(stamp(Pvp.lineupFp(units)));
   dropCache();
-  return { ok: true, error: '', n: units.length };
+  const mercs = units.reduce((a, sq) => a + sq.filter((u) => !u.pet).length, 0);
+  return { ok: true, error: '', n: units.length, mercs };
 }
 
 async function doRegister(afterEl) {
@@ -242,7 +244,9 @@ async function doRegister(afterEl) {
   const r = await registerNow((m) => { afterEl.textContent = m; });
   busy = false;
   if (!r.ok) { toast(`등록 실패: ${r.error}`, 'bad'); return; }
-  toast(`${r.n}개 부대를 등록했다`, 'good');
+  /* ★ 인원을 같이 적는다 — 예전엕 부대 수만 말해서
+   *   «부상자가 빠져 용병 1명만 등록됐다» 를 알 길이 없었다. */
+  toast(`${r.n}개 부대 · 단원 ${r.mercs}명을 등록했다`, 'good');
   go('pvp');
 }
 
@@ -359,6 +363,16 @@ function meRow() {
       el('span', { class: 'faint' }, `${row.rank}위`),
       el('span', { class: 'faint' }, `${row.wins}승 ${row.losses}패`),
       el('span', { class: 'faint' }, `전력 ${num(row.power || 0)}`)));
+
+    /* ★ 지금 편성이 몇 명인지 적어 둔다 — 부대가 비면 눈에 띄게 */
+    const lu = myLineup();
+    if (lu) {
+      const mercN = lu.units.reduce((a, sq) => a + sq.filter((u) => !u.pet).length, 0);
+      const thin = lu.units.filter((sq) => sq.filter((u) => !u.pet).length < 3).length;
+      body.appendChild(el('div', { class: 'tiny faint' },
+        `지금 편성 ${lu.units.length}개 부대 · 단원 ${mercN}명`,
+        thin ? el('span', { style: { color: 'var(--gold)' }, text: `  — 단원이 3명 미만인 부대 ${thin}개` }) : null));
+    }
 
     /* ★★ **엔진이 움직였으면 묻지 않고 다시 올린다.**
      *   서버는 방어자의 지문이 낡아도 전투를 거절한다 — 그러면 그 사람은

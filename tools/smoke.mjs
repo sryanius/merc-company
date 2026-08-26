@@ -5671,6 +5671,57 @@ section('도전 쿨타임 표시 · 도감 계열/스킬');
     '도감이 쓰는 상수가 전부 있다', Math.max(1, [...new Set(used)].length));
 }
 
+section('PvP 등록은 부상을 무시한다');
+{
+  /* ★★ 제작자 보고: 「내꺼 3,4,5 부대가 순식간에 지는데 이거 버그같은데」.
+   *   진단(판 53)을 보니 그 부대들이 **«용병 1명 + 펫 3»** 으로 등록돼 있었다 —
+   *   `allyUnitDefs` 가 **부상자를 빼기** 때문이다.
+   *
+   *   의뢰에서는 맞는 규칙이다 (지금 못 나가는 사람이니까). 그런데 PvP 등록은
+   *   «내 용병단의 사진» 이라, 나락·탑을 돌고 온 직후에 등록하면 부대가 통째로 비고
+   *   **스냅샷이라 나중에 다 나아도 그 상태로 굳는다.**
+   *
+   * ★ 굴려서 본다 — 글자로만 보면 «옵션은 있는데 안 먹는» 상태를 못 잡는다. */
+  const QU = need('game/quest.js');
+  const MC = need('game/merc.js');
+  if (!QU || !MC) { ok(false, '의뢰/용병 모듈을 못 읽었다'); } else {
+    const day = 100;
+    const mk = (i, w) => ({
+      uid: `w${i}`, name: `단원${i}`, classId: 'swordsman', level: 40, grade: 'C',
+      hiredDay: 2, equipment: {}, exp: 0,
+      ...(w ? { status: 'wounded', woundUntil: day + 5 } : {}),
+    });
+    const roster = [mk(0, false), mk(1, true), mk(2, true), mk(3, true), mk(4, false), mk(5, true), mk(6, true)];
+    const st = {
+      day, roster, items: [], pets: [],
+      squads: [{ id: 'sw', name: '시험부대', formationId: 'basic', memberUids: roster.map((m) => m.uid) }],
+    };
+    /* 판이 차려졌는지 먼저 본다 — 부상 판정이 실제로 돌아야 이 검사가 뜻이 있다 */
+    const wounded = roster.filter((m) => MC.isWounded(m, day)).length;
+    ok(wounded === 5, '시험이 부상자를 실제로 만들었다 (판이 차려졌다)', `부상 ${wounded}명 (5명이어야 한다)`);
+
+    if (wounded === 5) {
+      const q = QU.allyUnitDefs(st, st.squads[0]).filter((u) => !u.pet).length;
+      const p = QU.allyUnitDefs(st, st.squads[0], { ignoreWounds: true }).filter((u) => !u.pet).length;
+      ok(q === 2, '의뢰 편성은 부상자를 뺀다 (예전 그대로)', `${q}명 — 2명이어야 한다`);
+      ok(p === 7, 'PvP 편성은 부상자도 싣는다', `${p}명 — 7명이어야 한다`);
+    }
+  }
+
+  /* PvP 화면이 그 옵션을 실제로 넘기는가 — 안 넘기면 위 기능이 있으나 마나다 */
+  const psrc6 = decomment(readFileSync(srcDir('ui/pvp.js'), 'utf8'));
+  ok(/allyUnitDefs\(state, sq, \{ ignoreWounds: true \}\)/.test(psrc6),
+    'PvP 화면이 부상 무시 옵션을 넘긴다',
+    'myLineup 이 옵션 없이 부른다 — 부상자가 또 빠진다');
+
+  /* ★ 조용히 빠지는 걸 막는 두 번째 그물 — 인원을 사람에게 보여준다 */
+  const faults = [];
+  if (!/단원 \$\{r\.mercs\}명을 등록했다/.test(psrc6)) faults.push('등록 결과에 단원 수를 안 적는다');
+  if (!/지금 편성/.test(psrc6)) faults.push('화면에 지금 편성 인원을 안 보여준다');
+  if (!/단원이 3명 미만인 부대/.test(psrc6)) faults.push('인원이 모자란 부대를 경고하지 않는다');
+  okAll(faults, '편성 인원이 사람 눈에 보인다 (조용히 비는 일이 없게)', 3);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
