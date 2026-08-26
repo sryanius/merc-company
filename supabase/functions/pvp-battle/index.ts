@@ -185,9 +185,19 @@ Deno.serve(async (req) => {
     .select('units, engine_hash').eq('user_id', attackerId).maybeSingle();
   if (!mine) return json({ error: '먼저 내 부대를 등록해야 한다' }, 409);
 
-  if (mine.engine_hash !== ENGINE_HASH || def.engine_hash !== ENGINE_HASH) {
-    /* ★ 옛 지문으로 접힌 편성은 지금 엔진에서 다른 결과를 낼 수 있다.
-     *   거절하지 않고 «다시 등록해라» 를 알린다 — 막아 버리면 옛 클라를 든 사람이 영영 못 한다. */
+  /* ★★ **내 등록만 본다. 상대의 지문이 낡았다고 막지 않는다.**
+   *
+   *   예전엕 `def.engine_hash` 도 같이 봤다. 그러니 엔진을 고칠 때마다
+   *   **접속 안 한 사람은 아무도 못 때리는 상태**로 순위표에 남았다 —
+   *   공격자가 자기를 아무리 다시 등록해도 소용이 없고, 내가 대신 해 줄 수도 없다.
+   *   제작자가 그걸 겪었다: 「지금 pvp 안된다 · 내 부대 등록 다시 눌렀는데 똑같이 뜼네」.
+   *
+   * ★ 상대 지문을 안 봐도 안전하다 — 저장된 `units` 는 그냥 스탯 덩어리고,
+   *   승패는 **지금 엔진으로 그 자리에서 계산**한다. 재생도 같은 cfg 로 같은 엔진을 돌리므로
+   *   서버와 화면이 갈라지지 않는다 (그건 `pvp_matches.engine_hash` 가 따로 지킨다).
+   *
+   * ★ 내 것은 여전히 막는다 — 그건 내가 고칠 수 있고, 클라가 자동으로 다시 올린다. */
+  if (mine.engine_hash !== ENGINE_HASH) {
     return json({ error: '부대 등록이 오래됐다. 다시 등록해라', needRebuild: true }, 409);
   }
 

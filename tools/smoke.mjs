@@ -5415,9 +5415,19 @@ section('계열 특성 — 7계열이 저마다 즉사를 막는다');
 
   /* ⑦ 엔진이 그 숫자를 실제로 읽는가 */
   const esrc6 = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
-  const keys = ['guardChance', 'taunt', 'riposte', 'intercept', 'chargeSlow', 'shy', 'dmgCutAura', 'wardLeft', 'wardShield'];
-  okAll(keys.filter((k) => !esrc6.includes(k)).map((k) => `엔진이 '${k}' 를 안 읽는다`),
-    '엔진이 특성 숫자를 전부 읽는다', keys.length);
+  /* ★★ «어딘가 이름이 나오나» 만 보면 **UnitDef 에서 꺼내는 줄을 지워도 통과한다**
+   *   (쓰는 쪽에 이름이 남아 있으니까). 메타 검사에서 실제로 안 물었다.
+   *   «`def.` 에서 꺼내는가» 를 본다 — 이름이 다른 것만 따로 적는다. */
+  const FROM_DEF = {
+    guardChance: 'guardChance', taunt: 'taunt', riposte: 'riposte',
+    intercept: 'intercept', interceptCut: 'interceptCut', chargeSlow: 'chargeSlow',
+    shy: 'shy', dmgCutAura: 'dmgCutAura', wardShield: 'wardShield', wardRegen: 'wardRegen',
+    wardLeft: 'deathWard', wardParty: 'deathWardParty',
+  };
+  okAll(Object.entries(FROM_DEF)
+    .filter(([, src]) => !esrc6.includes(`def.${src}`))
+    .map(([k, src]) => `엔진이 UnitDef 에서 '${src}' 를 안 꺼낸다 (유닛 필드 ${k})`),
+    '엔진이 특성 숫자를 UnitDef 에서 전부 꺼낸다', Object.keys(FROM_DEF).length);
 
   /* 도발·은신은 표적 선택이라 ai.js 몫이다 */
   const asrc6 = decomment(readFileSync(srcDir('battle/ai.js'), 'utf8'));
@@ -5462,8 +5472,10 @@ section('계열 특성 설계 손질 — 네 기전이 실제로 도는가');
     /* ★ 세 시험이 같이 쓰는 «뒷줄을 노리는 원거리».
      *   기본공격은 select 가 'front' 라 뒷줄이 안 맞는다 — 그러면
      *   요격·반격·이중전달 조건이 아예 안 만들어져 검사가 헛돌았다. */
+    /* ★ power 를 크게 준다 — 요격은 이젠 **위험한 한 방**에만 나서기 때문이다
+     *   (잔툃기를 다 대신 맞으면 앞줄이 먼저 무너져 기여도가 마이너스가 됐다). */
     const SNIPE = { id: 'snipe', range: 'ranged', target: 'enemy', select: 'back',
-      count: 1, power: 1.2, dmgType: 'phys', fx: 'arrow', cd: 0, effects: [] };
+      count: 1, power: 12, dmgType: 'phys', fx: 'arrow', cd: 0, effects: [] };
     const faults = [];
 
     /* ① 요격이 **원거리**도 막는가 — 예전엔 근접이 파고들 때만이었다 */
@@ -5536,9 +5548,47 @@ section('계열 특성 설계 손질 — 네 기전이 실제로 도는가');
 
   /* 값이 표에 실제로 들어 있는가 — 설계만 고치고 값을 0 으로 두면 아무 일도 안 난다 */
   const lsrc = decomment(readFileSync(srcDir('data/lineage.js'), 'utf8'));
-  const need2 = ['wardRegen', 'intercept', 'riposte', 'deathWard'];
+  const need2 = ['wardRegen', 'intercept', 'interceptCut', 'riposte', 'deathWard'];
   okAll(need2.filter((k) => !new RegExp(`${k}:\\s*[0-9.]+`).test(lsrc)).map((k) => `표에 ${k} 값이 없다`),
     '표에 네 특성 값이 들어 있다', need2.length);
+}
+
+section('엔진을 고쳐도 상대를 때릴 수 있는가');
+{
+  /* ★★ 제작자가 겪은 것: 「지금 pvp 안된다 · 내 부대 등록 다시 눌렀는데 똑같이 뜨네」.
+   *
+   *   서버가 **상대의** `engine_hash` 까지 보고 거절하고 있었다. 그래서 엔진을 고칠 때마다
+   *   **접속 안 한 사람은 아무도 못 때리는 상태**로 순위표에 남았다 —
+   *   공격자가 자기를 아무리 다시 등록해도 소용이 없고, 내가 대신 해 줄 수도 없다.
+   *   오늘만 엔진 지문을 아홉 번 올렸으니 PvP 가 통째로 멈춰 있었다.
+   *
+   * ★ 상대 지문을 안 봐도 안전하다 — 저장된 `units` 는 그냥 스탯 덩어리고
+   *   승패는 **지금 엔진으로 그 자리에서** 계산한다. 재생도 같은 cfg 로 같은 엔진을 돌린다.
+   *
+   * ★ 내 것은 여전히 막는다. 그건 내가 고칠 수 있고 클라가 자동으로 다시 올린다. */
+  const fnPath2 = fileURLToPath(new URL('supabase/functions/pvp-battle/index.ts', ROOT));
+  if (!existsSync(fnPath2)) {
+    ok(true, 'PvP 엣지 함수가 없어 건너뜀');
+  } else {
+    const isrc2 = decomment(readFileSync(fnPath2, 'utf8'));
+    const faults = [];
+    if (/def\.engine_hash\s*!==\s*ENGINE_HASH/.test(isrc2)) {
+      faults.push('상대의 engine_hash 로 거절한다 — 접속 안 한 사람은 아무도 못 때린다');
+    }
+    if (!/mine\.engine_hash\s*!==\s*ENGINE_HASH/.test(isrc2)) {
+      faults.push('내 engine_hash 는 봐야 한다 — 안 보면 옛 편성으로 싸우게 된다');
+    }
+    if (!/needRebuild: true/.test(isrc2)) {
+      faults.push('needRebuild 를 안 알려 준다 — 클라가 자동 재등록을 못 한다');
+    }
+    okAll(faults, '내 등록만 막고, 상대가 낡았다고 막지 않는다', 3);
+
+    /* 클라 쪽 자동 재등록이 살아 있는가 — 이게 없으면 사람이 손으로 눌러야 한다 */
+    const psrc4 = decomment(readFileSync(srcDir('ui/pvp.js'), 'utf8'));
+    ok(/needRebuild/.test(psrc4), '클라가 needRebuild 를 받아 다시 등록한다');
+    ok(/function engineMoved\(\)/.test(psrc4) && /if \(engineMoved\(\)\)/.test(psrc4),
+      'PvP 화면에 들어오면 엔진이 움직였는지 보고 알아서 다시 올린다');
+  }
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

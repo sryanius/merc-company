@@ -55,6 +55,8 @@ const MELEE_DELAY = 0.25;   // 돌진 후 타격까지 (붙어 있을 때의 최
 const AURA_CAP = 0.30;
 const SLOW_CAP = 0.35;
 /** 축복이 살려 둔 뒤 붙는 잠긐 보호 (초) — 그 사이에 힐이 들어갈 수 있게 */
+/** 요격이 나서는 최소 타격 크기 (받는 사람 최대 HP 비율) — 잔툃기는 그냥 맞는다 */
+const INTERCEPT_MIN = 0.10;
 const GRACE_S = 2.4;
 /** 그 동안 깎이는 피해 */
 const GRACE_CUT = 0.55;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
@@ -371,9 +373,19 @@ export function createBattle(cfg = {}) {
      * ★ 수호와 달리 **피해를 안 깎는다.** 창병은 버티는 게 아니라 대신 받아 주는 역할이다.
      * ★ 둘은 **배타적**이다 — 한 번 넘어간 피해를 또 넘기지 않는다. */
     let redirected = false;
-    if (hasIntercept && !tgt.pet && !opts.fromDot && !opts.fromRiposte) {
+    /* ★★ **큰 한 방만** 가로채다.
+     *   예전엕 뒷줄에게 가는 모든 피해를 대신 받았다. 창병은 피해를 안 깎고
+     *   온몸으로 받으므로, 잔툃기까지 대신 맞으면 **앞줄이 먼저 무너져 손해**다 —
+     *   실측 기여도가 **−2.5%p** 로 «없느니만 못한» 상태였다 (조합 5개 평균).
+     *   이젠 받는 사람에게 **위험한 타격**일 때만 끌어안는다 — «즉사를 막는» 제 역할만 한다. */
+    const bigHit = tgt.maxHp > 0 && amount >= tgt.maxHp * INTERCEPT_MIN;
+    if (hasIntercept && bigHit && !tgt.pet && !opts.fromDot && !opts.fromRiposte) {
       const g = pickInterceptor(tgt);
       if (g) {
+        /* ★ 창을 세워 **받아낸다** — 조금 깎인다.
+         *   전혀 안 깎았더니 대신 맞을수록 손해여서 기여도가 마이너스였다.
+         *   수호(0.45)보다는 적게 깎인다 — «버티는» 방패병과 성격을 가른다. */
+        amount = amount * (1 - clamp(g.interceptCut || 0, 0, 0.9));
         push({ type: 'guard', uid: g.uid, targetUid: tgt.uid });
         tgt = g;
         redirected = true;
@@ -1156,6 +1168,7 @@ function makeUnit(def, side, idx, resolve) {
     taunt: Number(def.taunt) || 0,
     riposte: Number(def.riposte) || 0,
     intercept: Number(def.intercept) || 0,
+    interceptCut: Number(def.interceptCut) || 0,
     chargeSlow: Number(def.chargeSlow) || 0,
     shy: Number(def.shy) || 0,
     dmgCutAura: Number(def.dmgCutAura) || 0,

@@ -101,8 +101,13 @@ export function selectTargets(unit, skill, battle) {
     const taunters = pool2.filter((u) => u.taunt > 0);
     if (taunters.length) pool2 = taunters;
     else {
+      /* ★★ 은신은 **대신 맞을 사람이 둘 이상**일 때만 듣는다.
+       *   예전엕 한 명만 남아도 도적이 빠졌다 — 그러니 궁수가 없는 조합에서
+       *   기여도가 **+42%p** 까지 튀어 올랐다 (다른 조합엔 −7). 조합 타는 폭을 줄인다. */
       const notShy = pool2.filter((u) => !(u.shy > 0));
-      if (notShy.length) pool2 = notShy;
+      /* ★ 셋 이상일 때만 들은다. 둘로 낮췄는데도 궁수 없는 조합에서
+       *   기여도가 +46%p 까지 튀었다 — «완전 면역» 이 되는 구간을 더 좁힌다. */
+      if (notShy.length >= 3) pool2 = notShy;
     }
   }
 

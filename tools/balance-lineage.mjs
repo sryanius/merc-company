@@ -1,28 +1,31 @@
 /**
- * 계열 특성 균형 측정기 — «한 명씩 빼며 기여도를 재다»
- * ═════════════════════════════════════════════════════════════════════════════
+ * 계열 특성 균형 측정기 — «조합 5개에서 한 명씩 빼며 기여도를 잰다»
+ * ══════════════════════════════════════════════════════════════════════════════
  *
- *   실행: node tools/balance-lineage.mjs [판수=60]
+ *   실행: node tools/balance-lineage.mjs [판수=150]
  *
- * 양쪽이 **같은 섞인 부대**(계열 하나씩 7명)를 쓰고, B 만 특성 하나를 지운다.
- * A 의 승률이 50% 를 얼마나 넘느냐 = 그 특성의 **한계 기여도**.
- * 조합·클래스·장비가 완전히 같으므로 특성만 남는다.
+ * 양쪽이 **같은 부대**를 쓰고, B 만 특성 하나를 지운다.
+ * A 의 승률에서 그 조합의 **기준선**(아무것도 안 뺀 판)을 뺀 값 = 그 특성의 **한계 기여도**.
  *
- * ★★ 이 도구 이전에 **세 번 가짜 결과**를 냈다 (HANDOFF §86.3). 그래서 게이트가 셋이다:
+ * ★★ 조합 하나로만 재면 못 쓴다 (HANDOFF §88.3). 특성끼리 간섭해서
+ *   하나를 바꾸면 나머지 값이 재배치되고, 회차마다 결과가 뒤집힌다
+ *   (반격 45→67→51, 요격 45→53→42, 기준선 50→44→42).
+ *   그래서 **조합 5개**를 돌리고, 각 조합의 기준선을 빼서 조합 편향을 지운 뒤 평균한다.
+ *
+ * ★★ 이 도구 계열은 **네 번 가짜 결과**를 냈다 (§84.1 · §86.3). 그래서 게이트가 셋이다:
  *   ① 장비가 실제로 붙었나 (맨몸 대비 배수)
  *   ② 자리가 실제 편성과 같은가 (전열끼리 거리)
  *   ③ 특성 값을 표에서 읽는가 (베껴 적지 않는다)
- *   하나라도 안 맞으면 숫자를 내놓지 않고 멈춘다.
+ *   하나라도 안 맞으면 숫자를 안 내놓고 멈춘다.
  *
- * ★ 무언가 바꾸면 **반드시 «아무것도 안 뻐» 이 50% 근처인지** 먼저 본다.
- *   거기가 틀어지면 아래 줄은 전부 못 믿는다.
+ * ★ 기준선이 50 에서 많이 벗어난 조합은 **결과에 표시**한다 — 버리지는 않되 믿음을 낮춘다.
  */
 import { createBattle } from '../src/battle/engine.js';
 import { getSkill } from '../src/data/skills.js';
 import { getClass, classChain } from '../src/data/classes.js';
 import '../src/data/classes_t4.js';
 import { getFormation } from '../src/data/formations.js';
-import { traitOfChain, LINEAGE_TRAIT, BRANCH_TRAIT } from '../src/data/lineage.js';
+import { traitOfChain, LINEAGE_TRAIT } from '../src/data/lineage.js';
 import { mercStats } from '../src/game/merc.js';
 import * as Gear from '../src/game/gear.js';
 
@@ -32,56 +35,71 @@ const rngMax = {
 };
 const SLOTS7 = getFormation('basic').slots;
 
-/* 계열 하나씩 — 4차 대표 + 그 역할에 맞는 세트 */
-const SQUAD = [
-  { cls: 'bulwark_abyss', set: 'ironrampart', key: 'shieldman' },     // 방패병 — 수호
-  { cls: 'swordgod_abyss', set: 'bloodoath', key: 'swordsman' },      // 검사   — 반격
-  { cls: 'dragoonlord_apex', set: 'ironrampart', key: 'spearman' },   // 창병   — 요격
-  { cls: 'masterarcher_apex', set: 'starseeker', key: 'archer' },     // 궁수   — 견제
-  { cls: 'shadowblade_apex', set: 'bloodoath', key: 'rogue' },        // 도적   — 은신
-  { cls: 'archmage_apex', set: 'starseeker', key: 'apprentice' },     // 마법사 — 방벽
-  { cls: 'highpriest_abyss', set: 'constellation', key: 'priest' },   // 사제   — 축복
+/* 역할별 대표 클래스 — 계열마다 여럿 두고 조합마다 다른 걸 쓴다.
+ * ★ 같은 클래스만 쓰면 «특성의 힘» 이 그 클래스에 묶인다. */
+const POOL = {
+  shieldman: [['bulwark_abyss', 'ironrampart'], ['gatewarden_apex', 'ironrampart'], ['oathshield_apex', 'ironrampart']],
+  swordsman: [['swordgod_abyss', 'bloodoath'], ['madgeneral_apex', 'bloodoath'], ['skysplitter_apex', 'bloodoath']],
+  spearman: [['dragoonlord_apex', 'ironrampart'], ['blackknight_apex', 'ironrampart']],
+  archer: [['masterarcher_apex', 'starseeker'], ['spiritranger_apex', 'starseeker'], ['shadowarcher_apex', 'starseeker']],
+  rogue: [['shadowblade_apex', 'bloodoath'], ['reaper_apex', 'bloodoath'], ['banditking_abyss', 'bloodoath']],
+  apprentice: [['archmage_apex', 'starseeker'], ['stormcaller_abyss', 'starseeker'], ['plaguelord_abyss', 'starseeker']],
+  priest: [['highpriest_abyss', 'constellation'], ['highpriest_apex', 'constellation']],
+  monk: [['arhat_abyss', 'constellation'], ['fallenmonk_apex', 'constellation']],
+};
+const LABEL = {
+  shieldman: '수호(방패병)', swordsman: '반격(검사)', spearman: '요격(창병)',
+  archer: '견제(궁수)', rogue: '은신(도적)', apprentice: '방벽(마법사)',
+  priest: '축복(사제)', monk: '금강(수도승)',
+};
+/* 부대는 7칸인데 계열은 8개다 — 조합마다 하나씩 빠진다. 그래서 5조합을 돌려 전부 덮는다.
+ * 앞→뒤 순서로 적는다 (basic 진형: 앞 3 · 중 2 · 뒤 2). */
+const COMPS = [
+  { name: 'A 표준',   keys: ['shieldman', 'spearman', 'swordsman', 'rogue', 'archer', 'apprentice', 'priest'], pick: 0 },
+  { name: 'B 수도승', keys: ['shieldman', 'spearman', 'swordsman', 'rogue', 'archer', 'apprentice', 'monk'], pick: 1 },
+  { name: 'C 무도적', keys: ['shieldman', 'spearman', 'swordsman', 'monk', 'archer', 'apprentice', 'priest'], pick: 2 },
+  { name: 'D 무궁수', keys: ['shieldman', 'spearman', 'swordsman', 'rogue', 'monk', 'apprentice', 'priest'], pick: 0 },
+  { name: 'E 무창병', keys: ['shieldman', 'swordsman', 'monk', 'rogue', 'archer', 'apprentice', 'priest'], pick: 1 },
 ];
-/* 수도승은 부대에 여덟째로 못 넣으니 사제 자리를 바꿔 따로 잰다 */
-const MONK = { cls: 'arhat_abyss', set: 'constellation', key: 'monk' };
 
 let uid = 0;
-function build(spec, side, slotIdx, dropTrait) {
+function build(cls, set, side, slotIdx, withTrait) {
   const id = `u${uid++}`;
   const items = {}; const equipment = {};
   for (const slot of (Gear.SLOTS || [])) {
     let it = null;
-    try { it = Gear.rollSetItem({ setId: spec.set, slot, ilvl: 80, rng: rngMax }); } catch { it = null; }
+    try { it = Gear.rollSetItem({ setId: set, slot, ilvl: 80, rng: rngMax }); } catch { it = null; }
     if (!it) { try { it = Gear.rollItem({ ilvl: 80, rarity: 5, slot, rng: rngMax }); } catch { it = null; } }
     if (it) { it.id = `${id}_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
   }
-  const m = { uid: id, name: spec.cls, classId: spec.cls, level: 80, grade: 'S', equipment };
-  const trait = (dropTrait === spec.key) ? {} : (traitOfChain(classChain(spec.cls)) || {});
+  const m = { uid: id, name: cls, classId: cls, level: 80, grade: 'S', equipment };
   return {
     ...m, side, stats: mercStats(m, items),
-    skills: (getClass(spec.cls) || {}).skills || [],
+    skills: (getClass(cls) || {}).skills || [],
     slot: SLOTS7[slotIdx], slotIndex: slotIdx,
-    ...trait,
+    ...(withTrait ? (traitOfChain(classChain(cls)) || {}) : {}),
   };
 }
-const squadOf = (side, dropTrait, monk) => {
-  const rows = monk ? SQUAD.map((s) => (s.key === 'priest' ? MONK : s)) : SQUAD;
-  return rows.map((s, i) => build(s, side, i, dropTrait));
-};
+const pickOf = (key, n) => { const arr = POOL[key]; return arr[n % arr.length]; };
+const squadOf = (comp, side, dropKey) => comp.keys.map((key, i) => {
+  const [cls, set] = pickOf(key, comp.pick);
+  return build(cls, set, side, i, key !== dropKey);
+});
 
 /* ── 게이트 ① 장비 ── */
 const naked = mercStats({ uid: 'b', classId: 'archmage_apex', level: 80, grade: 'S', equipment: {} }, {});
-const probe = build({ cls: 'archmage_apex', set: 'starseeker', key: 'apprentice' }, 'ally', 5, null);
+const probe = build('archmage_apex', 'starseeker', 'ally', 5, false);
 const mult = probe.stats.atk / naked.atk;
 if (mult < 3) { console.log(`✗ 장비가 안 붙었다 (${mult.toFixed(1)}x) — 멈춘다`); process.exit(1); }
 
 /* ── 게이트 ② 자리 ── */
 {
-  const b = createBattle({ allies: squadOf('ally', null), enemies: squadOf('enemy', null), seed: 1, getSkill, record: false, rout: false });
+  const b = createBattle({ allies: squadOf(COMPS[0], 'ally', null), enemies: squadOf(COMPS[0], 'enemy', null),
+    seed: 1, getSkill, record: false, rout: false });
   const af = b.units.filter((u) => u.side === 'ally').reduce((p, u) => (u.x > p.x ? u : p));
   const ef = b.units.filter((u) => u.side === 'enemy').reduce((p, u) => (u.x < p.x ? u : p));
   const d = Math.abs(ef.x - af.x);
-  console.log(`게이트 — 장비 ${mult.toFixed(1)}x · 전열끼리 거리 ${d.toFixed(1)} (실제 편성은 12 언저리)`);
+  console.log(`게이트 — 장비 ${mult.toFixed(1)}x · 전열끼리 거리 ${d.toFixed(1)}`);
   if (d > 25) { console.log('✗ 자리가 실제 편성과 다르다 — 멈춘다'); process.exit(1); }
 }
 /* ── 게이트 ③ 표 참조 ── */
@@ -92,33 +110,53 @@ if (mult < 3) { console.log(`✗ 장비가 안 붙었다 (${mult.toFixed(1)}x) �
   }
 }
 
-const N = Number(process.argv[2] || 60);
-const duel = (dropOnB, monk) => {
-  let aw = 0; let dw = 0;
+const N = Number(process.argv[2] || 150);
+const duel = (comp, dropKey) => {
+  let aw = 0;
   for (let s = 1; s <= N; s++) {
     const b = createBattle({
-      allies: squadOf('ally', null, monk), enemies: squadOf('enemy', dropOnB, monk),
+      allies: squadOf(comp, 'ally', null), enemies: squadOf(comp, 'enemy', dropKey),
       seed: s * 7919, getSkill, record: false, rout: false,
       allyFormationId: 'basic', enemyFormationId: 'basic',
     });
     let g = 0;
     while (!b.finished && g++ < 20000) b.step(1 / 60);
-    if (b.winner === 'ally') aw++; else if (b.winner === 'enemy') dw++;
+    if (b.winner === 'ally') aw++;
   }
-  return Math.round(aw / N * 100);
+  return aw / N * 100;
 };
 
-console.log(`\n한계 기여도 — 양쪽 같은 부대, B 만 그 특성을 뺀다 (각 ${N}판)`);
-console.log('50% = 있으나 없으나 같다 · 높을수록 그 특성이 판을 바꾼다\n');
-console.log('빠진 특성        | A 승률');
-const base = duel(null, false);
-console.log(`${'(아무것도 안 뺌)'.padEnd(17)}|${(base + '%').padStart(7)}   ← 50 근처여야 판이 공정하다`);
-const LABEL = {
-  shieldman: '수호(방패병)', swordsman: '반격(검사)', spearman: '요격(창병)',
-  archer: '견제(궁수)', rogue: '은신(도적)', apprentice: '방벽(마법사)', priest: '축복(사제)',
-};
-const rows = [];
-for (const s of SQUAD) rows.push([LABEL[s.key], duel(s.key, false)]);
-rows.push(['금강(수도승)', duel('monk', true)]);
-rows.sort((a, b) => b[1] - a[1]);
-for (const [label, w] of rows) console.log(`${label.padEnd(17)}|${(w + '%').padStart(7)}`);
+console.log(`\n조합 ${COMPS.length}개 · 조건당 ${N}판`);
+console.log('한계 기여도 = (그 특성을 뺀 B 를 상대한 A 의 승률) − (그 조합의 기준선)');
+console.log('0 = 있으나 없으나 같다\n');
+
+const lifts = {};
+const bases = [];
+for (const comp of COMPS) {
+  const base = duel(comp, null);
+  bases.push({ name: comp.name, base });
+  const parts = [];
+  for (const key of comp.keys) {
+    const w = duel(comp, key);
+    const lift = w - base;
+    (lifts[key] = lifts[key] || []).push(lift);
+    parts.push(`${LABEL[key].split('(')[0]} ${lift >= 0 ? '+' : ''}${lift.toFixed(0)}`);
+  }
+  const warn = Math.abs(base - 50) > 6 ? '  ← 기준선이 치우쳤다' : '';
+  console.log(`${comp.name.padEnd(9)} 기준선 ${base.toFixed(0)}%${warn}`);
+  console.log(`          ${parts.join(' · ')}`);
+}
+
+console.log('\n────────────── 조합 평균 ──────────────');
+console.log('특성            | 평균 기여도 | 조합수 | 최소~최대');
+const rows = Object.entries(lifts).map(([k, arr]) => {
+  const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return [k, avg, arr.length, Math.min(...arr), Math.max(...arr)];
+}).sort((a, b) => b[1] - a[1]);
+for (const [k, avg, n, lo, hi] of rows) {
+  console.log(`${LABEL[k].padEnd(16)}|${((avg >= 0 ? '+' : '') + avg.toFixed(1) + '%p').padStart(12)} |${String(n).padStart(7)} | ${lo.toFixed(0)} ~ ${hi.toFixed(0)}`);
+}
+const avgBase = bases.reduce((a, b) => a + b.base, 0) / bases.length;
+console.log(`\n기준선 평균 ${avgBase.toFixed(1)}% (50 에 가까울수록 판이 공정하다)`);
+const spread = rows.length ? rows[0][1] - rows[rows.length - 1][1] : 0;
+console.log(`기여도 폭 ${spread.toFixed(1)}%p (작을수록 계열이 고르다)`);
