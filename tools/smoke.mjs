@@ -5848,6 +5848,152 @@ section('순위표에서 편성 보기');
     'sw.js 의 APP_SHELL 에 ./src/ui/lineupview.js 가 없다');
 }
 
+section('순위표 치트 — 부대 전력·S용병 상한');
+{
+  /* ★★ 순위표 부대 전력 1위에 **게임이 만들 수 없는 값**이 올라왔다 (§96).
+   *   `숨단` — 1일차 · 의뢰 1건 · 최고레벨 37 인데 전력 259,803 (실측 천장 190,470).
+   *
+   *   통과한 이유가 둘이었고 **둘 다 «재 놓고 안 쓴» 종류**다:
+   *     ① POWER_CAP 이 5,000,000 — 바로 위 주석엔 「실측 74,148」 이라 적혀 있었다.
+   *     ② S용병 일차 상한을 `hires`(자기 신고값)가 **넓히는 데** 쓰였다.
+   *        주석은 「넓히는 데는 안전하다」 고 했지만 오탐에만 안전하고 위조에는 아니었다.
+   *
+   * ★ 그래서 글자가 아니라 **판정을 굴려서** 본다. 상수 이름만 확인하면
+   *   값이 헐거워져도 안 걸린다 — 이 저장소가 여러 번 당한 방식이다. */
+  let RL = null; let PC = null;
+  try {
+    RL = await import('../src/game/rules.js');
+    PC = await import('./powerceiling.mjs');
+  } catch (e) { ok(false, '규칙·천장 모듈을 읽는다', String((e && e.message) || e)); }
+
+  if (RL && PC) {
+    /* ── ① 판이 차려졌는가 (장비가 안 붙으면 천장을 낮게 잡는다) ── */
+    for (const g of PC.gates()) faultsPush(`천장 측정의 판이 안 차려졌다: ${g}`);
+
+    /* ── ② 박아 둔 표가 실측과 같은가 ──
+     *   낮으면 정상 플레이어가 표시되고, 높으면 치트가 샌다. 양쪽 다 막는다. */
+    const drift = [];
+    const measured = PC.ceilingTable('S');
+    if (measured.length !== RL.POWER_BY_LEVEL.length) {
+      drift.push(`표 길이가 다르다 (실측 ${measured.length} vs 박힌 값 ${RL.POWER_BY_LEVEL.length})`);
+    } else {
+      measured.forEach((m, i) => {
+        const baked = RL.POWER_BY_LEVEL[i];
+        const off = Math.abs(baked - m.total) / Math.max(1, m.total);
+        if (off > 0.005) {
+          drift.push(`Lv${m.lv} 천장 ${baked} vs 실측 ${m.total} — node tools/powerceiling.mjs 로 다시 떠라`);
+        }
+      });
+    }
+    okAll(drift, '전력 천장 표가 실측과 맞는다', Math.max(1, measured.length));
+
+    /* ── ③ 거절 상한이 실측 천장보다 충분히 위인가 ──
+     *   ★ 거절은 되돌릴 수 없다 — 여기가 좁으면 정상 플레이어가 통째로 막힌다. */
+    const topCeil = measured.length ? measured[measured.length - 1].total : 0;
+    const capFaults = [];
+    if (!(RL.POWER_CAP > topCeil * 3)) capFaults.push(`POWER_CAP ${RL.POWER_CAP} 이 실측 천장 ${topCeil} 의 3배 이하다 — 정상 플레이어를 거절할 수 있다`);
+    if (!(RL.POWER_CAP < 2_000_000)) capFaults.push(`POWER_CAP ${RL.POWER_CAP} 이 아직 헐겁다 (예전 5,000,000 은 천장의 26배였다)`);
+    if (!(RL.POWER_SLACK >= 1.1 && RL.POWER_SLACK <= 2)) capFaults.push(`POWER_SLACK ${RL.POWER_SLACK} 이 이상하다`);
+    okAll(capFaults, '전력 거절 상한이 천장보다 위, 옛 값보다 아래', 3);
+
+    /* ── ④ ★★ 실제 판정 — 치트는 걸리고 정상은 안 걸려야 한다 ──
+     *   프로덕션에 실제로 올라온 값 그대로 쓴다. */
+    const mk = (o) => ({
+      seed: 1, dataVersion: 1, gold: 0, renown: 0, cityId: null, cityTier: 0,
+      squadsN: 5, rosterCap: 0, squad: [], squadsFull: [],
+      abyssBest: 0, abyssBestDay: 0, abyssLastRunDay: 0,
+      towerBest: 0, towerBestDay: 0, towerLastRunDay: 0,
+      hires: 0, specHires: 0,
+      ...o,
+      battlesWon: o.battlesWon != null ? o.battlesWon : (o.questsDone || 0) * 3,
+      hiredN: o.hiredN != null ? o.hiredN : o.rosterN,
+    });
+    /* 실제 치트 등재 */
+    const CHEAT = { day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 259803 };
+    /* 실제 정상 등재 — 계량기가 0 인 옛 세이브까지 포함해 가장 빡빡한 조건으로 본다 */
+    const FAIR = [
+      { nm: '치젤캔', day: 2381, questsDone: 1022, rosterN: 35, sMercs: 35, topLevel: 80, topPower: 184136 },
+      { nm: '랴니', day: 2122, questsDone: 809, rosterN: 38, sMercs: 38, topLevel: 80, topPower: 166894 },
+      { nm: '349일차', day: 349, questsDone: 588, rosterN: 26, sMercs: 0, topLevel: 79, topPower: 46581 },
+      { nm: '34일차', day: 34, questsDone: 27, rosterN: 14, sMercs: 0, topLevel: 20, topPower: 8959 },
+      { nm: '1일차 새 판', day: 1, questsDone: 0, rosterN: 4, sMercs: 0, topLevel: 1, topPower: 0 },
+    ];
+
+    const behave = [];
+    /* 치트는 계량기를 얼마로 적어 올려도 걸려야 한다 — 그게 예전에 뚫린 자리다 */
+    for (const h of [0, 7, 100, 100000]) {
+      const v = RL.judge(null, mk({ ...CHEAT, hires: h, specHires: h }));
+      if (v.verdict === 'ok') behave.push(`치트 등재가 hires=${h} 로 통과한다`);
+      else if (!v.reasons.some((x) => x.includes('부대 전력'))) {
+        behave.push(`치트 등재가 hires=${h} 에서 걸리긴 하는데 전력 사유가 아니다 (${v.reasons.join(' / ')})`);
+      }
+    }
+    /* ★★ S용병 상한을 **따로** 겨눈다.
+     *   처음엔 위 치트 프로필 하나로만 봤는데, `hires` 구멍을 도로 열어도
+     *   **전력 검사가 대신 물어서** 검사가 통과했다 (메타 검사로 잡았다).
+     *   그래서 «전력은 정상인데 S만 이상한» 프로필을 따로 둔다 — 한 검사가
+     *   다른 검사의 구멍을 가리지 못하게. */
+    const S_ONLY = [
+      /* 실제 치트가 쓴 모양 — 1일차에 전원 S */
+      { nm: '1일차 S 7명', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 100000 },
+      /* ★ 며칠 지난 뒤의 모양도 본다. «고용했다고 다 S 가 아니다» 는 환산을 빼면
+       *   1일차는 여전히 걸리지만 10일차가 통째로 뚫린다 — 프로필 하나로는 그걸 못 본다. */
+      { nm: '10일차 S 30명', day: 10, questsDone: 10, rosterN: 30, sMercs: 30, topLevel: 40, topPower: 100000 },
+    ];
+    for (const p of S_ONLY) {
+      for (const h of [0, 7, 100, 100000]) {
+        const v = RL.judge(null, mk({ ...p, hires: h, specHires: h }));
+        if (v.verdict === 'ok') behave.push(`${p.nm} 이 hires=${h} 로 통과한다 (전력은 정상인 경우)`);
+        else if (!v.reasons.some((x) => x.includes('S 용병'))) {
+          behave.push(`${p.nm} 이 hires=${h} 에서 S용병 사유로 안 걸린다 (${v.reasons.join(' / ')})`);
+        }
+      }
+    }
+
+    /* 정상은 계량기 0 에서도 통과해야 한다 */
+    for (const f of FAIR) {
+      const v = RL.judge(null, mk(f));
+      if (v.verdict !== 'ok') behave.push(`정상 등재 ${f.nm} 이 걸린다 — ${v.reasons.join(' / ')}`);
+    }
+    okAll(behave, '치트 등재는 걸리고 정상 등재는 통과한다', 12 + FAIR.length);
+
+    /* ── ⑤ 미래 고용을 안 센다 ──
+     *   1일차 세이브에 hiredDay:2 를 적어 넣어 «고용된 단원» 을 부풀리던 자리다. */
+    const st9 = {
+      day: 1, seed: 1, dataVersion: 1, gold: 0, renown: 0, squads: [], items: [],
+      stats: { battlesWon: 0, questsDone: 0, hires: 0, specHires: 0 },
+      roster: [
+        { uid: 'a', classId: 'swordsman', level: 1, grade: 'S', hiredDay: 2 },
+        { uid: 'b', classId: 'swordsman', level: 1, grade: 'S', hiredDay: 9 },
+        { uid: 'c', classId: 'swordsman', level: 1, grade: 'C', hiredDay: 1 },
+      ],
+    };
+    const ex9 = RL.extractScore(st9);
+    ok(ex9 && ex9.hiredN === 0,
+      '1일차 세이브의 «미래 고용» 은 안 센다',
+      `hiredN ${ex9 && ex9.hiredN} — 0 이어야 한다 (hiredDay 2·9 는 1일차에 불가능)`);
+    const ex9b = RL.extractScore({ ...st9, day: 20 });
+    ok(ex9b && ex9b.hiredN === 2,
+      '지난 고용은 그대로 센다 (20일차면 hiredDay 2·9 는 정상)',
+      `hiredN ${ex9b && ex9b.hiredN} — 2 여야 한다`);
+
+    /* ── ⑥ 서버가 상한을 **손으로 옮겨 적지 않는가** ──
+     *   예전엔 index.ts 에 5_000_000 이 박혀 있었고 rules.js 와 갈라졌다. */
+    const fnPath9 = fileURLToPath(new URL('supabase/functions/submit-score/index.ts', ROOT));
+    if (!existsSync(fnPath9)) {
+      ok(true, '제출 함수가 없어 상한 대조를 건너뜀');
+    } else {
+      const isrc9 = decomment(readFileSync(fnPath9, 'utf8'));
+      const dup = [];
+      if (isrc9.includes('5_000_000') || isrc9.includes('5000000')) dup.push('아직 5,000,000 을 손으로 적어 둔다');
+      if (!isrc9.includes('POWER_CAP')) dup.push('POWER_CAP 을 안 쓴다 — 값이 갈라질 수 있다');
+      okAll(dup, '제출 함수가 전력 상한을 상수로 가져다 쓴다', 2);
+    }
+  }
+
+  function faultsPush(m) { ok(false, '천장 측정의 판', m); }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

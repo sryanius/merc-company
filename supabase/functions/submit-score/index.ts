@@ -20,7 +20,7 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { extractScore, judge, sameRun } from '../_shared/rules.js';
+import { extractScore, judge, sameRun, POWER_CAP } from '../_shared/rules.js';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -162,8 +162,10 @@ function sanitizeSquadsFull(raw: unknown) {
       /* ★★ 부대 전력. **여기에 안 적으면 통째로 버려진다** — 이 함수는 «아는 필드만 남기는»
        *   화이트리스트라, rules.js 에 필드를 더해도 여기를 같이 안 고치면 DB 에 안 들어간다.
        *   실제로 그래서 «부대 전력이 여전히 안 보인다» 는 지적을 받았다 (HANDOFF §58).
-       *   상한은 rules.js 의 POWER_CAP 과 같은 값이다. */
-      p: Number.isFinite(Number(x.p)) ? Math.max(0, Math.min(5_000_000, Math.round(Number(x.p)))) : undefined,
+       * ★★ 상한을 **손으로 옮겨 적지 않는다.** 예전엔 여기에 5_000_000 을 박아 두고
+       *   주석에만 «POWER_CAP 과 같은 값» 이라 적었다 — rules.js 쪽을 고쳐도 여기는 안 따라온다.
+       *   실제로 그 둘이 갈라진 채로 치트 등재가 들어왔다 (§96). 상수를 그대로 쓴다. */
+      p: Number.isFinite(Number(x.p)) ? Math.max(0, Math.min(POWER_CAP, Math.round(Number(x.p)))) : undefined,
       m: mems.slice(0, 7).map((m) => {
         const y = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
         const sets = Array.isArray(y.s) ? y.s.slice(0, 3).map((v) => cut(v, 28)) : undefined;
@@ -239,7 +241,7 @@ function sanitizeSquad(raw: unknown) {
      *   ★ 여기서 한 번 더 클램프한다 — DB 제약에 걸려 **제출 전체가 실패하는** 것보다
      *     상한으로 잘리는 편이 낫다. 값이 이상하면 어차피 status 가 flagged 다. */
     s_mercs: Math.max(0, Math.min(200, Math.round(Number(score.sMercs) || 0))),
-    top_power: Math.max(0, Math.min(5_000_000, Math.round(Number(score.topPower) || 0))),
+    top_power: Math.max(0, Math.min(POWER_CAP, Math.round(Number(score.topPower) || 0))),
     /* 순위표에 보여 줄 대표 부대 스냅샷 (rules.js topSquadOf).
      * ★ 클라이언트가 스스로 신고하는 값이다 — 점수와 마찬가지로 «검증된 편성» 이 아니다.
      *   여기서는 **모양만** 거른다: 배열이고, 7명 이하고, 필드가 예상한 것뿐인가.

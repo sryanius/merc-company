@@ -96,7 +96,13 @@ export function extractScore(st) {
      *
      *   새 게임 시작 단원 4명은 `hiredDay = 1` 이고 등급이 C·C·D·D 로 **고정**이다
      *   (state.js newGame). 즉 **S 는 반드시 고용된 사람**이다. */
-    hiredN: roster.reduce((a, m) => a + (m && (Number(m.hiredDay) || 0) > 1 ? 1 : 0), 0),
+    /* ★ `hiredDay` 가 **오늘 이전**이어야 센다.
+     *   예전엔 `> 1` 만 봤다. 그래서 1일차 세이브에 `hiredDay: 2` 를 적어 넣으면
+     *   «고용된 단원» 이 늘어나 `sMercs > hiredN + START_ROSTER` 검사가 헐거워졌다 (§96). */
+    hiredN: roster.reduce((a, m) => {
+      const hd = Number(m && m.hiredDay) || 0;
+      return a + (hd > 1 && hd <= (Number(st.day) || 0) ? 1 : 0);
+    }, 0),
     topPower: Math.round(Math.max(0, ...(Array.isArray(st.squads) ? st.squads : [])
       .map((sq) => Number(sq && sq.power) || 0), 0)),
     squad: topSquadOf(st),
@@ -354,9 +360,49 @@ export const S_CHANCE_MAX = 0.05;
 /** 운을 봐주는 배수. 4배면 실효 20% — 이걸 넘으면 확률로는 설명이 안 된다. */
 export const S_LUCK_SLACK = 4;
 
-/** 부대 전력 상한. 7명 × 만렙 S × 신화 풀세트를 아주 후하게 잡은 값이다.
- *  실측 기준: 엔드게임 잣대 부대(4차 Lv80 · 10칸 전설)가 74,148 이다 (tools/endgame.mjs). */
-export const POWER_CAP = 5_000_000;
+/** 하루에 볼 수 있는 명물 후보를 아주 후하게 잡은 수.
+ *  주점 목록은 도시 하나에 최대 6명이고(`state.js genTavern`) 그중 명물만 S 가 나온다.
+ *  여러 도시를 도는 경우까지 감안해 6 으로 둔다 — **넓히는 쪽으로 후하게**. */
+export const SPEC_HIRES_PER_DAY = 6;
+
+/**
+ * 레벨별 **부대 전력 천장** — `node tools/powerceiling.mjs` 실측.
+ *
+ * ★★ 손으로 «커 보이는 수» 를 적지 않는다. 예전 `POWER_CAP` 이 정확히 그 실수였다:
+ *   5,000,000 으로 적어 두고 **바로 위 주석에는 「실측 74,148」** 이라 써 놨다.
+ *   재 놓고 안 쓴 것이다. 그 틈으로 전력 259,803 짜리 등재가 순위 1위에 올라왔다 (§96).
+ *
+ * ★ 재는 방식은 클라이언트의 `squadPower` 와 같다 — 7칸 · 진형 하나 고정 · 펫 제외.
+ *   레벨 곡선이 완만한 건 **장비가 지배**하기 때문이다 (Lv1 123k → Lv80 190k).
+ */
+export const POWER_LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80];
+export const POWER_BY_LEVEL = [123543, 131145, 139615, 148078, 156562, 165032, 173516, 181979, 190470];
+
+/** 천장 대비 여유. 걸려도 «표시» 라 게임은 그대로 돌아간다. */
+export const POWER_SLACK = 1.25;
+
+/**
+ * 이 최고레벨에서 부대 하나가 낼 수 있는 전력의 천장 (사이는 선형 보간).
+ * @param {number} level 명부의 최고 레벨
+ */
+export function powerCeiling(level) {
+  const lv = Math.max(1, Math.min(MAX_LEVEL, Number(level) || 1));
+  const st = POWER_LEVEL_STOPS;
+  if (lv <= st[0]) return POWER_BY_LEVEL[0];
+  for (let i = 1; i < st.length; i++) {
+    if (lv > st[i]) continue;
+    const t = (lv - st[i - 1]) / (st[i] - st[i - 1]);
+    return POWER_BY_LEVEL[i - 1] + (POWER_BY_LEVEL[i] - POWER_BY_LEVEL[i - 1]) * t;
+  }
+  return POWER_BY_LEVEL[POWER_BY_LEVEL.length - 1];
+}
+
+/**
+ * 부대 전력 **거절** 상한 — 이 위는 «물리적으로 불가능» 이라 아예 안 받는다.
+ * ★ 표시(flag)선은 `powerCeiling × POWER_SLACK` 이고, 이건 그보다 훨씬 위다.
+ *   측정이 틀렸을 때 정상 플레이어를 거절하는 쪽이 제일 나쁘므로 만렙 천장의 5배로 둔다.
+ */
+export const POWER_CAP = 1_000_000;
 
 /**
  * 증가폭이 게임 규칙으로 설명되는가.
@@ -428,13 +474,43 @@ function absoluteOddities(s) {
    * 실측(tools/tower.mjs): 만렙 풀세트 부대가 500층 중 474층. 그 절반을 1회분으로 본다. */
   if (s.towerBest > towerRuns * 250) bad.push(`탑 ${s.towerBest}층 · ${s.day}일차면 입장 ${towerRuns}회`);
   if (s.abyssBest > abyssRuns * 12) bad.push(`나락 ${s.abyssBest}심층 · ${s.day}일차면 입장 ${abyssRuns}회`);
+
   /* S 는 명물 슬롯에서만, 그것도 최대 5% 다. 하루 한 명씩 나온다 쳐도 이 이상은 안 모인다.
    *
-   * ★ 계량기(hires)가 «그보다 많이 고용했다» 고 말하면 그쪽을 믿는다.
-   *   계량기는 옛 세이브에서 0 이라 **상한을 좁히는 데는 못 쓰지만**, 넓히는 데는 안전하다 —
-   *   0 이면 일차 상한 그대로고, 값이 있으면 그만큼 봐준다. */
-  const sCap = Math.max(2, Math.ceil(s.day * 0.06), Math.max(0, Number(s.hires) || 0));
+   * ★★ 예전에는 계량기(`hires`)를 **그대로** 상한으로 썼다:
+   *       sCap = max(2, ceil(day*0.06), hires)
+   *   주석에 「넓히는 데는 안전하다」 고 적어 뒀는데 **틀렸다.** 오탐에는 안전해도
+   *   **위조에는 안전하지 않다** — `hires` 는 세이브에서 오는 자기 신고값이라,
+   *   그 숫자만 올리면 일차 상한이 통째로 사라진다.
+   *   실제로 그렇게 올라온 등재가 있었다 (`숨단`: 1일차 · S 7명 · 전력 259,803, §96).
+   *
+   * ★ 그래서 두 가지로 묶는다.
+   *     ① **고용했다고 다 S 가 아니다.** 명물 슬롯 확률(S_CHANCE_MAX)에 운 여유(S_LUCK_SLACK)를
+   *        곱한 만큼만 인정한다 — 예전엔 «고용 1회 = S 1명» 이라 5배 후했다.
+   *     ② **그 고용 자체가 날짜 안에 가능해야 한다.** 주점 목록은 하루 최대 6명이고
+   *        (`state.js genTavern`), 그중 명물만 S 가 나온다. 하루 SPEC_HIRES_PER_DAY 로 후하게 잡는다.
+   *
+   * ★ 이래도 오래 한 정상 플레이어는 안 걸린다 — 오히려 넓어진다.
+   *   (168일차 S 36명: 예전 상한 23 → 지금은 고용 기록만 있으면 통과한다.) */
+  const specSeen = Math.max(0, Number(s.specHires) || 0, Number(s.hires) || 0);
+  const specPossible = Math.min(specSeen, s.day * SPEC_HIRES_PER_DAY);
+  const fromHires = Math.ceil(specPossible * S_CHANCE_MAX * S_LUCK_SLACK);
+  const sCap = Math.max(2, Math.ceil(s.day * 0.06), fromHires);
   if (s.sMercs > sCap) bad.push(`S 용병 ${s.sMercs}명 · ${s.day}일차 상한 ${sCap}`);
+
+  /* ★★ 부대 전력이 **게임이 만들 수 있는 값**인가.
+   *
+   *   여기 아무 검사도 없었다. `checkStatic` 의 POWER_CAP 하나뿐이었는데 그게 5,000,000 이라
+   *   실측 천장(190,470)의 26배였다 — 259,803 이 상한의 5% 라 걸릴 수가 없었다.
+   *   §57 에서 «1일차 의뢰 99999» 를 막을 때 일차 상한을 **의뢰·명성에만** 걸었고,
+   *   나중에 추가된 순위 축(S용병·부대 전력, db/008)까지 확장되지 않았던 것이다.
+   *
+   * ★ 거절이 아니라 **표시**다. 내 측정이 틀릴 수 있고(§94 에서 세 번 틀렸다),
+   *   그때 정상 플레이어를 통째로 막는 쪽이 치트 하나를 놓치는 쪽보다 훨씬 나쁘다. */
+  const pCap = Math.ceil(powerCeiling(s.topLevel) * POWER_SLACK);
+  if (s.topPower > pCap) {
+    bad.push(`부대 전력 ${s.topPower} · 최고레벨 ${s.topLevel} 천장 ${pCap}`);
+  }
   return bad;
 }
 
