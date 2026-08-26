@@ -6808,3 +6808,59 @@ select left(md5(user_id::text),6) as who, tier, count(*) n,
 -- 잡아 둔 기록 풀기
 update public.scores set status = 'ok' where company_name = '...' and status = 'held';
 ```
+
+---
+
+## 98. Supabase 를 다른 앱과 공유한다 — RLS 전수 검사를 상설로
+
+제작자: 「침묵의기록자 세션에서 supabase 같이 쓰도록 해두었는데」
+「용병단쪽 데이터에는 침범하지 않도록 했어」
+
+확인했다 — 실제로 그렇다.
+
+```
+용병단  saves saves_archive scores scores_history ledger rejections
+        pvp_defense pvp_ratings pvp_matches pvp_cooldowns pvp_desync   (11개)
+남의 것 tsa_progress                                                    (1개)
+```
+
+`tsa_progress` 는 RLS 켜짐 + 정책 4개가 전부 `auth.uid() = user_id`,
+대상이 `authenticated` 뿐이라 **anon 은 아예 접근이 안 된다.** 게임 테이블은 하나도 안 건드렸다.
+
+### 98.1 그런데 **anon 키가 공유된다**
+
+이 게임의 anon 키는 저장소에 공개돼 있다 — 설계상 그렇고, **RLS 가 방어선**이다
+(`db/README.md`: 「RLS 를 안 켠 테이블 하나가 곧 전체 유출이다」).
+
+프로젝트를 공유하면 그 키도 공유된다. ⇒ **어느 쪽이든 RLS 없는 테이블을 하나 만들면
+양쪽 모두에게 열린다.** 새 테이블은 이제 두 프로젝트 **공동의** 위험이다.
+
+### 98.2 명령을 문서에 적어 두는 건 검사가 아니다
+
+처음엔 확인 쿼리 한 줄을 알려 주고 끝내려 했다. 그건 결국 안 돌린다.
+⇒ **상설 도구 + 스모크 검사**로 만들었다.
+
+- `node tools/rlscheck.mjs` — 실제 조회. RLS 꺼짐이나 `using (true)` 가 있으면 **exit 1**.
+- `tools/lib/rlsjudge.mjs` — **판단만 하는 순수 함수.** 스모크가 DB 없이 굴려 본다.
+  (§97 의 `probePolicy` 와 같은 갈라놓기 — 판단이 무디면 도구를 돌려도 소용없다.)
+
+잡는 것 셋:
+
+| | 뜻 |
+|---|---|
+| RLS 꺼짐 | 공개 anon 키로 통째로 읽힌다 — **fatal** |
+| `using (true)` 가 anon/public 에게 | RLS 를 켠 의미가 없다 — **fatal** |
+| `using (true)` 가 authenticated 에게 | 로그인한 누구나 남의 것을 본다 — **warn** |
+| 처음 보는 테이블 | 공유 프로젝트라 남이 만들 수 있다 — **warn** |
+
+★ **아무것도 못 읽었으면 «통과» 가 아니라 «실패»** 다. 조회가 깨졌을 때 조용히
+초록불이 뜨는 게 제일 나쁘다 — 그것도 심어서 확인했다.
+
+### 98.3 메타 검사
+
+7가지 심어 7가지 다 물렸다: RLS 꺼짐 무시 · `using(true)` 무시 · anon 을 공개 역할에서 뺌 ·
+낯선 테이블 무시 · 빈 결과 통과 · 도구가 판정을 안 부름 · 문제를 찾아도 exit 0.
+
+### 98.4 규칙에 넣었다
+
+`CLAUDE.md` 에 「테이블이나 정책을 만들면 `node tools/rlscheck.mjs` 를 돌린다」 를 적었다.

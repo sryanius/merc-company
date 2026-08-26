@@ -6087,6 +6087,69 @@ section('탐침 차단 — 거절을 반복하면 신호를 끊는다');
   }
 }
 
+section('RLS 전수 — 공개 키로 읽히는 테이블이 없나');
+{
+  /* ★★ 이 Supabase 프로젝트는 **다른 앱과 공유한다** (침묵의 기록자, `tsa_*`).
+   *   그래서 anon 키도 공유되는데, 이 게임의 anon 키는 저장소에 공개돼 있다
+   *   (설계상 그렇다 — RLS 가 방어선이다).
+   *   ⇒ **어느 쪽이든 RLS 없는 테이블을 하나 만들면 양쪽 모두에게 열린다.**
+   *
+   * ★ 실제 조회는 `node tools/rlscheck.mjs` 가 한다 (DB 가 필요하다).
+   *   여기서는 그 **판단 함수**를 굴려 본다 — 판단이 무디면 도구를 돌려도 소용없다. */
+  let RJ = null;
+  try { RJ = await import('./lib/rlsjudge.mjs'); } catch (e) {
+    ok(false, 'RLS 판정 모듈을 읽는다', String((e && e.message) || e));
+  }
+
+  if (RJ) {
+    const T = (tbl, rls_on, policies = 0) => ({ tbl, rls_on, policies });
+    const P = (tablename, cmd, roles, qual, with_check = null) =>
+      ({ tablename, policyname: `${tablename}_${cmd}`.toLowerCase(), cmd, roles, qual, with_check });
+
+    const bites = [];
+
+    /* ① 지금 상태(전부 RLS 켜짐)는 통과해야 한다 — 오탐이 나면 아무도 안 믿는다 */
+    const now = RJ.GAME_TABLES.map((t) => T(t, true, 0)).concat([T('tsa_progress', true, 4)]);
+    const okCase = RJ.judgeTables(now, [
+      P('tsa_progress', 'SELECT', '{authenticated}', '(( SELECT auth.uid() AS uid) = user_id)'),
+    ]);
+    if (okCase.fatal.length) bites.push(`정상 상태를 문제로 본다 — ${okCase.fatal[0]}`);
+    if (okCase.warn.length) bites.push(`정상 상태에 경고가 뜬다 — ${okCase.warn[0]}`);
+
+    /* ② RLS 를 끄면 잡아야 한다 */
+    const off = RJ.judgeTables(now.map((t) => (t.tbl === 'scores' ? T('scores', false, 1) : t)), []);
+    if (!off.fatal.some((x) => x.includes('scores'))) bites.push('RLS 꺼진 테이블을 못 잡는다');
+
+    /* ③ ★ RLS 를 켜 놓고 `using (true)` 를 거는 게 더 흔한 실수다 */
+    const openAnon = RJ.judgeTables(now, [P('scores', 'SELECT', '{anon}', 'true')]);
+    if (!openAnon.fatal.length) bites.push('anon 에게 조건 없이 열린 정책을 못 잡는다 (RLS 를 켠 의미가 없다)');
+    const openAuth = RJ.judgeTables(now, [P('tsa_progress', 'SELECT', '{authenticated}', 'true')]);
+    if (!openAuth.warn.length) bites.push('로그인한 누구나 남의 것을 보는 정책을 못 잡는다');
+    const openWrite = RJ.judgeTables(now, [P('scores', 'INSERT', '{anon}', null, 'true')]);
+    if (!openWrite.fatal.length) bites.push('anon 이 조건 없이 쓰는 정책을 못 잡는다');
+
+    /* ④ 처음 보는 테이블이 생기면 알려 줘야 한다 — 공유 프로젝트라 남이 만들 수 있다 */
+    const stranger = RJ.judgeTables(now.concat([T('mystery_box', true, 0)]), []);
+    if (!stranger.warn.some((x) => x.includes('mystery_box'))) bites.push('처음 보는 테이블을 안 알려 준다');
+
+    /* ⑤ 아무것도 못 읽었으면 «통과» 가 아니라 «실패» 여야 한다.
+     *   ★ 조회가 깨졌을 때 조용히 초록불이 뜨는 게 제일 나쁘다. */
+    if (!RJ.judgeTables([], []).fatal.length) bites.push('테이블을 하나도 못 읽었는데 통과시킨다');
+
+    okAll(bites, 'RLS 판정이 실제로 문다 (꺼짐 · using true · 낯선 테이블)', 8);
+
+    /* ⑥ 도구가 그 판단 함수를 **실제로 부르는가** — import 줄은 걷어내고 본다 */
+    const tsrc = decomment(readFileSync(new URL('rlscheck.mjs', import.meta.url), 'utf8'));
+    const body = tsrc.split(String.fromCharCode(10))
+      .filter((ln) => !ln.trimStart().startsWith('import ')).join(String.fromCharCode(10));
+    const wire = [];
+    if (!body.includes('judgeTables(')) wire.push('rlscheck 가 judgeTables 를 안 부른다');
+    if (!body.includes('RLS_SQL')) wire.push('도구와 판정이 다른 SQL 을 본다');
+    if (!/exitCode = fatal\.length/.test(body)) wire.push('문제를 찾아도 실패로 안 끝난다');
+    okAll(wire, 'RLS 도구가 판정 함수를 실제로 물려 놨다', 3);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
