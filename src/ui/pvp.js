@@ -15,6 +15,7 @@ import * as Pvp from '../net/pvp.js';
 import { ENGINE_HASH } from '../data/enginever.js';
 import * as Auth from '../net/auth.js';
 import { toast, go } from './app.js';
+import { lineupNode } from './lineupview.js';
 
 export const meta = { id: 'pvp', title: 'PvP' };
 
@@ -115,7 +116,59 @@ let dataAt = 0;
 let dataPromise = null;
 
 /** 다음 그리기에서 반드시 새로 받게 한다 */
-function dropCache() { dataPromise = null; dataAt = 0; }
+function dropCache() { dataPromise = null; dataAt = 0; lineupCache.clear(); }
+
+/* ── 순위표에서 편성 보기 ────────────────────────────────────────
+ *
+ * ★★ 제작자: 「pvp 순위에서 부대 보는거 안되나?」
+ *
+ *   §93 에서는 **일부러 안 줬다** — 도전 전에 남의 편성을 보면 «맞춰 짜기» 가 되기 때문이다.
+ *   그 설명을 읽은 뒤 제작자가 「순위표의 누구나」 로 정했다. 그 결정을 따른다.
+ *   되돌릴 곳은 `db/011_pvp_lineup.sql` 의 grant 한 줄이다.
+ *
+ * ★ 편성 하나가 약 19KB 다. 순위표에 통째로 실으면 목록이 무거워지므로
+ *   **누른 사람 것만** 따로 받는다 (§007 의 400KB 교훈).
+ *
+ * ★ 받은 건 화면에 남겨 둔다 — 접었다 폈다 할 때마다 다시 받을 이유가 없다.
+ *   «새로고침» 은 이것도 같이 비운다 (남이 다시 등록했을 수 있다).
+ */
+const lineupCache = new Map();
+
+async function fetchLineup(handle) {
+  if (lineupCache.has(handle)) return lineupCache.get(handle);
+  const res = await Pvp.lineup(handle);
+  const row = res && res.ok && Array.isArray(res.data) ? res.data[0] : null;
+  const units = row && Array.isArray(row.units) ? row.units : null;
+  if (units) lineupCache.set(handle, units);
+  return units;
+}
+
+async function toggleBoardLineup(btn, host, r, mine) {
+  if (host.childNodes.length) {
+    host.textContent = '';
+    host.style.display = 'none';
+    btn.textContent = '편성';
+    return;
+  }
+  host.style.display = '';
+  host.appendChild(el('div', { class: 'tiny faint', text: '불러오는 중…' }));
+  btn.disabled = true;
+  try {
+    const squads = await fetchLineup(r.handle);
+    host.textContent = '';
+    if (!squads || !squads.length) {
+      host.appendChild(el('div', { class: 'tiny faint', text: '편성을 불러오지 못했다.' }));
+      return;
+    }
+    host.appendChild(lineupNode([{ squads, mine }]));
+    btn.textContent = '접기';
+  } catch (e) {
+    host.textContent = '';
+    host.appendChild(el('div', { class: 'tiny faint', text: `편성을 펴지 못했다: ${String((e && e.message) || e)}` }));
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function pvpData() {
   if (dataPromise && (Date.now() - dataAt) < CACHE_MS) return dataPromise;
@@ -415,14 +468,27 @@ function boardPanel() {
     list.textContent = '';
     coolBtns = [];
     for (const r of rows) {
-      const mine = myHandle && r.handle === myHandle;
-      list.appendChild(el('div', { class: `pv-row${mine ? ' pv-me' : ''}` },
+      const mine = !!(myHandle && r.handle === myHandle);
+
+      /* ★ 편성은 **줄 아래**에 편다. 격자(.pv-row) 안에 넣으면 열이 어긋난다. */
+      const luHost = el('div', { style: { display: 'none', padding: '0 8px 8px' } });
+      const luBtn = el('button', {
+        class: 'btn sm ghost',
+        title: mine ? '내가 등록해 둔 편성을 본다' : '이 용병단의 등록 편성을 본다',
+        onClick: () => { toggleBoardLineup(luBtn, luHost, r, mine); },
+      }, '편성');
+
+      list.appendChild(el('div', {},
+        el('div', { class: `pv-row${mine ? ' pv-me' : ''}` },
         el('div', { class: 'pv-rank', text: String(r.rank) }),
         el('div', { class: 'col', style: { gap: '1px', minWidth: '0' } },
           el('b', { style: { fontSize: '13px' }, text: r.company_name }),
           el('div', { class: 'tiny faint', text: `${r.wins}승 ${r.losses}패` })),
         el('div', { class: 'pv-rt', text: num(r.rating) }),
-        mine
+        /* ★ 편성 버튼과 도전 버튼을 **한 칸에** 넣는다 — 열 수가 그대로라 순위표 배치가 안 흔들린다 */
+        el('div', { class: 'row', style: { gap: '4px', alignItems: 'center' } },
+          luBtn,
+          mine
           ? el('span', { class: 'tiny faint', text: '나' })
           : (() => {
             /* ★★ 쿨타임이면 **버튼 자체를 막고 남은 초를 보인다.**
@@ -439,7 +505,8 @@ function boardPanel() {
             /* 남은 초를 직접 줄이기 위해 버튼과 상대를 짝지어 둔다 */
             coolBtns.push({ el: b, handle: r.handle });
             return b;
-          })()));
+          })())),
+        luHost));
     }
     if (coolBtns.some(({ handle }) => cooldownLeft(handle))) startCoolTick();
   })();

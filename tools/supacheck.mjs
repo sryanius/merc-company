@@ -121,6 +121,57 @@ else if (lb.status === 200) pass(`있다 — 등재 ${Array.isArray(lb.json) ? l
 else if (lb.status === 401 || lb.status === 403) warn('로그인해야 읽힌다 — 순위표는 누구나 보는 편이 낫다');
 else warn(`HTTP ${lb.status} ${lb.text.slice(0, 100)}`);
 
+/* ── 6. PvP RPC ──────────────────────────────────────────────
+ *
+ * ★★ 여기는 원래 통째로 비어 있었다 — `supacheck` 가 `leaderboard` 하나만 쳤다.
+ *   그래서 PvP 스키마를 안 올려도 «✅ 설정 완료» 가 떴다. **안 재는 검사는 검사가 아니다.**
+ *
+ * ★ 방향이 둘로 갈린다. 순위표와 편성은 **열려 있어야** 맞고 (로그인 없이 본다),
+ *   재생은 **닫혀 있어야** 맞다 (내가 낀 판만). 둘을 같은 잣대로 보면 안 된다.
+ */
+console.log('\n── 6. PvP RPC');
+{
+  const rpc = (name, body) => fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }))
+    .catch((e) => ({ status: 0, json: { message: String(e.message || e) } }));
+
+  const b = await rpc('pvp_board', { p_limit: 5 });
+  if (b.json?.code === 'PGRST202') fail('pvp_board() 가 없다 — db/010_pvp.sql 미적용');
+  else if (b.status !== 200) fail(`pvp_board — HTTP ${b.status} ${b.json?.message || ''}`);
+  else {
+    const rows = Array.isArray(b.json) ? b.json : [];
+    pass(`pvp_board — 로그인 없이 읽힌다 (${rows.length}단)`);
+
+    /* 편성은 **순위표와 같은 범위**로 열려 있어야 한다.
+     * ★ 손잡이가 있어야 물어볼 수 있다 — 등록된 단이 없으면 건너뛴다 (실패가 아니다). */
+    const handle = rows[0]?.handle;
+    if (!handle) warn('pvp_lineup — 등록된 단이 없어 못 쟀다');
+    else {
+      const l = await rpc('pvp_lineup', { p_handle: handle });
+      if (l.json?.code === 'PGRST202') fail('pvp_lineup() 이 없다 — db/011_pvp_lineup.sql 미적용');
+      else if (l.status === 401 || l.status === 403) {
+        fail('pvp_lineup — 로그인해야 열린다. 순위표는 로그인 없이 보이므로 버튼만 뜨고 눌리면 실패한다');
+      } else if (l.status !== 200) fail(`pvp_lineup — HTTP ${l.status} ${l.json?.message || ''}`);
+      else {
+        const row = Array.isArray(l.json) ? l.json[0] : null;
+        const squads = Array.isArray(row?.units) ? row.units : null;
+        if (!squads) fail('pvp_lineup — units 를 안 준다');
+        else if ('raw' in (row || {})) fail('pvp_lineup — ★ raw(장비 원본)가 새 나간다');
+        else if ('user_id' in (row || {})) fail('pvp_lineup — ★ user_id 가 새 나간다');
+        else pass(`pvp_lineup — 로그인 없이 읽힌다 (부대 ${squads.length} · raw/user_id 없음)`);
+      }
+    }
+  }
+
+  /* 재생은 반대다 — 익명에게 남의 판이 보이면 안 된다 */
+  const rp = await rpc('pvp_replay', { p_id: 1 });
+  if (rp.json?.code === 'PGRST202') fail('pvp_replay() 가 없다 — db/010_pvp.sql 미적용');
+  else if (rp.status === 200 && Array.isArray(rp.json) && rp.json.length) {
+    fail('pvp_replay — ★ 익명에게 남의 판이 보인다');
+  } else pass('pvp_replay — 익명에게는 안 보인다 (의도한 것)');
+}
+
 /* ── 결과 ──────────────────────────────────────────────────── */
 console.log('\n' + '─'.repeat(72));
 if (fails) {

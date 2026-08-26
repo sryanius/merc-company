@@ -4946,14 +4946,19 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
 
 
   /* ★ 양쪽 편성을 표로 볼 수 있는가 (제작자: 「내꺼나 상대 부대 편성정보 볼수있나」).
-   *   순위표는 안 준다(도전 전 정찰 방지). 전적은 내가 싸운 판이라 cfg 가 온다. */
+   *   전적은 내가 싸운 판이라 cfg 가 온다.
+   *
+   * ★★ 표를 그리는 코드는 **`ui/lineupview.js` 로 옮겼다** — 순위표(`ui/pvp.js`)도 같은 것을 쓴다.
+   *   그래서 여기서는 «재생이 그 공용 렌더러에 양쪽을 넘기는가» 를 본다.
+   *   복사본을 남겨 두면 반드시 갈라지므로 **여기 다시 그리는 코드가 있으면 걸리게** 해 뒀다. */
   {
     const gaps3 = [];
-    if (!/function lineupNode\(\)/.test(rsrc)) gaps3.push('편성 표를 그리는 곳이 없다');
-    if (!/S\.cfg\.attacker/.test(rsrc) || !/S\.cfg\.defender/.test(rsrc)) gaps3.push('양쪽 편성을 다 안 보여 준다');
+    if (!/from '\.\/lineupview\.js'/.test(rsrc)) gaps3.push('공용 편성 렌더러를 안 쓴다');
+    if (!/S\.cfg\.attacker/.test(rsrc) || !/S\.cfg\.defender/.test(rsrc)) gaps3.push('양쪽 편성을 다 안 넘긴다');
     if (!/'편성'/.test(rsrc)) gaps3.push('편성 버튼이 없다');
-    if (!/mercs\.length < 3/.test(rsrc)) gaps3.push('단원이 적은 부대를 안 알려 준다 (§92 재발 방지)');
-    okAll(gaps3, '재생에서 양쪽 부대 편성을 표로 볼 수 있다', 4);
+    /* 옮겨 놓고 복사본이 남으면 둘이 갈라진다 — 이 파일에는 표를 그리는 코드가 없어야 한다 */
+    if (/rp-lu/.test(rcode)) gaps3.push('편성 표를 여기서 또 그린다 (lineupview.js 와 갈라진다)');
+    okAll(gaps3, '재생이 공용 편성 렌더러에 양쪽을 넘긴다', 4);
   }
 
   /* ★★ **앞으로의 합을 미리 보여 주지 않는다.**
@@ -5745,6 +5750,102 @@ section('PvP 등록은 부상을 무시한다');
   if (!/지금 편성/.test(psrc6)) faults.push('화면에 지금 편성 인원을 안 보여준다');
   if (!/단원이 3명 미만인 부대/.test(psrc6)) faults.push('인원이 모자란 부대를 경고하지 않는다');
   okAll(faults, '편성 인원이 사람 눈에 보인다 (조용히 비는 일이 없게)', 3);
+}
+
+section('순위표에서 편성 보기');
+{
+  /* ★★ 제작자: 「pvp 순위에서 부대 보는거 안되나?」 → 「순위표의 누구나」 로 정했다.
+   *
+   *   §93 에서는 **일부러 막아 뒀던** 것이라, 이 검사는 «막혔나» 가 아니라
+   *   «제대로 열렸나» 를 본다. 열어 두기로 한 이상 **반쯤 열린 상태가 제일 나쁘다** —
+   *   버튼은 보이는데 서버가 거절하면 사람은 고장으로 읽는다.
+   */
+  const psrc7 = decomment(readFileSync(srcDir('ui/pvp.js'), 'utf8'));
+  const nsrc7 = decomment(readFileSync(srcDir('net/pvp.js'), 'utf8'));
+  const lsrc7 = decomment(readFileSync(srcDir('ui/lineupview.js'), 'utf8'));
+
+  /* ① 화면 — 버튼이 있고, 눌러서 받아 오고, 공용 렌더러로 그린다 */
+  const gaps7 = [];
+  if (!/'편성'/.test(psrc7)) gaps7.push('순위표에 편성 버튼이 없다');
+  if (!/Pvp\.lineup\(/.test(psrc7)) gaps7.push('편성을 서버에서 안 받아 온다');
+  if (!/lineupNode\(/.test(psrc7)) gaps7.push('공용 렌더러로 안 그린다');
+  if (/rp-lu/.test(psrc7)) gaps7.push('편성 표를 여기서 또 그린다 (lineupview.js 와 갈라진다)');
+  /* ★ 받은 걸 캐시하고, «새로고침» 이 그 캐시도 비우는가 —
+   *   안 비우면 상대가 다시 등록해도 옛 편성이 계속 보인다 */
+  if (!/lineupCache/.test(psrc7)) gaps7.push('편성을 캐시하지 않는다 (접을 때마다 다시 받는다)');
+  if (!/function dropCache\(\)[^\n]*lineupCache\.clear\(\)/.test(psrc7)) {
+    gaps7.push('새로고침이 편성 캐시를 안 비운다 — 상대가 다시 등록해도 옛 편성이 보인다');
+  }
+  okAll(gaps7, '순위표에서 편성을 눌러 볼 수 있다', 6);
+
+  /* ② 통로 — 순위표와 **같은 방식**으로 부른다.
+   *   `board()` 는 로그인 없이 부르는 `call` 이다. 편성만 `authed` 로 부르면
+   *   로그아웃 상태에서 «버튼은 보이는데 눌리면 실패» 가 된다. */
+  const wants7 = [];
+  if (!/export async function lineup\(/.test(nsrc7)) wants7.push('lineup() 이 없다');
+  if (!/rpc\('pvp_lineup'\)/.test(nsrc7)) wants7.push('pvp_lineup RPC 를 안 부른다');
+  {
+    const m = nsrc7.match(/export async function lineup\([^)]*\)\s*\{([\s\S]*?)\n\}/);
+    const body = m ? m[1] : '';
+    if (!body) wants7.push('lineup() 본문을 못 읽었다');
+    else if (!/\bcall\(/.test(body) || /\bauthed\(/.test(body)) {
+      wants7.push('편성을 순위표와 다른 방식으로 부른다 (board 는 call, 편성도 call 이어야 한다)');
+    }
+  }
+  okAll(wants7, '편성 통로가 순위표와 같다 (로그인 없이도 열린다)', 3);
+
+  /* ③ 서버 — 마이그레이션이 있고, 노출면이 좁고, 순위표와 같은 대상에게 열려 있는가.
+   *   ★ 여기서 틀리면 화면만 고쳐도 안 된다. SQL 을 글자로 대조한다. */
+  const sqlPath7 = fileURLToPath(new URL('db/011_pvp_lineup.sql', ROOT));
+  if (!existsSync(sqlPath7)) {
+    ok(false, '편성 RPC 마이그레이션이 있다', 'db/011_pvp_lineup.sql 이 없다');
+  } else {
+    /* ★★ **주석을 지우고 본다.** 이 파일 머리에 설계를 길게 적어 뒀는데,
+     *   거기 `r.status = 'ok'` 같은 조각이 그대로 들어 있어서
+     *   코드에서 그 줄을 지워도 검사가 **주석에 맞아 통과**했다 (메타 검사로 잡았다).
+     *   이 저장소가 전에 `rout: false` 로 똑같이 당한 적이 있다. */
+    /* ★ 줄로 쪼갤 때 `\r` 까지 떼어 낸다. 처음엔 `/--.*$/` 로 썼는데 **한 줄도 안 지워졌다** —
+     *   JS 의 `.` 은 `\r` 을 안 먹어서 CRLF 파일에서는 `$` 앵커가 영영 안 맞는다.
+     *   검사는 통과인데 하는 일이 없는 상태였고, 메타 검사가 아니었으면 못 봤다. */
+    const sql7 = readFileSync(sqlPath7, 'utf8').split(/\r?\n/).map((ln) => ln.replace(/--.*/, '')).join('\n');
+    const bad7 = [];
+    if (!/create or replace function public\.pvp_lineup\(p_handle uuid\)/.test(sql7)) {
+      bad7.push('pvp_lineup(p_handle uuid) 를 안 만든다');
+    }
+    /* RLS 를 우회하는 유일한 통로 — security definer + search_path 고정이 아니면 위험하다 */
+    if (!/language sql stable security definer set search_path = ''/.test(sql7)) {
+      bad7.push("language sql stable security definer set search_path = '' 형태가 아니다");
+    }
+    /* ★★ 노출면 — raw(장비 원본)와 user_id 는 **절대 안 나간다** */
+    if (/\bd\.raw\b/.test(sql7)) bad7.push('raw(장비 원본)를 내보낸다 — 남의 굴림값까지 열린다');
+    if (/\bd\.user_id\b|\bselect[\s\S]*user_id/.test(sql7.replace(/r\.user_id|d\.user_id = |on r\.user_id = d\.user_id/g, ''))) {
+      bad7.push('user_id 를 내보낸다');
+    }
+    /* 순위에서 숨긴 사람(flagged)은 편성도 숨어야 한다 — 순위표와 같은 조건 */
+    if (!/r\.status = 'ok'/.test(sql7)) bad7.push("순위에서 숨긴 사람(status != 'ok')의 편성도 준다");
+    if (!/grant execute on function public\.pvp_lineup\(uuid\) to anon, authenticated/.test(sql7)) {
+      bad7.push('순위표와 같은 대상에게 열지 않는다 (anon, authenticated)');
+    }
+    okAll(bad7, '편성 RPC 가 순위표와 같은 범위로만 열린다', 6);
+  }
+
+  /* ④ 공용 렌더러가 **자기 CSS 를 들고 있는가.**
+   *   ★★ 예전엔 `.rp-lu*` 를 재생 화면이 넣었다. 그대로 뒀다면
+   *   «재생을 한 번도 안 연 사람은 순위표에서 표가 깨진다» 가 된다. 눈에 안 띄는 종류다. */
+  const css7 = [];
+  if (!/\.rp-lu \{/.test(lsrc7)) css7.push('편성 표 CSS 를 안 들고 있다');
+  if (!/export function injectLineupStyle/.test(lsrc7)) css7.push('CSS 를 넣는 함수가 없다');
+  if (!/injectLineupStyle\(\)/.test(lsrc7.replace(/export function injectLineupStyle[^\n]*/, ''))) {
+    css7.push('CSS 를 넣는 함수를 아무도 안 부른다');
+  }
+  okAll(css7, '편성 표가 자기 CSS 를 들고 다닌다', 3);
+
+  /* ⑤ 새 모듈이 오프라인 목록에 들어갔는가 —
+   *   빠지면 PWA 로 설치한 사람은 순위표에서 편성이 통째로 안 뜬다 */
+  const swsrc7 = readFileSync(fileURLToPath(new URL('sw.js', ROOT)), 'utf8');
+  ok(/\.\/src\/ui\/lineupview\.js/.test(swsrc7),
+    '새 편성 모듈이 오프라인 목록(APP_SHELL)에 있다',
+    'sw.js 의 APP_SHELL 에 ./src/ui/lineupview.js 가 없다');
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

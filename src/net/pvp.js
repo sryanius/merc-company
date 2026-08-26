@@ -90,6 +90,21 @@ export async function board(limit = 100) {
   return call(EP.rpc('pvp_board'), { method: 'POST', body: { p_limit: limit } });
 }
 
+/**
+ * 순위표에 뜬 용병단 하나의 등록 편성.
+ *
+ * ★ 순위표와 **같은 통로**다 — 로그인 없이도 본다 (`board()` 와 같은 `call`).
+ *   한쪽만 로그인을 요구하면 «버튼은 보이는데 눌리면 실패» 가 된다.
+ *
+ * ★ 목록에 안 싣고 **한 명씩 부른다.** 편성 하나가 약 19KB 라 순위표에 통째로 얹으면
+ *   목록이 무거워진다 (§007 의 400KB 교훈).
+ *
+ * @param {string} handle `pvp_board()` 가 준 handle
+ */
+export async function lineup(handle) {
+  return call(EP.rpc('pvp_lineup'), { method: 'POST', body: { p_handle: handle } });
+}
+
 /** 내 레이팅·순위 */
 export async function me() {
   return authed(EP.rpc('pvp_me'), { method: 'POST', body: {} }, Auth);
