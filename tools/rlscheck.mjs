@@ -48,13 +48,21 @@ try {
   process.exit(2);
 }
 
-const { fatal, warn, seen } = judgeTables(data.tables, data.policies);
+const { fatal, warn, seen } = judgeTables(data.tables, data.policies, data.buckets, data.storage_policies);
 
 console.log('public 테이블');
 for (const t of data.tables) {
   const owner = GAME_TABLES.includes(t.tbl) ? '용병단'
     : (KNOWN_FOREIGN.find((f) => t.tbl.startsWith(f.prefix)) || {}).owner || '???';
   console.log(`  ${t.tbl.padEnd(22)} RLS ${t.rls_on ? '켜짐' : '꺼짐'}  정책 ${String(t.policies).padStart(2)}   ${owner}`);
+}
+console.log('');
+console.log('Storage 버킷');
+for (const b of (data.buckets || [])) {
+  console.log(`  ${String(b.id).padEnd(22)} ${b.is_public ? 'public(누구나)' : 'private'}`);
+}
+for (const p of (data.storage_policies || [])) {
+  console.log(`  정책 ${String(p.policyname).padEnd(18)} ${String(p.roles).padEnd(18)} ${p.qual || p.with_check || ''}`);
 }
 console.log('');
 console.log(`용병단 ${seen.game}개 · 남의 것 ${seen.foreign}개 · 모르는 것 ${seen.unknown.length}개`);

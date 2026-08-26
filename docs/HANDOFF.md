@@ -6864,3 +6864,60 @@ update public.scores set status = 'ok' where company_name = '...' and status = '
 ### 98.4 규칙에 넣었다
 
 `CLAUDE.md` 에 「테이블이나 정책을 만들면 `node tools/rlscheck.mjs` 를 돌린다」 를 적었다.
+
+### 98.5 자료실 쪽에도 같은 검사를 넣었다 (제작자 요청)
+
+`C:\claude\app\cloud\rlscheck.ps1` + `rlscheck.sql`. **파일 두 개를 더했을 뿐,
+기존 파일은 `001_tsa.sql` 주석 한 덩이 append 말고는 안 건드렸다** — 그쪽은 git 이 없어서
+되돌릴 수가 없다. 조회는 그쪽의 `run_sql.ps1`(Management API) 을 그대로 부른다.
+
+★ 판정 기준은 **양쪽이 같아야 한다** — 같은 데이터베이스를 보는데 기준이 다르면
+한쪽만 초록불이 뜬다. 그래서 게임 쪽 `rlsjudge.mjs` 도 **Storage 까지 보게** 넓혔다.
+
+### 98.6 Storage 를 검사에 넣으면서 드러난 것
+
+자료실은 비공개 버킷 `tsa-data` 를 쓴다 (상용 게임에서 뽑은 데이터라 공개 저장소에 안 올린다).
+버킷 자체는 `private` 인데 **정책이 `authenticated` 전체에 열려 있다** —
+`using (bucket_id = 'tsa-data')`, 소유자 조건이 없다.
+
+★★ 그런데 **auth 를 공유한다.** 즉 `authenticated` 는 «내 계정» 이 아니라
+**용병단에 가입한 사람 전부**를 포함한다. 그래서 경고로 잡게 했다.
+
+곁들여 확인한 인증 설정 (`/auth/v1/settings`):
+
+| | |
+|---|---|
+| 익명 로그인 | **꺼짐** |
+| 이메일 가입 | 열림 (`disable_signup: false`) |
+
+★ `tools/supacheck.mjs` 가 「익명 로그인이 꺼져 있다」 고 한 것을 §95 무렵에
+**오탐으로 넘겼는데 오탐이 아니었다.** 실제로 꺼져 있다.
+`db/README.md` 는 「로그인 화면 없이 랭킹에 참여시키려면 이게 필요하다」 고 적어 뒀으니,
+지금 게임은 이메일 가입을 거쳐야 한다는 뜻이다 — 의도한 것인지 확인이 필요하다.
+
+### 98.7 자료실 쪽에서 걸린 두 가지 (기록해 둔다)
+
+**(a) `run_sql.ps1` 은 pwsh 7 에서만 된다.** 헤더에는 `powershell -File` 로 적혀 있는데
+5.1 에서는 400 이 온다: 5.1 의 `ConvertTo-Json` 이 `Get-Content -Raw` 가 준 문자열을
+`{"value":"...","Count":1}` 로 감싼다. Management API 가
+「expected string, received object」 로 거절한다.
+⇒ 남의 스크립트라 손대지 않고, `rlscheck.ps1` 이 **스스로 7 로 갈아탄다.**
+
+**(b) PowerShell 스크립트는 성공하면 `$LASTEXITCODE` 를 안 건드린다.**
+옛 값이 남아 「조회 실패」 를 잘못 띄웠다. 부르기 전에 0 으로 밀어 둔다.
+
+### 98.8 메타 검사
+
+게임 쪽 4가지(버킷 public 무시 · Storage 정책 무시 · 소유자 조건 확인 제거 ·
+도구가 Storage 를 안 넘김) 전부 물린다.
+
+자료실 쪽은 공유 DB 에 일부러 취약한 테이블을 만들 수 없으니
+`-InputFile` 로 **합성 입력**을 먹이는 문을 뒀다. 8가지를 넣어 전부 옳게 갈렸다:
+
+```
+정상               exit=0
+RLS 꺼짐            exit=1     anon 에 using(true)  exit=1
+버킷 public         exit=1     버킷 정책이 anon      exit=1
+소유자 조건 없음      exit=0 (경고)  낯선 테이블        exit=0 (경고)
+빈 결과             exit=1   ← 조회가 깨졌을 때 조용히 통과하면 안 된다
+```

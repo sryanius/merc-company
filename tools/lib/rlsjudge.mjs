@@ -41,9 +41,11 @@ const rolesOf = (r) => String(r == null ? '' : r)
  *
  * @param {Array<{tbl:string, rls_on:boolean, policies:number}>} tables
  * @param {Array<{tablename:string, policyname:string, cmd:string, roles:string, qual:string, with_check:string}>} policies
+ * @param {Array<{id:string, is_public:boolean}>} [buckets] Storage 버킷
+ * @param {Array<object>} [storagePolicies] Storage 정책
  * @returns {{fatal:string[], warn:string[], seen:{game:number, foreign:number, unknown:string[]}}}
  */
-export function judgeTables(tables, policies = []) {
+export function judgeTables(tables, policies = [], buckets = [], storagePolicies = []) {
   const fatal = [];
   const warn = [];
   const seen = { game: 0, foreign: 0, unknown: [] };
@@ -88,6 +90,30 @@ export function judgeTables(tables, policies = []) {
     }
   }
 
+  /* ④ ★★ Storage — **테이블이 아무리 안전해도 버킷이 열려 있으면 소용없다.**
+   *   공유 프로젝트라 남의 버킷도 여기서 같이 본다 (자료실의 `tsa-data`). */
+  for (const b of (Array.isArray(buckets) ? buckets : [])) {
+    if (b && b.is_public) {
+      fatal.push(`버킷 ${b.id}: public 이다 — 주소만 알면 로그인 없이 받아진다`);
+    }
+  }
+  for (const p of (Array.isArray(storagePolicies) ? storagePolicies : [])) {
+    const roles = rolesOf(p && p.roles);
+    const who = roles.join(',') || '(전체)';
+    const toPublic = roles.some((r) => PUBLIC_ROLES.includes(r)) || !roles.length;
+    if (toPublic) {
+      fatal.push(`Storage 정책 ${p.policyname}: ${who} 에게 열려 있다 — 로그인 없이 받아진다`);
+      continue;
+    }
+    /* ★ `authenticated` 는 «내 계정» 이 아니다. 두 프로젝트가 auth 를 공유하므로
+     *   **한쪽에 가입한 사람은 다른 쪽에서도 authenticated** 다.
+     *   소유자 조건이 없으면 그들도 그대로 받아 간다. */
+    const owned = /auth\.uid\(\)/.test(String((p && p.qual) || '') + String((p && p.with_check) || ''));
+    if (roles.includes('authenticated') && !owned) {
+      warn.push(`Storage 정책 ${p.policyname}: 소유자 조건이 없다 — 다른 프로젝트에 가입한 사람도 받아 갈 수 있다 (auth 를 공유한다)`);
+    }
+  }
+
   for (const u of seen.unknown) {
     warn.push(`${u}: 처음 보는 테이블이다 — 주인이 누구인지 확인하고 rlsjudge.mjs 의 목록에 적어라`);
   }
@@ -95,7 +121,9 @@ export function judgeTables(tables, policies = []) {
   return { fatal, warn, seen };
 }
 
-/** 조회에 쓰는 SQL (도구와 검사가 **같은 것**을 본다) */
+/** 조회에 쓰는 SQL (도구와 검사가 **같은 것**을 본다).
+ *  ★ 자료실(`C:\claude\app\cloud\rlscheck.sql`) 과 **같은 것을 물어야 한다** —
+ *    같은 데이터베이스를 보는데 판정 기준이 다르면 한쪽만 초록불이 뜬다. */
 export const RLS_SQL = `select json_build_object(
   'tables', coalesce((select json_agg(x) from (
      select c.relname as tbl, c.relrowsecurity as rls_on,
@@ -107,5 +135,11 @@ export const RLS_SQL = `select json_build_object(
   'policies', coalesce((select json_agg(y) from (
      select tablename, policyname, cmd, roles::text as roles, qual, with_check
        from pg_policies where schemaname='public'
-      order by tablename, policyname) y), '[]'::json)
+      order by tablename, policyname) y), '[]'::json),
+  'buckets', coalesce((select json_agg(z) from (
+     select id, public as is_public from storage.buckets order by id) z), '[]'::json),
+  'storage_policies', coalesce((select json_agg(w) from (
+     select tablename, policyname, cmd, roles::text as roles, qual, with_check
+       from pg_policies where schemaname='storage'
+      order by tablename, policyname) w), '[]'::json)
 ) as data;`;

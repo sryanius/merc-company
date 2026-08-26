@@ -6128,25 +6128,46 @@ section('RLS 전수 — 공개 키로 읽히는 테이블이 없나');
     const openWrite = RJ.judgeTables(now, [P('scores', 'INSERT', '{anon}', null, 'true')]);
     if (!openWrite.fatal.length) bites.push('anon 이 조건 없이 쓰는 정책을 못 잡는다');
 
-    /* ④ 처음 보는 테이블이 생기면 알려 줘야 한다 — 공유 프로젝트라 남이 만들 수 있다 */
+    /* ④ ★★ Storage — 테이블이 아무리 안전해도 버킷이 열려 있으면 소용없다.
+     *   자료실(침묵의 기록자)이 버킷을 쓰고, **auth 를 공유**하므로 여기도 같이 본다. */
+    const B = (id, is_public) => ({ id, is_public });
+    const SP = (policyname, roles, qual) => ({ tablename: 'objects', policyname, cmd: 'SELECT', roles, qual, with_check: null });
+    const okStore = [B('tsa-data', false)];
+    const okStorePol = [SP('tsa_data_read', '{authenticated}', '((SELECT auth.uid()) = owner)')];
+
+    const clean = RJ.judgeTables(now, [], okStore, okStorePol);
+    if (clean.fatal.length || clean.warn.length) bites.push(`정상 Storage 를 문제로 본다 — ${(clean.fatal[0] || clean.warn[0])}`);
+
+    const pubBucket = RJ.judgeTables(now, [], [B('tsa-data', true)], okStorePol);
+    if (!pubBucket.fatal.length) bites.push('public 버킷을 못 잡는다 — 주소만 알면 로그인 없이 받아진다');
+
+    const anonPol = RJ.judgeTables(now, [], okStore, [SP('tsa_data_read', '{anon}', 'true')]);
+    if (!anonPol.fatal.length) bites.push('anon 에게 열린 Storage 정책을 못 잡는다');
+
+    /* ★ auth 를 공유하므로 «authenticated 전체» 는 «남의 프로젝트 가입자 전체» 다 */
+    const sharedAuth = RJ.judgeTables(now, [], okStore, [SP('tsa_data_read', '{authenticated}', "(bucket_id = 'tsa-data')")]);
+    if (!sharedAuth.warn.length) bites.push('소유자 조건 없는 Storage 정책을 안 알려 준다 (auth 를 공유한다)');
+
+    /* ⑤ 처음 보는 테이블이 생기면 알려 줘야 한다 — 공유 프로젝트라 남이 만들 수 있다 */
     const stranger = RJ.judgeTables(now.concat([T('mystery_box', true, 0)]), []);
     if (!stranger.warn.some((x) => x.includes('mystery_box'))) bites.push('처음 보는 테이블을 안 알려 준다');
 
-    /* ⑤ 아무것도 못 읽었으면 «통과» 가 아니라 «실패» 여야 한다.
+    /* ⑥ 아무것도 못 읽었으면 «통과» 가 아니라 «실패» 여야 한다.
      *   ★ 조회가 깨졌을 때 조용히 초록불이 뜨는 게 제일 나쁘다. */
     if (!RJ.judgeTables([], []).fatal.length) bites.push('테이블을 하나도 못 읽었는데 통과시킨다');
 
-    okAll(bites, 'RLS 판정이 실제로 문다 (꺼짐 · using true · 낯선 테이블)', 8);
+    okAll(bites, 'RLS 판정이 실제로 문다 (꺼짐 · using true · 버킷 · 낯선 테이블)', 12);
 
-    /* ⑥ 도구가 그 판단 함수를 **실제로 부르는가** — import 줄은 걷어내고 본다 */
+    /* ⑦ 도구가 그 판단 함수를 **실제로 부르는가** — import 줄은 걷어내고 본다 */
     const tsrc = decomment(readFileSync(new URL('rlscheck.mjs', import.meta.url), 'utf8'));
     const body = tsrc.split(String.fromCharCode(10))
       .filter((ln) => !ln.trimStart().startsWith('import ')).join(String.fromCharCode(10));
     const wire = [];
     if (!body.includes('judgeTables(')) wire.push('rlscheck 가 judgeTables 를 안 부른다');
+    if (!/judgeTables\([^)]*buckets/.test(body)) wire.push('rlscheck 가 Storage 를 판정에 안 넘긴다');
     if (!body.includes('RLS_SQL')) wire.push('도구와 판정이 다른 SQL 을 본다');
     if (!/exitCode = fatal\.length/.test(body)) wire.push('문제를 찾아도 실패로 안 끝난다');
-    okAll(wire, 'RLS 도구가 판정 함수를 실제로 물려 놨다', 3);
+    okAll(wire, 'RLS 도구가 판정 함수를 실제로 물려 놨다', 4);
   }
 }
 
