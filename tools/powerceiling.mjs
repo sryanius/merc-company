@@ -26,13 +26,25 @@ import '../src/data/classes_t4.js';
 import { SET_IDS, setsForArch } from '../src/data/sets.js';
 import { FORMATIONS, formationMods } from '../src/data/formations.js';
 import { MAX_LEVEL } from '../src/data/limits.js';
+import { RNG } from '../src/core/rng.js';
 
-/* 모든 굴림을 최대로 — 최강 빌드를 만든다 */
+/* 모든 «수치» 굴림을 최대로 — 세트 조각은 고정값이라 이걸로 충분하다.
+ *
+ * ★★ 그런데 `pick`/`weighted` 는 **«가장 센 것» 이 아니라 «마지막 것» 을 집는다.**
+ *   지금 이기는 빌드가 «신화 세트 10조각» 이고 `setPieceItem` 은 굴림이 없는
+ *   결정론 함수라 결과가 **우연히** 맞다. 데이터가 바뀌어 어느 칸에서 전설·고유가
+ *   세트 조각을 이기는 날, 이 도구는 천장을 **낮게** 부르고
+ *   그러면 **정상 플레이어가 막힌다** — §94 와 똑같은 병이다.
+ *
+ * ★ 그래서 무작위 쪽은 «한 번 굴려 최대» 가 아니라 **여러 씨앗을 굴려 최댓값**을 쓴다. */
 const rngMax = {
   next: () => 0.999999, float: (a, b) => b, int: (a, b) => b, chance: () => true,
   pick: (a) => a[a.length - 1], pickMany: (a, n) => a.slice(0, n),
   weighted: (a) => a[a.length - 1], shuffle: (a) => a, range: (a, b) => b,
 };
+
+/** 무작위 빌드를 몇 번 굴려 볼 것인가 (많을수록 천장이 정확해진다) */
+export const RANDOM_TRIES = 400;
 
 export const SQUAD_SLOTS = 7;
 /** 표를 뜨는 레벨 지점 (사이는 선형 보간한다) */
@@ -42,19 +54,31 @@ export const LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80];
  * 장비 한 벌을 입힌 스탯.
  * @param {'set'|'unique'} style 세트 풀장착 / 무작위 신화(고유 포함)
  */
-function equip(clsId, setId, level, grade, style) {
+function equip(clsId, setId, level, grade, style, rng = rngMax) {
   const items = {}; const equipment = {};
   for (const slot of (Gear.SLOTS || [])) {
     let it = null;
     if (style === 'set') {
       try { it = Gear.rollSetItem({ setId, slot, ilvl: 80, rng: rngMax }); } catch { it = null; }
     }
-    /* ★ 고유(unique) 쪽도 재야 한다 — 세트만 재면 «세트가 최강» 이라는 가정이 검사에 박힌다.
-     *   `chance: () => true` 라 UNIQUE_CHANCE 가 항상 터진다. */
-    if (!it) { try { it = Gear.rollItem({ ilvl: 80, rarity: Gear.RARITY_MYTHIC, slot, rng: rngMax }); } catch { it = null; } }
+    /* ★ 고유(unique) 쪽도 재야 한다 — 세트만 재면 «세트가 최강» 이라는 가정이 검사에 박힌다. */
+    if (!it) { try { it = Gear.rollItem({ ilvl: 80, rarity: Gear.RARITY_MYTHIC, slot, rng }); } catch { it = null; } }
     if (it) { it.id = `x_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
   }
   return { m: { uid: 'x', classId: clsId, level, grade, equipment }, items };
+}
+
+/** 무작위 빌드의 **최댓값** — 씨앗을 여러 개 굴려 고른다 (`pick` 의 «마지막» 편향을 없앤다) */
+function bestRandom(clsId, level, grade) {
+  let best = 0;
+  for (let n = 0; n < RANDOM_TRIES; n++) {
+    try {
+      const { m, items } = equip(clsId, null, level, grade, 'unique', new RNG(n + 1));
+      const p = mercPower(m, items);
+      if (p > best) best = p;
+    } catch { /* 이 씨앗은 건너뛴다 */ }
+  }
+  return best;
 }
 
 /** `squadPower` 가 쓰는 진형 근사식과 **같은 식** */
@@ -105,17 +129,14 @@ export function ceilingAt(level, grade = 'S') {
       const w = setsForArch(cls.arch);
       if (Array.isArray(w) && w.length) wearable = w.map((x) => (typeof x === 'string' ? x : x && x.id)).filter(Boolean);
     } catch { /* 전부 */ }
-    const seen = new Set();
-    for (const style of ['set', 'unique']) {
-      for (const setId of (style === 'set' ? wearable : [null])) {
-        const key = `${style}:${setId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        let p;
-        try { const { m, items } = equip(clsId, setId, level, grade, style); p = mercPower(m, items); } catch { continue; }
-        if (p > 0) pool.push({ p, arch: cls.arch, classId: clsId, who: `${clsId}/${setId || '고유'}` });
-      }
+    for (const setId of wearable) {
+      let p;
+      try { const { m, items } = equip(clsId, setId, level, grade, 'set'); p = mercPower(m, items); } catch { continue; }
+      if (p > 0) pool.push({ p, arch: cls.arch, classId: clsId, who: `${clsId}/${setId}` });
     }
+    /* 무작위·고유 빌드는 씨앗을 여러 개 굴려 최댓값을 쓴다 */
+    const pr = bestRandom(clsId, level, grade);
+    if (pr > 0) pool.push({ p: pr, arch: cls.arch, classId: clsId, who: `${clsId}/무작위` });
   }
   if (!pool.length) return { total: 0, fid: '', top: { v: 0, who: '' } };
 
