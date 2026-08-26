@@ -5917,7 +5917,12 @@ section('순위표 치트 — 부대 전력·S용병 상한');
     const capFaults = [];
     if (!(RL.POWER_CAP > topCeil * 3)) capFaults.push(`POWER_CAP ${RL.POWER_CAP} 이 실측 천장 ${topCeil} 의 3배 이하다 — 정상 플레이어를 거절할 수 있다`);
     if (!(RL.POWER_CAP < 2_000_000)) capFaults.push(`POWER_CAP ${RL.POWER_CAP} 이 아직 헐겁다 (예전 5,000,000 은 천장의 26배였다)`);
-    if (!(RL.POWER_SLACK >= 1.1 && RL.POWER_SLACK <= 2)) capFaults.push(`POWER_SLACK ${RL.POWER_SLACK} 이 이상하다`);
+    /* ★ 여유는 **0 보다 크고 넉넉하지 않아야** 한다.
+     *   1.25 로 잡았다가 천장의 1.15배짜리 치트를 통과시켰다 (§100).
+     *   세트 조각이 고정 스탯이라 천장이 정확하므로 크게 둘 이유가 없다. */
+    if (!(RL.POWER_SLACK > 1 && RL.POWER_SLACK <= 1.15)) {
+      capFaults.push(`POWER_SLACK ${RL.POWER_SLACK} — 1 보다 크고 1.15 이하여야 한다 (천장이 정확하다)`);
+    }
     okAll(capFaults, '전력 거절 상한이 천장보다 위, 옛 값보다 아래', 3);
 
     /* ── ④ ★★ 실제 판정 — 치트는 걸리고 정상은 안 걸려야 한다 ──
@@ -5932,8 +5937,15 @@ section('순위표 치트 — 부대 전력·S용병 상한');
       battlesWon: o.battlesWon != null ? o.battlesWon : (o.questsDone || 0) * 3,
       hiredN: o.hiredN != null ? o.hiredN : o.rosterN,
     });
-    /* 실제 치트 등재 */
-    const CHEAT = { day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 259803 };
+    /* 실제로 올라왔던 치트 등재 둘.
+     * ★★ 두 번째가 중요하다 — 259,803 을 막은 **뒤에** 219,474 가 통과했다.
+     *   천장(190,470) 위인데 그때 여유가 1.25 라 199,994 가 아니라 238,088 이 선이었다.
+     *   「막았다」 가 아니라 «얼마나 위까지 열어 뒀나» 를 봐야 한다. */
+    const CHEATS = [
+      { nm: '숨단', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 259803 },
+      { nm: '삶이…빛난다', day: 120, questsDone: 300, rosterN: 7, sMercs: 7, topLevel: 80, topPower: 219474 },
+    ];
+    const CHEAT = CHEATS[0];
     /* 실제 정상 등재 — 계량기가 0 인 옛 세이브까지 포함해 가장 빡빡한 조건으로 본다 */
     const FAIR = [
       { nm: '치젤캔', day: 2381, questsDone: 1022, rosterN: 35, sMercs: 35, topLevel: 80, topPower: 184136 },
@@ -5945,11 +5957,13 @@ section('순위표 치트 — 부대 전력·S용병 상한');
 
     const behave = [];
     /* 치트는 계량기를 얼마로 적어 올려도 걸려야 한다 — 그게 예전에 뚫린 자리다 */
-    for (const h of [0, 7, 100, 100000]) {
-      const v = RL.judge(null, mk({ ...CHEAT, hires: h, specHires: h }));
-      if (v.verdict === 'ok') behave.push(`치트 등재가 hires=${h} 로 통과한다`);
-      else if (!v.reasons.some((x) => x.includes('부대 전력'))) {
-        behave.push(`치트 등재가 hires=${h} 에서 걸리긴 하는데 전력 사유가 아니다 (${v.reasons.join(' / ')})`);
+    for (const c of CHEATS) {
+      for (const h of [0, 7, 100, 100000]) {
+        const v = RL.judge(null, mk({ ...c, hires: h, specHires: h }));
+        if (v.verdict === 'ok') behave.push(`치트 등재 ${c.nm} 이 hires=${h} 로 통과한다`);
+        else if (!v.reasons.some((x) => x.includes('부대 전력'))) {
+          behave.push(`치트 등재 ${c.nm} 이 hires=${h} 에서 전력 사유로 안 걸린다 (${v.reasons.join(' / ')})`);
+        }
       }
     }
     /* ★★ S용병 상한을 **따로** 겨눈다.
@@ -5979,7 +5993,7 @@ section('순위표 치트 — 부대 전력·S용병 상한');
       const v = RL.judge(null, mk(f));
       if (v.verdict !== 'ok') behave.push(`정상 등재 ${f.nm} 이 걸린다 — ${v.reasons.join(' / ')}`);
     }
-    okAll(behave, '치트 등재는 걸리고 정상 등재는 통과한다', 12 + FAIR.length);
+    okAll(behave, '치트 등재는 걸리고 정상 등재는 통과한다', 16 + FAIR.length);
 
     /* ── ⑤ 미래 고용을 안 센다 ──
      *   1일차 세이브에 hiredDay:2 를 적어 넣어 «고용된 단원» 을 부풀리던 자리다. */
