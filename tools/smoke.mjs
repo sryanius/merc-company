@@ -2994,20 +2994,44 @@ section('거절 사유가 밖으로 새지 않나');
     ok(true, '엣지 함수가 없어 건너뜀', fnPath);
   } else {
     const src = strip(readFileSync(fnPath, 'utf8').split(String.fromCharCode(13)).join(''));
-    /** 거절 분기 안의 `return json(...)` 한 줄을 뽑아 온다 */
-    const rejectReturn = (text) => {
+    /** 거절 분기 안의 `return json(...)` 을 **전부** 뽑아 온다.
+     *
+     * ★★ 예전엔 «첫 번째» 하나만 봤다. 탐침 차단(§97)으로 갈래가 하나 늘자
+     *   검사가 **새 갈래만 보고 정작 거절 응답은 안 보게** 됐다 —
+     *   아래 메타 검사가 그걸 잡았다. 갈래가 늘어도 안 무뎌지게 전부 본다. */
+    const rejectReturns = (text) => {
       const at = text.indexOf("verdict.verdict === 'reject'");
       if (at < 0) return null;
-      const r = text.indexOf('return json(', at);
-      if (r < 0) return null;
-      return text.slice(r, text.indexOf(';', r) + 1);
+      const branch = text.slice(at, at + 900);
+      const outs = [];
+      let i = 0;
+      for (;;) {
+        const r = branch.indexOf('return json(', i);
+        if (r < 0) break;
+        const e = branch.indexOf(';', r);
+        if (e < 0) break;
+        outs.push(branch.slice(r, e + 1));
+        i = e + 1;
+      }
+      return outs;
     };
-    const ret = rejectReturn(src);
+    const rets = rejectReturns(src);
     const faults = [];
-    if (!ret) faults.push('거절 분기의 응답을 못 찾았다');
+    if (!rets || !rets.length) faults.push('거절 분기의 응답을 못 찾았다');
     else {
-      if (ret.includes('reasons')) faults.push(`거절 응답에 reasons 가 실린다 → ${ret.trim()}`);
-      if (ret.includes('tier')) faults.push(`거절 응답에 tier 가 실린다 → ${ret.trim()}`);
+      for (const ret of rets) {
+        if (ret.includes('reasons')) faults.push(`거절 응답에 reasons 가 실린다 → ${ret.trim()}`);
+        if (ret.includes('tier')) faults.push(`거절 응답에 tier 가 실린다 → ${ret.trim()}`);
+      }
+    }
+
+    /* ★★ 500 경로도 사유를 흘리면 안 된다.
+     *   `scores` upsert 가 실패하면 예전엔 `upErr.message` 를 그대로 돌려줬는데,
+     *   `scores_monotonic` 트리거 메시지가 **서버가 가진 이전 기록 4개**를 통째로 담는다
+     *   (「기록은 감소할 수 없다 (나락 %→%, 탑 %→%, 의뢰 %→%, 일차 %→%)」).
+     *   §55 가 막은 것과 같은 종류의 누출이 여기 남아 있었다. */
+    if (/return json\(\{[^}]*upErr\.message/.test(src)) {
+      faults.push('DB 오류 메시지를 그대로 돌려준다 — 트리거 문구에 이전 기록이 들어 있다');
     }
     /* 사유는 «남기기는» 해야 한다 — 안 남기면 제보가 와도 판단할 재료가 없다 */
     const at = src.indexOf("verdict.verdict === 'reject'");
@@ -3024,8 +3048,8 @@ section('거절 사유가 밖으로 새지 않나');
     /* ★ 무는 시늉만 하는 검사를 여러 번 만들었다 — 실제로 무는지 확인한다 */
     const planted = src.replace('return json({ ok: false }, 200);',
       'return json({ ok: false, tier: verdict.tier, reasons: verdict.reasons }, 200);');
-    const pr = rejectReturn(planted);
-    if (pr && pr.includes('reasons')) pass('검사가 실제로 문다 (사유를 다시 실으면 걸린다)');
+    const pr = rejectReturns(planted) || [];
+    if (pr.some((x) => x.includes('reasons'))) pass('검사가 실제로 문다 (사유를 다시 실으면 걸린다)');
     else ok(false, '검사가 실제로 문다', '사유를 심었는데 못 잡았다');
   }
 }
@@ -5992,6 +6016,75 @@ section('순위표 치트 — 부대 전력·S용병 상한');
   }
 
   function faultsPush(m) { ok(false, '천장 측정의 판', m); }
+}
+
+section('탐침 차단 — 거절을 반복하면 신호를 끊는다');
+{
+  /* ★★ 제작자: 「해킹하려면 차단되는거 여러번 반복할껀데 이거 체크해서도 막을수있나?」
+   *
+   *   실제로 그 공격이 일어났다 (rejections 시간순):
+   *     전력 5285956 → 5296011 → 5535173 → 5720690 → 5763505 로 바꿔 가며 찔렀고,
+   *     8분 뒤 통과한 값이 순위 1위에 올라왔다 (§96 숨단).
+   *
+   *   사유는 이미 안 준다(§55). 그런데 **«걸렸다» 그 자체가 1비트 신탁**이라
+   *   그것만으로 이분 탐색이 된다. 몇 번 반복되면 그 비트마저 닫는다. */
+  let RP = null;
+  try { RP = await import('../src/game/rules.js'); } catch (e) {
+    ok(false, '규칙 모듈을 읽는다', String((e && e.message) || e));
+  }
+
+  if (RP) {
+    /* ① 순서가 맞는가 — 조용해지는 게 먼저, 잡아 두는 게 나중이다 */
+    const order = [];
+    if (!(RP.PROBE_QUIET >= 1)) order.push(`PROBE_QUIET ${RP.PROBE_QUIET} — 첫 거절부터 조용하면 오탐 피해자가 단서를 잃는다`);
+    if (!(RP.PROBE_QUIET < RP.PROBE_HOLD)) order.push(`PROBE_QUIET ${RP.PROBE_QUIET} 이 PROBE_HOLD ${RP.PROBE_HOLD} 보다 작아야 한다`);
+    if (!(RP.PROBE_QUIET <= 5)) order.push(`PROBE_QUIET ${RP.PROBE_QUIET} 이 너무 후하다 — 그만큼 찔러 볼 수 있다`);
+    if (!(RP.PROBE_WINDOW_H >= 1)) order.push(`PROBE_WINDOW_H ${RP.PROBE_WINDOW_H} 이 이상하다`);
+    okAll(order, '탐침 상한이 «알려주기 → 조용히 → 잡아두기» 순서다', 4);
+
+    /* ② ★ 굴려서 본다 — 글자 검사는 값이 헐거워져도 안 문다 */
+    const beh = [];
+    const p0 = RP.probePolicy(0);
+    if (p0.quiet || p0.hold) beh.push('거절이 없는데도 조용해진다 — 정상 플레이어가 단서를 잃는다');
+    for (let n = 1; n < RP.PROBE_QUIET; n++) {
+      if (RP.probePolicy(n).quiet) beh.push(`거절 ${n}회에서 벌써 조용해진다 (${RP.PROBE_QUIET}회부터여야 한다)`);
+    }
+    if (!RP.probePolicy(RP.PROBE_QUIET).quiet) beh.push(`거절 ${RP.PROBE_QUIET}회에서 아직 알려 준다 — 신탁이 안 닫힌다`);
+    if (!RP.probePolicy(RP.PROBE_QUIET + 50).quiet) beh.push('한참 반복해도 계속 알려 준다');
+    if (RP.probePolicy(RP.PROBE_HOLD - 1).hold) beh.push(`거절 ${RP.PROBE_HOLD - 1}회에서 벌써 잡아 둔다`);
+    if (!RP.probePolicy(RP.PROBE_HOLD).hold) beh.push(`거절 ${RP.PROBE_HOLD}회인데도 순위에 그대로 올린다`);
+    /* 이상한 입력에 조용해지면 안 된다 — 세는 데 실패했을 때 막히면 정상 제출이 깨진다 */
+    for (const junk of [null, undefined, NaN, -5, 'abc']) {
+      const r = RP.probePolicy(junk);
+      if (r.quiet || r.hold) beh.push(`셀 수 없는 값(${String(junk)})에서 막아 버린다 — 실패하면 열어 둬야 한다`);
+    }
+    okAll(beh, '거절이 쌓이면 조용해지고, 더 쌓이면 순위에서 잡아 둔다', 6 + RP.PROBE_QUIET);
+
+    /* ③ 엣지 함수가 **그 함수를 실제로 쓰는가** — 여기 if 로 다시 적으면 검사가 헛돈다 */
+    const fnPath10 = fileURLToPath(new URL('supabase/functions/submit-score/index.ts', ROOT));
+    if (!existsSync(fnPath10)) {
+      ok(true, '제출 함수가 없어 탐침 차단 연결을 건너뜀');
+    } else {
+      const isrc10 = decomment(readFileSync(fnPath10, 'utf8'));
+      /* ★★ **import 줄을 걷어내고 본다.** 「이름이 보인다」 로 검사하면
+       *   호출을 통째로 지워도 import 에 남은 이름 때문에 통과한다 —
+       *   이 저장소가 도감(TIER_LABEL)에서 똑같이 당했고, 여기서도 메타 검사가 잡았다. */
+      const body10 = isrc10.split(String.fromCharCode(10))
+        .filter((ln) => !ln.trimStart().startsWith('import ')).join(String.fromCharCode(10));
+      const wire = [];
+      if (!body10.includes('probePolicy(')) wire.push('probePolicy 를 실제로 부르지 않는다 (여기서 다시 적으면 검사가 헛돈다)');
+      if (!isrc10.includes('probe.quiet')) wire.push('조용히 답하는 갈래가 없다');
+      if (!isrc10.includes('probe.hold')) wire.push('순위에서 잡아 두는 갈래가 없다');
+      if (!isrc10.includes("'held'")) wire.push("held 상태를 안 쓴다");
+      /* 조용할 때의 응답이 **성공과 같은 모양**이어야 한다 — 다르면 그것도 신탁이다 */
+      if (!/if \(probe\.quiet\)[\s\S]{0,220}ok: true/.test(isrc10)) {
+        wire.push('조용할 때 ok:true 로 답하지 않는다 — 응답 모양이 다르면 그대로 신호가 된다');
+      }
+      /* 세는 데 실패하면 열어 둬야 한다 */
+      if (!isrc10.includes('recentRejects = 0')) wire.push('세기에 실패했을 때 0 으로 안 열어 둔다');
+      okAll(wire, '엣지 함수가 탐침 차단을 실제로 물려 놨다', 6);
+    }
+  }
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

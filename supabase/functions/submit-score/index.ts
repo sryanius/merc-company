@@ -20,7 +20,7 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { extractScore, judge, sameRun, POWER_CAP } from '../_shared/rules.js';
+import { extractScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H } from '../_shared/rules.js';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -94,6 +94,49 @@ Deno.serve(async (req) => {
   const compareTo = prev && sameRun(prev, score) ? prev : null;
   const verdict = judge(compareTo, score);
 
+  /* ── 3-a) 탐침 차단 — 「거절을 여러 번 반복하는 것」 자체를 막는다
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * ★★ 제작자: 「해킹하려면 차단되는거 여러번 반복할껀데 이거 체크해서도 막을수있나?」
+   *
+   *   실제로 그 공격이 이 게임에서 일어났다. `rejections` 를 시간순으로 읽으면 그대로 보인다:
+   *
+   *     02:44:15  전력 5285956      02:45:02  전력 5535173
+   *     02:44:38  전력 5296011      02:45:41  전력 5720690      06:06:57  전력 5763505
+   *
+   *   값을 바꿔 가며 다섯 번 찔렀다. 그리고 **오늘 03:57 에 「S 용병 4명 · 1일차 상한 2」로
+   *   걸린 뒤 8분 만에 통과한 등재가 순위 1위에 올라왔다** (`숨단`, §96).
+   *
+   * ★★ 사유는 이미 안 알려 준다 (§55). 그런데 **`ok:false` 그 자체가 1비트 신탁**이다 —
+   *   「지금 값은 걸린다」 를 알려 주므로 이분 탐색이 된다. 그걸 닫는다.
+   *
+   * ★ 왜 «세는 것» 만으로 충분한가: **거절당한 사람은 이미 순위표에 없다.**
+   *   그러니 조용해져도 잃을 게 없다. 반면 조작자는 유일한 신호를 잃는다.
+   *   ⇒ 정상 플레이어에게 드는 비용이 0 에 가까운 방어다.
+   *
+   * ★ 그래도 처음 몇 번은 알려 준다. 오탐이면 그 메시지가 **유일한 단서**이고,
+   *   지금 클라이언트는 거절당해도 다시 안 보내므로(`cloud.js submitScore`)
+   *   정상 플레이어가 이 횟수를 넘을 일이 드물다.
+   *   (실측: 탐침 계정은 한 시간에 12건 · 서로 다른 사유 5개였다.)
+   */
+  let recentRejects = 0;
+  try {
+    const since = new Date(Date.now() - PROBE_WINDOW_H * 3600_000).toISOString();
+    const { count } = await admin
+      .from('rejections')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('tier', 'A')
+      .gte('created_at', since);
+    recentRejects = Number(count) || 0;
+  } catch {
+    /* ★ 세는 데 실패하면 **막지 않는다.** 방어 하나를 잃는 쪽이
+     *   정상 제출을 통째로 깨는 쪽보다 낫다. */
+    recentRejects = 0;
+  }
+  /* ★ 판단은 `rules.js` 의 순수 함수가 한다 — 여기 if 로 흩어 놓으면 검사가 굴려 볼 수 없다 */
+  const probe = probePolicy(recentRejects);
+
   /* ── 4) A등급: 물리적으로 불가능 — 기록하고 거절한다.
    *
    * ★★ **사유를 본인에게 알려 주지 않는다** (제작자 결정).
@@ -114,6 +157,12 @@ Deno.serve(async (req) => {
       user_id: userId, tier: verdict.tier, reasons: verdict.reasons,
       payload: JSON.stringify(score),
     });
+    /* ★★ 반복해서 걸리는 사람에게는 **성공과 똑같이** 답한다 (위 3-a).
+     *   클라이언트는 이 응답의 `abyssBest`/`towerBest` 를 쓰지 않고
+     *   자기 값으로 «올렸다» 를 적을 뿐이라(`cloud.js`), 흉내를 내도 상태가 안 망가진다. */
+    if (probe.quiet) {
+      return json({ ok: true, abyssBest: prev?.abyssBest ?? 0, towerBest: prev?.towerBest ?? 0 });
+    }
     return json({ ok: false }, 200);
   }
 
@@ -121,7 +170,11 @@ Deno.serve(async (req) => {
    *    오탐이 가능한 등급이라 본인에게 알리지 않는다:
    *    정상 플레이어를 불안하게 만들 이유가 없고, 진짜 조작자에게는 힌트가 된다.
    *    원본을 남겨 두면 나중에 사람이 보고 되돌릴 수 있다. */
-  const status = verdict.verdict === 'flag' ? 'flagged' : 'ok';
+  /* ★ 거절이 계속 쌓인 계정은 **받아들인 기록도 잡아 둔다** — 순위에는 안 올리고
+   *   행은 남겨 사람이 본다 (`held` 는 001_init.sql 이 「수동 전용」 으로 정의해 둔 칸이다).
+   *   §96 의 `숨단` 이 정확히 이 경로였다: 여러 번 걸린 뒤 통과한 값이 1위로 올라갔다. */
+  let status = verdict.verdict === 'flag' ? 'flagged' : 'ok';
+  if (probe.hold) status = 'held';
   if (verdict.verdict === 'flag') {
     await admin.from('rejections').insert({
       user_id: userId, tier: verdict.tier, reasons: verdict.reasons,
@@ -254,7 +307,14 @@ function sanitizeSquad(raw: unknown) {
   };
 
   const { error: upErr } = await admin.from('scores').upsert(row, { onConflict: 'user_id' });
-  if (upErr) return json({ ok: false, error: upErr.message }, 500);
+  if (upErr) {
+    /* ★★ **DB 오류 메시지를 그대로 돌려주지 않는다.**
+     *   `scores_monotonic` 트리거가 물면 그 문구에 «나락 %→%, 탑 %→%, 의뢰 %→%, 일차 %→%» 로
+     *   **서버가 가진 이전 기록 네 개가 통째로** 들어 있다. §55 가 막은 것과 같은 누출이
+     *   이 경로에만 남아 있었다. 사유는 서버 로그로만 본다. */
+    console.error('[submit-score] scores upsert 실패', upErr);
+    return json({ ok: false }, 500);
+  }
 
   // 다음 비교의 기준점을 갱신한다. flagged 여도 갱신한다 — 안 하면 다음 제출이
   // 더 큰 증가폭으로 보여 연쇄로 걸린다.
