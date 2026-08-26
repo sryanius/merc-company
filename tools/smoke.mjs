@@ -6171,6 +6171,39 @@ section('RLS 전수 — 공개 키로 읽히는 테이블이 없나');
   }
 }
 
+section('로그인은 구글 — 익명은 일부러 껐다');
+{
+  /* ★★ 제작자: 「익명 로그인은 일부러 막았어 … 클라우드에 데이터 올리려면 로그인 해야돼」
+   *
+   *   §19.3 의 결정이다: 익명은 **브라우저 저장소가 지워지면 계정이 통째로 사라진다**
+   *   (iOS PWA 는 며칠 안 쓰면 실제로 정리한다). 복구 코드도 「잃으면 끝」이라 문제를 미룰 뿐이었다.
+   *
+   * ★★ 그런데 `supacheck` 는 그 뒤로도 「익명 로그인이 꺼져 있다 → 활성화」 를 **실패로** 띄웠다.
+   *   늘 빨간 검사는 아무도 안 믿게 된다 — 실제로 나도 그 줄을 두 번이나
+   *   «오탐이겠지» 하고 넘겼다. 그 사이 진짜 문제(치트 등재)는 다른 곳에 있었다.
+   *   ⇒ **낡은 기대가 검사에 남아 있지 않은지** 글자로 못 박는다. */
+  const sup = decomment(readFileSync(new URL('supacheck.mjs', import.meta.url), 'utf8'));
+  const rme = readFileSync(fileURLToPath(new URL('db/README.md', ROOT)), 'utf8');
+
+  const stale = [];
+  /* 「익명을 켜라」 는 지시가 남아 있으면 안 된다 */
+  if (/Anonymous Sign-ins.{0,12}활성화/.test(sup)) stale.push('supacheck 가 아직 익명 로그인을 켜라고 한다');
+  if (/Anonymous Sign-ins.{0,12}활성화/.test(rme)) stale.push('db/README 가 아직 익명 로그인을 켜라고 한다');
+  /* 지금 맞는 상태를 실제로 보는가 */
+  if (!/anonMigrated|anonOn === false/.test(sup)) stale.push('supacheck 가 «익명 꺼짐» 을 정상으로 안 본다');
+  if (!/googleOn/.test(sup)) stale.push('supacheck 가 구글 로그인을 안 본다');
+  /* 구글이 꺼지면 아무도 못 올린다 — 그건 실패여야 한다 */
+  if (!/구글 로그인이 꺼져 있다/.test(sup)) stale.push('구글 로그인이 꺼진 경우를 실패로 안 다룬다');
+  okAll(stale, 'supacheck·README 가 지금의 로그인 방식(구글)을 본다', 5);
+
+  /* ★ 클라이언트도 익명 가입을 부르면 안 된다 — §19.3 이후로는 쓰지 않는다 */
+  const auth = decomment(readFileSync(srcDir('net/auth.js'), 'utf8'));
+  const used = /signInAnonymously|anonymous/i.test(auth);
+  ok(!used || /google/i.test(auth),
+    '클라이언트 로그인이 구글을 쓴다',
+    '익명 가입 경로만 남아 있다');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

@@ -63,13 +63,35 @@ if (settings.status === 0) fail(`접속 실패 — ${settings.text}`);
 else if (settings.status >= 500) fail(`서버 오류 ${settings.status} — 프로젝트가 일시정지됐을 수 있다`);
 else pass(`응답 ${settings.status}`);
 
-/* ── 3. 익명 로그인 ───────────────────────────────────────────
- * 이게 꺼져 있으면 로그인 화면 없이 랭킹에 참여시킬 수 없다. */
-console.log('\n── 3. 익명 로그인');
-const anonOn = settings.json?.external?.anonymous_users ?? settings.json?.external_anonymous_users;
-if (anonOn === true) pass('켜져 있다');
-else if (anonOn === false) fail('꺼져 있다 → Authentication → Providers → Anonymous Sign-ins 활성화');
-else warn(`상태를 못 읽었다 (${JSON.stringify(anonOn)})`);
+/* ── 3. 로그인 제공자 ─────────────────────────────────────────
+ *
+ * ★★ 예전엔 여기서 「익명 로그인이 꺼져 있다」 를 **실패로** 띄웠다.
+ *   그런데 익명은 **일부러 끈 것**이다 (§19.3): 브라우저 저장소가 지워지면 계정이
+ *   통째로 사라지고 — iOS PWA 는 며칠 안 쓰면 실제로 정리한다 — 복구 코드는
+ *   「코드를 잃으면 끝」이라 문제를 미룰 뿐이었다. 그래서 구글 로그인으로 갈아탔다.
+ *
+ * ★ 그 사이 이 검사는 **매번 빨간불**이었다. 늘 빨간 검사는 아무도 안 믿게 되고,
+ *   실제로 나도 이 줄을 두 번이나 «오탐이겠지» 하고 넘겼다.
+ *   ⇒ 검사는 «지금 무엇이 맞는가» 를 봐야 한다. 지금 맞는 것은 **익명 꺼짐 + 구글 켜짐**이다. */
+console.log('\n── 3. 로그인 제공자');
+const ext = settings.json?.external || {};
+const anonOn = ext.anonymous_users ?? settings.json?.external_anonymous_users;
+const googleOn = ext.google;
+
+if (anonOn === false) pass('익명 로그인 꺼짐 — 의도한 것이다 (§19.3: 저장소가 지워지면 계정이 사라진다)');
+else if (anonOn === true) fail('익명 로그인이 켜져 있다 — §19.3 에서 끄기로 했다 (계정이 조용히 사라진다)');
+else warn(`익명 로그인 상태를 못 읽었다 (${JSON.stringify(anonOn)})`);
+
+if (googleOn === true) pass('구글 로그인 켜짐');
+else fail('구글 로그인이 꺼져 있다 → 아무도 클라우드에 못 올린다 (지금 유일한 로그인 수단이다)');
+
+/* ★ 이메일 제공자는 Supabase 기본값이라 켜져 있다. 클라이언트는 안 쓴다.
+ *   ★★ 그래도 **가입은 된다** — 이 프로젝트는 자료실(침묵의 기록자)과 auth 를 공유하므로
+ *   여기서 가입한 사람은 그쪽 Storage 에서도 `authenticated` 다 (§98.6).
+ *   막고 싶으면 대시보드에서 Email 제공자를 끈다. 지금은 사실만 적어 둔다. */
+if (ext.email === true) {
+  warn('이메일 가입이 열려 있다 (Supabase 기본값) — 클라이언트는 구글만 쓴다. auth 는 자료실과 공유된다');
+}
 
 /* ── 4. 스키마 ────────────────────────────────────────────────
  * PGRST205 = 테이블 없음. 401/403 = 테이블은 있는데 RLS 가 막았다(정상). */
