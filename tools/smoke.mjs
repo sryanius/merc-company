@@ -5610,6 +5610,67 @@ section('엔진을 고쳐도 상대를 때릴 수 있는가');
   }
 }
 
+section('도전 쿨타임 표시 · 도감 계열/스킬');
+{
+  /* 제작자 요청 둘:
+   *   「도전 쿨타임일때 도전 버튼 자체가 클릭안되고 남은 초 표시되면 좋겠어」
+   *   「도감에 계열별 특징이랑 각 클래스별 스킬을 같이 넣어두면 좋을것같아」 */
+  const psrc5 = decomment(readFileSync(srcDir('ui/pvp.js'), 'utf8'));
+
+  /* ★★ 클라의 쿨타임 값이 서버와 **같아야** 한다.
+   *   짧게 잡으면 눌리는 버튼이 서버에서 튕겨 나고, 길게 잡으면 눌 수 있는데 막힌다. */
+  const cm = psrc5.match(/CHALLENGE_COOLDOWN_S = (\d+)/);
+  const fnPath3 = fileURLToPath(new URL('supabase/functions/pvp-battle/index.ts', ROOT));
+  if (!existsSync(fnPath3)) {
+    ok(true, 'PvP 엣지 함수가 없어 쿨타임 대조를 건너뜀');
+  } else {
+    const sm = decomment(readFileSync(fnPath3, 'utf8')).match(/COOLDOWN = '(\d+) seconds'/);
+    ok(!!cm && !!sm && Number(cm[1]) === Number(sm[1]),
+      '도전 쿨타임이 클라와 서버에서 같다',
+      `클라 ${cm && cm[1]} vs 서버 ${sm && sm[1]}`);
+  }
+
+  const faults = [];
+  if (!/disabled: left \? true : undefined/.test(psrc5)) faults.push('쿨타임일 때 버튼을 안 막는다');
+  if (!/left \? `\$\{left\}초` : '도전'/.test(psrc5)) faults.push('남은 초를 안 보여 준다');
+  if (!/if \(!cooldownLeft\(r\.handle\)\) doChallenge/.test(psrc5)) faults.push('막아 놓고도 눌리면 도전이 나간다');
+  if (!/localStorage/.test(psrc5) || !/COOL_KEY/.test(psrc5)) faults.push('쿨타임을 저장 안 해 새로고침하면 잊는다');
+  /* ★ `clearInterval` 는 타이머를 시작하는 쪽에도 있다 — 파일 전체를 보면
+   *   dispose 에서 지워도 통과한다 (메타 검사에서 안 물었다). **dispose 몸안**을 본다. */
+  const dspAt = psrc5.indexOf('export function dispose()');
+  /* ★ 길이로 자르면 **다음 함수까지 넘어가** 거기 있는 clearInterval 을 보고 통과한다
+   *   (메타 검사에서 안 물었다). 함수가 닫히는 줄까지만 본다. */
+  const dspEnd = psrc5.indexOf(String.fromCharCode(10) + '}', dspAt);
+  const dsp = dspAt < 0 ? '' : psrc5.slice(dspAt, dspEnd < 0 ? dspAt + 320 : dspEnd);
+  if (!/clearInterval\(coolTimer\)/.test(dsp)) faults.push('화면을 떠나도 타이머를 안 멈춘다');
+  okAll(faults, '쿨타임이면 버튼이 막히고 남은 초가 뜬다', 5);
+
+  /* ── 도감 ── */
+  const csrc5 = decomment(readFileSync(srcDir('ui/codex.js'), 'utf8'));
+  const gaps = [];
+  /* ★ 이름만 보면 «const LINEAGE_TRAIT = {}» 로 바꿔도 통과한다 —
+   *   **진짜 표에서 가져오는지** (import) 를 본다. */
+  if (!/import\s*\{[^}]*LINEAGE_TRAIT[^}]*\}\s*from\s*'\.\.\/data\/lineage\.js'/.test(csrc5)) {
+    gaps.push('계열 특성을 data/lineage.js 에서 안 가져온다');
+  }
+  if (!/BRANCH_TRAIT/.test(csrc5)) gaps.push('갈래 특성(사제/수도승)을 안 읽는다');
+  if (!/import\s*\{[^}]*getSkill[^}]*\}\s*from\s*'\.\.\/data\/skills\.js'/.test(csrc5)) {
+    gaps.push('클래스 스킬을 data/skills.js 에서 안 가져온다');
+  }
+  if (!/classChain/.test(csrc5)) gaps.push('계열로 묶지 않는다');
+  if (!/mercView/.test(csrc5)) gaps.push('계열/차수 보기 전환이 없다');
+  okAll(gaps, '도감이 계열 특성과 클래스 스킬을 보여준다', 5);
+
+  /* ★ 예전에 여기서 상수를 통째로 지운 적이 있다 (TIER_LABEL) — 쓰는 이름이 다 있는지 본다 */
+  const used = [...csrc5.matchAll(/\b([A-Z][A-Z_0-9]{2,})\b/g)].map((m) => m[1]);
+  const declared = new Set([...csrc5.matchAll(/(?:const|let)\s+([A-Z][A-Z_0-9]{2,})\s*=/g)].map((m) => m[1]));
+  const imported = new Set([...csrc5.matchAll(/import\s*\{([^}]*)\}/g)]
+    .flatMap((m) => m[1].split(',').map((x) => x.trim())));
+  const missing = [...new Set(used)].filter((n) => !declared.has(n) && !imported.has(n));
+  okAll(missing.map((n) => `도감이 '${n}' 를 쓰는데 선언도 import 도 없다`),
+    '도감이 쓰는 상수가 전부 있다', Math.max(1, [...new Set(used)].length));
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

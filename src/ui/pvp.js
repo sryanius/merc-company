@@ -21,12 +21,77 @@ export const meta = { id: 'pvp', title: 'PvP' };
 /** 도전 한 번의 골드 (제작자 결정) */
 export const CHALLENGE_COST = 300_000;
 
+/** 같은 상대에게 다시 도전하기까지 (초).
+ *  ★★ 서버의 `COOLDOWN` 과 **같은 값**이어야 한다 (smoke 가 맞춰 본다).
+ *    짧게 잡으면 누를 수 있는 버튼이 서버에서 튕겨 나고,
+ *    길게 잡으면 눌 수 있는데 막힌다. */
+export const CHALLENGE_COOLDOWN_S = 10;
+
+/* ★ 상대별 마지막 도전 시각. 서버가 쿨타임을 가지고 있지만
+ *   순위표에 실어 보내지는 않는다. 도전을 건 건 이 클라이므로
+ *   여기서 기억해 두면 버튼을 미리 막을 수 있다.
+ *   ★ 다른 기기에서 도전했으면 여기엔 기록이 없어 서버가 거절한다 —
+ *     예전과 같은 행동이라 나빠지지 않는다. */
+/* ★★ **브라우저에 적어 둔다.** 메모리에만 두면 새로고침 한 번에 잊어버려
+ *   누를 수 있는 버튼처럼 보이고 서버에서 튕겨 난다. */
+const COOL_KEY = 'merc_pvp_cool_v1';
+const readCool = () => {
+  try { const o = JSON.parse(localStorage.getItem(COOL_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; }
+  catch { return {}; }
+};
+const writeCool = (o) => { try { localStorage.setItem(COOL_KEY, JSON.stringify(o)); } catch { /* 사파리 비공개 */ } };
+/** 이 상대에게 방금 도전했다고 적는다 */
+function markTried(handle) {
+  const o = readCool();
+  o[handle] = Date.now();
+  /* 지난 것은 치워 둔다 — 무한히 쌓이면 안 된다 */
+  const cut = Date.now() - CHALLENGE_COOLDOWN_S * 1000 * 4;
+  for (const k of Object.keys(o)) if (!(o[k] > cut)) delete o[k];
+  writeCool(o);
+}
+/* 지금 화면에 있는 도전 버튼들 — 남은 초를 글자만 고쳐 쓴다 (화면 재그림 없이) */
+let coolBtns = [];
+let coolTimer = 0;
+/** 남은 쿨타임 (초). 0 이면 눌 수 있다 */
+function cooldownLeft(handle) {
+  const t = readCool()[handle];
+  if (!t) return 0;
+  return Math.max(0, Math.ceil((CHALLENGE_COOLDOWN_S * 1000 - (Date.now() - t)) / 1000));
+}
+
 let styleDone = false;
 let busy = false;
 /* 방금 끝난 도전 — 화면을 다시 그릴 때 맨 위에 보여준다 */
 let lastResult = null;
 
-export function dispose() { /* rAF 없음 */ }
+export function dispose() {
+  /* ★ 화면을 떠나면 반드시 멈춘다 — 안 그러면 사라진 버튼을 계속 만지작거린다 */
+  if (coolTimer) { clearInterval(coolTimer); coolTimer = 0; }
+  coolBtns = [];
+}
+
+/** 도전 버튼의 남은 초를 주기적으로 고쳐 쓴다 */
+function startCoolTick() {
+  if (coolTimer) clearInterval(coolTimer);
+  coolTimer = setInterval(() => {
+    let any = false;
+    for (const { el: b, handle } of coolBtns) {
+      if (!b.isConnected) continue;
+      const left = cooldownLeft(handle);
+      if (left) {
+        any = true;
+        b.disabled = true;
+        b.classList.add('pv-cool');
+        if (b.textContent !== `${left}초`) b.textContent = `${left}초`;
+      } else if (b.disabled) {
+        b.disabled = false;
+        b.classList.remove('pv-cool');
+        b.textContent = '도전';
+      }
+    }
+    if (!any) { clearInterval(coolTimer); coolTimer = 0; }
+  }, 250);
+}
 
 /* ── 서버에서 받아 오기 ───────────────────────────────────────────
  *
@@ -113,6 +178,7 @@ function injectStyle() {
 .pv-rank { font-weight:700; text-align:right; color:var(--ink-faint); }
 .pv-me { background:var(--bg-2); border-radius:var(--radius); }
 .pv-rt { font-weight:700; min-width:52px; text-align:right; }
+.pv-cool { opacity:.5; cursor:not-allowed; min-width:44px; }
 /* 전적 행은 «보기» 단추가 더 붙어 다섯 칸이다 */
 .pv-row.pv-5 { grid-template-columns: 42px 1fr auto auto auto; }
 @media (max-width: 520px) {
@@ -198,6 +264,9 @@ async function doChallenge(handle, name) {
     if (!r.ok) { busy = false; toast(`등록 실패: ${r.error}`, 'bad'); return; }
   }
 
+  /* ★ 응답 전에 적는다 — 서버가 받았으면 쿨타임은 이미 시작된 것이다.
+   *   거절당해도 그대로 둔다 (서버 기준으로도 못 누르는 상태니까). */
+  markTried(handle);
   toast(`${name} 에게 도전한다…`, 'good');
 
   /* ★ 도전 id 를 **먼저 만들어 둔다.** 응답을 못 받아도 같은 id 로 다시 부르면
@@ -330,6 +399,7 @@ function boardPanel() {
       ? d.me.data[0].handle : null;
 
     list.textContent = '';
+    coolBtns = [];
     for (const r of rows) {
       const mine = myHandle && r.handle === myHandle;
       list.appendChild(el('div', { class: `pv-row${mine ? ' pv-me' : ''}` },
@@ -340,12 +410,24 @@ function boardPanel() {
         el('div', { class: 'pv-rt', text: num(r.rating) }),
         mine
           ? el('span', { class: 'tiny faint', text: '나' })
-          : el('button', {
-            class: 'btn sm ghost',
-            title: `${num(CHALLENGE_COST)} 골드를 쓴다`,
-            onClick: () => doChallenge(r.handle, r.company_name),
-          }, '도전')));
+          : (() => {
+            /* ★★ 쿨타임이면 **버튼 자체를 막고 남은 초를 보인다.**
+             *   예전엕 누르면 그제야 «아직 다시 도전할 수 없다» 가 떴다 —
+             *   몇 초 남았는지를 알 길이 없었다 (제작자 지적). */
+            const left = cooldownLeft(r.handle);
+            const b = el('button', {
+              class: `btn sm ${left ? 'ghost' : 'ghost'}`,
+              disabled: left ? true : undefined,
+              title: left ? `${left}초 뒤에 다시 도전할 수 있다` : `${num(CHALLENGE_COST)} 골드를 쓴다`,
+              onClick: () => { if (!cooldownLeft(r.handle)) doChallenge(r.handle, r.company_name); },
+            }, left ? `${left}초` : '도전');
+            if (left) b.classList.add('pv-cool');
+            /* 남은 초를 직접 줄이기 위해 버튼과 상대를 짝지어 둔다 */
+            coolBtns.push({ el: b, handle: r.handle });
+            return b;
+          })()));
     }
+    if (coolBtns.some(({ handle }) => cooldownLeft(handle))) startCoolTick();
   })();
 
   return el('div', { class: 'panel col', style: { gap: '8px' } },
