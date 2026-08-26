@@ -12,6 +12,9 @@
 // ★ 마지막에 **서버 승자와 대조**한다. 다르면 재생이 아니라 «발산» 이므로 desync 로 남긴다.
 //   그때도 **서버 결과가 진실**이다 (화면에도 그렇게 적는다).
 import { el, num } from '../core/util.js';
+import { getClass } from '../data/classes.js';
+import '../data/classes_t4.js';
+import { GRADE_COLOR } from '../art/palette.js';
 import { state } from '../game/state.js';
 import { createBattle, setSkillResolver } from '../battle/engine.js';
 import { tagMatch } from '../battle/tagmatch.js';
@@ -98,6 +101,66 @@ function showDiag() {
   }));
 }
 
+/* ── 편성 보기 ──────────────────────────────────────────────────
+ *
+ * ★★ 제작자: 「pvp에서 순위표나 전적에서 내꺼나 상대 부대 편성정보 볼수있나?」
+ *
+ *   순위표(`pvp_board`)는 **등급·전력만** 준다 — 편성은 안 준다. 일부러 그렇다:
+ *   도전하기 전에 남의 편성을 들여다볼 수 있으면 «보고 나서 맞춰 짜기» 가 된다.
+ *   전적은 다르다 — **내가 싸운 판**이므로 `pvp_replay` 가 양쪽 편성을 통째로 준다.
+ *   그 cfg 가 이미 여기 있으니 표로 펴 주기만 하면 된다.
+ *
+ * ★ 진단(§83.5)에도 이름이 나오지만 그건 «죽은 순서» 를 읽는 글이다.
+ *   «누가 어느 부대에 있나» 는 표로 봐야 한다.
+ */
+function lineupNode() {
+  const box = el('div', { class: 'col', style: { gap: '10px' } });
+  const side = (rows, label, mine) => {
+    const wrap = el('div', { class: 'col', style: { gap: '6px' } });
+    wrap.appendChild(el('div', { class: 'row center', style: { gap: '6px' } },
+      el('b', { style: { fontSize: '13px' }, text: label }),
+      mine ? el('span', { class: 'tiny faint', text: '(나)' }) : null));
+    (rows || []).forEach((sq, i) => {
+      const mercs = (sq || []).filter((u) => !u.pet);
+      const pets = (sq || []).filter((u) => u.pet);
+      const tbl = el('div', { class: 'rp-lu' });
+      tbl.appendChild(el('div', { class: 'rp-lu-h' },
+        el('span', { text: `${i + 1}부대` }),
+        el('span', { class: 'tiny faint', text: `단원 ${mercs.length}명${pets.length ? ` · 펫 ${pets.length}` : ''}` })));
+      for (const u of mercs) {
+        const cls = u.classId ? getClass(u.classId) : null;
+        const st = u.stats || {};
+        tbl.appendChild(el('div', { class: 'rp-lu-r' },
+          el('span', { class: 'rp-lu-nm', text: u.name || (cls && cls.name) || u.classId || '?' }),
+          el('span', { class: 'tiny faint', text: cls ? cls.name : '' }),
+          el('span', { class: 'tiny faint', text: u.level ? `Lv${u.level}` : '' }),
+          el('span', { class: 'tiny', style: { color: GRADE_COLOR[u.grade] || 'var(--ink-faint)' }, text: u.grade || '' }),
+          el('span', { class: 'tiny faint', text: st.hp ? `체 ${num(Math.round(st.hp))}` : '' }),
+          el('span', { class: 'tiny faint', text: st.atk ? `공 ${num(Math.round(st.atk))}` : '' })));
+      }
+      /* ★ 단원이 적은 부대는 눈에 띄게 — §92 에서 부상자가 빠져 «용병 1명» 이 된 적이 있다 */
+      if (mercs.length < 3) {
+        tbl.appendChild(el('div', { class: 'tiny', style: { color: 'var(--gold)', padding: '2px 8px' },
+          text: '단원이 적다' }));
+      }
+      wrap.appendChild(tbl);
+    });
+    return wrap;
+  };
+  const atkMine = S.role === 'attacker';
+  box.appendChild(side(S.cfg.attacker, `${S.leftName} · 공격`, atkMine));
+  box.appendChild(side(S.cfg.defender, `${S.rightName} · 방어`, !atkMine));
+  return box;
+}
+
+function showLineup() {
+  if (!S || !S.luNode) return;
+  if (S.luNode.childNodes.length) { S.luNode.textContent = ''; S.luNode.style.display = 'none'; return; }
+  S.luNode.style.display = '';
+  try { S.luNode.appendChild(lineupNode()); }
+  catch (e) { S.luNode.appendChild(el('div', { class: 'tiny faint', text: `편성을 펴지 못했다: ${String((e && e.message) || e)}` })); }
+}
+
 /** 한 합이 아무리 길어도 이 시간이면 접는다 — 엔진이 무한히 돌 리는 없지만 화면은 지켜야 한다 */
 const MAX_ROUND_S = 90;
 
@@ -118,6 +181,13 @@ function injectStyle() {
 .rp-round:last-child { border-bottom:0; }
 .rp-round.rp-now { background:var(--bg-2); border-radius:var(--radius); }
 .rp-round.rp-todo { opacity:.38; }
+.rp-lu { border:1px solid var(--line-soft); border-radius:var(--radius); background:var(--bg-2); overflow:hidden; }
+.rp-lu-h { display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:4px 8px; background:var(--bg-3); font-size:12px; font-weight:700; }
+.rp-lu-r { display:grid; grid-template-columns:1fr auto auto auto auto auto; gap:8px; align-items:center;
+  padding:3px 8px; border-top:1px solid var(--line-soft); font-size:11px; }
+.rp-lu-nm { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width: 520px) { .rp-lu-r { grid-template-columns:1fr auto auto; } .rp-lu-r span:nth-child(n+4) { display:none; } }
 `,
   }));
 }
@@ -287,12 +357,14 @@ function build(root) {
   const listNode = el('div', { class: 'col', style: { gap: '0' } });
   const speedRow = el('div', { class: 'row center', style: { gap: '4px' } });
   const diagNode = el('div', { class: 'col', style: { gap: '4px', display: 'none' } });
+  const luNode = el('div', { class: 'col', style: { gap: '10px', display: 'none' } });
 
   S.stepNode = stepNode;
   S.verdictNode = verdictNode;
   S.listNode = listNode;
   S.speedRow = speedRow;
   S.diagNode = diagNode;
+  S.luNode = luNode;
   paintSpeed();
 
   root.appendChild(el('div', { class: 'rp-wrap' },
@@ -311,10 +383,13 @@ function build(root) {
           speedRow,
           el('button', { class: 'btn sm ghost', onClick: () => skipAll() }, '건너뛰기'),
           /* ★ «왜 저렇게 끝났나» 를 글로 뽑는다 — 서버를 안 열고도 전해 줄 수 있게 */
+          /* ★ 양쪽 편성을 표로 펜다 (제작자: 「내꺼나 상대 부대 편성정보 볼수있나」) */
+          el('button', { class: 'btn sm ghost', title: '양쪽 부대 편성을 표로 본다', onClick: () => showLineup() }, '편성'),
           el('button', { class: 'btn sm ghost', title: '죽은 순서·생존자를 글로 뽑는다', onClick: () => showDiag() }, '진단'),
           el('button', { class: 'btn sm ghost', onClick: () => go(S.returnTo) }, '닫기'))),
       verdictNode,
       canvas,
+      luNode,
       diagNode),
     el('div', { class: 'panel col', style: { gap: '4px' } },
       el('h3', { text: '합', style: { margin: '0' } }),

@@ -4931,6 +4931,17 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
     `createBattle ${rcalls}군데 중 rout:false 는 ${rrout}군데`);
 
 
+  /* ★ 양쪽 편성을 표로 볼 수 있는가 (제작자: 「내꺼나 상대 부대 편성정보 볼수있나」).
+   *   순위표는 안 준다(도전 전 정찰 방지). 전적은 내가 싸운 판이라 cfg 가 온다. */
+  {
+    const gaps3 = [];
+    if (!/function lineupNode\(\)/.test(rsrc)) gaps3.push('편성 표를 그리는 곳이 없다');
+    if (!/S\.cfg\.attacker/.test(rsrc) || !/S\.cfg\.defender/.test(rsrc)) gaps3.push('양쪽 편성을 다 안 보여 준다');
+    if (!/'편성'/.test(rsrc)) gaps3.push('편성 버튼이 없다');
+    if (!/mercs\.length < 3/.test(rsrc)) gaps3.push('단원이 적은 부대를 안 알려 준다 (§92 재발 방지)');
+    okAll(gaps3, '재생에서 양쪽 부대 편성을 표로 볼 수 있다', 4);
+  }
+
   /* ★★ **앞으로의 합을 미리 보여 주지 않는다.**
    *   제작자 지적: 「다음 라운드 결과가 하단에 리스트로 미리 나오는데 ·
    *   결과가 미리 보이니까 안좋다」.
