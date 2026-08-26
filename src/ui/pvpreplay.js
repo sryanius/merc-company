@@ -223,11 +223,17 @@ function skipAll() {
 function paintRounds() {
   if (!S || !S.listNode) return;
   S.listNode.textContent = '';
-  S.rounds.forEach((r, i) => {
+  /* ★★ **앞으로의 합은 아예 안 보여 준다.**
+   *   예전엕 전체 목록을 깔아 두고 결과 칸만 비워 둥다. 그러면
+   *   **몇 합짜리인지·어느 부대가 나올지**가 그대로 드러난다 —
+   *   «내 1부대 vs 상대 5부대» 까지 보이면 승패가 짐작된다.
+   *   제작자 지적: 「결과가 미리 보이니까 안좋다」. 지난 합과 지금 합까지만 그린다. */
+  const upto = S.done ? S.rounds.length : Math.min(S.at + 1, S.rounds.length);
+  S.rounds.slice(0, upto).forEach((r, i) => {
     const playing = !S.done && i === S.at;
     const past = S.done || i < S.at;
     const aWon = r.winner === 'attacker';
-    S.listNode.appendChild(el('div', { class: `rp-round${playing ? ' rp-now' : ''}${past ? '' : ' rp-todo'}` },
+    S.listNode.appendChild(el('div', { class: `rp-round${playing ? ' rp-now' : ''}` },
       el('div', { class: 'tiny faint', text: `${i + 1}합` }),
       el('div', { class: 'tiny' }, `${S.leftName} ${r.attackerSquad + 1}부대 vs ${S.rightName} ${r.defenderSquad + 1}부대`),
       el('div', { class: 'tiny', style: { color: aWon ? 'var(--leaf)' : 'var(--ink-faint)' },
@@ -235,9 +241,10 @@ function paintRounds() {
       el('div', { class: 'tiny faint', text: past ? `${r.attackerLeft}:${r.defenderLeft}` : '' })));
   });
   if (S.stepNode) {
+    /* ★ 진행 중엔 **총 합 수도 안 적는다** — «1합 / 5합» 은 그 자체로 스포일러다. */
     S.stepNode.textContent = S.done
       ? `${S.rounds.length}합 종료`
-      : `${Math.min(S.at + 1, S.rounds.length)}합 / ${S.rounds.length}합`;
+      : `${Math.min(S.at + 1, S.rounds.length)}합 진행 중`;
   }
 }
 

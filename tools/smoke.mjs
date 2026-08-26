@@ -4931,6 +4931,20 @@ section('PvP 재생 — 화면이 서버 결과를 그대로 낸다');
     `createBattle ${rcalls}군데 중 rout:false 는 ${rrout}군데`);
 
 
+  /* ★★ **앞으로의 합을 미리 보여 주지 않는다.**
+   *   제작자 지적: 「다음 라운드 결과가 하단에 리스트로 미리 나오는데 ·
+   *   결과가 미리 보이니까 안좋다」.
+   *   결과 칸만 비우는 걸로는 부족하다 — 목록이 길면 «몇 합짜리인지» 가 드러난다. */
+  {
+    const body = rsrc.slice(rsrc.indexOf('function paintRounds'), rsrc.indexOf('function paintRounds') + 1600);
+    const gaps2 = [];
+    if (!/S\.rounds\.slice\(0, upto\)/.test(body)) gaps2.push('합 목록을 현재 합까지 자르지 않는다');
+    if (/\$\{S\.rounds\.length\}합`\s*:/.test(body) || /\/ \$\{S\.rounds\.length\}/.test(body)) {
+      gaps2.push('진행 중에 총 합 수를 적는다 — 그 자체가 스포일러다');
+    }
+    okAll(gaps2, '재생이 앞으로의 합을 미리 안 보여 준다', 2);
+  }
+
   /* 화면이 등록돼 있고 오프라인 목록에도 들어갔는가 */
   const asrc = readFileSync(srcDir('ui/app.js'), 'utf8');
   ok(/id: 'pvpreplay'/.test(asrc), 'pvpreplay 화면이 SCREENS 에 등록돼 있다');
@@ -5420,7 +5434,7 @@ section('계열 특성 — 7계열이 저마다 즉사를 막는다');
    *   «`def.` 에서 꺼내는가» 를 본다 — 이름이 다른 것만 따로 적는다. */
   const FROM_DEF = {
     guardChance: 'guardChance', taunt: 'taunt', riposte: 'riposte',
-    intercept: 'intercept', interceptCut: 'interceptCut', chargeSlow: 'chargeSlow',
+    intercept: 'intercept', interceptCounter: 'interceptCounter', chargeSlow: 'chargeSlow',
     shy: 'shy', dmgCutAura: 'dmgCutAura', wardShield: 'wardShield', wardRegen: 'wardRegen',
     wardLeft: 'deathWard', wardParty: 'deathWardParty',
   };
@@ -5489,9 +5503,14 @@ section('계열 특성 설계 손질 — 네 기전이 실제로 도는가');
        *   처음엕 거꾸로 적어서 «창병이 뒤» 이 돼 요격이 안 도는 게 맞았다. */
       const spear = unit('spear', 'ally', 0, { intercept: 1 });       // 앞 (확률 1 로 확실히)
       const back = unit('back', 'ally', 1, {});                       // 뒤
-      const r = play([spear, back], [foe], 3, 4);
+      const r = play([spear, back], [foe], 3, 6);
       const guarded = r.seen.filter((e) => e.type === 'guard' && e.uid === 'spear').length;
       if (!guarded) faults.push('요격이 원거리를 안 막는다 — 설계 손질이 안 먹었다');
+      /* ★★ 이젠 **대신 맞는 게 아니라 지우는** 것이다.
+       *   대신 맞으면 창병이 닳아 결국 손해라는 걸 네 번 재고 알았다 (§90).
+       *   가로채는 순간 **아무도 피해를 안 받아야** 한다. */
+      const spearHurt = r.seen.some((e) => e.type === 'damage' && e.targetUid === 'spear');
+      if (spearHurt) faults.push('요격하면서 창병이 대신 맞았다 — 쳐내는 게 아니다');
     }
 
     /* ② 방벽이 재생하는가 — 깎아 놓고 시간이 지나면 차올라야 한다 */
@@ -5548,7 +5567,7 @@ section('계열 특성 설계 손질 — 네 기전이 실제로 도는가');
 
   /* 값이 표에 실제로 들어 있는가 — 설계만 고치고 값을 0 으로 두면 아무 일도 안 난다 */
   const lsrc = decomment(readFileSync(srcDir('data/lineage.js'), 'utf8'));
-  const need2 = ['wardRegen', 'intercept', 'interceptCut', 'riposte', 'deathWard'];
+  const need2 = ['wardRegen', 'intercept', 'riposte', 'deathWard'];
   okAll(need2.filter((k) => !new RegExp(`${k}:\\s*[0-9.]+`).test(lsrc)).map((k) => `표에 ${k} 값이 없다`),
     '표에 네 특성 값이 들어 있다', need2.length);
 }

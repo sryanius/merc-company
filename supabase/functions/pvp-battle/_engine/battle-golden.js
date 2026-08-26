@@ -1,6 +1,6 @@
 /* 자동 생성 — 원본은 tests/fixtures/battle-golden.json. Edge Function 은 JS 모듈만 번들해서 감싸 둔다. */
 export default {
-  "engineHash": "9b224796",
+  "engineHash": "2ab0ab6a",
   "lineups": {
     "melee": {
       "ally": [

@@ -57,7 +57,7 @@ const SLOW_CAP = 0.35;
 /** 축복이 살려 둔 뒤 붙는 잠긐 보호 (초) — 그 사이에 힐이 들어갈 수 있게 */
 /** 요격이 나서는 최소 타격 크기 (받는 사람 최대 HP 비율) — 잔툃기는 그냥 맞는다 */
 const INTERCEPT_MIN = 0.10;
-const GRACE_S = 2.4;
+const GRACE_S = 3.2;
 /** 그 동안 깎이는 피해 */
 const GRACE_CUT = 0.55;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
 const CHARGE_SPEED = 110;   // 돌진 속도 (필드 단위/초) — 투사체와 같게 둔다
@@ -382,13 +382,32 @@ export function createBattle(cfg = {}) {
     if (hasIntercept && bigHit && !tgt.pet && !opts.fromDot && !opts.fromRiposte) {
       const g = pickInterceptor(tgt);
       if (g) {
-        /* ★ 창을 세워 **받아낸다** — 조금 깎인다.
-         *   전혀 안 깎았더니 대신 맞을수록 손해여서 기여도가 마이너스였다.
-         *   수호(0.45)보다는 적게 깎인다 — «버티는» 방패병과 성격을 가른다. */
-        amount = amount * (1 - clamp(g.interceptCut || 0, 0, 0.9));
+        /* ★★ **대신 받는 게 아니라 쳐낸다.**
+         *
+         *   예전엕 창병이 대신 맞았다. 그러자 기여도가 −2.5%p → 조금 깎아도 +1.2%p,
+         *   더 많이 받게 했더니 −3.4%p 로 **더 나빤졌다** (조합 5개 × 300판).
+         *   이유는 단순하다 — 창병의 목숨도 뒷줄만큼 값진 하다. 옮기면 결국 제로합이고,
+         *   앞줄이 먼저 무너지는 만큼 오히려 손해다.
+         *   수호(방패병)가 되는 건 **적게 받고 많이 깎기**(0.10 / 45%) 때문이다.
+         *
+         *   ⇒ 창병은 아예 **한 번을 지운다.** «요격» 이라는 말 그대로 —
+         *   날아오는 것을 창으로 치워 떨어뜨린다. 대신 확률이 낮다.
+         *   수호와 성격이 갈린다: 수호는 «나누어 받기», 요격은 «없애기». */
         push({ type: 'guard', uid: g.uid, targetUid: tgt.uid });
-        tgt = g;
-        redirected = true;
+        push({ type: 'miss', uid: srcUid, targetUid: tgt.uid });
+        /* ★★ **쳐내면서 되받아친다** (제작자 제안:
+         *   「부대원이 맞는 걸 막으면서 같이 반격까지 해주면 괜찮으려나」).
+         *   막기만 하는 것보다 창병답고, 세기는 **확률**로 조절한다.
+         * ★ 되돌려주는 양은 **막은 피해에 비례**한다 — 큰 걸 막을수록 크게 되받는다.
+         * ★ `fromRiposte` 를 달아 반격의 반격을 막는다. */
+        if (g.interceptCounter > 0 && srcUid != null) {
+          const back = B.unitOf(srcUid);
+          if (back && back.alive && back.side !== g.side) {
+            const amt = Math.max(1, Math.round(amount * g.interceptCounter));
+            applyDamage(g.uid, back, amt, false, dmgType, 'thrust', { fromRiposte: true });
+          }
+        }
+        return 0;
       }
     }
 
@@ -1168,7 +1187,7 @@ function makeUnit(def, side, idx, resolve) {
     taunt: Number(def.taunt) || 0,
     riposte: Number(def.riposte) || 0,
     intercept: Number(def.intercept) || 0,
-    interceptCut: Number(def.interceptCut) || 0,
+    interceptCounter: Number(def.interceptCounter) || 0,
     chargeSlow: Number(def.chargeSlow) || 0,
     shy: Number(def.shy) || 0,
     dmgCutAura: Number(def.dmgCutAura) || 0,
