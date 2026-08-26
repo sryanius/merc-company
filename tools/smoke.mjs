@@ -5425,6 +5425,122 @@ section('계열 특성 — 7계열이 저마다 즉사를 막는다');
     'AI 의 근접 표적 선택이 도발과 은신을 본다');
 }
 
+section('계열 특성 설계 손질 — 네 기전이 실제로 도는가');
+{
+  /* §87.3 에서 「값을 올려도 안 움직인다」던 넷을 설계로 고쳤다.
+   *   · 요격 : «파고들 때만» → «내 앞에 창병이 있으면» (원거리도 막는다, 도발과 안 겹친다)
+   *   · 방벽 : 일회용 → **재생**
+   *   · 축복 : 체력 1로 살린 뒤 **잠깐 보호**를 같이 준다
+   *   · 반격 : 근접 피격 한정 → **모든 피격** (지속피해 제외)
+   *
+   * ★ 전부 **굴려서** 본다. 글자로만 보면 「값은 있는데 안 도는」 상태를 못 잡는다 —
+   *   그게 §87.3 에서 나를 오래 붙잡은 것이다. */
+  const EN7 = need('battle/engine.js');
+  let SK7 = null;
+  try { SK7 = await import(srcUrl('data/skills.js')); } catch (e) { ok(false, '스킬 모듈을 읽는다', String(e.message)); }
+
+  if (EN7 && SK7) {
+    const G = SK7.getSkill;
+    /** 앞(적 쪽)에 설 유닛 / 뒤에 설 유닛 — slot.x 가 클수록 앞이다 (ally 기준) */
+    const at = (x) => ({ x, y: 0.5 });
+    const unit = (uid2, side, slotX, extra) => ({
+      uid: uid2, name: uid2, classId: 'swordsman', side, slot: at(slotX),
+      stats: { hp: 20000, atk: 500, def: 30, res: 30, spd: 110, crit: 0, critDmg: 100, eva: 0 },
+      ...extra,
+    });
+    const play = (allies, enemies, seed, secs) => {
+      const b = EN7.createBattle({ allies, enemies, seed, getSkill: G, record: true, rout: false });
+      const seen = [];
+      let g = 0;
+      while (!b.finished && g++ < 20000 && (!secs || b.time < secs)) {
+        b.step(1 / 60);
+        for (const e of b.drainEvents()) seen.push(e);
+      }
+      return { b, seen, of: (id) => b.units.find((u) => u.uid === id) };
+    };
+
+    /* ★ 세 시험이 같이 쓰는 «뒷줄을 노리는 원거리».
+     *   기본공격은 select 가 'front' 라 뒷줄이 안 맞는다 — 그러면
+     *   요격·반격·이중전달 조건이 아예 안 만들어져 검사가 헛돌았다. */
+    const SNIPE = { id: 'snipe', range: 'ranged', target: 'enemy', select: 'back',
+      count: 1, power: 1.2, dmgType: 'phys', fx: 'arrow', cd: 0, effects: [] };
+    const faults = [];
+
+    /* ① 요격이 **원거리**도 막는가 — 예전엔 근접이 파고들 때만이었다 */
+    {
+      /* ★ 적은 원거리로 **뒷줄을** 노린다.
+       *   처음엕 기본공격만 원거리로 바꿨는데, 기본공격은 select 가 'front' 라
+       *   창병 자신을 켤다 — 그러면 «내 앞에 창병» 이 없어 요격이 안 도는 게 맞다.
+       *   검사가 아니라 시험 설계가 틀렸던 것이다. */
+      const foe = { ...unit('f', 'enemy', 0, {}), skills: [SNIPE] };
+      /* ★ slot.x 는 **작을수록 앞**이다 (basic 진형이 0.14 / 0.46 / 0.8).
+       *   처음엕 거꾸로 적어서 «창병이 뒤» 이 돼 요격이 안 도는 게 맞았다. */
+      const spear = unit('spear', 'ally', 0, { intercept: 1 });       // 앞 (확률 1 로 확실히)
+      const back = unit('back', 'ally', 1, {});                       // 뒤
+      const r = play([spear, back], [foe], 3, 4);
+      const guarded = r.seen.filter((e) => e.type === 'guard' && e.uid === 'spear').length;
+      if (!guarded) faults.push('요격이 원거리를 안 막는다 — 설계 손질이 안 먹었다');
+    }
+
+    /* ② 방벽이 재생하는가 — 깎아 놓고 시간이 지나면 차올라야 한다 */
+    {
+      const mage = unit('mage', 'ally', 0, { wardShield: 0.5, wardRegen: 0.5 });
+      const foe = unit('f2', 'enemy', 1, {});
+      const r = play([mage], [foe], 5, 0.1);
+      const u = r.of('mage');
+      const full = u.shield;
+      u.shield = 1;                                  // 손으로 깎는다
+      let g = 0;
+      while (g++ < 120) r.b.step(1 / 60);            // 2초 돌린다
+      if (!(u.shield > full * 0.5)) faults.push(`방벽이 안 차오른다 (${Math.round(u.shield)} / ${Math.round(full)})`);
+    }
+
+    /* ③ 축복이 살린 뒤 **잠깐 보호**가 붙는가 */
+    {
+      const src = decomment(readFileSync(srcDir('battle/engine.js'), 'utf8'));
+      if (!/tgt\.graceT = GRACE_S;/.test(src)) faults.push('축복이 살린 뒤 보호를 안 준다');
+      if (!/graceT > 0\) amount \*= \(1 - GRACE_CUT\)/.test(src)) faults.push('보호가 피해 계산에 안 들어간다');
+      if (!/graceT = Math\.max\(0, u\.graceT - dt\)/.test(src)) faults.push('보호가 시간이 지나도 안 풀린다');
+    }
+
+    /* ④ 반격이 **원거리 피격**에도 도는가 — 예전엔 근접 한정이었다 */
+    {
+      const foe = { ...unit('f3', 'enemy', 0, {}), skills: [SNIPE] };
+      /* ★ 검사를 **못 움직이게** 한다 (spd 1). 안 그러면 검사 자신의 공격까지
+       *   «sw 가 준 피해» 로 세어져, 반격을 꺼도 검사가 통과했다. */
+      const sword = { ...unit('sw', 'ally', 1, { riposte: 1 }),
+        stats: { hp: 200000, atk: 500, def: 30, res: 30, spd: 1, crit: 0, critDmg: 100, eva: 0 } };
+      const r = play([sword], [foe], 7, 4);
+      const backHits = r.seen.filter((e) => e.type === 'damage' && e.uid === 'sw').length;
+      if (!backHits) faults.push('반격이 원거리 피격에 안 돈다 — 설계 손질이 안 먹었다');
+    }
+
+    /* ⑤ 요격과 수호가 **배타적**인가 — 한 피해가 두 번 넘어가면 안 된다 */
+    {
+      /* ★ 아군을 전부 못 움직이게 해서 **들어온 피해만** 남긴다.
+       *   아군이 때리면 damage 수가 불어나 guards > dmg 가 영영 안 된다. */
+      const slow = { hp: 200000, atk: 1, def: 30, res: 30, spd: 1, crit: 0, critDmg: 100, eva: 0 };
+      const spear = { ...unit('sp2', 'ally', 0, { intercept: 1 }), stats: slow };
+      const shield = { ...unit('sh2', 'ally', 0, { guardChance: 1, guardCut: 0.5 }), stats: slow };
+      const back = { ...unit('b2', 'ally', 1, {}), stats: slow };
+      const foe = { ...unit('f4', 'enemy', 0, {}), skills: [SNIPE] };
+      const r = play([spear, shield, back], [foe], 11, 3);
+      /* 한 damage 이벤트당 guard 이벤트가 둘 이상 붙으면 이중 전달이다 */
+      let dmg = 0; let guards = 0;
+      for (const e of r.seen) { if (e.type === 'damage') dmg++; if (e.type === 'guard') guards++; }
+      if (dmg > 0 && guards > dmg) faults.push(`피해 ${dmg}회에 대신맞기 ${guards}회 — 한 피해가 두 번 넘어간다`);
+    }
+
+    okAll(faults, '네 기전이 굴려서 확인된다 (요격·방벽·축복·반격) + 이중 전달 없음', 5);
+  }
+
+  /* 값이 표에 실제로 들어 있는가 — 설계만 고치고 값을 0 으로 두면 아무 일도 안 난다 */
+  const lsrc = decomment(readFileSync(srcDir('data/lineage.js'), 'utf8'));
+  const need2 = ['wardRegen', 'intercept', 'riposte', 'deathWard'];
+  okAll(need2.filter((k) => !new RegExp(`${k}:\\s*[0-9.]+`).test(lsrc)).map((k) => `표에 ${k} 값이 없다`),
+    '표에 네 특성 값이 들어 있다', need2.length);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

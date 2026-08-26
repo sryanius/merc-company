@@ -53,7 +53,11 @@ const MELEE_DELAY = 0.25;   // 돌진 후 타격까지 (붙어 있을 때의 최
  * ★ 엔진은 data/ 를 안 물어야 하서(공유 묶음 제약) 숫자를 옮겨 적는다.
  *   어긋나면 smoke 가 막는다. */
 const AURA_CAP = 0.30;
-const SLOW_CAP = 0.35;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
+const SLOW_CAP = 0.35;
+/** 축복이 살려 둔 뒤 붙는 잠긐 보호 (초) — 그 사이에 힐이 들어갈 수 있게 */
+const GRACE_S = 2.4;
+/** 그 동안 깎이는 피해 */
+const GRACE_CUT = 0.55;   // 돌진 늦추기 상한 — data/lineage.js 와 같은 값이어야 한다
 const CHARGE_SPEED = 110;   // 돌진 속도 (필드 단위/초) — 투사체와 같게 둔다
 const CHARGE_MAX = 0.9;     // 아무리 멀어도 이 이상은 안 걸린다
 const CAST_DELAY = 0.2;     // 자기 대상 시전 후 발동까지
@@ -187,17 +191,25 @@ export function createBattle(cfg = {}) {
   const hasIntercept = units.some((u) => u.intercept > 0);
 
   /**
-   * 뒤로 파고드는 근접을 가로책 창병을 고른다.
-   * ★ «목표보다 공격자 쪽에 가까운» 창병만 자격이 있다 — 그래야 «중간에서 막는» 게 된다.
+   * **뒷줄이 맞을 때** 가로책 창병을 고른다.
+   *
+   * ★★ 예전엔 «멀리 파고드는 근접» 에만 걸었다. 그러니 **도발(방패병)과 서로를
+   *   무력화**했다 — 도발이 적 근접을 앞으로 끌어오면 파고드는 일 자체가 안 생겨
+   *   방아쇠가 사라졌다 (실측 기여도 45% = 무효, HANDOFF §87.3).
+   *
+   * 이젠 «내 앞에 창병이 서 있는가» 만 본다. **원거리도 가로채다** —
+   * 그게 «요격» 이라는 말에도 맞고, 도발과 겹치지 않는 자기 자리가 된다:
+   *   방패병은 «아무나 대신 맞고 피해를 깎는다», 창병은 «뒷줄만, 대신 온몸으로 받는다».
+   *
    * ★ 순서는 units 배열 그대로라 결정론이 유지된다.
    */
-  function pickInterceptor(victim, attacker) {
+  function pickInterceptor(victim) {
+    /* 자기 진영의 «앞» 은 적 쪽이다 — ally 는 x 가 클수록, enemy 는 작을수록 앞. */
+    const front = (u) => (u.side === 'ally' ? u.x : -u.x);
     for (const d of units) {
       if (!d.alive || d.side !== victim.side || d === victim) continue;
       if (!(d.intercept > 0)) continue;
-      /* 공격자와 목표 사이에 서 있는가 (x 기준) */
-      const between = Math.abs(d.x - attacker.x) < Math.abs(victim.x - attacker.x);
-      if (!between) continue;
+      if (front(d) <= front(victim)) continue;      // 내 앞에 서 있지 않으면 못 막는다
       if (rng.chance(clamp(d.intercept, 0, 1))) return d;
     }
     return null;
@@ -205,7 +217,15 @@ export function createBattle(cfg = {}) {
 
   /* ★ 마법사 계열은 방패를 두르고 시작한다 — 난수를 안 쓴다 */
   for (const u of units) {
-    if (u.wardShield > 0) { u.shield = Math.round(u.maxHp * u.wardShield); u.shieldDur = Infinity; }
+    if (u.wardShield > 0) {
+      /* ★★ **재생하는 방패.** 예전엔 개전에 한 번 두르고 끝이어서
+       *   첫 교전에 먹히면 그만이었다 — 값을 세 배로 올려도 기여도가 안 움직였다
+       *   (실측 45~50% = 무효, HANDOFF §87.3).
+       *   이젠 초당 조금씩 차오른다 — «계속 두르고 있는» 것이 된다. */
+      u.wardMax = Math.round(u.maxHp * u.wardShield);
+      u.shield = u.wardMax;
+      u.shieldDur = Infinity;
+    }
   }
 
   /** 그 진영의 피해 감소 합 (살아 있는 수도승만) — 상한까지 */
@@ -343,8 +363,24 @@ export function createBattle(cfg = {}) {
       const cut = auraOf(tgt.side);
       if (cut > 0) amount *= (1 - cut);
     }
+    /* ★ 축복으로 방금 살아난 사람은 잠긐 덜 아프다 */
+    if (tgt.graceT > 0) amount *= (1 - GRACE_CUT);
 
-    if (hasGuardians && !tgt.pet && !opts.fromDot) {
+    /* ★★ 요격(창병) — **뒷줄이 맞을 때** 앞의 창병이 온몸으로 받는다.
+     *   원거리도 막는다 — 도발(방패병)과 겹치지 않는 자기 자리다.
+     * ★ 수호와 달리 **피해를 안 깎는다.** 창병은 버티는 게 아니라 대신 받아 주는 역할이다.
+     * ★ 둘은 **배타적**이다 — 한 번 넘어간 피해를 또 넘기지 않는다. */
+    let redirected = false;
+    if (hasIntercept && !tgt.pet && !opts.fromDot && !opts.fromRiposte) {
+      const g = pickInterceptor(tgt);
+      if (g) {
+        push({ type: 'guard', uid: g.uid, targetUid: tgt.uid });
+        tgt = g;
+        redirected = true;
+      }
+    }
+
+    if (!redirected && hasGuardians && !tgt.pet && !opts.fromDot) {
       const g = pickGuardian(tgt.side, tgt);
       if (g) {
         amount = amount * (1 - clamp(g.guardCut || 0, 0, 0.9));
@@ -389,6 +425,11 @@ export function createBattle(cfg = {}) {
         ward.wardLeft--;
         tgt.hp = 1;
         killed = false;
+        /* ★★ 살린 뒤 **잠긐 보호를 같이 준다.**
+         *   체력 1로 남겨 놓기만 하면 다음 타격에 그대로 죽어서
+         *   횟수를 네 번으로 늘려도 기여도가 안 움직였다 (실측 50%, §87.3).
+         *   그 사이에 힐이 들어갈 틈을 만들어 준다. */
+        tgt.graceT = GRACE_S;
         push({ type: 'ward', uid: ward.uid, targetUid: tgt.uid });
       }
     }
@@ -397,8 +438,13 @@ export function createBattle(cfg = {}) {
 
     /* ★ 반격 — 검사 계열. **근접으로 맞았을 때만**, 살아 있을 때만.
      *   반격의 반격을 막기 위해 `fromRiposte` 를 달아 보낸다. */
+    /* ★★ 반격은 이젠 **근접만이 아니다.**
+     *   예전엔 `opts.melee` 를 달았는데, 도발이 적 근접을 방패병에게 끌어가면
+     *   검사가 근접으로 맞는 일 자체가 줄어 방아쇠가 사라졌다 —
+     *   값을 두 배로 올려도 기여도가 안 움직였다 (실측 45~50%, §87.3).
+     *   «맞으면 되받아친다» 는 거리와 상관없는 성격이다. 지속피해만 제외한다. */
     if (hasRiposte && !killed && !opts.fromDot && !opts.fromRiposte
-        && tgt.alive && tgt.riposte > 0 && opts.melee && srcUid != null) {
+        && tgt.alive && tgt.riposte > 0 && srcUid != null) {
       const back = B.unitOf(srcUid);
       if (back && back.alive && back.side !== tgt.side) {
         const amt = Math.max(1, Math.round(total * tgt.riposte));
@@ -822,18 +868,7 @@ export function createBattle(cfg = {}) {
         /* ★★ 요격(창병 계열) — **뒤로 파고드는** 근접을 중간에서 가로채다.
          *   전열끼리 붙는 건 그대로 둔다 — «파고드는 것» 만 막는 게 이 특성의 뜻이다.
          *   그래서 목표가 그 진영의 **창병보다 뒤에** 있을 때만 굴린다. */
-        let hitTgt = t;
-        /* ★★ **진짜 파고드는 경우에만** 가로채다.
-         *   처음엕 모든 근접 타격에 걸었다 — 전열끼리 붙는 것까지 가로채서
-         *   라운드로빈에서 100% 를 찍었다. «돌진이 최소값을 넘었는가» 로 가른다.
-         * ★ 가로참 때는 대신 맞기처럼 피해를 깎지 **않는다** — 창병은 버티는 게 아니라
-         *   «대신 받아 주는» 것이다. 그만큼 체력으로 갚는다. */
-        const diving = clamp(dist / CHARGE_SPEED, 0, CHARGE_MAX) > MELEE_DELAY;
-        if (hasIntercept && diving && skill.range === 'melee') {
-          const g = pickInterceptor(t, u);
-          if (g) { push({ type: 'guard', uid: g.uid, targetUid: t.uid }); hitTgt = g; }
-        }
-        schedule(at, () => resolveHit(u, hitTgt, skill, damaging, perTarget));
+        schedule(at, () => resolveHit(u, t, skill, damaging, perTarget));
       }
     } else {
       const fx = skill.fx || (damaging ? 'arrow' : 'buff');
@@ -866,6 +901,15 @@ export function createBattle(cfg = {}) {
       u.shieldDur -= dt;
       if (u.shieldDur <= 0) { u.shield = 0; u.shieldDur = 0; }
     }
+    /* ★ 마법사 계열의 **재생하는 방패** — 초당 wardRegen 비율만큼 차오른다.
+     *   난수를 안 쓰고 dt 가 항상 FIXED 라 결정론이 유지된다. */
+    if (u.wardMax > 0 && u.wardRegen > 0 && u.shield < u.wardMax) {
+      u.shield = Math.min(u.wardMax, u.shield + u.wardMax * u.wardRegen * dt);
+      u.shieldDur = Infinity;
+    }
+    /* ★ 사제 계열의 축복이 살려 둔 직후 — 잠긐 덜 아프다.
+     *   체력 1로 살려 놓기만 하면 다음 타격에 그대로 죽어 의미가 없었다. */
+    if (u.graceT > 0) u.graceT = Math.max(0, u.graceT - dt);
     // 지속 피해
     for (let i = u.dots.length - 1; i >= 0; i--) {
       const d = u.dots[i];
@@ -1118,6 +1162,9 @@ function makeUnit(def, side, idx, resolve) {
     wardLeft: Math.max(0, Math.round(Number(def.deathWard) || 0)),
     wardParty: Number(def.deathWardParty) || 0,
     wardShield: Number(def.wardShield) || 0,
+    wardRegen: Number(def.wardRegen) || 0,
+    wardMax: 0,
+    graceT: 0,
   };
   u.basic = makeBasicSkill(u);
   for (const s of def.skills || []) {
