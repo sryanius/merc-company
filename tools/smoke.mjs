@@ -2636,31 +2636,45 @@ section('PvP 스탯 상한 검사 (위조 1차 방어선)');
     }
     if (worst > 0) faults.push(`맨몸 계산이 실제보다 작다 (${(worst * 100).toFixed(1)}%) — ${worstAt}`);
 
-    /* ③ ★★ **풀 신화 세트**를 낀 정상 유닛이 통과하는가 (오탐 0 이어야 한다).
-     *   처음엔 `rollItem`(무작위)으로 검사했는데 그러면 **세트 보너스가 통째로 빠져서**
-     *   상한이 낮게 잡혔고, 그 상태로 배포해 **정상 플레이어의 등록을 막았다.**
-     *   세트로 껴야 실제 최강 빌드다 — `rollSetItem` 을 쓴다. */
-    const maxRng = {
-      next: () => 0.999999, float: (a, b) => b, int: (a, b) => b, chance: () => true,
-      pick: (a) => a[a.length - 1], pickMany: (a, n) => a.slice(0, n), weighted: (a) => a[a.length - 1],
-    };
-    const setColl = Object.values(SETS3).find((v) => v && typeof v === 'object' && v.ironrampart) || {};
-    const setIds = Object.keys(setColl);
-    for (const id of ['swordsman', 'shieldman', 'apprentice', 'rogue', 'skysplitter_apex', 'archmage_abyss']) {
-      if (!CL3.CLASSES[id]) continue;
-      for (const setId of setIds) {
-        const items = {};
-        const equipment = {};
-        for (const slot of (Gear.SLOTS || [])) {
-          try {
-            const it = Gear.rollSetItem({ setId, slot, ilvl: 80, rng: maxRng });
-            if (it) { it.id = it.id || `${setId}_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
-          } catch { /* 그 세트에 없는 부위 */ }
+    /* ③ ★★ **게임이 만들 수 있는 유닛은 전부 통과해야 한다** (오탐 0).
+     *
+     *   여기서 세 번 데였다. 매번 «재는 경로가 실제 등록 경로보다 짧아서» 였다:
+     *     1차 `rollItem` 으로 재서 **세트 보너스**가 빠졌다 → 제작자 atk 8514 가 거절.
+     *     2차 `mercStats` 로만 재서 **진형 보정·펫 배율**이 빠졌다.
+     *     3차 S등급만 재서 **낮은 등급**이 빠졌다 → 제작자 crit 103.215 가 거절되어
+     *          PvP 등록 자체가 막혔다 (치명은 고정 스탯이라 맨몸이 작은 F등급이 최악이다).
+     *
+     *   그래서 이제 스윕을 `tools/lib/statceiling.mjs` 하나로 모으고
+     *   **도구(`node tools/statceiling.mjs`)와 이 검사가 같은 것을 쓴다.**
+     *   전 클래스 × 착용 가능 세트 × 12진형 × 7슬롯 × 7등급 × (펫 있음/없음). */
+    let SC = null;
+    try { SC = await import('./lib/statceiling.mjs'); } catch (e) {
+      faults.push(`천장 스윕 모듈을 못 읽었다: ${(e && e.message) || e}`);
+    }
+    if (SC) {
+      /* ★ 판이 차려졌는지 먼저 — 장비가 안 붙으면 «맨몸» 을 최강 빌드로 착각한다 */
+      for (const g of SC.gates()) faults.push(`천장 측정의 판이 안 차려졌다: ${g}`);
+
+      const { tested, rejects, best } = SC.sweep(B.checkUnit, { bareStats: B.bareStats });
+      if (tested < 10_000) faults.push(`스윕이 ${tested} 개밖에 안 돌았다 — 판이 덜 차려졌다`);
+      if (rejects.length) {
+        const byKey = {};
+        for (const r of rejects) {
+          const k = (r.split(': ')[1] || '').split(' ')[0];
+          (byKey[k] = byKey[k] || []).push(r);
         }
-        if (Object.keys(equipment).length < 7) continue;
-        const stats = Merc.mercStats({ uid: 'u', classId: id, level: 80, grade: 'S', equipment }, items);
-        const bad = B.checkUnit({ uid: 'u', classId: id, level: 80, grade: 'S', stats });
-        if (bad.length) faults.push(`오탐: ${id} + ${setId} 풀세트가 걸린다 — ${bad[0]}`);
+        for (const [k, list] of Object.entries(byKey)) {
+          faults.push(`오탐 ${k}: 정상 빌드 ${list.length}개가 걸린다 — 예) ${list[0]}`);
+        }
+      }
+      /* ★ 상한 표가 실측 천장보다 **낮으면** 정상 등록이 막힌다. 값으로 대조한다
+       *   (0.5% 는 반올림 여유). */
+      for (const k of SC.KEYS) {
+        const m = best[k] && best[k].v;
+        const cur = B.MEASURED_MAX[k];
+        if (m > 0 && !(cur * 1.005 >= m)) {
+          faults.push(`MEASURED_MAX.${k} = ${cur} 가 실측 천장 ${m.toFixed(2)} 보다 낮다 — ${Math.ceil(m)} 이상이어야 한다`);
+        }
       }
     }
 

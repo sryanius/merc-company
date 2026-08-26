@@ -48,15 +48,43 @@ export const FLAT_KEYS = ['crit', 'critDmg', 'eva'];
 export const FALLBACK_ARCH = { hp: 220, atk: 30, def: 15, res: 12, spd: 46, crit: 6, critDmg: 50, eva: 5 };
 export const MAX_LEVEL = 80;
 
-/** 맨몸 대비 최대 배율 (실측 — 전 클래스 × 전 신화 세트 풀빌드, ilvl 80, 모든 굴림 최대) */
+/**
+ * 맨몸 대비 최대 배율 — `node tools/statceiling.mjs` 실측.
+ *
+ * ★★ 전 등급을 포함한다. 예전 값은 **S등급만** 재서 만든 것이었고, 그래서
+ *   «F등급 1차 용병에게 최고 장비» 같은 정상 빌드가 거절됐다 (atk 1023개 · res 832개 · spd 45개).
+ *   치명처럼 장비가 **고정값을 더하는** 스탯은 맨몸이 작을수록 배율이 커진다 —
+ *   최악은 언제나 최저 등급 쪽에 있다.
+ */
 export const MAX_RATIO = {
-  hp: 5.92, atk: 20.84, def: 15.31, res: 8.75, spd: 3.04, crit: 8.15, critDmg: 5.62, eva: 2.64,
+  hp: 7.82, atk: 62.31, def: 25.83, res: 28.09, spd: 7.02, crit: 10.71, critDmg: 5.90, eva: 2.90,
 };
-/** 앞으로의 밸런스 변화·펫 배율을 위한 여유 */
+/** 앞으로의 밸런스 변화를 위한 여유 */
 export const SLACK = 2.0;
 
-/** 절대 상한 — 배율과 무관하게 이 값을 넘으면 무조건 거절한다 */
-export const ABSOLUTE = { hp: 2_000_000, atk: 200_000, def: 200_000, res: 200_000, spd: 100_000, crit: 100, critDmg: 1000, eva: 95 };
+/**
+ * 게임이 실제로 만들 수 있는 **최대 절대값** — `node tools/statceiling.mjs` 실측.
+ * (전 클래스 × 착용 가능 세트 × 12진형 × 7슬롯 × 7등급, 굴림 전부 최대, 버퍼 펫 3마리 최대)
+ */
+export const MEASURED_MAX = {
+  hp: 74_408, atk: 17_633, def: 6_826, res: 3_490, spd: 4_733, crit: 114, critDmg: 364, eva: 37,
+};
+
+/**
+ * 절대 상한 — 배율과 무관하게 이 값을 넘으면 무조건 거절한다.
+ *
+ * ★★ 예전엔 손으로 적은 «커 보이는 수» 였다 (hp 2_000_000 = 실제 천장의 27배로 헐겁고,
+ *   crit 100 = 실제 천장 114 보다 **낮아서 정상 등록을 막았다**).
+ *   제작자의 crit 103.215 가 여기서 튕겼다.
+ *
+ * ★ 이제는 실측 천장 × 여유로 **계산해서** 낸다. 손으로 안 적으니 어긋날 수가 없고,
+ *   비율 상한보다 훨씬 촘촘하다 (강한 유닛일수록 비율 상한은 헐거워지기 때문).
+ *
+ * ★ 장비·레벨 상한·세트가 늘면 이 값도 같이 올라야 한다 — 스모크가 도구를 돌려 대조한다.
+ */
+export const ABSOLUTE = Object.fromEntries(
+  Object.entries(MEASURED_MAX).map(([k, v]) => [k, Math.ceil(v * SLACK)]),
+);
 
 /** 맨몸(장비 0) 스탯 — rng 를 쓰지 않으므로 서버가 정확히 계산할 수 있다 */
 export function bareStats(classId, level, grade) {
