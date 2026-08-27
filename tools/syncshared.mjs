@@ -30,6 +30,7 @@
  * 실행: node tools/syncshared.mjs        (복사 + 해시 기록)
  *       node tools/syncshared.mjs --check (검사만 — 스모크가 쓴다)
  */
+import { importsOf } from './lib/imports.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,22 +77,6 @@ function hash(str) {
     h = Math.imul(h, 16777619) >>> 0;
   }
   return (h >>> 0).toString(16).padStart(8, '0');
-}
-
-/**
- * 이 파일이 어떤 모듈을 참조하는가 (상대 경로만).
- * ★ 옛 정규식은 `import ... from '...'` 홑따옴표 한 형태만 봤다. 지금 코드에는 다른 형태가
- *   없어서 «안 물리고» 있었을 뿐이다 — 부수효과 import(`import './x.js';`), `export … from`,
- *   큰따옴표, 동적 import 를 하나라도 쓰는 순간 그 파일이 조용히 빠진 채 배포된다.
- */
-function importsOf(src) {
-  const out = [];
-  const re = /(?:^|[\s;])(?:import|export)\s*(?:[\s\S]*?\sfrom\s*)?['"]([^'"]+)['"]/g;
-  let m;
-  while ((m = re.exec(src))) out.push(m[1]);
-  const dyn = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-  while ((m = dyn.exec(src))) out.push(m[1]);
-  return out;
 }
 
 /** 진입점에서 import 를 따라 걷는다 */

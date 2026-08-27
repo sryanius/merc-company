@@ -2,6 +2,7 @@
 //   실행: node tools/smoke.mjs
 // 밸런스는 tools/balance.mjs 담당. 여기서는 "크래시 / 데이터 정합성"만 본다.
 
+import { importsOf, decomment as libDecomment } from './lib/imports.mjs';
 import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -38,30 +39,15 @@ function pass(label, extra) {
 
 /** 소스에서 주석을 지운다.
  *  ★ 글자로 보는 검사는 **주석을 같이 센다.** 그러면 코드에서 빼도
- *  설명 주석이 대신 세어져 검사가 안 물다 — 실제로 그러다 메타 검사에 걸렸다. */
-function decomment(x) {
-  let out = ''; let i = 0;
-  while (i < x.length) {
-    if (x[i] === '/' && x[i + 1] === '*') { const e = x.indexOf('*/', i + 2); i = e < 0 ? x.length : e + 2; continue; }
-    if (x[i] === '/' && x[i + 1] === '/') { const e = x.indexOf(String.fromCharCode(10), i); i = e < 0 ? x.length : e; continue; }
-    out += x[i]; i++;
-  }
-  return out;
-}
+ *  설명 주석이 대신 세어져 검사가 안 물다 — 실제로 그러다 메타 검사에 걸렸다.
+ *  ★★ 판단은 `tools/lib/imports.mjs` 한 벌이다 (아래 specsOf 와 같은 이유). */
+const decomment = libDecomment;
 
 /** 이 소스가 참조하는 모듈 전부.
- *  ★ 「`from` 을 optional 로 둔 하나의 정규식」으로는 **부수효과 import 를 놓친다.**
- *  `import './x.js';` 다음 줄에 평범한 import 가 있으면 lazy 한 `[\s\S]*?\sfrom` 이
- *  그 줄까지 건너뛰어 삼켜 버린다 — 실제로 메타 검사(enemies.js 가 squad.js 를 물게
- *  심어 보기)에서 안 물어서 잡았다. 형태마다 따로 본다. */
-function specsOf(code) {
-  const src = decomment(code);
-  const out = [];
-  for (const m of src.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)) out.push(m[1]);
-  for (const m of src.matchAll(/(?:^|[\s;])import\s*['"]([^'"]+)['"]/g)) out.push(m[1]);
-  for (const m of src.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1]);
-  return out;
-}
+ *  ★★ 판단은 `tools/lib/imports.mjs` **한 벌**이다 — `syncshared.mjs` 도 같은 것을 쓴다.
+ *    예전엔 두 벌이었고 그중 하나(`syncshared`)가 부수효과 import 를 놓치고 있었다.
+ *    사본이 둘이면 반드시 갈라진다 (§94). */
+const specsOf = importsOf;
 
 /** 진입점에서 import 를 따라 걸은 닫힘 (저장소 상대 경로) */
 function closureOf(startRel) {
@@ -6830,6 +6816,106 @@ section('업데이트 내역이 치트 방어의 속을 안 흘린다');
     if (clBody.includes(w)) how.push(`«${w}» — 어뷰징 대응은 내역에 안 적는다`);
   }
   okAll(how, '내역이 방어가 도는 방식을 설명하지 않는다', 7);
+}
+
+section('import 를 걷는 눈이 부수효과 import 를 놓치지 않는다');
+{
+  /* ★★ 왜 이 절이 있나 — **조용히 빠진 채로 배포될 뻔했다.**
+   *
+   *   공유 묶음(전투 엔진)은 손목록이 아니라 «진입점에서 import 를 따라 걷는다».
+   *   그 «걷는 눈» 이 `syncshared.mjs` 와 여기 두 벌이었고, 그중 하나가 틀려 있었다:
+   *
+   *     /(?:import|export)\s*(?:[\s\S]*?\sfrom\s*)?['"]…['"]/
+   *
+   *   `?` 는 있는 쪽을 먼저 시도한다 → 게으른 `[\s\S]*?\sfrom` 이 **다음 줄까지 건너뛰어**
+   *   `import './x.js';` 를 통째로 삼키고 그 아래 평범한 import 하나만 잡는다.
+   *   부수효과 import 가 **혼자** 있으면 삼킬 대상이 없어 잡힌다 — 그래서 지금까지 조용했다.
+   *
+   *   놓친 파일은 서버에 복사되지 않는다. 그런데 도구는 «일치» 라고 말한다.
+   *   ⇒ **형태별로 따로 본다.** 그리고 그 사실을 여기서 **실제로 굴려** 못 박는다.
+   *
+   * ★ 글자 검사가 아니라 **동작 검사**다. 정규식 모양이 바뀌어도, 답만 맞으면 통과다. */
+
+  /** 한 판: 소스를 주고 나와야 할 것들을 확인한다 */
+  function walkCase(label, src, want, forbid) {
+    const got = importsOf(src);
+    const miss = (want || []).filter((w) => !got.includes(w));
+    const extra = (forbid || []).filter((f) => got.includes(f));
+    ok(!miss.length && !extra.length, label,
+      miss.length ? `놓쳤다: ${miss.join(', ')} (잡은 것: ${got.join(', ') || '없음'})`
+        : `잡으면 안 되는 것을 잡았다: ${extra.join(', ')}`);
+  }
+
+  const NL = String.fromCharCode(10);
+
+  /* ①  **이게 실제로 물던 자리다** — 부수효과 import 뒤에 평범한 import */
+  walkCase('부수효과 import 다음에 평범한 import 가 와도 둘 다 잡는다',
+    `import './side.js';${NL}import { a } from './norm.js';`,
+    ['./side.js', './norm.js']);
+
+  /* ② 혼자 있으면 예전 눈도 잡았다 — 그래서 조용했다. 여기서도 당연히 잡혀야 한다 */
+  walkCase('부수효과 import 가 혼자 있어도 잡는다',
+    `import './only.js';${NL}const x = 1;`, ['./only.js']);
+
+  /* ③ 부수효과가 **연달아** 있는 경우 */
+  walkCase('부수효과 import 가 연달아 있어도 전부 잡는다',
+    `import './a.js';${NL}import './b.js';${NL}import { c } from './c.js';`,
+    ['./a.js', './b.js', './c.js']);
+
+  /* ④ 여러 줄 named import — 줄바꿈이 끼어도 from 을 놓치면 안 된다 */
+  walkCase('여러 줄에 걸친 named import 를 잡는다',
+    `import {${NL}  a,${NL}  b,${NL}} from './multi.js';`, ['./multi.js']);
+
+  /* ⑤ 재수출 두 형태 */
+  walkCase('export … from / export * from 을 잡는다',
+    `export { a } from './re1.js';${NL}export * from './re2.js';`, ['./re1.js', './re2.js']);
+
+  /* ⑥ 큰따옴표 · 동적 import */
+  walkCase('큰따옴표와 동적 import 를 잡는다',
+    `import { a } from "./dq.js";${NL}const m = await import('./dyn.js');`, ['./dq.js', './dyn.js']);
+
+  /* ⑦ **주석 안의 import 는 파일을 끌고 오면 안 된다.**
+   *   예전에 지웠던 import 를 주석으로 남겨 두는 일이 흔하다 — 그게 묶음을 부풀리면
+   *   서버에 쓸데없는 파일이 실리고, 더 나쁘게는 ENGINE_HASH 가 흔들린다. */
+  walkCase('주석 처리된 import 는 무시한다',
+    `// import './dead.js';${NL}/* import './dead2.js'; */${NL}import { a } from './live.js';`,
+    ['./live.js'], ['./dead.js', './dead2.js']);
+
+  /* ⑧ CRLF 에서도 같아야 한다 — 이 저장소는 CRLF 다.
+   *   §102 에서 «CRLF 라 정규식이 조용히 아무 일도 안 하는» 판을 실제로 겪었다. */
+  const CR = String.fromCharCode(13);
+  walkCase('CRLF 줄바꿈에서도 같게 잡는다',
+    `import './side.js';${CR}${NL}import { a } from './norm.js';${CR}${NL}`,
+    ['./side.js', './norm.js']);
+
+  /* ⑨ **저장소의 진짜 파일로 확인한다.** 위 여덟은 내가 지어낸 소스라
+   *   현실과 어긋날 수 있다. `src/ui/codex.js` 에 그 형태가 실재한다:
+   *     import '../data/classes_t4.js';   ← 부수효과
+   *     import { PETS, … } from '../data/pets.js';   ← 바로 다음 줄
+   *   (아직 공유 묶음 밖이라 안 물렸을 뿐이다. 언젠가 들어오면 그날 조용히 빠진다.) */
+  const codexSrc = readFileSync(srcDir('ui/codex.js'), 'utf8');
+  const codexGot = importsOf(codexSrc);
+  ok(codexSrc.includes("import '../data/classes_t4.js'"),
+    '실물 확인 대상(codex.js)에 부수효과 import 가 아직 있다',
+    '없어졌다면 이 검사의 근거가 사라진 것이다 — 다른 실물을 찾아 바꿔라');
+  ok(codexGot.includes('../data/classes_t4.js') && codexGot.includes('../data/pets.js'),
+    '실물 codex.js 에서 부수효과 import 와 그 다음 import 를 둘 다 잡는다',
+    `잡은 것: ${codexGot.join(', ')}`);
+
+  /* ⑩ **사본이 다시 생기지 않았나.** 이 병의 뿌리는 «두 벌» 이었다.
+   *   누가 편하다고 지역 함수를 다시 만들면 그날부터 또 갈라진다. */
+  const dupes = [];
+  for (const rel of ['tools/syncshared.mjs', 'tools/smoke.mjs']) {
+    const raw = readFileSync(join(rootDir, rel), 'utf8');
+    const body = decomment(raw);
+    if (!/from\s*['"][^'"]*lib\/imports\.mjs['"]/.test(body)) {
+      dupes.push(`${rel} 이 lib/imports.mjs 를 안 쓴다`);
+    }
+    if (/function\s+(importsOf|specsOf|decomment)\s*\(/.test(body)) {
+      dupes.push(`${rel} 이 걷는 눈을 스스로 또 만든다 — 사본이 둘이면 반드시 갈라진다`);
+    }
+  }
+  okAll(dupes, '걷는 눈은 lib/imports.mjs 한 벌뿐이다', 4);
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
