@@ -15,6 +15,8 @@
 import { el, num } from '../core/util.js';
 import { state } from '../game/state.js';
 import * as Cloud from '../net/cloud.js';
+import * as Gold from '../net/gold.js';
+import { state as gs, save } from '../game/state.js';
 import { ABYSS_NAME, zoneOf } from '../data/abyss.js';
 import { getCity } from '../data/world.js';
 import { getClass } from '../data/classes.js';
@@ -101,6 +103,7 @@ export function render(root, params = {}) {
       el('div', { class: 'muted tiny', text: KINDS.find((k) => k.id === kind).desc }),
       list),
     minePanel(),
+    giftPanel(),
     notePanel(),
   ));
 
@@ -170,10 +173,17 @@ async function load(list) {
         /* ★★ 줄 전체가 눌리긴 하지만 **그걸 아무도 몰랐다** (제작자: «아이디 눌러야 나오는 게 안 보여서»).
          *   숨은 조작은 없는 기능과 같다. 눈에 보이는 버튼을 단다.
          *   줄 클릭도 그대로 둔다 — 익숙해진 사람이 쓰던 길을 뺏을 이유가 없다. */
-        el('button', {
-          class: 'btn xs rk-more',
-          onClick: (ev) => { ev.stopPropagation(); openSquads(kind, rank, r.company_name); },
-        }, '상세보기'))));
+        el('div', { class: 'row', style: { gap: '4px', justifyContent: 'flex-end' } },
+          /* ★ 내 줄에는 안 붙인다 — 자기에게는 못 한다 (서버도 막지만 버튼부터 없앤다) */
+          mine ? null : el('button', {
+            class: 'btn xs ghost',
+            title: '이 용병단에게 골드를 부탁한다',
+            onClick: (ev) => { ev.stopPropagation(); askGold(kind, rank, r.company_name); },
+          }, '부탁'),
+          el('button', {
+            class: 'btn xs rk-more',
+            onClick: (ev) => { ev.stopPropagation(); openSquads(kind, rank, r.company_name); },
+          }, '상세보기')))));
   }
 }
 
@@ -306,6 +316,137 @@ function minePanel() {
         },
       }, '지금 올리기')
       : el('div', { class: 'faint tiny', text: '클라우드를 켜면 기록이 순위표에 올라간다.' }));
+}
+
+
+/* ─────────────────────────── 골드 부탁 ───────────────────────────
+ *
+ * ★★ 제작자 요청: 「순위표 보고 구걸하고 승낙하면 1만/10만/50만 선택해서 보내줄수 있는」
+ *
+ * ★ 지목은 **«부탁» 한 번뿐**이다. 순위표는 user_id 도 handle 도 안 준다(일부러 그렇다).
+ *   그래서 «순위 + 내가 본 이름» 으로 짚고 서버가 이름을 대조한다.
+ *   빗나가도 «엉뚱한 사람에게 부탁이 갔다» 로 끝나고, 그 사람이 거절하면 그만이다.
+ *   **골드가 실제로 오가는 것은 그 부탁 행의 id 로만** 이라 잘못 갈 수가 없다.
+ */
+
+/** 이 사람에게 부탁한다 */
+async function askGold(k, rank, name) {
+  if (!Cloud.ready()) { toast('클라우드를 켜야 부탁할 수 있다.', 'bad'); return; }
+  const res = await Gold.beg(k, rank, name);
+  const row = res.ok && Array.isArray(res.data) ? res.data[0] : null;
+  if (row && row.ok) {
+    toast(`${name} 에게 부탁했다. 승낙하면 골드가 들어온다.`, 'good');
+    giftCache = null;
+    go('rank', { kind: k });
+  } else {
+    /* ★ 서버가 준 사유를 그대로 보여준다. 여기서는 숨길 이유가 없다 —
+     *   전부 «내가 방금 한 행동» 에 대한 것이고, 상한을 알려 줘도 얻는 게 없다.
+     *   (점수 제출과 다르다: 거기서는 사유가 그대로 공격 도구가 됐다, §55.) */
+    toast((row && row.reason) || res.error || '부탁하지 못했다.', 'bad');
+  }
+}
+
+/** 부탁함 캐시 — 화면을 다시 그릴 때마다 다시 받지 않는다 */
+let giftCache = null;
+
+/**
+ * 부탁함.
+ *
+ * ★★ 화면을 열 때 **받을 몫을 세이브에 반영한다** (`gold_apply`).
+ *   서버가 «반영했다» 를 찍으면서 금액을 주므로 두 번 불러도 두 번째는 0 이다 —
+ *   골드가 복사되지 않는다. 대신 **받자마자 저장**해야 한다.
+ */
+function giftPanel() {
+  const box = el('div', { class: 'panel col', style: { gap: '8px' } },
+    el('div', { class: 'row spread center' },
+      el('h3', { text: '골드 부탁', style: { margin: '0' } }),
+      el('span', { class: 'tiny faint', text: '하루 50만까지 보낼 수 있다' })));
+  const body = el('div', { class: 'col', style: { gap: '6px' } });
+  box.appendChild(body);
+
+  if (!Cloud.ready()) {
+    body.appendChild(el('div', { class: 'faint tiny', text: '클라우드를 켜면 서로 골드를 주고받을 수 있다.' }));
+    return box;
+  }
+  body.appendChild(el('div', { class: 'faint tiny', text: '불러오는 중…' }));
+
+  (async () => {
+    /* ① 받을 몫 먼저 — 받고 바로 저장한다 */
+    try {
+      const ap = await Gold.applyPending();
+      const got = ap.ok && Array.isArray(ap.data) ? ap.data[0] : null;
+      const delta = Number(got && got.delta) || 0;
+      if (delta !== 0) {
+        gs.gold = Math.max(0, (Number(gs.gold) || 0) + delta);
+        save();
+        toast(delta > 0 ? `골드 ${num(delta)} 을 받았다.` : `골드 ${num(-delta)} 을 보냈다.`,
+          delta > 0 ? 'good' : '');
+      }
+    } catch (e) { /* 못 받아도 화면은 떠야 한다 */ }
+
+    /* ② 목록 */
+    const res = giftCache || await Gold.inbox();
+    giftCache = res;
+    body.innerHTML = '';
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    if (!res.ok) {
+      body.appendChild(el('div', { class: 'faint tiny', text: '부탁함을 불러오지 못했다.' }));
+      return;
+    }
+    if (!rows.length) {
+      body.appendChild(el('div', { class: 'faint tiny', text: '주고받은 부탁이 없다. 순위표에서 «부탁» 을 눌러 보라.' }));
+      return;
+    }
+
+    for (const g of rows) {
+      const mineIn = g.dir === 'in';          // 내가 부탁을 받았다 = 내가 보내는 쪽
+      const label = mineIn ? `${g.other} 이(가) 부탁했다` : `${g.other} 에게 부탁했다`;
+      const st = g.status === 'pending' ? '기다리는 중'
+        : g.status === 'sent' ? `${num(g.amount)} 보냄`
+          : '거절됨';
+
+      const line = el('div', { class: 'row spread center wrap', style: { gap: '6px', padding: '4px 0' } },
+        el('div', { class: 'col', style: { gap: '1px', minWidth: '0' } },
+          el('div', { style: { fontSize: '13px' }, text: label }),
+          el('div', { class: 'tiny faint', text: st })));
+
+      /* 내가 받은 부탁이고 아직 안 정했으면 → 금액을 골라 보내거나 거절한다 */
+      if (mineIn && g.status === 'pending') {
+        const acts = el('div', { class: 'row', style: { gap: '4px' } });
+        for (const amt of Gold.AMOUNTS) {
+          acts.appendChild(el('button', {
+            class: 'btn xs',
+            onClick: async (ev) => {
+              const b = ev.currentTarget;
+              b.disabled = true;
+              const r = await Gold.send(g.id, amt);
+              const ok = r.ok && Array.isArray(r.data) && r.data[0] && r.data[0].ok;
+              if (ok) {
+                toast(`${g.other} 에게 ${num(amt)} 을 보냈다.`, 'good');
+                giftCache = null;
+                go('rank', { kind });
+              } else {
+                b.disabled = false;
+                toast((r.data && r.data[0] && r.data[0].reason) || r.error || '보내지 못했다.', 'bad');
+              }
+            },
+          }, num(amt)));
+        }
+        acts.appendChild(el('button', {
+          class: 'btn xs ghost',
+          onClick: async () => {
+            await Gold.decline(g.id);
+            giftCache = null;
+            go('rank', { kind });
+          },
+        }, '거절'));
+        line.appendChild(acts);
+      }
+      body.appendChild(line);
+    }
+  })();
+
+  return box;
 }
 
 function notePanel() {

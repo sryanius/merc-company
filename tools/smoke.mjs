@@ -6288,6 +6288,170 @@ section('튜토리얼이 대상까지 화면을 끌어온다');
   okAll(faults, '튜토리얼이 대상이 화면 밖이면 끌어온다 (그리고 그 뒤엔 안 건드린다)', 9);
 }
 
+section('골드 송금 — 복사되지 않고, 받은 사람이 치트로 안 찍힌다');
+{
+  /* ★★ 제작자 요청: 「순위표 보고 구걸하고 승낙하면 1만/10만/50만 선택해서 보내줄수 있는」
+   *
+   *   골드는 클라이언트가 신고하는 값이라, 송금은 그대로 «세탁 경로» 가 될 수 있다.
+   *   그래서 검사가 볼 것은 두 가지다:
+   *     ① **복사되지 않는가** (두 번 반영하면 골드가 늘어난다)
+   *     ② **받은 사람이 치트로 안 찍히는가** (실측: 50만을 받으면 flag(B) 가 찍힌다) */
+  const gPath = fileURLToPath(new URL('db/012_gold_gift.sql', ROOT));
+  if (!existsSync(gPath)) {
+    ok(false, '골드 송금 마이그레이션이 있다', 'db/012_gold_gift.sql 이 없다');
+  } else {
+    /* ★ SQL 주석을 지우고 본다 — §94 에서 검사가 주석에 맞아 통과한 적이 있다.
+     *   (`.` 은 `\r` 을 안 먹으므로 `\r` 을 먼저 뗀다.) */
+    const sql = readFileSync(gPath, 'utf8').split(/\r?\n/).map((l) => l.replace(/--.*/, '')).join('\n');
+    const bad = [];
+
+    /* ① 멱등성 — 반영 표식을 보고 한 번만 준다 */
+    const ap = sql.slice(sql.indexOf('function public.gold_apply'));
+    if (!/to_applied_at is null/.test(ap)) bad.push('받는 쪽 반영 표식을 안 본다 — 두 번 부르면 골드가 복사된다');
+    if (!/from_applied_at is null/.test(ap)) bad.push('보내는 쪽 반영 표식을 안 본다');
+    if (!/set to_applied_at = now\(\)/.test(ap)) bad.push('반영했다는 표식을 안 찍는다');
+
+    /* ② ★★ 장부 맞추기 — 이게 없으면 50만 받은 사람이 checkGrowth 에 걸린다 */
+    if (!/update public\.ledger set gold/.test(ap)) {
+      bad.push('gold_apply 가 ledger.gold 를 안 움직인다 — 받은 사람이 치트로 표시된다');
+    }
+
+    /* ③ 없는 돈을 못 보낸다 · 하루 한도 · 동시 요청 */
+    const sd = sql.slice(sql.indexOf('function public.gold_send'), sql.indexOf('function public.gold_decline'));
+    if (!/for update/.test(sd)) bad.push('gold_send 가 행을 안 잠근다 — 동시에 둘이 통과한다');
+    /* ★★ **이름이 아니라 «비교문» 을 본다.** 처음엔 `public.ledger` 와 `gold_daily_cap()` 이
+     *   나오는지만 봤는데, 비교하는 줄을 지워도 **오류 메시지 문구에 이름이 남아** 통과했다.
+     *   메타 검사가 잡았다 — 이 저장소가 같은 방식으로 여러 번 당했다. */
+    if (!/bal\s*<\s*p_amount/.test(sd)) bad.push('잔액을 안 본다 — 없는 골드를 보낼 수 있다');
+    if (!/coalesce\(\(select l\.gold/.test(sd)) {
+      bad.push('잔액을 select .. into 로만 읽는다 — 원장이 없으면 NULL 이라 검사를 통과한다');
+    }
+    if (!/used \+ p_amount > public\.gold_daily_cap\(\)/.test(sd)) bad.push('하루 한도를 안 본다');
+    if (!/from_user = me/.test(sd)) bad.push('본인 것인지 안 본다 — 남의 부탁을 승낙할 수 있다');
+
+    /* ④ 자기 자신에게 못 보낸다 (골드를 스스로 늘리는 가장 쉬운 길) */
+    if (!/from_user <> to_user/.test(sql)) bad.push('자기 자신에게 보내는 것을 안 막는다');
+
+    /* ⑤ RLS — 새 테이블은 켜고 정책을 안 만든다 (§010 규칙) */
+    if (!/alter table public\.gold_gifts enable row level security/.test(sql)) {
+      bad.push('gold_gifts 에 RLS 를 안 켠다 — 공개 anon 키로 읽힌다');
+    }
+    if (/create policy[^;]*gold_gifts/.test(sql)) bad.push('gold_gifts 에 정책을 만든다 — 통로는 함수뿐이어야 한다');
+
+    /* ⑥ 내부 전용 함수를 열지 않는다 */
+    if (/grant execute on function public\.gold_user_at/.test(sql)) {
+      bad.push('gold_user_at 을 열어 준다 — 순위로 남을 지목하는 내부 함수다');
+    }
+    /* ⑦ §77 — revoke from public 만으로는 안 잠긴다 */
+    if (!/revoke all on function public\.gold_apply\(\)\s*from anon, authenticated, public/.test(sql)) {
+      bad.push('회수 대상에 anon·authenticated 를 안 적었다 (§77: from public 만으로는 안 잠긴다)');
+    }
+    okAll(bad, '송금 SQL 이 복사·위조·노출을 막는다', 13);
+
+    /* ⑧ ★★ 금액이 **서버와 클라에서 같은가.**
+     *   다르면 화면에 보이는 버튼이 서버에서 튕겨 난다 (PvP 쿨타임 때와 같은 종류). */
+    const mAmt = sql.match(/amount in \(([^)]*)\)/);
+    const srvAmts = mAmt ? mAmt[1].split(',').map((x) => Number(x.trim())).filter((n) => n) : [];
+    let cliAmts = [];
+    try {
+      const gsrc = decomment(readFileSync(srcDir('net/gold.js'), 'utf8'));
+      const m2 = gsrc.match(/AMOUNTS = \[([^\]]*)\]/);
+      cliAmts = m2 ? m2[1].split(',').map((x) => Number(String(x).replace(/_/g, '').trim())).filter((n) => n) : [];
+    } catch { /* 아래에서 걸린다 */ }
+    ok(srvAmts.length === 3 && JSON.stringify(srvAmts) === JSON.stringify(cliAmts),
+      '보낼 수 있는 금액이 서버와 클라에서 같다',
+      `서버 ${JSON.stringify(srvAmts)} vs 클라 ${JSON.stringify(cliAmts)}`);
+
+    /* ⑨ 하루 한도도 화면 문구와 같아야 한다 — 다르면 사람이 헛걸음한다 */
+    const mCap = sql.match(/gold_daily_cap\(\)[\s\S]{0,120}?select (\d+)/);
+    const cap = mCap ? Number(mCap[1]) : 0;
+    const rsrc = decomment(readFileSync(srcDir('ui/rank.js'), 'utf8'));
+    ok(cap === 500000 && /하루 50만까지/.test(rsrc),
+      '하루 한도가 서버와 화면에서 같다 (50만)',
+      `서버 ${cap} · 화면 문구 ${/하루 50만까지/.test(rsrc) ? '있다' : '없다'}`);
+  }
+
+  /* ⑩ 클라이언트 — 받은 몫을 **바로 저장**해야 한다 (중간에 죽으면 그 몫은 사라진다) */
+  const rsrc2 = decomment(readFileSync(srcDir('ui/rank.js'), 'utf8'));
+  const gaps = [];
+  if (!/Gold\.applyPending\(\)/.test(rsrc2)) gaps.push('받을 몫을 안 가져온다');
+  {
+    const at = rsrc2.indexOf('applyPending()');
+    const near = at >= 0 ? rsrc2.slice(at, at + 420) : '';
+    if (!/gs\.gold/.test(near)) gaps.push('받은 delta 를 세이브에 안 더한다');
+    if (!/save\(\)/.test(near)) gaps.push('더하고 나서 저장을 안 한다 — 새로고침하면 사라진다');
+  }
+  if (!/Gold\.beg\(/.test(rsrc2)) gaps.push('부탁을 보내는 곳이 없다');
+  if (!/Gold\.send\(/.test(rsrc2)) gaps.push('승낙해서 보내는 곳이 없다');
+  if (!/mine \? null :/.test(rsrc2)) gaps.push('내 줄에도 부탁 버튼이 붙는다');
+  okAll(gaps, '화면이 골드를 받아 저장하고, 부탁·승낙을 실제로 부른다', 6);
+
+  /* ⑪ 새 모듈이 오프라인 목록에 있는가 (없으면 PWA 에서 통째로 안 뜬다) */
+  const swsrc = readFileSync(fileURLToPath(new URL('sw.js', ROOT)), 'utf8');
+  ok(/\.\/src\/net\/gold\.js/.test(swsrc),
+    '골드 모듈이 오프라인 목록(APP_SHELL)에 있다',
+    'sw.js 의 APP_SHELL 에 ./src/net/gold.js 가 없다');
+}
+
+section('업데이트 내역이 치트 방어의 속을 안 흘린다');
+{
+  /* ★★ 제작자 지적: 「이건 적으면 업데이트 내역에 적으면 안되지...」
+   *
+   *   맞다. **업데이트 내역은 플레이어 전원이 본다 — 치트 계정도 본다.**
+   *   거기에 «어떻게 걸러내는지» 나 «상한이 얼마인지» 를 적으면
+   *   §55 에서 거절 사유를 숨긴 이유가 통째로 무너진다. 그대로 우회 설명서가 된다.
+   *
+   *   실제로 그렇게 적었다가 지웠다: 실측 천장 값 · 옛 상한 값 ·
+   *   「여러 번 반복하면 더 이상 알려 주지 않는다」 같은 방어 동작 설명.
+   *
+   * ★ 그래서 **숫자로 못 박는다.** 「조심하자」 는 다음에 또 잊는다.
+   *   판정 상수의 값이 내역에 글자로 나타나면 실패다. */
+  let RL2 = null;
+  try { RL2 = await import('../src/game/rules.js'); } catch (e) {
+    ok(false, '규칙 모듈을 읽는다 (내역 검사용)', String((e && e.message) || e));
+  }
+
+  const clRaw = readFileSync(srcDir('data/changelog.js'), 'utf8');
+
+  if (RL2) {
+    /* 흘리면 안 되는 값들 — **판정에 쓰는 경계**다.
+     * ★ 작은 수(3, 12 같은)는 아무 데나 나오므로 안 본다. 1000 이상만 본다.
+     * ★ 골드 하루 한도(50만)는 **일부러 뺀다** — 그건 기능을 쓰려면 알아야 하는 규칙이다. */
+    const secret = [
+      ...(RL2.POWER_BY_LEVEL || []),
+      RL2.POWER_CAP,
+      ...Object.values(RL2.MEASURED_MAX || {}),
+      5_000_000,          // 옛 POWER_CAP — 지금도 적으면 «예전엔 여기까지 됐다» 를 알려 준다
+    ].filter((n) => Number.isFinite(n) && n >= 1000);
+
+    const leaked = [];
+    for (const n of new Set(secret)) {
+      const raw = String(Math.round(n));
+      const grouped = Number(raw).toLocaleString('en-US');
+      if (clRaw.includes(raw)) leaked.push(`${raw} 가 그대로 적혀 있다`);
+      else if (clRaw.includes(grouped)) leaked.push(`${grouped} 가 그대로 적혀 있다`);
+    }
+    okAll(leaked, '판정 경계값이 업데이트 내역에 안 적혀 있다', Math.max(1, new Set(secret).size));
+  }
+
+  /* ★ 「서버가 안 본다」 류는 **그 자체가 초대장**이다.
+   *   실제로 「순위표의 편성·전력은 … 서버가 검증하지는 않는다」 가 적혀 있었다. */
+  const invites = [];
+  for (const bad of ['검증하지는 않는다', '검증하지 않는다', '서버가 안 본다', '검사하지 않는다']) {
+    if (clRaw.includes(bad)) invites.push(`«${bad}» — 무엇이 안 막혀 있는지 알려 준다`);
+  }
+  okAll(invites, '내역이 «무엇을 안 본다» 를 알려 주지 않는다', 4);
+
+  /* ★ 방어가 **어떻게** 도는지도 적으면 안 된다 (횟수·조건·동작).
+   *   문구를 통째로 막으면 오탐이 나므로, «반복 + 알려 주지 않는다» 처럼 짝으로 본다. */
+  const how = [];
+  const pair = (a, b) => clRaw.includes(a) && clRaw.includes(b);
+  if (pair('반복하면', '알려 주지 않는다')) how.push('반복 시 조용해지는 동작을 설명한다');
+  if (pair('거절이 계속', '순위에 안 올라')) how.push('누적 거절이 어떻게 되는지 설명한다');
+  if (clRaw.includes('찔러 보는')) how.push('«찔러 보기» 를 어떻게 막는지 설명한다');
+  okAll(how, '내역이 방어가 도는 방식을 설명하지 않는다', 3);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

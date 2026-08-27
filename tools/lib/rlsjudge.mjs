@@ -18,6 +18,7 @@
 export const GAME_TABLES = [
   'saves', 'saves_archive', 'scores', 'scores_history', 'ledger', 'rejections',
   'pvp_defense', 'pvp_ratings', 'pvp_matches', 'pvp_cooldowns', 'pvp_desync',
+  'gold_gifts',
 ];
 
 /** 남의 것이지만 **알고 있는** 테이블 (접두어 → 주인) */
