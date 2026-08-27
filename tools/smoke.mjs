@@ -7056,6 +7056,70 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
   }
 }
 
+section('SQL 이 부르면 죽는 모양을 갖고 있지 않은가');
+{
+  /* ★★ 왜 이 절이 있나 — `gold_send()` 가 **내놓은 날부터 부를 때마다 죽고 있었다.**
+   *
+   *     select count(*) into cnt from public.gold_gifts … for update;
+   *     → ERR 0A000 : FOR UPDATE is not allowed with aggregate functions
+   *
+   *   PostgreSQL 은 집계와 잠금절을 같이 못 쓴다. 그런데 plpgsql 은 문장을
+   *   **처음 실행할 때** 계획한다 — `create function` 은 멀쩡히 통과하고
+   *   **부를 때만** 터진다. 프로덕션에서 확인했다: 부탁 4건 전부 `pending`,
+   *   보내진 적 **0건**. 승낙이 한 번도 성공한 적이 없었다.
+   *
+   * ★★ 근본 원인은 **SQL 함수를 한 번도 실행해 본 적이 없다는 것**이다.
+   *   로컬에 Postgres 가 없어서(§102.5) 실행 검사가 없다 — 그건 여전히 숙제다.
+   *   그때까지 **이 형태만이라도** 글자로 막는다. 「만들어졌다」 는 증거가 아니다.
+   *
+   * ★ 판단부는 `tools/lib/sqllock.mjs` 다. 여기서는 ① 실제 파일에 대고 굴리고
+   *   ② **지어낸 판으로 판단부 자체가 썩지 않았는지** 본다 (rlsjudge 와 같은 짜임새). */
+  let SL = null;
+  try { SL = await import('./lib/sqllock.mjs'); } catch (e) {
+    ok(false, 'sqllock 판단부를 읽는다', String((e && e.message) || e));
+  }
+
+  if (SL) {
+    /* ① 저장소의 SQL 전부 */
+    const dbDir = join(rootDir, 'db');
+    const sqls = existsSync(dbDir) ? readdirSync(dbDir).filter((f) => f.endsWith('.sql')) : [];
+    ok(sqls.length >= 10, 'db/*.sql 을 찾았다', `${sqls.length}개`);
+    const found = [];
+    for (const f of sqls) {
+      for (const p of SL.lockProblems(readFileSync(join(dbDir, f), 'utf8'))) {
+        found.push(`db/${f}:${p.line} — ${p.forbidden} 와 ${p.lock} 이 같은 질의 층에 있다\n`
+          + `        ${p.snippet}\n`
+          + '        → PostgreSQL 이 0A000 으로 거절한다. 집계를 빼고 `perform … for update`'
+          + ' + `get diagnostics … = row_count` 로 바꿔라 (db/014 참고)');
+      }
+    }
+    okAll(found, 'SQL 에 잠금절이 못 붙는 자리가 없다', Math.max(1, sqls.length));
+
+    /* ② 판단부가 실제로 무는가 — 지어낸 판으로 양쪽을 다 본다.
+     *   ★ 「물어야 하는 것」만 보면 «전부 문다» 는 판단부도 통과한다. 반대쪽을 같이 본다. */
+    const CASES = [
+      ['우리를 문 그 문장', "select count(*) into cnt from g where id = p and status = 'x' for update;", true],
+      ['group by + for update', 'select a from t group by a for update;', true],
+      ['distinct + for update', 'select distinct a from t for update;', true],
+      ['over() + for update', 'select row_number() over (order by a) from t for update;', true],
+      ['union + for update', 'select a from t union select b from u for update;', true],
+      ['하위질의 집계는 합법', 'select id from t where n = (select count(*) from u) for update;', false],
+      ['perform + for update (고친 형태)', 'perform 1 from t where id = p for update;', false],
+      ['컬럼 잠금 (pvp_claim 형태)', 'select day_used into v from r where user_id = p for update;', false],
+      ['집계만, 잠금 없음', 'select count(*) into cnt from t where id = p;', false],
+      ['주석 처리된 것', '-- select count(*) from t for update;\nselect 1;', false],
+      ['문자열 리터럴 안', "select 'count(*) ... for update' as s;", false],
+      ['두 문장으로 나뉘어 있으면', 'select count(*) from t; select 1 from u for update;', false],
+    ];
+    const wrong = [];
+    for (const [label, sql, want] of CASES) {
+      const got = SL.lockProblems(sql).length > 0;
+      if (got !== want) wrong.push(`${label} — ${want ? '물어야 하는데 안 물었다' : '물면 안 되는데 물었다'}`);
+    }
+    okAll(wrong, '판단부가 무는 것과 안 무는 것을 가른다', CASES.length);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

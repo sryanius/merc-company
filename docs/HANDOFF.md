@@ -7792,3 +7792,94 @@ data/{abyss,tower,pets,classes,classes_t4,enemies,formations,limits,skills}.
 1단계의 남은 것은 그대로다: `run_import()` · `run_snapshot()` ·
 고용/착용/판매/전직 RPC · `submit-score` 가 `run_mercs`/`run_items` 에서 세기.
 **이제 그 계산을 서버 묶음에 넣을 수 있다** — 462KB 짜리 닫힘이라 엔진 묶음과 같은 급이다.
+
+
+## 109. 골드 «보내기» 는 **내놓은 날부터 한 번도 안 됐다** — SQL 을 실행해 본 적이 없었다
+
+§104 1단계의 지도를 뜨다가 걸렸다. `db/012_gold_gift.sql:223` 이 이랬다:
+
+```sql
+select count(*) into cnt from public.gold_gifts
+ where id = p_id and from_user = me and status = 'pending'
+ for update;
+```
+
+PostgreSQL 은 **집계와 잠금절을 같이 못 쓴다.** 실제로 쳐서 확인했다:
+
+```
+집계 + for update    → ERR 0A000 : FOR UPDATE is not allowed with aggregate functions
+perform + for update → OK (row_count=0)
+```
+
+★★ plpgsql 은 문장을 **처음 실행할 때** 계획한다. 그래서 `create function` 은
+멀쩡히 통과하고 **부를 때만** 터진다. 「만들어졌다」 는 아무 증거가 아니다.
+
+**프로덕션 조회 — 정말로 죽어 있었다:**
+
+| | |
+|---|---|
+| `gold_gifts` 총 | 4건 |
+| 상태 | **전부 `pending`** |
+| `sent_at` 이 있는 행 | **0건** |
+
+부탁은 쌓였는데 승낙 버튼을 누르면 매번 실패 토스트만 떴다 (`src/ui/rank.js:428`).
+
+### 고친 것
+
+`db/014_gold_send_fix.sql` — 집계를 빼고 `perform … for update` +
+`get diagnostics cnt = row_count`. 잠그려던 의도는 그대로 살고, 오히려 이쪽이
+**진짜로 그 행을 잠근다.** 어법은 같은 파일의 `gold_decline` 과 같다.
+
+★ **`db/012` 도 같이 고쳤다.** README 는 SQL 파일을 순서대로 다시 돌리는 것을 전제하고
+  012 는 `create or replace` 다 — 안 고쳐 두면 재설치할 때 012 가 014 를 덮어
+  **버그가 되살아난다.**
+
+★ 실제로 굴려서 확인했다 (「만들어졌다」 로 끝내지 않는다):
+  `ok=t · reason=(없음) · status=sent · amount=10000 · sent_at 찍힘`.
+
+### ★★ 확인하다 프로덕션에 사고를 냈다 — 반드시 읽어라
+
+성공 경로를 굴리려고 **`gold_gifts` 에 가짜 부탁을 넣고 예외를 던져 되돌리는** 방식을 썼다.
+
+**되돌아가지 않았다. 그리고 그 실행이 4번 반복됐다** (id 6·7·8·9 가 남았고 id 5 는
+시퀀스만 먹었다). `npx supabase db query` 가 오류 뒤 재시도하는 것으로 보이는데
+정확한 기전은 확인 못 했다.
+
+⇒ **이 러너의 롤백을 믿지 마라.** 프로덕션 표에 쓰는 방식으로 검증하지 마라.
+  잠글 행이 없는 id(`-1`) 로 **읽기만 하는 탐침**은 안전했다 — 그쪽으로 해라.
+  (그것만으로도 0A000 이 사라졌다는 결정적 증거가 나온다.)
+
+남은 행은 제작자 승인을 받아 지웠다 — 조건 넷(`id in (6,7,8,9)` · `pending` ·
+`amount is null` · `sent_at is null`)을 걸어 원래 있던 1~4 는 안 건드렸다.
+지운 뒤 `total 4 · id 1·2·3·4 · sentEver 0` 으로 탐침 전과 같아졌다.
+**골드는 한 푼도 안 움직였다.**
+
+### 스모크 절 — 「SQL 이 부르면 죽는 모양을 갖고 있지 않은가」 (26건)
+
+★★ **근본 원인은 정규식이 아니라 「SQL 함수를 한 번도 실행해 본 적이 없다」 는 것이다.**
+로컬에 Postgres 가 없어서(§102.5 — 도커 데몬이 안 뜬다) 실행 검사가 없다.
+**그건 여전히 숙제다.** 그때까지 이 형태만이라도 글자로 막는다.
+
+판단부는 `tools/lib/sqllock.mjs` (rlsjudge 와 같은 짜임새 — 판단은 lib, 스모크가 굴린다).
+잠금절(`for update`/`for share`/…)과 같은 질의 층에 **집계·group by·having·distinct·
+집합연산·윈도우함수**가 있으면 잡는다.
+
+★ 헛것을 안 잡으려고 **괄호 깊이**를 센다 — 하위질의 안의 집계는 합법이다:
+```sql
+select id from t where n = (select count(*) from u) for update;   -- 합법, 안 잡는다
+```
+
+스모크는 ① `db/*.sql` 전부에 굴리고 ② **지어낸 판 12개**로 판단부 자체가 썩지 않았는지 본다
+(무는 쪽 5개 + 안 무는 쪽 7개 — 「전부 문다」 는 판단부도 통과하면 안 되니까).
+
+메타 검사 (둘 다 심어 봤다):
+- `db/012` 를 옛 모양으로 되심음 → **줄 번호까지 짚어 물었다** (`db/012_gold_gift.sql:221`).
+- 판단부의 괄호 처리를 무디게 함 → 합성 판 2개가 물었다.
+  ★ 이건 실제로 **내가 처음 짤 때 낸 버그**다. 괄호를 통째로 지웠더니 `count(` 의
+    여는 괄호가 날아가 정규식이 영영 안 맞았다. 합성 판이 없었으면 못 잡았다.
+
+### 남은 숙제
+
+**SQL 을 실제로 실행해 보는 검사가 없다.** 이번 것은 형태가 뚜렷해서 글자로 잡았지만,
+다음 것은 아닐 수 있다 (`gold_apply` 의 원장 갱신처럼 «0행 갱신으로 조용히 끝나는» 모양은
+글자로는 안 보인다). §104 1단계는 RPC 를 여럿 더 만든다 — 그 전에 실행 검사를 붙이는 편이 낫다.

@@ -220,9 +220,24 @@ begin
     return query select false, '보낼 수 없는 금액이다'::text; return;
   end if;
 
-  select count(*) into cnt from public.gold_gifts
+  /* ★★ 여기 예전에 이렇게 적혀 있었고, 그래서 **이 함수는 부를 때마다 죽었다:**
+   *
+   *     select count(*) into cnt from public.gold_gifts … for update;
+   *     → ERR 0A000 : FOR UPDATE is not allowed with aggregate functions
+   *
+   *   PostgreSQL 은 집계와 잠금절을 같이 못 쓴다. plpgsql 은 문장을 «처음 실행할 때»
+   *   계획하므로 `create function` 은 멀쩡히 통과하고 **부를 때만** 터진다 —
+   *   승낙이 한 번도 성공한 적이 없었다 (프로덕션: 부탁 4건 전부 pending, 보내진 적 0건).
+   *
+   *   집계를 빼고 **행을 직접 잠근다.** 잠그려던 의도는 그대로 살고, 오히려 이쪽이
+   *   진짜로 그 행을 잠근다. 어법은 아래 `gold_decline` 과 같다.
+   *   (db/014_gold_send_fix.sql 로 프로덕션에 반영했다. 여기도 같이 고쳐 둔다 —
+   *    안 그러면 설치 순서대로 다시 돌릴 때 012 가 014 를 덮어 버그가 되살아난다.)
+   *   ★ `tools/lib/sqllock.mjs` 가 이 형태를 이제 글자로 잡는다. */
+  perform 1 from public.gold_gifts
    where id = p_id and from_user = me and status = 'pending'
    for update;
+  get diagnostics cnt = row_count;
   if cnt = 0 then return query select false, '이미 처리된 부탁이다'::text; return; end if;
 
   /* 하루 한도 — UTC 자정 기준 (서버 시계만 믿는다) */
