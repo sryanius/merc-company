@@ -633,6 +633,8 @@ function migrateDataVersion(st) {
    * ★ uid·이름·잠금·착용은 안 건드린다. 바꾸는 것은 stats·baseStats·affixes 뿐이다.
    * ★ 전력 영향 실측: 2129일차 -0.37% · 1135일차 +2.09% · 나머지 0.00%. */
   let itemsRenormed = 0;
+  let slotsFixed = 0;
+  let slotsUnequipped = 0;
   if (cur > 0 && cur < ITEM_RENORM_VERSION) {
     try {
       const IB = makeItemBound({ gear: Gear, items: ITEMS_ALL, sets: SETS_ALL, rng: new RNG(1) });
@@ -648,10 +650,47 @@ function migrateDataVersion(st) {
         it.affixes = fixed.affixes;
         itemsRenormed++;
       }
+
+      /* ── 슬롯 이름 표류 (§113.1) ────────────────────────────────────────
+       *
+       * ★★ 옛 세이브에는 **반지가 `slot:'neck'` 으로**, **버클러가 `slot:'weapon'` 으로**
+       *   저장돼 있다. 슬롯 어휘가 바뀌기 전에 얻은 것들이다.
+       *   실측: 실제 세이브에서 42개 (반지 34 · 방패류 8).
+       *
+       * ★ 그대로 두면 «반지를 목걸이 칸에 낀» 상태가 남는다 — 반지를 셋 낀 셈이다.
+       *   제작자 결정: 「구지 계속 그렇게 나둘 이유는 없을것같네」.
+       *
+       * ★★ 옮길 곳이 없으면 **가방으로 내린다.** 실측상 반지 8개가 여기 해당한다
+       *   (`ring1`·`ring2` 가 이미 차 있다). 지우지는 않는다 — 다시 끼면 된다.
+       * ★ 방패류는 이미 `offhand` 에 껴 있어 슬롯만 고치면 그대로 남는다. */
+      const byUid = new Map((st.items || []).filter(Boolean).map((x) => [x.uid, x]));
+      for (const it of st.items || []) {
+        if (!it) continue;
+        const base = Gear.getBase(it.baseId);
+        if (!base || !base.slot || it.slot === base.slot) continue;
+        /* `ring` 베이스가 `ring1`/`ring2` 로 적힌 것은 표류가 아니다 */
+        if (base.slot === 'ring' && /^ring/.test(String(it.slot || ''))) continue;
+        it.slot = base.slot;
+        slotsFixed++;
+      }
+      /* 착용 자리가 더 이상 안 맞으면 옮기거나 내린다 */
+      for (const m of st.roster || []) {
+        if (!m || !m.equipment) continue;
+        for (const [at, uid] of Object.entries(m.equipment)) {
+          if (!uid) continue;
+          const it = byUid.get(uid);
+          if (!it) continue;
+          const okSlots = Gear.slotsForItem(it) || [];
+          if (!okSlots.length || okSlots.includes(at)) continue;
+          const free = okSlots.find((sl) => !m.equipment[sl]);
+          m.equipment[at] = null;
+          if (free) m.equipment[free] = uid;      // 빈 칸이 있으면 옮긴다
+          else slotsUnequipped++;                 // 없으면 가방으로 (아이템은 그대로 남는다)
+        }
+      }
     } catch (e) {
       /* ★ 마이그레이션이 세이브를 못 열게 만들면 안 된다 — 실패하면 그냥 안 바꾼다 */
       console.warn('[state] 아이템 재정렬 실패 — 그대로 둔다', e);
-      itemsRenormed = 0;
     }
   }
 
@@ -666,6 +705,13 @@ function migrateDataVersion(st) {
   if (itemsRenormed && Array.isArray(st.log)) {
     st.log.push({ day: st.day,
       text: `대장간이 장비 ${itemsRenormed}점을 다시 살펴봤다. 표기가 지금 기준에 맞게 고쳐졌다.` });
+  }
+  /* ★ 가방으로 내려간 것은 **반드시 알려 준다.** 조용히 빠지면 «왜 약해졌지» 가 된다. */
+  if (slotsUnequipped && Array.isArray(st.log)) {
+    st.log.push({ day: st.day,
+      text: `장비 ${slotsUnequipped}점이 낄 수 없는 자리에 있어 가방으로 옮겨졌다. 반지는 반지 칸에만 낀다.` });
+  } else if (slotsFixed && Array.isArray(st.log)) {
+    st.log.push({ day: st.day, text: `장비 ${slotsFixed}점의 착용 부위 표기를 바로잡았다.` });
   }
   if (repReset && Array.isArray(st.log)) {
     st.log.push({ day: st.day, text: '이름값의 셈법이 달라졌다. 도시마다 처음부터 다시 눈도장을 찍어야 한다.' });

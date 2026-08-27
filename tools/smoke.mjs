@@ -7531,6 +7531,58 @@ section('옛 세이브를 열면 어긋난 장비가 오늘 기준으로 맞춰�
     ok(ST.state.dataVersion === ST.DATA_VERSION, '마이그레이션 뒤 dataVersion 이 올라간다',
       `${ST.state.dataVersion}`);
 
+    /* ── 슬롯 이름 표류 (§113.1) ──────────────────────────────────────────
+     * ★ 옛 세이브에는 반지가 `slot:'neck'` 으로 저장돼 있다. 그대로 두면
+     *   «반지를 목걸이 칸에 낀» 상태가 남는다 (반지 셋을 낀 셈).
+     * ★ 옮길 곳이 있으면 옮기고, 없으면 **가방으로 내린다 — 지우지는 않는다.** */
+    {
+      ST.newGame(777, '슬롯검사');
+      const s2 = ST.state;
+      const m = s2.roster[0];
+      const ringA = GE.rollItem({ baseId: 'goldring', ilvl: 20, rarity: 2, rng: new rngM.RNG(11) });
+      const ringB = GE.rollItem({ baseId: 'goldring', ilvl: 20, rarity: 2, rng: new rngM.RNG(12) });
+      const ringC = GE.rollItem({ baseId: 'goldring', ilvl: 20, rarity: 2, rng: new rngM.RNG(13) });
+      ok(!!ringA && ringA.slot === 'ring', '반지 베이스가 실재한다', ringA && ringA.slot);
+      if (ringA && ringB && ringC) {
+        /* 옛 표기를 흉내낸다 — 반지인데 slot 이 neck */
+        const oldRing = { ...ringC, uid: 'it_oldring_1', slot: 'neck' };
+        const save2 = {
+          ...JSON.parse(JSON.stringify(s2)), dataVersion: 8,
+          items: [...s2.items, ringA, ringB, oldRing],
+          roster: s2.roster.map((x) => (x.uid === m.uid
+            ? { ...x, equipment: { ...x.equipment, ring1: ringA.uid, ring2: ringB.uid, neck: oldRing.uid } }
+            : x)),
+        };
+        ST.importState(JSON.parse(JSON.stringify(save2)));
+        const back = ST.state.items.find((x) => x.uid === 'it_oldring_1');
+        const owner = ST.state.roster.find((x) => x.uid === m.uid);
+        ok(!!back, '표류한 반지가 세이브에 남아 있다 (지워지지 않는다)');
+        ok(back && back.slot === 'ring', '반지의 착용 부위 표기가 바로잡힌다',
+          back ? `slot=${back.slot}` : '(없다)');
+        ok(owner && !owner.equipment.neck,
+          '반지 칸이 꽉 찼으면 목걸이 칸에서 내려온다 (가방으로)',
+          owner ? `neck=${JSON.stringify(owner.equipment.neck)}` : '(없다)');
+        ok(owner && owner.equipment.ring1 === ringA.uid && owner.equipment.ring2 === ringB.uid,
+          '원래 끼고 있던 반지 둘은 그대로다',
+          owner ? `${owner.equipment.ring1} / ${owner.equipment.ring2}` : '(없다)');
+
+        /* 빈 칸이 있으면 **내리지 말고 옮겨야** 한다 */
+        const save3 = {
+          ...JSON.parse(JSON.stringify(s2)), dataVersion: 8,
+          items: [...s2.items, { ...ringC, uid: 'it_oldring_2', slot: 'neck' }],
+          roster: s2.roster.map((x) => (x.uid === m.uid
+            ? { ...x, equipment: { ...x.equipment, ring1: null, ring2: null, neck: 'it_oldring_2' } }
+            : x)),
+        };
+        ST.importState(JSON.parse(JSON.stringify(save3)));
+        const owner2 = ST.state.roster.find((x) => x.uid === m.uid);
+        ok(owner2 && !owner2.equipment.neck
+          && (owner2.equipment.ring1 === 'it_oldring_2' || owner2.equipment.ring2 === 'it_oldring_2'),
+          '빈 반지 칸이 있으면 내리지 않고 옮긴다',
+          owner2 ? JSON.stringify({ neck: owner2.equipment.neck, r1: owner2.equipment.ring1, r2: owner2.equipment.ring2 }) : '(없다)');
+      }
+    }
+
     /* ★ 이미 최신 버전인 세이브는 **안 건드린다** — 접속할 때마다 다시 굴리면 안 된다 */
     const cur = { ...seed, dataVersion: ST.DATA_VERSION, items: [...seed.items, JSON.parse(JSON.stringify(drifted))] };
     ST.importState(JSON.parse(JSON.stringify(cur)));
