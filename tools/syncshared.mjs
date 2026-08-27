@@ -67,6 +67,32 @@ const BUNDLES = [
       'src/battle/tagmatch.js'],                   // 서버·클라 공용 (재생)
     next: 'supabase functions deploy pvp-battle',
   },
+  {
+    /* ════════════════════════════════════════════════════════════════════
+     * 전력 계산 — 서버가 S용병 수·부대 전력을 **스스로 센다** (§104 1단계)
+     *
+     * ★★ 왜 «검증 규칙»(_shared) 에 안 넣나
+     *   허용 집합은 **묶음 공용**이다 (아래 `allowed`). _shared 에 14개를 더하면
+     *   「rules.js 는 의존성 0 데이터 모듈만 문다」 는 계약이 **조용히 사라진다** —
+     *   rules.js 가 engine.js 를 물어도 --check 가 초록이 된다.
+     *   그래서 별도 묶음이다 (§106.6 도 「서버로 보낼 때는 별도 묶음으로 격리해라」).
+     *
+     * ★★ 왜 «전투 엔진» 에 안 넣나
+     *   entry 를 건드리면 ENGINE_HASH 가 바뀌어 **모든 사람의 PvP 등록이 한꺼번에
+     *   무효가 된다.** 절대 안 건드린다.
+     *
+     * ★ 겹치는 파일 6개(rng·util·classes·classes_t4·formations·skills)는 엔진 묶음에도
+     *   있다 — 하지만 dest 가 다르니 서로 안 덮는다. 어긋나는 것은 HASHES.json 이 막는다.
+     *
+     * ★ 이 묶음이 성립하는 이유는 §108 이다. 그전엔 gear·merc·squad 가 state.js 를
+     *   되물어 닫힘이 23개·774KB(게임 전체)였다. 지금은 15개·462KB 다.
+     * ════════════════════════════════════════════════════════════════════ */
+    name: '전력 계산',
+    dest: 'supabase/functions/submit-score/_power',
+    entry: ['src/game/squad.js', 'src/game/merc.js', 'src/game/gear.js'],
+    walk: true,
+    next: 'supabase functions deploy submit-score',
+  },
 ];
 
 /** FNV-1a 32bit */

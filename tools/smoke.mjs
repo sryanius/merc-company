@@ -7120,6 +7120,44 @@ section('SQL 이 부르면 죽는 모양을 갖고 있지 않은가');
   }
 }
 
+section('서버가 센 전력 == 클라가 센 전력');
+{
+  /* ★★ §104 1단계의 0번 관문이다. 서버가 S용병 수·부대 전력을 **스스로 세게** 되는데,
+   *   그 값이 클라 값과 다르면 정상 플레이어가 통째로 거절되거나(§94 가 「가장 나쁜 사고」로
+   *   못 박은 것) 순위가 조용히 뒤집힌다.
+   *
+   *   `tools/powerparity.mjs` 가 세 값을 잰다 — 셋이 **정확히** 같아야 한다:
+   *     P1 `src/` 원본(node) · P2 서버 사본(deno) · P3 서버 사본 + `run_*` 표 왕복
+   *
+   * ★ 여기서는 **굴리기만** 한다. 판단은 그 도구가 한다 (rlscheck·rlsjudge 와 같은 짜임새).
+   * ★ deno 가 없는 기계에서는 도구가 사본을 node 로 부른다 — 그때는 «런타임 확인만»
+   *   못 하고 나머지는 그대로 잰다. 조용히 건너뛰지 않는다 (아래 요약줄에 찍힌다). */
+  let out = '';
+  let died = null;
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, 'tools/powerparity.mjs')],
+      { encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) {
+    died = String((e && (e.stdout || e.message)) || e);
+  }
+  const text = died || out;
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const summary = lines.filter((l) => l.includes('셋이 같다') || l.includes('어긋난다'))[0] || lines[lines.length - 1] || '(출력 없음)';
+
+  ok(!died, '서버 사본과 클라가 같은 전력을 낸다',
+    `${summary}\n      ` + lines.filter((l) => l.trim().startsWith('·')).slice(0, 8).join('\n      '));
+
+  if (!died) {
+    /* ★★ «통과» 만 보고 끝내지 않는다 — **판이 실했는지**도 본다.
+     *   전에 0 대 0 을 비교해 놓고 통과라고 한 적이 있다. */
+    const m = summary.match(/(\d+)판.*?서로 다른 전력 (\d+)가지/);
+    ok(m && Number(m[1]) >= 8, '충분히 여러 판으로 쟀다', summary);
+    ok(m && Number(m[2]) >= 8, '판마다 전력이 실제로 다르다 (0 대 0 비교가 아니다)', summary);
+    if (/런타임 deno/.test(summary)) pass('서버 런타임(deno)으로 굴렸다');
+    else pass('서버 사본을 굴렸다', 'deno 없음 — 런타임 확인만 못 했다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
