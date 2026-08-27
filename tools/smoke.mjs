@@ -3989,7 +3989,19 @@ if (State) {
   ok(State.calendar(336).year === 1 && State.calendar(337).year === 2, '336일이 1년, 337일차부터 2년');
   const lbl = State.calendarLabel(245);
   ok(/^\d+년 \d+월 \d+주차 \(245일차\)$/.test(lbl), 'UI 표기 형식 `N년 N월 N주차 (N일차)`', lbl);
-  ok(State.DATA_VERSION === 8, 'DATA_VERSION 이 8', State.DATA_VERSION);
+  /* ★ 이 핀은 **올릴 때 생각하게 만드는 장치**다. 숫자를 바꾸려면 아래 셋을 같이 봐라:
+   *   ① `RANK_RESET_VERSION` 을 따라 올리면 **남의 탑·나락 기록이 날아간다** (아래 검사)
+   *   ② `REP_RESET_VERSION` 을 따라 올리면 **남의 평판이 날아간다** (아래 검사)
+   *   ③ `ITEM_RENORM_VERSION` 을 따라 올리면 **남의 장비가 매번 다시 굴려진다**
+   *   ④ `supabase/functions/submit-score/index.ts` 의 `RANK_RESET_VERSION` 과 같아야 한다
+   *   9 로 올린 이유: 옛 아이템 스탯을 오늘 기준으로 맞췄다 (§113). */
+  ok(State.DATA_VERSION === 9, 'DATA_VERSION 이 9', State.DATA_VERSION);
+  ok(State.ITEM_RENORM_VERSION === 9,
+    'ITEM_RENORM_VERSION 이 9 로 고정돼 있다 (DATA_VERSION 을 올려도 따라 올리지 마라)',
+    `${State.ITEM_RENORM_VERSION} — 따라 올리면 접속할 때마다 남의 장비가 다시 굴려진다`);
+  ok(State.ITEM_RENORM_VERSION <= State.DATA_VERSION,
+    '아이템 재정렬 기준 버전이 DATA_VERSION 을 넘지 않는다',
+    `${State.ITEM_RENORM_VERSION} vs ${State.DATA_VERSION}`);
 
   /* ── 랭킹 리셋 마이그레이션 (DATA_VERSION 5) ────────────────────────────
    * ★ 리셋은 **버전 4 이하에서 올라올 때만** 일어나야 한다.
@@ -7470,6 +7482,64 @@ section('아이템 위조 검사 — 지금 만든 아이템은 정확히 되짚
     ok(threw, '가짜 rng 를 넘기면 만들 때 거부한다 (조용한 전수 오탐을 막는다)');
   } catch (e) {
     ok(false, '아이템 검사기를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('옛 세이브를 열면 어긋난 장비가 오늘 기준으로 맞춰진다');
+{
+  /* ★★ §113. 게임 공식이 바뀌면서 옛 아이템이 오늘의 생성기와 안 맞게 됐다 —
+   *   실제 세이브 6,274개 중 3.6%. 옛 장신구는 오늘 기준의 10배, 옛 세트는 절반.
+   *   제작자 결정: 「지금 기준으로 조정해도 될 것 같아」.
+   *
+   * ★ 실측한 대가 — 부대 전력은 거의 안 움직인다:
+   *     2129일차 -0.37% · 1135일차 +2.09% · 나머지 7명 0.00%
+   *
+   * ★ 이 절이 지키는 것 둘:
+   *   ① 어긋난 장비가 **실제로** 고쳐지는가 (안 돌면 조용히 아무 일도 안 일어난다)
+   *   ② 되살릴 수 없는 장비를 **안 지우는가** — 지우면 그게 훨씬 나쁜 사고다 */
+  try {
+    const ST = await import('../src/game/state.js');
+    const GE = await import('../src/game/gear.js');
+    const rngM = await import('../src/core/rng.js');
+
+    ST.newGame(4242, '재정렬검사');
+    const seed = JSON.parse(JSON.stringify(ST.state));
+
+    /* 어긋난 아이템을 손으로 만든다 (옛 공식을 흉내낸다 — 스탯을 3배로) */
+    const good = GE.rollItem({ baseId: 'longsword', ilvl: 30, rarity: 3, rng: new rngM.RNG(9) });
+    const drifted = JSON.parse(JSON.stringify(good));
+    for (const k of Object.keys(drifted.stats)) drifted.stats[k] *= 3;
+    drifted.baseStats.atk = (drifted.baseStats.atk || 0) * 3;
+    /* 되살릴 수 없는 것 — 베이스가 없다. **지워지면 안 된다.** */
+    const orphan = { uid: 'it_orphan_1', baseId: 'no_such_base', slot: 'weapon', rarity: 2, ilvl: 20,
+      name: '유물', stats: { atk: 50 }, baseStats: { atk: 50 }, affixes: [] };
+
+    const save = { ...seed, dataVersion: 8, items: [...seed.items, drifted, orphan] };
+    const beforeAtk = drifted.stats.atk;
+    ST.importState(JSON.parse(JSON.stringify(save)));
+
+    const back = ST.state.items.find((x) => x.uid === drifted.uid);
+    const orphanBack = ST.state.items.find((x) => x.uid === 'it_orphan_1');
+
+    ok(!!back, '어긋난 장비가 세이브에 남아 있다 (지워지지 않는다)');
+    ok(back && Math.abs(back.stats.atk - good.stats.atk) < 0.05,
+      '어긋난 장비가 오늘 기준 값으로 맞춰졌다',
+      back ? `${beforeAtk} → ${back.stats.atk} (오늘 기준 ${good.stats.atk})` : '(없다)');
+    ok(!!orphanBack && orphanBack.stats.atk === 50,
+      '되살릴 수 없는 장비는 그대로 둔다 (지우지 않는다)',
+      orphanBack ? JSON.stringify(orphanBack.stats) : '(사라졌다)');
+    ok(ST.state.dataVersion === ST.DATA_VERSION, '마이그레이션 뒤 dataVersion 이 올라간다',
+      `${ST.state.dataVersion}`);
+
+    /* ★ 이미 최신 버전인 세이브는 **안 건드린다** — 접속할 때마다 다시 굴리면 안 된다 */
+    const cur = { ...seed, dataVersion: ST.DATA_VERSION, items: [...seed.items, JSON.parse(JSON.stringify(drifted))] };
+    ST.importState(JSON.parse(JSON.stringify(cur)));
+    const stillDrifted = ST.state.items.find((x) => x.uid === drifted.uid);
+    ok(stillDrifted && Math.abs(stillDrifted.stats.atk - beforeAtk) < 0.05,
+      '이미 최신 버전이면 장비를 다시 굴리지 않는다',
+      stillDrifted ? `${stillDrifted.stats.atk} (그대로여야 한다: ${beforeAtk})` : '(없다)');
+  } catch (e) {
+    ok(false, '아이템 재정렬 마이그레이션을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }
 }
 

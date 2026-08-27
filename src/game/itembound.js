@@ -208,6 +208,65 @@ export function makeItemBound({ gear, items, sets = null, rng = null }) {
     return { ok: problems.length === 0, problems, expected: ref };
   }
 
+  /**
+   * 아이템을 **오늘 기준으로 맞춘다** — 정체는 그대로 두고 **값만** 고친다.
+   *
+   * ★★ 통째로 `rollItem` 을 다시 부르면 **접사가 다른 것으로 바뀐다** (어떤 접사를
+   *   뽑는지는 rng 가 정한다 — 값만 결정론이다). 그건 재정렬이 아니라 **재생성**이고,
+   *   플레이어가 키운 아이템이 남의 것이 된다. 스모크가 그걸 잡았다 (126 vs 107).
+   *
+   * ⇒ 그래서 이렇게 한다:
+   *   · `baseStats` — (baseId, ilvl, rarity) 로 다시 계산 (결정론)
+   *   · 접사 — **가진 접사 그대로**, 각자의 값만 (정의, ilvl, slot) 으로 다시 계산
+   *   · `stats` — 위 둘의 합
+   *   · 세트 파츠 — 완성품이 결정론이라 통째로 맞춘다 (정체가 안 바뀐다)
+   *
+   * ★ 모르는 접사는 **손대지 않는다.** 지우면 플레이어가 손해를 본다 —
+   *   판단(`verifyItem`)에서는 여전히 걸리므로 사람이 볼 수 있다.
+   * ★ 되살릴 수 없으면 `null` 을 준다. 쓰는 쪽이 «그대로 둔다» 를 고르게 한다.
+   *
+   * @returns {object|null} 고친 **새 객체** (원본은 안 건드린다). 못 고치면 null.
+   */
+  function normalizeItem(it) {
+    if (!it || typeof it !== 'object') return null;
+    const ilvl = Math.round(Number(it.ilvl) || 0);
+    const rarity = Math.round(Number(it.rarity) || 0);
+
+    /* 세트 파츠 — 완성품이 결정론이라 통째로 */
+    const setRef = sets && typeof sets.parseSetBaseId === 'function' ? sets.parseSetBaseId(it.baseId) : null;
+    if (setRef) {
+      if (typeof sets.setPieceItem !== 'function') return null;
+      let want = null;
+      try { want = sets.setPieceItem(setRef.setId, setRef.slot, ilvl, { weaponType: it.weaponType || null }); } catch { return null; }
+      if (!want) return null;
+      return {
+        ...it,
+        stats: { ...(want.stats || {}) },
+        baseStats: { ...(want.baseStats || {}) },
+        affixes: JSON.parse(JSON.stringify(want.affixes || [])),
+      };
+    }
+
+    const base = gear.getBase(it.baseId);
+    if (!base) return null;
+
+    let ref = null;
+    try { ref = gear.rollItem({ baseId: base.id, ilvl, rarity, rng: anyRng }); } catch { return null; }
+    if (!ref) return null;
+
+    /* 접사는 **가진 것 그대로**, 값만 다시 계산한다 */
+    const affixes = (Array.isArray(it.affixes) ? it.affixes : []).map((a) => {
+      const def = a && AFFIX.get(a.id);
+      if (!def || typeof items.scaleAffixStats !== 'function') return JSON.parse(JSON.stringify(a || {}));
+      let want = null;
+      try { want = items.scaleAffixStats(def.stats || def.mods || {}, ilvl, base.slot); } catch { return JSON.parse(JSON.stringify(a)); }
+      return { ...a, stats: { ...want } };
+    });
+
+    const baseStats = { ...(ref.baseStats || {}) };
+    return { ...it, baseStats, affixes, stats: sumStats(baseStats, affixes) };
+  }
+
   /** 여러 개를 한 번에. `{uid, problems}` 만 모은다 */
   function verifyAll(list) {
     const out = [];
@@ -218,5 +277,5 @@ export function makeItemBound({ gear, items, sets = null, rng = null }) {
     return out;
   }
 
-  return { verifyItem, verifyAll, maxAffixes };
+  return { verifyItem, verifyAll, normalizeItem, maxAffixes };
 }

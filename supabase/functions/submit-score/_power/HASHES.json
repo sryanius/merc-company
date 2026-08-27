@@ -12,7 +12,7 @@
   "src/data/skills.js": "f3c5abd6",
   "src/game/ambient.js": "7689dfc5",
   "src/game/gear.js": "aa8440bc",
-  "src/game/itembound.js": "b921d6ed",
+  "src/game/itembound.js": "b415e751",
   "src/game/merc.js": "69b74820",
   "src/game/squad.js": "78330605"
 }

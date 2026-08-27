@@ -8,6 +8,9 @@ import { BASE_CLASSES, getClass } from '../data/classes.js';
 import { getFormation } from '../data/formations.js';
 // SLOTS(장비 10슬롯)는 data/items.js 가 소유한다. 여기서 하드코딩하지 않는다.
 import { basesFor, PREFIXES, SUFFIXES, SLOTS } from '../data/items.js';
+import * as ITEMS_ALL from '../data/items.js';
+import * as SETS_ALL from '../data/sets.js';
+import { makeItemBound } from './itembound.js';
 import { companyName as genCompanyName } from '../data/names.js';
 import { PETS_PER_SQUAD } from '../data/pets.js';
 import { TOWER_FLOORS } from '../data/tower.js';
@@ -62,7 +65,7 @@ export const SAVE_VERSION = 1;
  *       **탑·나락 기록을 리셋한다** (제작자 결정: 시즌 병기 없이 그냥 리셋).
  *       옛 곡선에서 세운 기록과 새 기록이 한 순위표에 섞이면 안 된다.
  */
-export const DATA_VERSION = 8;
+export const DATA_VERSION = 9;
 
 /**
  * 랭킹 기록(탑·나락)을 리셋한 버전.
@@ -83,6 +86,26 @@ export const RANK_RESET_VERSION = 8;
  *   초기화된다. 같이 올리면 수치를 손볼 때마다 남의 평판이 매번 날아간다.
  */
 export const REP_RESET_VERSION = 7;
+
+/**
+ * 옛 아이템의 스탯을 **오늘 기준으로 다시 맞춘 버전** (§113).
+ *
+ * ★★ 왜 필요했나: 게임 공식이 바뀌면서 옛 아이템이 오늘의 생성기와 안 맞게 됐다.
+ *   실제 세이브 6,274개로 재 봤더니 **3.6% 가 어긋나 있었다** —
+ *   옛 장신구는 오늘 기준의 **10배**, 옛 세트는 **절반**. 두 계정에서 같은 배수가
+ *   나온 것으로 보아 위조가 아니라 **재조정의 흔적**이다.
+ *
+ *   그대로 두면 ① 사람마다 같은 아이템의 값이 다르고
+ *   ② 서버가 「이 아이템이 진짜인가」 를 영영 못 묻는다 (§113 의 itembound).
+ *
+ * ★ 실측한 대가 — **부대 전력은 거의 안 움직인다:**
+ *     2129일차 계정 **-0.37%** · 1135일차 계정 **+2.09%** · 나머지 7명 **0.00%**
+ *   (총 스탯 합계로도 최대 -3.1%. 되살릴 수 없는 아이템은 **0개**였다.)
+ *
+ * ★ `DATA_VERSION` 과 **따로 둔다.** 여기 고정돼 있어야 «그때 한 번만» 돈다 —
+ *   같이 올리면 수치를 손볼 때마다 남의 장비가 매번 다시 굴려진다.
+ */
+export const ITEM_RENORM_VERSION = 9;
 /** 도시 목록(주점/상점/의뢰) 리롤 주기 */
 export const REFRESH_DAYS = 3;
 
@@ -599,6 +622,39 @@ function migrateDataVersion(st) {
     repReset = true;
   }
 
+  /* ── 아이템 스탯 재정렬 (DATA_VERSION 9, HANDOFF §113) ──────────────────
+   *
+   * ★★ 옛 아이템이 오늘의 생성기와 안 맞는다. 공식이 바뀐 탓이지 위조가 아니다 —
+   *   실측: 실제 세이브 6,274개 중 3.6% 가 어긋났고, 옛 장신구는 오늘 기준의 10배,
+   *   옛 세트는 절반이었다. **두 계정에서 같은 배수**가 나온 것이 근거다.
+   *
+   * ★ 어긋난 것만 오늘 값으로 바꾼다. 되살릴 수 없으면 **그대로 둔다** —
+   *   못 만드는 아이템을 지우면 그게 훨씬 나쁜 사고다 (실측상 그런 아이템은 0개였다).
+   * ★ uid·이름·잠금·착용은 안 건드린다. 바꾸는 것은 stats·baseStats·affixes 뿐이다.
+   * ★ 전력 영향 실측: 2129일차 -0.37% · 1135일차 +2.09% · 나머지 0.00%. */
+  let itemsRenormed = 0;
+  if (cur > 0 && cur < ITEM_RENORM_VERSION) {
+    try {
+      const IB = makeItemBound({ gear: Gear, items: ITEMS_ALL, sets: SETS_ALL, rng: new RNG(1) });
+      for (const it of st.items || []) {
+        if (!it) continue;
+        if (IB.verifyItem(it).ok) continue;
+        /* ★ `normalizeItem` 은 **정체를 지키고 값만** 고친다 — 가진 접사 그대로다.
+         *   통째로 다시 굴리면 접사가 다른 것으로 바뀐다 (§113). */
+        const fixed = IB.normalizeItem(it);
+        if (!fixed) continue;                     // 되살릴 수 없으면 그대로 둔다
+        it.stats = fixed.stats;
+        it.baseStats = fixed.baseStats;
+        it.affixes = fixed.affixes;
+        itemsRenormed++;
+      }
+    } catch (e) {
+      /* ★ 마이그레이션이 세이브를 못 열게 만들면 안 된다 — 실패하면 그냥 안 바꾼다 */
+      console.warn('[state] 아이템 재정렬 실패 — 그대로 둔다', e);
+      itemsRenormed = 0;
+    }
+  }
+
   let rankReset = false;
   if (cur > 0 && cur < RANK_RESET_VERSION) {
     if (st.tower) { st.tower.best = 0; st.tower.bestDay = 0; }
@@ -607,6 +663,10 @@ function migrateDataVersion(st) {
   }
 
   st.dataVersion = DATA_VERSION;
+  if (itemsRenormed && Array.isArray(st.log)) {
+    st.log.push({ day: st.day,
+      text: `대장간이 장비 ${itemsRenormed}점을 다시 살펴봤다. 표기가 지금 기준에 맞게 고쳐졌다.` });
+  }
   if (repReset && Array.isArray(st.log)) {
     st.log.push({ day: st.day, text: '이름값의 셈법이 달라졌다. 도시마다 처음부터 다시 눈도장을 찍어야 한다.' });
   }
