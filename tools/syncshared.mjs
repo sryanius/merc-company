@@ -89,7 +89,10 @@ const BUNDLES = [
      * ════════════════════════════════════════════════════════════════════ */
     name: '전력 계산',
     dest: 'supabase/functions/submit-score/_power',
-    entry: ['src/game/squad.js', 'src/game/merc.js', 'src/game/gear.js'],
+    entry: ['src/game/squad.js', 'src/game/merc.js', 'src/game/gear.js',
+      /* ★ 아이템 위조 검사 (§113). import 가 0개라 닫힘이 안 늘어난다 —
+       *   게임 모듈을 인자로 받는 모양이라 그렇다. */
+      'src/game/itembound.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },

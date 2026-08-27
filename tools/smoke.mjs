@@ -7377,6 +7377,102 @@ section('세이브가 run_* 표를 왕복해도 아무것도 안 잃는다');
   }
 }
 
+section('아이템 위조 검사 — 지금 만든 아이템은 정확히 되짚는다');
+{
+  /* ★★ §113. 「서버가 전력을 센다」 가 뜻을 가지려면 `item.stats` 가 «사실» 이어야 한다.
+   *   `merc.js` 는 `it.stats[k]` 를 검증 없이 더한다 — 위조하면 서버가 성실히 센다.
+   *
+   * ★★★ 재 보니 **상한(envelope)이 필요 없었다.** 아이템은 결정론이다:
+   *     · 접사 정의 60개의 스탯 값 108개 중 **배열(굴림)이 0개** — 무작위가 없다
+   *     · `baseStats` 는 (baseId, ilvl, rarity) 로 결정론 (200회 굴려 1가지)
+   *     · `stats == baseStats + Σ접사` 가 6000/6000 · 세트 72/72
+   *   ⇒ 「가능한 범위인가」 가 아니라 **「그 값이 맞는가」** 를 묻는다.
+   *
+   * ★★★ 그런데 **소급 적용은 못 한다** — 실제 세이브 6,274개로 재 봤더니
+   *   3.6% 가 실패했고, 그건 위조가 아니라 **게임 공식이 바뀐 것**이었다
+   *   (옛 장신구는 오늘 기준의 10배, 옛 세트는 절반 — 두 계정에서 같은 배수).
+   *   방향이 양쪽이라 «한쪽만» 보는 검사도 못 쓴다. §113 에 적어 뒀다.
+   *   ⇒ 쓸 수 있는 자리는 **서버가 새로 만드는 아이템**뿐이다 (2·3단계).
+   *
+   * ★ 이 절은 그 성질을 지킨다: 지금 생성기가 만든 것은 **하나도 안 걸리고**,
+   *   위조는 **전부 걸린다**. 둘 중 하나만 보면 반쪽짜리 검사가 된다. */
+  try {
+    const gearM = await import('../src/game/gear.js');
+    const itemsM = await import('../src/data/items.js');
+    const setsM = await import('../src/data/sets.js');
+    const rngM = await import('../src/core/rng.js');
+    const IBM = await import('../src/game/itembound.js');
+    const IB = IBM.makeItemBound({ gear: gearM, items: itemsM, sets: setsM, rng: new rngM.RNG(1) });
+
+    /* ── 오탐: 게임이 만든 것은 하나도 걸리면 안 된다 ── */
+    const bases = gearM.itemBaseList();
+    ok(bases.length > 100, '아이템 베이스가 넉넉하다', `${bases.length}종`);
+    let falsePos = 0; let n = 0; let firstFp = '';
+    for (let i = 0; i < 1200; i++) {
+      const b = bases[i % bases.length];
+      const it = gearM.rollItem({ baseId: b.id, ilvl: 1 + (i % 80), rarity: i % 6, rng: new rngM.RNG(i + 1) });
+      if (!it) continue;
+      n++;
+      const r = IB.verifyItem(it);
+      if (!r.ok) { falsePos++; if (!firstFp) firstFp = `${b.id} — ${r.problems[0]}`; }
+    }
+    ok(falsePos === 0, '지금 생성기가 만든 아이템을 하나도 안 거절한다',
+      `${falsePos}/${n} 거절 · 첫 사례: ${firstFp}`);
+
+    let setFp = 0; let setN = 0; let firstSf = '';
+    for (const setId of Object.keys(setsM.SETS || {})) {
+      for (const slot of ['weapon', 'offhand', 'body', 'head', 'legs', 'hands', 'feet', 'neck', 'ring']) {
+        for (const ilvl of [10, 40, 80]) {
+          const it = gearM.rollSetItem({ setId, slot, ilvl, rng: new rngM.RNG(3) });
+          if (!it) continue;
+          setN++;
+          const r = IB.verifyItem(it);
+          if (!r.ok) { setFp++; if (!firstSf) firstSf = `${setId}/${slot} — ${r.problems[0]}`; }
+        }
+      }
+    }
+    ok(setFp === 0 && setN > 50, '세트 파츠도 하나도 안 거절한다', `${setFp}/${setN} 거절 · ${firstSf}`);
+
+    /* ── 검출: 위조는 전부 걸려야 한다 ── */
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+    const real = gearM.rollItem({ baseId: 'longsword', ilvl: 40, rarity: 3, rng: new rngM.RNG(5) });
+    const setIt = gearM.rollSetItem({ setId: Object.keys(setsM.SETS)[0], slot: 'weapon', ilvl: 60, rng: new rngM.RNG(1) });
+    ok(real && setIt && Object.keys(real.stats || {}).length > 0,
+      '위조 시험에 쓸 원본이 실하다', JSON.stringify(real && real.stats));
+
+    const FORGE = [
+      ['stats 를 직접 ×10', () => { const x = clone(real); for (const k of Object.keys(x.stats)) x.stats[k] *= 10; return x; }],
+      ['baseStats 부풀림', () => { const x = clone(real); x.baseStats.atk = 99999; x.stats.atk = 99999; return x; }],
+      ['없는 접사 붙임', () => { const x = clone(real); x.affixes.push({ id: 'godlike', stats: { atk: 500 } }); x.stats.atk += 500; return x; }],
+      ['접사를 상한 넘게', () => { const x = clone(real); const a = clone(x.affixes[0]); x.affixes.push(a, a, a); return x; }],
+      /* ★ 이 한 줄이 이 검사의 값어치다 — statbound.js 가 「못 잡는다」 고 스스로 적어 둔 자리다 */
+      ['접사 값 +3% (미세 조작)', () => {
+        const x = clone(real); const a = x.affixes[0]; const k = Object.keys(a.stats)[0];
+        const d = a.stats[k] * 0.03; a.stats[k] += d; x.stats[k] += d; return x;
+      }],
+      ['ilvl 만 80 으로', () => { const x = clone(real); x.ilvl = 80; return x; }],
+      ['희귀도만 5 로', () => { const x = clone(real); x.rarity = 5; return x; }],
+      ['없는 베이스', () => { const x = clone(real); x.baseId = 'excalibur_of_doom'; return x; }],
+      ['세트 stats ×3', () => { const x = clone(setIt); for (const k of Object.keys(x.stats)) x.stats[k] *= 3; return x; }],
+      ['세트 ilvl 을 200 으로', () => { const x = clone(setIt); x.ilvl = 200; return x; }],
+    ];
+    const missed = [];
+    for (const [name, mk] of FORGE) {
+      if (IB.verifyItem(mk()).ok) missed.push(`${name} — 통과해버렸다`);
+    }
+    okAll(missed, '위조를 전부 잡는다 (미세 조작 포함)', FORGE.length);
+
+    /* ★ 손으로 만든 가짜 rng 를 넘기면 **거부해야 한다** — 그렇게 했다가
+     *   `rng.weighted is not a function` 으로 8000개 중 6154개를 오탐했다. */
+    let threw = false;
+    try { IBM.makeItemBound({ gear: gearM, items: itemsM, sets: setsM, rng: { float: () => 1 } }); }
+    catch { threw = true; }
+    ok(threw, '가짜 rng 를 넘기면 만들 때 거부한다 (조용한 전수 오탐을 막는다)');
+  } catch (e) {
+    ok(false, '아이템 검사기를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
