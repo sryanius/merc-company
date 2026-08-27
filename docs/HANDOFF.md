@@ -8395,3 +8395,66 @@ PvP 의 `statbound.js` 는 「접사가 `rng.float(min,max)` 라 서버가 되�
 
 ★ `supabase/functions/submit-score/index.ts` 의 `RANK_RESET_VERSION` 은 **8 그대로**다.
   같이 올리면 남의 탑·나락 기록이 날아간다.
+
+
+## 114. SQL 을 **실행해 보는 검사**가 생겼다 — `plpgsql_check`
+
+§109 의 근본 원인은 정규식이 아니라 **「SQL 함수를 한 번도 실행해 본 적이 없다」** 였다.
+1단계는 RPC 를 넷 더 만든다 — 그 전에 붙여야 했다.
+
+### 먼저 막힌 길들
+
+| | |
+|---|---|
+| 도커 | **안 뜬다** (§102.5 그대로) |
+| `supabase start` 로컬 스택 | 도커가 없어 못 뜬다 |
+| 로컬 Postgres (`psql`) | 없다 |
+| npm 의존성 (pglite 등) | `node_modules` 자체가 없다 — 이 저장소의 규칙이다 |
+| 프로덕션에서 롤백 트랜잭션 | **못 믿는다** — §109 에서 가짜 행 4개가 남았다 |
+
+### ★★ `plpgsql_check` 가 이 프로젝트에 **설치 가능했다**
+
+```sql
+create extension if not exists plpgsql_check with schema extensions;   -- 2.8
+```
+
+함수 본문의 **모든 문장을 계획해 본다** — **실행하지 않고, 데이터를 한 줄도 안 건드리고.**
+plpgsql 이 문장을 «처음 실행할 때» 계획한다는 바로 그 성질을 정면으로 친다.
+
+**메타 검사 — 심어서 물리는지 확인했다** (`pg_temp` 에 심어 `public` 은 안 건드렸다):
+
+| 심은 것 | 결과 |
+|---|---|
+| 집계 + `for update` (§109 의 그것) | `error: FOR UPDATE is not allowed with aggregate functions` |
+| 없는 컬럼 | `error: column … does not exist` |
+| 없는 표 | `error: relation … does not exist` |
+| 고친 형태 (`perform … for update` + `get diagnostics`) | **조용** |
+
+### `tools/sqlcheck.mjs`
+
+`public` 의 plpgsql 함수 **전부**를 검사한다. 지금 **11개 전부 계획이 선다.**
+
+★ **트리거 함수는 대상 표를 같이 줘야 한다** — 안 주면
+  `missing trigger relation` 으로 **조회 전체가 죽는다** (실제로 겪었다).
+  `pg_trigger.tgfoid` 로 그 표를 찾아 붙인다. 어디에도 안 걸린 트리거 함수는
+  검사할 수 없으므로 **그 사실을 따로 알려 준다** — 조용히 건너뛰면 «검사했다» 로 보인다.
+
+★ 도구 자신도 메타 검사했다: `public` 에 깨진 함수를 잠깐 심었더니
+  줄 번호까지 짚어 잡았고, 지운 뒤 다시 11개로 돌아왔다 (`zz_` 잔여 0 확인).
+
+### 오프라인 짝 — 둘 다 둔다
+
+| | 언제 도나 | 무엇을 잡나 |
+|---|---|---|
+| `tools/lib/sqllock.mjs` | **스모크마다** (네트워크 불필요) | 잠금절이 못 붙는 자리 — 글자로 |
+| `tools/sqlcheck.mjs` | 배포 절차 (DB 필요) | **모든 문장의 계획** — 훨씬 넓다 |
+
+### 스모크 절 — 「SQL 함수 정적 검사 도구가 제대로 배선돼 있다」 (7건)
+
+DB 가 필요해서 **굴리지는 못한다.** 대신 배선을 본다 (`rlscheck`·`rlsjudge` 와 같은 짜임새):
+`plpgsql_check_function_tb` 를 부르는가 · 확장을 보장하는가 ·
+**트리거 대상 표를 찾는가**(안 찾으면 조회가 통째로 죽는다) ·
+오류가 있으면 **실패로 끝나는가** · 검사 못 한 것을 알려 주는가 ·
+그리고 **`CLAUDE.md` 에 돌리라고 적혀 있는가** (안 적으면 안 돌린다 — §98 의 교훈).
+
+메타: 트리거 처리를 빼면 2건, 실패 종료를 빼면 1건, `CLAUDE.md` 에서 지우면 1건 물었다.

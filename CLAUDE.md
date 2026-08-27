@@ -44,6 +44,22 @@ node tools/rlscheck.mjs
 RLS 가 꺼졌거나 `using (true)` 로 열린 정책이 있으면 실패한다.
 낯선 테이블이 생겨도 알려 준다. (판단부는 `tools/lib/rlsjudge.mjs` — 스모크가 굴려 본다.)
 
+## SQL 함수를 만들거나 고치면 **반드시 돌린다**
+
+```bash
+node tools/sqlcheck.mjs
+```
+
+★★ plpgsql 은 문장을 **처음 실행할 때** 계획한다. 그래서 `create function` 은 멀쩡히
+통과하고 **부를 때만** 터진다. **「만들어졌다」 는 아무 증거가 아니다.**
+
+실제로 그랬다: `gold_send()` 가 `select count(*) … for update` 때문에
+**내놓은 날부터 부를 때마다 죽고 있었다** (0A000). 부탁 4건이 쌓이는 동안
+보내진 건 0건이었고, 아무도 몰랐다 (§109).
+
+이 도구는 `plpgsql_check` 로 본문의 **모든 문장을 계획해 본다** — 실행하지 않고,
+데이터를 한 줄도 안 건드린다. 오프라인 짝은 `tools/lib/sqllock.mjs` 이고 스모크가 굴린다.
+
 ## 업데이트 내역에 **치트 방어를 적지 않는다**
 
 `src/data/changelog.js` 는 **플레이어 전원이 본다 — 치트 계정도 본다.**

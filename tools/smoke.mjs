@@ -7543,6 +7543,40 @@ section('옛 세이브를 열면 어긋난 장비가 오늘 기준으로 맞춰�
   }
 }
 
+section('SQL 함수 정적 검사 도구가 제대로 배선돼 있다');
+{
+  /* ★★ §109 의 근본 원인은 **SQL 함수를 한 번도 실행해 본 적이 없다는 것**이었다.
+   *   `gold_send()` 가 내놓은 날부터 부를 때마다 죽고 있었는데 아무도 몰랐다.
+   *
+   *   `tools/sqlcheck.mjs` 가 `plpgsql_check` 로 **본문의 모든 문장을 계획해 본다** —
+   *   실행하지 않고, 데이터를 한 줄도 안 건드리고. 실제 조회는 DB 가 필요해서
+   *   여기서는 **배선만** 본다 (`rlscheck`·`rlsjudge` 와 같은 짜임새).
+   *
+   * ★ 오프라인 쪽 짝은 `tools/lib/sqllock.mjs` 다 — 글자로 같은 부류를 잡는다.
+   *   둘 다 있어야 한다: 글자 검사는 네트워크 없이 늘 돌고, DB 검사는 더 넓게 잡는다. */
+  const p = join(rootDir, 'tools/sqlcheck.mjs');
+  ok(existsSync(p), 'tools/sqlcheck.mjs 가 있다');
+  if (existsSync(p)) {
+    const body = decomment(readFileSync(p, 'utf8'));
+    const wire = [];
+    if (!/plpgsql_check_function_tb\s*\(/.test(body)) wire.push('plpgsql_check_function_tb 를 안 부른다');
+    if (!/create extension if not exists plpgsql_check/i.test(body)) wire.push('확장을 보장하지 않는다');
+    /* ★ 트리거 함수는 대상 표를 같이 줘야 한다 — 안 주면 조회 **전체**가 죽는다 (실제로 겪었다) */
+    if (!/pg_trigger/.test(body)) wire.push('트리거 함수의 대상 표(pg_trigger)를 안 찾는다 — 조회가 통째로 죽는다');
+    if (!/tgfoid/.test(body)) wire.push('트리거 함수를 함수 oid 로 안 잇는다');
+    /* ★ 오류가 있으면 반드시 실패로 끝나야 한다 — 찍고 넘어가면 아무도 안 본다 */
+    if (!/errs\.length[\s\S]{0,200}process\.exit\(1\)/.test(body)) wire.push('오류가 있어도 실패로 안 끝난다');
+    /* ★ 검사 못 한 것을 조용히 넘기면 «검사했다» 로 보인다 */
+    if (!/skipped/.test(body)) wire.push('검사 못 한 함수를 안 알려 준다');
+    okAll(wire, 'sqlcheck 가 제대로 배선돼 있다', 6);
+
+    /* ★ 제작자가 돌리도록 **문서에 적혀 있어야** 한다 — 안 적으면 안 돌린다 (§98 의 교훈) */
+    const claude = readFileSync(join(rootDir, 'CLAUDE.md'), 'utf8');
+    ok(/tools\/sqlcheck\.mjs/.test(claude), 'CLAUDE.md 가 sqlcheck 를 돌리라고 적어 뒀다',
+      '문서에 없으면 안 돌린다 — rlscheck 를 그렇게 만든 이유와 같다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
