@@ -7286,6 +7286,97 @@ section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
   }
 }
 
+section('세이브가 run_* 표를 왕복해도 아무것도 안 잃는다');
+{
+  /* ★★ 왜 이 절이 있나 — **이관은 계정당 한 번**이다 (db/013:66 `imported_at`).
+   *   칸이 없는 채로 이관하면 그 값은 **영영 빈다.** 다시 이관할 길이 없다.
+   *
+   *   실측했더니 013 만 있던 시절엔 세이브 최상위 **27개 중 14개가 자리 없이 버려지고**
+   *   있었다 — 그중에 `companyName` 과 `flagSquadId`(대표 부대)가 있었다.
+   *   **둘 다 순위표가 실제로 읽는 값**이다.
+   *   db/015 가 `company_name`·`flag_squad_id` 컬럼과 `data jsonb` 를 팠다.
+   *
+   * ★ 이 검사는 «칸이 있나» 를 글자로 보지 않는다 — **실제 세이브를 왕복시켜 견준다.**
+   *   그래서 게임에 새 칸이 생기면 그날 바로 물린다. */
+  try {
+    const ST = await import('../src/game/state.js');
+    const GE = await import('../src/game/gear.js');
+    const ME = await import('../src/game/merc.js');
+    const RN = await import('../src/core/rng.js');
+    const RR = await import('./lib/runrows.mjs');
+
+    ST.newGame(20260827, '왕복검사');
+    const st = ST.state;
+    const rng = new RN.RNG(7);
+    /* ★ 판을 굴려 «빈 칸» 이 아니게 만든다 — 빈 세이브를 왕복시키면 아무것도 증명 못 한다 */
+    for (let i = 0; i < 3; i++) st.roster.push(ME.createMerc({ classId: 'archer', grade: 'A', level: 30, rng, day: 2 }));
+    for (let i = 0; i < 3; i++) { const it = GE.rollItem({ ilvl: 30, rarity: 3, rng }); if (it) st.items.push(it); }
+    st.flagSquadId = st.squads[0].id;
+    st.squads[0].status = 'away'; st.squads[0].returnDay = 125;
+    st.day = 120; st.gold = 900000; st.renown = 4000;
+    st.reputation.greenhold = 77; st.autoSellRarity = 2; st.formations.push('round');
+    st.abyss = { best: 40, bestDay: 100, lastRunDay: 100, lastRunDepth: 38, lastGold: 12345 };
+    st.tower = { best: 150, bestDay: 90, lastRunDay: 90, lastRunFloor: 147 };
+
+    const keys = Object.keys(st);
+    ok(keys.length >= 20, '왕복시킬 세이브가 실하다', `최상위 ${keys.length}칸`);
+    ok(st.roster.length >= 7 && st.items.length >= 3 && st.squads.length >= 1,
+      '명부·장비·부대가 비어 있지 않다',
+      `명부 ${st.roster.length} · 장비 ${st.items.length} · 부대 ${st.squads.length}`);
+
+    const back = RR.fromRows(JSON.parse(JSON.stringify(RR.toRows(st))));
+
+    /* ★★ 착용은 **아이템 쪽에만** 적히므로(013 의 결정), 돌아온 `merc.equipment` 에는
+     *   «낀 칸» 만 있고 빈 칸(null)이 없다. 원본은 10칸을 전부 갖고 있다.
+     *
+     *   ★ 이건 손실이 아니다 — **클라가 로드할 때 정확히 되채운다.**
+     *     `state.js:464` 의 `replaceState` 가 단원마다 `normalizeEquipment` 를 부른다.
+     *   ⇒ 그 사실 자체를 먼저 못 박고, 그다음 같은 정규화를 씌워서 견준다.
+     *     (안 씌우고 견주면 «다르다» 만 나오고 왜 다른지가 안 보인다.) */
+    ok(typeof ST.normalizeEquipment === 'function',
+      '클라가 착용 칸을 되채우는 함수를 갖고 있다 (replaceState 가 부른다)');
+    if (typeof ST.normalizeEquipment === 'function') {
+      const oneBack = JSON.stringify(ST.normalizeEquipment(back.roster[0].equipment));
+      const oneOrig = JSON.stringify(st.roster[0].equipment);
+      ok(oneBack === oneOrig, '정규화하면 착용 10칸이 원본과 똑같아진다',
+        `${oneBack.slice(0, 80)}\n      vs ${oneOrig.slice(0, 80)}`);
+      for (const m of back.roster) m.equipment = ST.normalizeEquipment(m.equipment);
+    }
+
+    /* ★ 키 «순서» 차이는 다름이 아니다 — 정렬해서 견준다.
+     *   (정렬 안 하고 봤더니 roster·items·squads·stats 가 전부 «다르다» 로 나왔다.) */
+    const sortDeep = (v) => (Array.isArray(v) ? v.map(sortDeep)
+      : (v && typeof v === 'object'
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortDeep(v[k])]))
+        : v));
+    const norm = (v) => JSON.stringify(sortDeep(v));
+
+    const gone = keys.filter((k) => !(k in back));
+    okAll(gone.map((k) => `${k} — 표에 자리가 없어 사라진다`),
+      '세이브 최상위 칸이 하나도 안 사라진다', keys.length);
+
+    const changed = keys.filter((k) => k in back && norm(st[k]) !== norm(back[k]));
+    okAll(changed.map((k) => `${k} 가 왕복하며 달라졌다\n        원본 ${norm(st[k]).slice(0, 90)}\n        왕복 ${norm(back[k]).slice(0, 90)}`),
+      '왕복해도 값이 그대로다', keys.length);
+
+    /* ★★ 순위표가 **실제로 읽는** 둘은 따로 못 박는다 — 잃으면 순위 카드가 바뀐다 */
+    ok(back.companyName === st.companyName, '용병단 이름이 살아 돌아온다',
+      `${st.companyName} → ${back.companyName}`);
+    ok(back.flagSquadId === st.flagSquadId, '대표 부대 지정이 살아 돌아온다',
+      `${st.flagSquadId} → ${back.flagSquadId}`);
+    ok(back.squads[0].status === 'away' && back.squads[0].returnDay === 125,
+      '부대 파견 상태가 살아 돌아온다',
+      `${back.squads[0].status}/${back.squads[0].returnDay}`);
+
+    /* ★ 보조 칸(`abyssRest` 등)이 최상위로 새어 나가면 안 된다 — 세이브가 오염된다 */
+    const leaked = ['abyssRest', 'towerRest', 'statsRest'].filter((k) => k in back);
+    okAll(leaked.map((k) => `${k} 가 세이브 최상위로 새어 나왔다`),
+      '표 안에서만 쓰는 보조 칸이 안 새어 나온다', 3);
+  } catch (e) {
+    ok(false, '왕복 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

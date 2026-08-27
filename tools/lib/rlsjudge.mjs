@@ -21,6 +21,8 @@ export const GAME_TABLES = [
   'gold_gifts',
   /* §104 1단계 — 서버가 갖는 진행도 */
   'run_state', 'run_mercs', 'run_items', 'run_squads', 'run_pets',
+  /* 015 — 비멱등 RPC 의 멱등성 키 */
+  'run_ops',
 ];
 
 /** 남의 것이지만 **알고 있는** 테이블 (접두어 → 주인) */

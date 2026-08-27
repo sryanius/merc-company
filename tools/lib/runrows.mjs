@@ -28,6 +28,21 @@
  * @module tools/lib/runrows
  */
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * `run_state` 가 담당하는 세이브 최상위 키
+ *
+ * ★★ 여기 **안 적힌 키는 전부 `data jsonb` 로 간다.** 그래서 게임에 새 칸이 생겨도
+ *   조용히 사라지지 않는다 — 이게 db/015 를 판 이유다.
+ *   (013 만 있던 시절엔 최상위 27개 중 **14개가 자리 없이 버려지고 있었다** — 실측.)
+ * ════════════════════════════════════════════════════════════════════════════ */
+/** 컬럼으로 그대로 가는 것 */
+const STATE_COLS = ['seed', 'day', 'gold', 'renown', 'cityId', 'rosterCap',
+  'companyName', 'flagSquadId'];
+/** 별도 표로 가는 것 */
+const STATE_TABLES = ['roster', 'items', 'squads', 'pets'];
+/** 여러 컬럼으로 펴지는 것 */
+const STATE_SPLIT = ['stats', 'abyss', 'tower'];
+
 /** 승격 컬럼 — `data` 에서 빼는 것들 */
 const MERC_COLS = ['uid', 'classId', 'grade', 'level', 'hiredDay'];
 const ITEM_COLS = ['uid', 'baseId', 'slot', 'rarity', 'ilvl', 'setId', 'locked'];
@@ -91,6 +106,27 @@ export function toRows(st) {
       tower_best: (s.tower && s.tower.best) || 0,
       tower_best_day: (s.tower && s.tower.bestDay) || 0,
       tower_last_run_day: (s.tower && s.tower.lastRunDay) || 0,
+
+      /* ★ 순위표가 읽는 둘 — 그래서 컬럼으로 꺼냈다 (db/015).
+       *   flag_squad_id 가 없으면 이관 뒤 전원의 대표 부대가 «첫 부대» 로 되돌아간다. */
+      company_name: s.companyName == null ? null : String(s.companyName),
+      flag_squad_id: s.flagSquadId == null ? null : String(s.flagSquadId),
+
+      /* ★★ **나머지 전부.** 위 목록에 안 적힌 최상위 키는 여기로 온다 —
+       *   reputation · repTouch · formations · dungeons · autoSellRarity · petSeq ·
+       *   version · dataVersion · quests · shop · tavern · log …
+       *   게임에 새 칸이 생겨도 저절로 여기 담긴다. */
+      data: {
+        ...rest(s, [...STATE_COLS, ...STATE_TABLES, ...STATE_SPLIT]),
+        /* ★★ `abyss`·`tower`·`stats` 는 **컬럼으로 펴지는데, 편 것만 펴진다.**
+         *   나머지 하위 키가 조용히 사라지고 있었다 — 왕복 검사가 잡았다:
+         *     abyss.lastRunDepth · abyss.lastGold · tower.lastRunFloor
+         *   («마지막 탐험 결과» 표시용이다. 잃으면 그 칸이 초기화돼 보인다.)
+         *   ⇒ 편 것만 빼고 나머지를 여기 담는다. 하위 키가 늘어도 저절로 따라온다. */
+        abyssRest: rest(s.abyss || {}, ['best', 'bestDay', 'lastRunDay']),
+        towerRest: rest(s.tower || {}, ['best', 'bestDay', 'lastRunDay']),
+        statsRest: rest(s.stats || {}, ['questsDone', 'battlesWon', 'battlesLost', 'hires', 'specHires']),
+      },
     },
     mercs: (s.roster || []).filter(Boolean).map((m) => ({
       uid: m.uid,
@@ -122,13 +158,11 @@ export function toRows(st) {
       formation_id: q.formationId,
       member_uids: pad(q.memberUids, SLOT_COUNT),
       pet_uids: pad(q.petUids, PET_SLOT_COUNT),
-      /* ★★ **이건 013 의 컬럼이 아니다.** `run_squads` 에 자리가 없는 값들이라
-       *   여기서만 들고 다닌다 — `run_import` 를 쓸 때 이 이름으로 insert 하면 터진다.
-       *   밑줄로 시작하는 이유가 그거다.
-       *   ★ 전력에는 안 걸린다 (빼고 재 봤다 — 11판 전부 같은 값이었다).
-       *     하지만 `run_snapshot` 은 필요하다 — 파견 중인 부대를 클라가 알아야 한다.
-       *     ⇒ 013 위에 컬럼을 더할 때 같이 넣어라 (§110 의 남은 일). */
-      _notInSchema: { status: q.status, returnDay: q.returnDay },
+      /* ★ db/015 에서 칸이 생겼다. 그전엔 `_notInSchema` 로 들고만 다녔다 —
+       *   전력에는 안 걸리지만(§110 실측) `run_snapshot` 이 「원정 중」 을 알려야 한다.
+       *   값은 'idle' / 'away' 둘뿐이다 (squad.js 의 SQUAD_IDLE·SQUAD_AWAY). */
+      status: q.status === 'away' ? 'away' : 'idle',
+      return_day: Math.max(0, Math.round(Number(q.returnDay) || 0)),
     })),
     pets: (s.pets || []).filter(Boolean).map((p) => ({
       uid: p.uid, sid: p.sid, grade: p.grade, data: rest(p, PET_COLS),
@@ -152,7 +186,9 @@ export function fromRows(rows) {
     slot: x.slot,
     rarity: x.rarity,
     ilvl: x.ilvl,
-    setId: x.set_id == null ? undefined : x.set_id,
+    /* ★ `null` 을 `undefined` 로 바꾸지 마라 — 세이브의 아이템은 `setId: null` 을
+     *   **키로 갖고 있다.** 바꿔 놓으면 왕복할 때마다 키 하나가 사라진다 (왕복 검사가 잡았다). */
+    setId: x.set_id,
     ...(x.locked ? { locked: true } : {}),
     ...(x.data || {}),
   }));
@@ -183,12 +219,17 @@ export function fromRows(rows) {
       formationId: q.formation_id,
       memberUids: pad(q.member_uids, SLOT_COUNT),
       petUids: pad(q.pet_uids, PET_SLOT_COUNT),
-      status: (q._notInSchema && q._notInSchema.status) || 'idle',
-      returnDay: (q._notInSchema && q._notInSchema.returnDay) || 0,
+      status: q.status === 'away' ? 'away' : 'idle',
+      returnDay: Math.max(0, Math.round(Number(q.return_day) || 0)),
     }));
 
-  /* merc.squadId / slotIndex 는 편성의 사본이다 — 여기서 다시 만든다 */
+  /* merc.squadId / slotIndex 는 편성의 사본이다 — 여기서 다시 만든다.
+   *
+   * ★★ **부대에 안 든 단원도 값을 갖는다.** 게임은 `squadId: null` · `slotIndex: -1` 로
+   *   둔다 (`merc.js createMerc`). 든 사람만 채웠더니 나머지가 `undefined` 로 돌아와
+   *   왕복 검사가 물었다 — 키 자체가 사라지는 것이라 조용히 어긋난다. */
   const byUid = new Map(roster.map((m) => [m.uid, m]));
+  for (const m of roster) { m.squadId = null; m.slotIndex = -1; }
   for (const q of squads) {
     q.memberUids.forEach((uid, i) => {
       const m = uid && byUid.get(uid);
@@ -197,15 +238,28 @@ export function fromRows(rows) {
   }
 
   return {
+    /* ★ `data` 를 **먼저** 편다 — 아래 컬럼들이 이겨야 한다.
+     *   (data 에 같은 이름이 들어갈 일은 없지만, 순서로 못 박아 둔다.) */
+    ...rest(S.data || {}, ['abyssRest', 'towerRest', 'statsRest']),
     seed: S.seed, day: S.day, gold: S.gold, renown: S.renown,
     cityId: S.city_id, rosterCap: S.roster_cap,
+    companyName: S.company_name == null ? undefined : S.company_name,
+    flagSquadId: S.flag_squad_id == null ? null : S.flag_squad_id,
     roster, items, squads,
     pets: (r.pets || []).map((p) => ({ uid: p.uid, sid: p.sid, grade: p.grade, ...(p.data || {}) })),
+    /* ★ 편 컬럼 + `data` 에 남겨 둔 나머지 하위 키를 합친다 (toRows 의 짝) */
     stats: {
+      ...((S.data || {}).statsRest || {}),
       questsDone: S.quests_done, battlesWon: S.battles_won, battlesLost: S.battles_lost,
       hires: S.hires, specHires: S.spec_hires,
     },
-    abyss: { best: S.abyss_best, bestDay: S.abyss_best_day, lastRunDay: S.abyss_last_run_day },
-    tower: { best: S.tower_best, bestDay: S.tower_best_day, lastRunDay: S.tower_last_run_day },
+    abyss: {
+      ...((S.data || {}).abyssRest || {}),
+      best: S.abyss_best, bestDay: S.abyss_best_day, lastRunDay: S.abyss_last_run_day,
+    },
+    tower: {
+      ...((S.data || {}).towerRest || {}),
+      best: S.tower_best, bestDay: S.tower_best_day, lastRunDay: S.tower_last_run_day,
+    },
   };
 }
