@@ -158,12 +158,64 @@ function richText(s) {
   return box;
 }
 
+/* ─────────────────────────── 스크롤 맞추기 ───────────────────────────
+ *
+ * ★★ 제작자 제보: 「튜토리얼이 화면 스크롤이 넘어가서 에러처럼 보이나보다」
+ *
+ *   구멍(`#tut-hole`)과 말풍선은 **뷰포트 좌표**로 놓는다 (`#tut-root` 가 position:fixed).
+ *   그런데 대상이 스크롤 밖에 있으면 구멍이 화면 밖에 그려지고,
+ *   `box-shadow: 0 0 0 9999px` 로 화면 전체가 어두워진 채 말풍선만 남는다 —
+ *   플레이어 눈에는 **아무 데도 안 가리키는 먹통**이다.
+ *
+ * ★ 그래서 대상이 안 보이면 보이게 스크롤한다. 단 **단계가 바뀐 직후 잠깐만** 움직인다
+ *   (`SETTLE_MS`). `place()` 는 `scroll` 이벤트에도 물려 있어서, 계속 스크롤하면
+ *   사람이 손으로 내리는 것과 싸운다.
+ *
+ * ★ 대상이 늦게 나타나거나(화면 전환 직후) 나타난 뒤 자리가 밀리는 경우가 있어서,
+ *   `render()` 한 번이 아니라 `place()` 가 돌 때마다 그 창(窓) 안에서 다시 본다.
+ */
+
+/** 어느 단계의 스크롤을 맞추는 중인가 */
+let scrollStep = -1;
+/** 이 시각까지는 자리가 흔들려도 다시 맞춘다 */
+let scrollUntil = 0;
+
+/**
+ * 단계가 바뀐 뒤 **자리가 잡힐 때까지** 맞추는 시간.
+ *
+ * ★★ 한 번만 맞추면 안 된다. 처음 시도할 때 그 화면은 **아직 그려지는 중**이라
+ *   그때 가운데로 맞춰도 곧 다른 자리로 밀린다 — 실제로 그렇게 만들었다가
+ *   대상이 top 1705 (화면 밖)에 남았다. 이 파일 머리말의 「화면은 통째로 다시 그려진다」가
+ *   바로 이 얘기다. 그래서 잠깐 동안은 `place()` 가 돌 때마다 다시 본다.
+ *
+ * ★ 그 뒤로는 **절대 안 건드린다.** 계속 맞추면 사람이 손으로 내리는 것과 싸운다.
+ */
+const SETTLE_MS = 1500;
+
+/** 대상이 화면 밖이면 보이게 스크롤한다 */
+function ensureVisible(node) {
+  if (!node) return;
+  if (scrollStep !== idx) { scrollStep = idx; scrollUntil = Date.now() + SETTLE_MS; }
+  if (Date.now() > scrollUntil) return;
+
+  const r = node.getBoundingClientRect();
+  /* 가장자리에 겨우 걸친 것도 «안 보인다» 로 본다 — 말풍선이 붙을 자리가 있어야 한다 */
+  const m = 24;
+  if (r.top >= m && r.bottom <= window.innerHeight - m) return;
+
+  /* ★ 부드러운 스크롤(smooth)은 쓰지 않는다. 화면이 다시 그려지면 애니메이션이
+   *   중간에 끊기고, 200ms 마다 다시 걸면 서로 목적지를 밀어내 덜컹거린다. */
+  try { node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); }
+  catch { try { node.scrollIntoView(); } catch { /* 아주 옛 브라우저 */ } }
+}
+
 function place() {
   const step = STEPS[idx];
   if (!step || !root) return;
 
   const node = findTarget(step);
   if (node) {
+    ensureVisible(node);
     const r = node.getBoundingClientRect();
     const pad = 6;
     hole.style.display = 'block';
@@ -301,6 +353,8 @@ export function start(opt = {}) {
   document.body.appendChild(root);
 
   idx = 0;
+  /* ★ 다시 시작할 때 스크롤 표식도 같이 푼다 — 안 그러면 1단계에서 스크롤을 안 맞춘다 */
+  scrollStep = -1; scrollUntil = 0;
   render();
 
   // rAF 는 탭이 숨으면 멈춘다 — 인터벌로 받쳐 준다 (가볍게 200ms)

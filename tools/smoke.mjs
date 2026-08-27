@@ -6218,6 +6218,76 @@ section('로그인은 구글 — 익명은 일부러 껐다');
     '익명 가입 경로만 남아 있다');
 }
 
+section('튜토리얼이 대상까지 화면을 끌어온다');
+{
+  /* ★★ 제작자 제보: 「튜토리얼이 화면 스크롤이 넘어가서 에러처럼 보이나보다」
+   *
+   *   구멍(`#tut-hole`)과 말풍선은 **뷰포트 좌표**로 놓인다 (`#tut-root` 가 position:fixed).
+   *   대상이 스크롤 밖이면 구멍이 화면 밖에 그려지고, `box-shadow: 0 0 0 9999px` 때문에
+   *   화면 전체가 어두워진 채 말풍선만 남는다 — **아무 데도 안 가리키는 먹통**으로 보인다.
+   *
+   * ★ 스모크에는 DOM 이 없다(위 «document 전역이 없는 환경» 참고). 그래서 글자로 보되
+   *   **이름이 아니라 «제 일을 하는가»** 를 본다 — 이 저장소가 이름 검사로 여러 번 당했다. */
+  const tsrc = readFileSync(srcDir('ui/tutorial.js'), 'utf8');
+  const code = decomment(tsrc);
+
+  /** 함수 하나의 본문을 대충 떠 온다 (다음 최상위 `function` 전까지) */
+  const bodyOf = (name) => {
+    const at = code.indexOf(`function ${name}(`);
+    if (at < 0) return '';
+    const nxt = code.indexOf(String.fromCharCode(10) + 'function ', at + 1);
+    return code.slice(at, nxt < 0 ? code.length : nxt);
+  };
+
+  const faults = [];
+  const ev = bodyOf('ensureVisible');
+  const pl = bodyOf('place');
+
+  if (!ev) faults.push('대상을 화면 안으로 끌어오는 함수가 없다');
+  else {
+    /* ★ 대체 경로(`scrollIntoView()` 인자 없음)만 남아도 통과하면 안 된다 —
+     *   주 경로는 **옵션을 준 호출**이다 (block:'center'). 메타 검사로 잡았다. */
+    if (!/scrollIntoView\(\s*\{/.test(ev)) faults.push('scrollIntoView 주 경로가 없다 — 스크롤이 안 따라간다');
+    if (!/block:\s*'center'/.test(ev)) faults.push('대상을 화면 가운데로 안 맞춘다 — 가장자리에 걸려 말풍선이 못 붙는다');
+    /* ★ 이미 보이면 건드리면 안 된다 — 조건 없이 매번 스크롤하면 화면이 튄다 */
+    if (!/innerHeight/.test(ev)) faults.push('«이미 보이는가» 를 안 본다 — 볼 때마다 화면을 옮긴다');
+    /* ★ 정착 창이 있어야 한다: 화면이 다시 그려지며 자리가 밀리므로 한 번으론 모자라고,
+     *   무한히 맞추면 사람이 손으로 내리는 것과 싸운다 */
+    if (!/scrollUntil/.test(ev)) faults.push('정착 창이 없다 — 한 번만 맞추면 다시 그려질 때 어긋난다');
+    if (!/scrollUntil\s*\)?\s*(return|\))/.test(ev) && !/Date\.now\(\)\s*>\s*scrollUntil/.test(ev)) {
+      faults.push('정착 창이 닫혀도 계속 스크롤한다 — 사람이 내리는 것과 싸운다');
+    }
+    /* ★ smooth 는 다시 그려질 때 끊기고, 200ms 마다 다시 걸면 덜컹거린다 */
+    if (/behavior:\s*'smooth'/.test(ev)) faults.push("behavior:'smooth' 는 다시 그려질 때 끊긴다 — 'auto' 여야 한다");
+  }
+
+  /* ★★ 정의만 있고 **아무도 안 부르면** 아무 일도 안 일어난다 (도감 TIER_LABEL 과 같은 병).
+   *   그리고 `place()` 안에서 **위치를 재기 전에** 불러야 한다 — 뒤에 부르면 그 판은 옛 자리다. */
+  if (!pl) faults.push('place() 를 못 찾았다');
+  else {
+    const callAt = pl.indexOf('ensureVisible(');
+    const rectAt = pl.indexOf('getBoundingClientRect(');
+    if (callAt < 0) faults.push('place() 가 ensureVisible 을 안 부른다 — 정의만 있고 안 돈다');
+    else if (rectAt >= 0 && callAt > rectAt) {
+      faults.push('place() 가 위치를 잰 뒤에 스크롤한다 — 그 판은 옛 자리에 그려진다');
+    }
+  }
+
+  /* ★ 정착 창의 길이가 말이 되는가 */
+  const ms = code.match(/SETTLE_MS\s*=\s*(\d+)/);
+  if (!ms) faults.push('정착 창 길이(SETTLE_MS)가 없다');
+  else if (!(Number(ms[1]) >= 300 && Number(ms[1]) <= 5000)) {
+    faults.push(`SETTLE_MS ${ms[1]} — 300~5000 이어야 한다 (짧으면 못 맞추고 길면 사람과 싸운다)`);
+  }
+
+  /* ★ 다시 시작할 때 표식을 풀어야 1단계에서도 맞춘다 */
+  if (!/scrollStep = -1/.test(code.slice(code.indexOf('export function start')))) {
+    faults.push('start() 가 스크롤 표식을 안 푼다 — 다시 시작하면 1단계에서 안 맞춘다');
+  }
+
+  okAll(faults, '튜토리얼이 대상이 화면 밖이면 끌어온다 (그리고 그 뒤엔 안 건드린다)', 9);
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');
