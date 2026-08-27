@@ -89,6 +89,29 @@ Deno.serve(async (req) => {
     }
     : null;
 
+  /* ── 3-0) **이 계정이 전에 보인 최대 전력** — 기록↔전력 교차 검증의 바닥값 (§111)
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * ★★ 왜 필요한가: `rules.js` 의 교차 검증 가드가 「걸어라」 가 아니라 「건너뛰라」 라서,
+   *   **전력을 정확히 0 으로 적어 내면 검사가 통째로 꺼졌다.** 실측으로 확인했다 —
+   *   지금 flagged 인 계정도 0 만 적으면 ok 로 풀린다.
+   *
+   * ★ 부대를 해산하든 장비를 다 팔든 **이미 세운 알리바이는 못 지운다.**
+   * ★ 바닥값은 판정을 느슨하게만 만든다(전력이 크면 덜 걸린다) — 정상 플레이어를
+   *   새로 거절할 위험이 없다. 그래서 seed 와 무관하게 쓴다.
+   * ★ 조회가 실패하면 **막지 않는다** — 아래 탐침 세기와 같은 원칙. 0 이면 오늘 동작 그대로다.
+   * ★★ 사유는 클라이언트에 안 나간다 (§55). 이 값도 응답에 안 싣는다. */
+  let seenPower = 0;
+  try {
+    const { data: seenRow } = await admin
+      .from('scores').select('top_power').eq('user_id', userId).maybeSingle();
+    seenPower = Math.max(0, Math.round(Number(seenRow?.top_power) || 0));
+  } catch (e) {
+    console.error('[submit-score] 이전 전력 조회 실패 — 막지 않고 넘어간다', e);
+  }
+  /* ★ 제자리에 넣는다 — extractScore 결과 하나만 돌아다니게 둔다 (§110 과 같은 이유). */
+  score.seenPower = seenPower;
+
   /* ★ seed 가 다르면 **다른 플레이스루**다. 비교 자체가 무의미하므로 첫 제출로 본다.
    *   여기서 옛 판과 비교하면 새로 시작한 사람이 전부 "기록이 줄었다"로 거절당한다. */
   const compareTo = prev && sameRun(prev, score) ? prev : null;

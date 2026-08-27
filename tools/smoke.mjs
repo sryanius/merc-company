@@ -7158,6 +7158,122 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
+{
+  /* ★★ 왜 이 절이 있나 — **0 이 마법의 탈출값이었다** (§111).
+   *
+   *   교차 검증의 가드가 「걸어라」 가 아니라 「건너뛰라」 라서,
+   *   전력을 **정확히 0** 으로 적어 내면 검사가 통째로 꺼졌다. 실측:
+   *
+   *     나락 96 · 탑 490 인 계정   전력 27,127 → flag C
+   *                                전력      1 → flag C
+   *                                전력      0 → **ok**   ← 그냥 통과
+   *
+   *   §103 이 막았다고 믿은 자리가 더 싼 값으로 열려 있었다.
+   *
+   * ★ 막는 방법: **그 계정이 전에 보인 최대 전력(`seenPower`)을 바닥값으로 깐다.**
+   *   부대를 해산하든 장비를 다 팔든 이미 세운 알리바이는 못 지운다.
+   *
+   * ★★ 이 절은 «막혔나» 만 보지 않는다 — **정상 플레이어가 새로 안 걸리는가**를
+   *   같이 본다. 그게 이 저장소가 정의한 최악의 사고다 (rules.js 머리말). */
+  const RL3 = need('game/rules.js');
+  if (RL3) {
+    const mk = (o) => ({
+      seed: 1, dataVersion: 1, companyName: 'x', day: 122,
+      gold: 1000, renown: 100, cityId: null, rosterCap: 20,
+      questsDone: 100, battlesWon: 600, battlesLost: 10, hires: 20, specHires: 200,
+      rosterN: 8, topLevel: 60, sMercs: 7, hiredN: 20,
+      itemsN: 100, petsN: 0, squadsN: 3,
+      abyssBest: 96, abyssBestDay: 112, abyssLastRunDay: 112,
+      towerBest: 490, towerBestDay: 92, towerLastRunDay: 92,
+      topPower: 27127, squad: null, squadsFull: [], ...o,
+    });
+    const tier = (o) => (RL3.judge(null, mk(o)).tier || 'ok');
+
+    /* 정상 플레이어 (2129일 · 나락 92 · 탑 500) */
+    const RYA = {
+      day: 2129, rosterCap: 60, rosterN: 40, topLevel: 80, sMercs: 38, hiredN: 60,
+      questsDone: 811, battlesWon: 1300, abyssBest: 92, towerBest: 500,
+      abyssBestDay: 2100, abyssLastRunDay: 2100, towerBestDay: 2000, towerLastRunDay: 2000,
+    };
+
+    const CASES = [
+      /* [설명, 입력, 기대 등급] */
+      ['치트가 전력 0 으로 도망 (알리바이 27127)', { topPower: 0, seenPower: 27127 }, 'C'],
+      ['치트가 전력 1 로 도망', { topPower: 1, seenPower: 27127 }, 'C'],
+      ['치트 그대로 (27127)', { topPower: 27127, seenPower: 27127 }, 'C'],
+      /* ★ 아래는 전부 ok 여야 한다 — 하나라도 걸리면 정상 플레이어를 때린 것이다 */
+      ['정상 플레이어', { ...RYA, topPower: 166894, seenPower: 166894 }, 'ok'],
+      ['정상인데 장비를 다 팔았다', { ...RYA, topPower: 1000, seenPower: 166894 }, 'ok'],
+      ['옛 클라 — 전력 0 · 알리바이 0', { ...RYA, topPower: 0, seenPower: 0 }, 'ok'],
+      ['새로 시작 — 기록 0', {
+        ...RYA, day: 1, rosterCap: 20, rosterN: 4, sMercs: 0, hiredN: 0, topLevel: 5,
+        questsDone: 0, battlesWon: 0, abyssBest: 0, towerBest: 0,
+        abyssBestDay: 0, abyssLastRunDay: 0, towerBestDay: 0, towerLastRunDay: 0,
+        topPower: 0, seenPower: 166894,
+      }, 'ok'],
+      /* 하위 호환 — seenPower 를 안 주면 오늘 동작 그대로 */
+      ['seenPower 없음 · 전력 0 (오늘과 같다)', { topPower: 0 }, 'ok'],
+      ['seenPower 없음 · 전력 27127', {}, 'C'],
+    ];
+
+    const wrong = [];
+    for (const [label, inp, want] of CASES) {
+      const got = tier(inp);
+      if (got !== want) wrong.push(`${label} — ${want} 여야 하는데 ${got}`);
+    }
+    okAll(wrong, '전력 0 도망이 막히고, 정상 플레이어는 안 걸린다', CASES.length);
+
+    /* ★★ **알리바이를 «올리면» 판정이 나빠지면 안 된다** — 정상 플레이어를 새로
+     *   때릴 위험이 없다는 근거가 이것이다.
+     *
+     * ★★ 단 하나 예외가 있고, 그게 이 수정의 **목적 그 자체**다:
+     *   `0` 은 값이 아니라 **「모른다」 라는 표식**이라, 0 → 1 로 넘어가는 순간
+     *   검사가 «꺼짐 → 켜짐» 으로 바뀐다. 그래서 1 부터 훑는다.
+     *   (검사를 처음 짤 때 0 부터 훑었더니 여기서 물렸다 — 내 「구조적으로 0」
+     *    이라는 주장이 정확히 이 경계에서 틀렸다는 것을 검사가 잡아 줬다.)
+     *
+     * ★★ 그 예외가 무는 실제 대가는 아래 「모른다→안다」 판에 따로 적어 뒀다. */
+    const RANK = { ok: 0, C: 1, B: 1, A: 2 };
+    const monotone = [];
+    for (const base of [{}, { ...RYA, topPower: 166894 }, { topPower: 5000 }, { ...RYA, topPower: 0 }]) {
+      let prevRank = null;
+      for (const sp of [1, 1000, 27127, 100000, 190470]) {
+        const r = RANK[tier({ ...base, seenPower: sp })];
+        if (prevRank != null && r > prevRank) {
+          monotone.push(`알리바이를 ${sp} 로 올렸더니 판정이 나빠졌다 (${JSON.stringify(base).slice(0, 60)})`);
+        }
+        prevRank = r;
+      }
+    }
+    okAll(monotone, '알리바이를 올려도 판정이 나빠지지 않는다 (0 은 값이 아니라 표식)', 4);
+
+    /* ★★ 「모른다 → 안다」 의 대가를 **숫자로 남긴다.**
+     *
+     *   전력을 0 으로 신고했는데 알리바이가 **작게라도 있으면** 검사가 켜진다.
+     *   그게 치트를 막는 자리인 동시에, **딱 한 부류의 정상 플레이어를 때릴 수 있다:**
+     *   알리바이가 오래돼 낮은데(예: 25일차에 5,680 을 올린 뒤) 그동안 오프라인으로
+     *   기록을 크게 올렸고, 마지막 제출을 **전력을 안 찍는 옛 클라**로 한 사람.
+     *
+     *   ★ 거절이 아니라 표시(C)다 — 순위표에서만 빠지고 사람이 되돌릴 수 있다.
+     *   ★ 지금 클라는 제출 직전에 `stampSquadPower` 를 부르므로(cloud.js) 그 부류가
+     *     생기려면 서비스워커에 캐시된 옛 클라여야 한다 (§41 이 그 시차를 적어 뒀다).
+     *   ⇒ 이 검사는 그 대가가 **여전히 그 모양인지**를 지킨다. 모양이 바뀌면 다시 재라. */
+    ok(tier({ ...RYA, topPower: 0, seenPower: 0 }) === 'ok'
+      && tier({ ...RYA, topPower: 0, seenPower: 5680 }) === 'C',
+      '「모른다(0)」 는 넘어가고 「낮게라도 안다」 는 검사한다 — 그 대가를 안다',
+      `알리바이 0 → ${tier({ ...RYA, topPower: 0, seenPower: 0 })} · `
+      + `알리바이 5680 → ${tier({ ...RYA, topPower: 0, seenPower: 5680 })}`);
+
+    /* 서버가 실제로 그 값을 넣어 주나 — 안 넣으면 위 전부가 죽은 코드다 */
+    const idx = decomment(readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8'));
+    ok(/score\.seenPower\s*=/.test(idx), 'submit-score 가 seenPower 를 채운다',
+      '안 채우면 rules.js 의 바닥값이 늘 0 이라 구멍이 그대로다');
+    ok(/from\(['"]scores['"]\)[\s\S]{0,80}top_power/.test(idx),
+      'seenPower 를 scores.top_power 에서 읽는다', '어디서 오는지 확인 못 했다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

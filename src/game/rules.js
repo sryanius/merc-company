@@ -641,15 +641,40 @@ function absoluteOddities(s) {
    *   `topPower` 는 `squad.js stampSquadPower()` 가 제출 직전에 찍는다.
    *   그 경로를 안 탄 세이브(옛 클라·도구가 만든 것)는 0 이고,
    *   그때 이 검사를 돌리면 **기록이 있는 사람이 전원 걸린다.**
-   *   실제로 계측기(`tools/cheatcheck.mjs`)가 그걸 잡아 줬다. */
-  const forCross = s.topPower > 0 ? [
+   *   실제로 계측기(`tools/cheatcheck.mjs`)가 그걸 잡아 줬다.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   * ★★★ 그런데 그 «건너뛰기» 가 **마법의 탈출값**이었다 (§111).
+   *
+   *   가드가 「걸어라」 가 아니라 「건너뛰라」 라서, 전력을 **정확히 0** 으로 적어 내면
+   *   검사가 통째로 꺼진다. 실측:
+   *
+   *     c5097c (나락 96 · 탑 490)   전력 27,127 → flag C
+   *                                 전력      1 → flag C
+   *                                 전력      0 → **ok**   ← 그냥 통과
+   *
+   *   즉 §103 이 막았다고 믿은 자리가 **더 싼 값으로 열려 있었다.**
+   *   지금 flagged 인 계정도 다음 제출에서 0 만 적으면 풀린다.
+   *
+   * ★★ 막는 방법: **그 계정이 전에 보인 최대 전력을 바닥값으로 깐다.**
+   *   `seenPower` 는 서버가 `scores.top_power` 에서 넣어 준다 (submit-score).
+   *   부대를 해산하든 장비를 다 팔든 **이미 세운 알리바이는 못 지운다.**
+   *
+   * ★ 이 바닥값은 판정을 **느슨하게만** 만든다 — 전력이 커지면 `전력 < 필요치` 가
+   *   덜 걸린다. 그래서 **정상 플레이어를 새로 거절할 위험이 구조적으로 0** 이다.
+   *   옛 클라(신고 0 · 알리바이도 0)는 바닥값도 0 이라 오늘과 똑같이 검사가 꺼진다.
+   *
+   * ★ `seenPower` 가 없으면(옛 호출자·스모크·클라) undefined → 0 → 오늘 동작 그대로다.
+   * ════════════════════════════════════════════════════════════════════════ */
+  const power = Math.max(Number(s.topPower) || 0, Number(s.seenPower) || 0);
+  const forCross = power > 0 ? [
     ['나락', s.abyssBest, ABYSS_POWER_CURVE],
     ['탑', s.towerBest, TOWER_POWER_CURVE],
   ] : [];
   for (const [label, rec, curve] of forCross) {
     const need = Math.ceil(minPowerFor(curve, rec) * RECORD_POWER_SLACK);
-    if (rec > 0 && need > 0 && s.topPower < need) {
-      bad.push(`${label} ${rec} 인데 부대 전력 ${s.topPower} — 최소 ${need} 은 있어야 한다`);
+    if (rec > 0 && need > 0 && power < need) {
+      bad.push(`${label} ${rec} 인데 부대 전력 ${power} — 최소 ${need} 은 있어야 한다`);
     }
   }
   return bad;
