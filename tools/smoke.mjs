@@ -2,7 +2,7 @@
 //   실행: node tools/smoke.mjs
 // 밸런스는 tools/balance.mjs 담당. 여기서는 "크래시 / 데이터 정합성"만 본다.
 
-import { importsOf, decomment as libDecomment } from './lib/imports.mjs';
+import { importsOf, importBindings, decomment as libDecomment } from './lib/imports.mjs';
 import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -3382,25 +3382,21 @@ section('모듈 간 import 정합성 (정적 분석)');
   for (const rel of allFiles) {
     const abs = srcDir(rel);
     const code = strip(readFileSync(abs, 'utf8'));
-    const re = /import\s+([\s\S]*?)\s+from\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]/g;
-    for (const m of code.matchAll(re)) {
-      const clause = m[1];
-      const spec = m[2] || m[3];
+    /* ★★ 여기 자기 정규식이 있었다 — **세 번째 사본**이었고, 왼쪽 경계가 없어서
+     *   `rpc('run_import')` 안의 `import` 를 부수효과 import 로 오인했다.
+     *   `src/net/run.js` 를 넣자마자 물렸다. 판단은 `tools/lib/imports.mjs` 한 벌이다 (§107). */
+    for (const b of importBindings(code)) {
+      const spec = b.spec;
       if (!spec) continue;
       importCount++;
       if (!spec.startsWith('.')) { bad.push(`${rel}: 외부 의존성 import '${spec}'`); continue; }
       if (!spec.endsWith('.js')) extBad.push(`${rel}: '${spec}' 확장자 없음`);
       const target = resolve(dirname(abs), spec);
       if (!existsSync(target)) { bad.push(`${rel}: '${spec}' 파일 없음`); continue; }
-      if (!clause) continue;
-      const named = clause.match(/\{([\s\S]*)\}/);
-      if (!named) continue; // default 또는 * as ns
+      if (!b.names) continue;            // default · * as ns · 부수효과 · 동적
       const avail = exportsOf(target);
       if (!avail.size) continue;
-      for (const part of named[1].split(',')) {
-        const t = part.trim();
-        if (!t) continue;
-        const name = t.split(/\s+as\s+/)[0].trim();
+      for (const name of b.names) {
         if (!name) continue;
         if (!avail.has(name)) {
           bad.push(`${rel}: '${relative(rootDir, target).split(sep).join('/')}' 에 export '${name}' 없음`);
@@ -6954,6 +6950,32 @@ section('import 를 걷는 눈이 부수효과 import 를 놓치지 않는다');
     '실물 codex.js 에서 부수효과 import 와 그 다음 import 를 둘 다 잡는다',
     `잡은 것: ${codexGot.join(', ')}`);
 
+  /* ⑨-b ★★ **실제로 물렸던 문자열이다.** `rpc('run_import'), { method: 'POST' }` —
+   *   `run_import` 안의 `import` 를 부수효과 import 로 오인한 파서가 **세 번째 사본**으로
+   *   smoke 안에 살아 있었다 (`src/net/run.js` 를 넣자마자 물렸다).
+   *   왼쪽 경계가 없으면 이 판이 깨진다. */
+  walkCase("식별자 안의 import 를 import 문으로 오인하지 않는다",
+    "const r = authed(EP.rpc('run_import'), { method: 'POST' });", [], ["), { method: "]);
+  ok(importBindings("const r = rpc('run_import'), { method: 'POST' };").length === 0,
+    'importBindings 도 식별자 안의 import 를 안 문다',
+    JSON.stringify(importBindings("const r = rpc('run_import'), { method: 'POST' };")));
+
+  /* ⑨-c 이름까지 보는 쪽도 같은 판을 통과해야 한다 */
+  {
+    const b = importBindings([
+      "import { a, b as c } from './x.js';",
+      "import './side.js';",
+      "export { z } from './y.js';",
+    ].join(NL));
+    const specs = b.map((x) => x.spec).sort();
+    ok(JSON.stringify(specs) === JSON.stringify(['./side.js', './x.js', './y.js']),
+      'importBindings 가 세 형태를 모두 잡는다', JSON.stringify(specs));
+    const named = b.find((x) => x.spec === './x.js');
+    ok(named && JSON.stringify(named.names) === JSON.stringify(['a', 'b']),
+      'importBindings 가 가져오는 이름을 뽑는다 (as 는 왼쪽 이름)',
+      named ? JSON.stringify(named.names) : '(없다)');
+  }
+
   /* ⑩ **사본이 다시 생기지 않았나.** 이 병의 뿌리는 «두 벌» 이었다.
    *   누가 편하다고 지역 함수를 다시 만들면 그날부터 또 갈라진다. */
   const dupes = [];
@@ -6966,8 +6988,18 @@ section('import 를 걷는 눈이 부수효과 import 를 놓치지 않는다');
     if (/function\s+(importsOf|specsOf|decomment)\s*\(/.test(body)) {
       dupes.push(`${rel} 이 걷는 눈을 스스로 또 만든다 — 사본이 둘이면 반드시 갈라진다`);
     }
+    /* ★★ 함수로 안 만들고 **정규식만 슬쩍 두는** 사본이 실제로 있었다 (smoke 안에).
+     *   `import … from '…'` 을 직접 훑는 정규식이 보이면 그것도 사본이다. */
+    /* ★ 정규식 리터럴 안에서 `import` 와 `from` 을 같이 훑는 줄을 찾는다.
+     *   («정규식으로 정규식을 찾는» 모양이라 줄 단위로 본다 — 그게 제일 안 헷갈린다.) */
+    for (const ln of body.split(String.fromCharCode(10))) {
+      const looksRegex = ln.includes('matchAll(/') || ln.includes('= /') || ln.includes('.test(/');
+      if (looksRegex && ln.includes('import') && ln.includes('from')) {
+        dupes.push(rel + ' 에 import 를 직접 훑는 정규식이 있다 — 그것도 사본이다: ' + ln.trim().slice(0, 60));
+      }
+    }
   }
-  okAll(dupes, '걷는 눈은 lib/imports.mjs 한 벌뿐이다', 4);
+  okAll(dupes, '걷는 눈은 lib/imports.mjs 한 벌뿐이다', 6);
 }
 
 section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸');
@@ -7626,6 +7658,57 @@ section('SQL 함수 정적 검사 도구가 제대로 배선돼 있다');
     const claude = readFileSync(join(rootDir, 'CLAUDE.md'), 'utf8');
     ok(/tools\/sqlcheck\.mjs/.test(claude), 'CLAUDE.md 가 sqlcheck 를 돌리라고 적어 뒀다',
       '문서에 없으면 안 돌린다 — rlscheck 를 그렇게 만든 이유와 같다');
+  }
+}
+
+section('이관 배선 — 클라가 서버와 같은 사상을 쓴다');
+{
+  /* ★★ §115. `run_import` 은 `authenticated` 에게 열려 있어서 클라가 **RPC 로 바로** 부른다
+   *   (Edge Function 이 없다). 그래서 «행 모양» 을 클라가 만든다 —
+   *   여기서 손으로 만들면 그 순간 서버와 **사상이 두 벌**이 되고 반드시 갈라진다.
+   *
+   * ★ 이 절이 지키는 것: `src/net/run.js` 가 **`runrows.toRows` 를 쓰는가**,
+   *   RPC 이름이 맞는가, 그리고 **절대 throw 하지 않는가** (`rest.js` 의 계약).
+   *
+   * ★★ 아직 **사람이 누를 자리는 안 만들었다.** 이관은 계정당 한 번인데
+   *   지금 눌러도 플레이어에게 돌아가는 것이 없다 — `submit-score` 전환은
+   *   쓰기 RPC 뒤다 (§111). 버튼은 그때 단다. */
+  const p = join(rootDir, 'src/net/run.js');
+  ok(existsSync(p), 'src/net/run.js 가 있다');
+  if (existsSync(p)) {
+    const body = decomment(readFileSync(p, 'utf8'));
+    const wire = [];
+    if (!/from\s*['"]\.\.\/game\/runrows\.js['"]/.test(body)) {
+      wire.push('runrows.js 를 안 쓴다 — 손으로 모양을 만들면 서버와 갈라진다');
+    }
+    if (!/toRows\s*\(/.test(body)) wire.push('toRows 를 안 부른다');
+    if (!/rpc\(\s*['"]run_import['"]\s*\)/.test(body)) wire.push("rpc('run_import') 를 안 부른다");
+    if (!/rpc\(\s*['"]run_snapshot['"]\s*\)/.test(body)) wire.push("rpc('run_snapshot') 를 안 부른다");
+    if (!/authed\s*\(/.test(body)) wire.push('authed 를 안 쓴다 (토큰 없이 부르면 401 도 못 받는다)');
+    /* ★ `toRows` 는 «한 아이템이 두 곳에 착용» 에서 던진다 — 그걸 잡아야 화면이 안 죽는다 */
+    if (!/try\s*\{[\s\S]{0,200}toRows/.test(body)) wire.push('toRows 를 try 로 안 감싼다 — 이상한 세이브에서 화면이 죽는다');
+    okAll(wire, 'run.js 가 서버와 같은 사상을 쓴다', 6);
+
+    /* ★★ 굴려 본다 — 글자만 보면 «부르긴 하는데 답이 이상한» 경우를 못 잡는다.
+     *   `preview` 는 서버를 안 부르는 순수 계산이라 여기서 실제로 돌릴 수 있다. */
+    try {
+      const RUN = await import('../src/net/run.js');
+      const ST2 = await import('../src/game/state.js');
+      ST2.newGame(31337, '이관미리보기');
+      const pv = RUN.preview(ST2.state);
+      ok(pv && pv.ok === true, 'preview 가 요약을 낸다', JSON.stringify(pv).slice(0, 120));
+      ok(pv && pv.companyName === '이관미리보기' && pv.day === 1 && pv.mercs === 4,
+        'preview 가 세이브의 실제 값을 읽는다',
+        pv ? `${pv.companyName} · ${pv.day}일차 · 단원 ${pv.mercs}` : '(없다)');
+      ok(pv && pv.kb > 0, 'preview 가 올라갈 크기를 알려 준다 (1MB 짜리 세이브가 실재한다)',
+        pv ? `${pv.kb}KB` : '(없다)');
+      /* ★ 이상한 입력에도 **던지지 않는다** */
+      let threw = false;
+      try { RUN.preview(null); RUN.preview({ roster: 'x' }); } catch { threw = true; }
+      ok(!threw, 'preview 는 이상한 입력에도 안 던진다');
+    } catch (e) {
+      ok(false, 'run.js 를 굴려 본다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+    }
   }
 }
 

@@ -61,3 +61,59 @@ export function importsOf(src) {
   for (const m of code.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1]);
   return out;
 }
+
+/**
+ * import 를 **가져오는 이름까지** 같이 본다.
+ *
+ * ★★ 왜 여기 있나 — `smoke.mjs` 의 「모듈 간 import 정합성」 절이 자기 정규식을 갖고
+ *   있었다. **세 번째 사본**이었고, 왼쪽 경계가 없어서
+ *
+ *     rpc('run_import'), { method: 'POST' }
+ *              ~~~~~~   ← 이 `import` 를 부수효과 import 로 오인했다
+ *
+ *   `src/net/run.js` 를 넣자마자 물렸다. 사본이 셋이면 셋 다 갈라진다 (§107).
+ *
+ * ★ `importsOf` 와 **같은 정규식**을 쓴다 — 여기가 넓은 쪽이고, `importsOf` 는
+ *   그 결과에서 경로만 뽑아 쓴다고 보면 된다.
+ *
+ * @param {string} src
+ * @returns {{spec: string, names: string[]|null, kind: 'named'|'side'|'dynamic'}[]}
+ *   `names` 가 `null` 이면 default·`* as ns`·부수효과·동적 import 다.
+ */
+export function importBindings(src) {
+  const code = decomment(src);
+  const out = [];
+
+  /* ① `import <절> from '…'` — 절에서 이름을 뽑는다.
+   *
+   * ★★ 절은 `[^;'"]*?` 다 — **`;` 나 따옴표를 넘지 못한다.**
+   *   `[\s\S]*?` 로 두면 §107 의 삼킴이 그대로 재현된다: 앞 줄의 부수효과
+   *   `import './side.js';` 에서 시작해 **다음 줄의 `from './y.js'` 까지** 건너뛰어
+   *   엉뚱한 짝을 만든다 (검사가 `./y.js` 가 두 번 나오는 것으로 잡았다).
+   *   import 절에는 `;` 도 따옴표도 안 들어가므로 이 제한이 정확하다. */
+  for (const m of code.matchAll(/(?:^|[\s;])import\s+([^;'"]*?)\s+from\s*['"]([^'"]+)['"]/g)) {
+    const clause = m[1];
+    const named = clause.match(/\{([\s\S]*)\}/);
+    out.push({
+      spec: m[2],
+      kind: 'named',
+      names: named
+        ? named[1].split(',').map((t) => t.trim()).filter(Boolean).map((t) => t.split(/\s+as\s+/)[0].trim())
+        : null,                                   // default 또는 `* as ns`
+    });
+  }
+  /* ② `export … from '…'` — 이름 검사는 안 한다 (재수출).
+   *   ★ ① 과 **같은 이유로** `[^;'"]*?` 다. 문장 경계를 넘으면 엉뚱한 짝이 생긴다. */
+  for (const m of code.matchAll(/(?:^|[\s;])export\s+[^;'"]*?\s+from\s*['"]([^'"]+)['"]/g)) {
+    out.push({ spec: m[1], kind: 'named', names: null });
+  }
+  /* ③ 부수효과 — ★ **왼쪽 경계가 있어야 한다.** 없으면 `run_import'` 의 `import` 를 문다 */
+  for (const m of code.matchAll(/(?:^|[\s;])import\s*['"]([^'"]+)['"]/g)) {
+    out.push({ spec: m[1], kind: 'side', names: null });
+  }
+  /* ④ 동적 */
+  for (const m of code.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    out.push({ spec: m[1], kind: 'dynamic', names: null });
+  }
+  return out;
+}

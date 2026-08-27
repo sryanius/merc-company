@@ -8545,3 +8545,68 @@ FK 가 첫 insert 에서 막으므로 그 뒤 문장(명부·장비·부대·펫
 
 - 클라 쪽 배선 (`src/net/run.js` + 사람이 누를 자리)
 - 고용·착용·판매·전직 RPC — **그 전에 `submit-score` 를 전환하면 안 된다** (§111)
+
+
+## 116. 클라 쪽 이관 배선 (`src/net/run.js`) — 그리고 **세 번째 파서 사본**
+
+### `src/net/run.js`
+
+`run_import` 이 `authenticated` 에게 열려 있으니 **RPC 로 바로** 부른다 (§115).
+행 모양은 `game/runrows.js` 의 `toRows()` — 서버와 **같은 파일**이다.
+
+- `importRun(state)` — 계정당 한 번. 이미 했으면 `data.reason === 'already'` (HTTP 200)
+- `snapshot()` — 서버가 가진 것을 통째로
+- `preview(state)` — **서버를 안 부르는 순수 계산.** 누르기 전에 사람에게 보여 줄 요약
+  (이관이 되돌릴 수 없으므로 «내 것이 맞나» 를 확인할 수 있어야 한다)
+
+로그인 없이 브라우저에서 굴려 확인했다:
+```
+preview  → {companyName:'스크롤시험단', day:1, mercs:4, items:11, worn:8, squads:1, kb:13}
+importRun/snapshot → HTTP 401 '로그인되어 있지 않다'   (네트워크에 나가기도 전에 막힌다)
+```
+
+★★ **인증된 호출은 아직 못 해봤다.** 구글 로그인이 필요한데 그건 제작자만 할 수 있다.
+  제작자가 로그인한 상태에서 브라우저 콘솔에 이 한 줄이면 끝까지 돈다:
+
+```js
+(async () => { const S = await import('/src/game/state.js'); const R = await import('/src/net/run.js');
+  console.log(R.preview(S.state)); console.log(await R.importRun(S.state)); })()
+```
+
+### ★ 사람이 누를 자리는 **아직 안 만들었다**
+
+이관은 계정당 한 번인데 **지금 눌러도 플레이어에게 돌아가는 것이 없다** —
+`submit-score` 전환은 쓰기 RPC 뒤다 (§111). 버튼은 그때 단다.
+
+### ★★★ 세 번째 파서 사본이 나왔다 — `src/net/run.js` 를 넣자마자 물렸다
+
+`smoke.mjs` 의 「모듈 간 import 정합성」 절이 **자기 정규식**을 갖고 있었다:
+
+```js
+/import\s+([\s\S]*?)\s+from\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]/g
+```
+
+두 번째 갈래에 **왼쪽 경계가 없다.** 그래서
+
+```js
+authed(EP.rpc('run_import'), { method: 'POST' }, Auth)
+              ~~~~~~         ← 이 `import` 를 부수효과 import 로 오인
+```
+
+`외부 의존성 import '), { method: '` 로 실패했다. §107 에서 두 벌을 합쳤는데
+**셋째가 남아 있었다.**
+
+⇒ `imports.mjs` 에 `importBindings(src)` 를 더해 그 절도 같은 파서를 쓰게 했다
+  (경로 + 가져오는 이름을 같이 준다). 사본은 다시 한 벌이다.
+
+★★ 그리고 **새로 만든 `importBindings` 에서 §107 의 삼킴이 그대로 재현됐다.**
+  절을 `[\s\S]*?` 로 뒀더니 앞 줄의 `import './side.js';` 에서 시작해
+  **다음 줄의 `from './y.js'` 까지** 건너뛰어 `./y.js` 를 두 번 잡았다.
+  검사가 그걸 잡아 줬다 (`["./side.js","./x.js","./y.js","./y.js"]`).
+  ⇒ 절을 `[^;'"]*?` 로 제한했다 — import 절에는 `;` 도 따옴표도 안 들어간다.
+
+★ 스모크에 판 넷을 더했다: 실제로 물렸던 문자열(`rpc('run_import'), { method: '`) ·
+  `importBindings` 가 세 형태를 다 잡는가 · 이름을 뽑는가(`as` 는 왼쪽) ·
+  그리고 **정규식만 슬쩍 둔 사본**도 잡는다 (함수로 안 만들면 예전 검사가 못 봤다).
+
+메타: 절 경계 제한을 빼면 삼킴이 재현되고, 왼쪽 경계를 빼면 `run_import` 오인이 재현된다.
