@@ -95,7 +95,10 @@ const BUNDLES = [
       'src/game/itembound.js',
       /* ★ 세이브 ↔ run_* 사상(§112). 이것도 import 가 0개다 —
        *   서버의 run_import/run_snapshot 이 **그대로** 쓴다. 두 벌이 되면 갈라진다. */
-      'src/game/runrows.js'],
+      'src/game/runrows.js',
+      /* ★ 주점 생성기 (§120) — 서버가 「이 후보가 실제로 그 주점에 있었나」 를 물으려면 필요하다.
+       *   city 를 인자로 받아서 닫힘이 이 파일 하나만 늘어난다. */
+      'src/game/tavern.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },

@@ -1608,7 +1608,10 @@ section('주점 고용가가 의뢰 보상과 같은 기울기인가');
     }
     return out;
   };
-  const src = strip(readFileSync(srcDir('game/state.js'), 'utf8').split(String.fromCharCode(13)).join(''));
+  /* ★ 생성기가 `state.js` 에서 `game/tavern.js` 로 옮겨 갔다 (§120) —
+   *   서버가 주점을 다시 만들려면 `state.js` 를 물면 안 되기 때문이다.
+   *   검사의 뜻은 그대로다: **고용가가 의뢰 보상과 같은 기울기를 쓰는가.** */
+  const src = strip(readFileSync(srcDir('game/tavern.js'), 'utf8').split(String.fromCharCode(13)).join(''));
   const faults = [];
 
   const bodyStart = src.indexOf('function genTavern(');
@@ -1618,14 +1621,29 @@ section('주점 고용가가 의뢰 보상과 같은 기울기인가');
     if (body.includes('1 + 0.2 * (tier - 1)')) {
       faults.push('옛 선형 배율(1 + 0.2×(t−1))이 되살아났다 — 의뢰 보상과 기울기가 어긋난다');
     }
-    if (!body.includes('Quest.cityPowerOf(tier) ** Quest.CITY_REWARD_POW')) {
+    if (!body.includes('cityPowerOf(tier) ** CITY_REWARD_POW')) {
       faults.push('고용가가 의뢰 보상 지수(cityPowerOf ** CITY_REWARD_POW)를 안 쓴다');
     }
-    if (!body.includes("Merc.hireCost(classId, 'C', 1)")) {
+    if (!body.includes("hireCost(classId, 'C', 1)")) {
       faults.push("고용가 기준이 C등급이 아니다 — 등급값으로 바꾸는 안은 채택하지 않았다(도박 유지)");
     }
   }
   okAll(faults, '고용가가 의뢰 보상과 같은 지수를 쓴다', 3);
+
+  /* ★★ **생성기가 두 벌이 되면 안 된다** (§120).
+   *   서버와 클라가 다른 목록을 만들면, 정상 고용이 «그 주점에 없던 사람» 으로 거절된다.
+   *   `state.js` 는 `tavern.js` 를 **쓰기만** 해야 한다. */
+  const stSrc = decomment(readFileSync(srcDir('game/state.js'), 'utf8'));
+  const dup = [];
+  if (/function\s+genTavern\s*\(/.test(stSrc)) dup.push('state.js 가 genTavern 을 스스로 또 만든다');
+  if (!/from\s*['"]\.\/tavern\.js['"]/.test(stSrc)) dup.push('state.js 가 tavern.js 를 안 쓴다');
+  okAll(dup, '주점 생성기는 game/tavern.js 한 벌뿐이다', 2);
+
+  /* ★ 그리고 그 파일이 **서버 묶음에 실제로 들어가 있어야** 한다 —
+   *   안 들어가면 서버는 목록을 못 만들고, 고용 검증이 통째로 불가능해진다. */
+  const syncSrc = decomment(readFileSync(join(rootDir, 'tools/syncshared.mjs'), 'utf8'));
+  ok(/src\/game\/tavern\.js/.test(syncSrc), '주점 생성기가 서버 묶음(_power)에 들어 있다',
+    '없으면 서버가 「이 후보가 그 주점에 있었나」 를 못 묻는다');
 
   /* ★ 무는 시늉만 하는 검사를 이 저장소에서 여러 번 만들었다 — 옛 식을 심어 확인한다 */
   const planted = strip('function genTavern(city, r) { /* 1 + 0.2 * (tier - 1) 였다 */ '

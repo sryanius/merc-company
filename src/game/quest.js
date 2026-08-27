@@ -293,8 +293,12 @@ const bossChanceAt = (idx, tier) => clamp(
  *   가깝다 — `ELITE_MULT` 이 1.30 → 1.035 로 내려간 이유가 이것이다. 눈으로 정하지 말고
  *   반드시 실측해라 (`tools/balance.mjs`, `tools/dangercheck.mjs`).
  */
-export const CITY_POWER = { 1: 1.00, 2: 1.18, 3: 1.38, 4: 1.62, 5: 1.90 };
-export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) || 1), 1, 5)] || 1;
+/* ★ 정의는 `data/limits.js` 로 옮겼다 (주점 생성기가 서버에서 써야 하는데
+ *   quest.js 를 물면 state.js 까지 딸려 온다 — §120). 여기서 다시 내보낸다.
+ *   ★★ `export … from` 은 **지역 바인딩을 안 만든다** — 이 파일이 직접 쓰려면
+ *     따로 import 해야 한다 (안 해서 `cityPowerOf is not defined` 로 터졌다). */
+export { CITY_POWER, cityPowerOf } from '../data/limits.js';
+import { cityPowerOf as cityPowerOfLocal, CITY_REWARD_POW as CITY_REWARD_POW_LOCAL } from '../data/limits.js';
 
 /**
  * 보상이 도시 배율을 따라가는 지수.
@@ -304,7 +308,7 @@ export const cityPowerOf = (tier) => CITY_POWER[clamp(Math.round(Number(tier) ||
  *
  * 난이도가 배율² 로 오르므로 보상도 같은 지수로 맞춘다 (5등급 = 1.70² ≈ 2.89배).
  */
-export const CITY_REWARD_POW = 2.0;
+export { CITY_REWARD_POW } from '../data/limits.js';
 
 /**
  * 도시 등급별 **권장 레벨 하한.**
@@ -748,8 +752,8 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
   const biome = cityBiome(city);
   const tier = clamp(city.tier || 1, 1, 5);
   // 도시 등급이 곧 난이도 축이다 (설계: HANDOFF §30·§34)
-  const cityPower = cityPowerOf(tier);
-  const rewardMult = cityPower ** CITY_REWARD_POW;
+  const cityPower = cityPowerOfLocal(tier);
+  const rewardMult = cityPower ** CITY_REWARD_POW_LOCAL;
   const squads = resolveSquadCount(squadCount);
   const count = clamp(3 + squads * 3 + r.int(0, 1), QUEST_COUNT_MIN, QUEST_COUNT_MAX);
   const out = [];
