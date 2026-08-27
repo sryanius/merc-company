@@ -28,7 +28,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { toRows, fromRows } from './lib/runrows.mjs';
+import { toRows, fromRows } from '../src/game/runrows.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const KEEP = process.argv.includes('--keep');

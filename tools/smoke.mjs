@@ -7315,7 +7315,7 @@ section('세이브가 run_* 표를 왕복해도 아무것도 안 잃는다');
     const GE = await import('../src/game/gear.js');
     const ME = await import('../src/game/merc.js');
     const RN = await import('../src/core/rng.js');
-    const RR = await import('./lib/runrows.mjs');
+    const RR = await import('../src/game/runrows.js');
 
     ST.newGame(20260827, '왕복검사');
     const st = ST.state;

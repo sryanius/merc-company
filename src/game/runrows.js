@@ -25,7 +25,11 @@
  *   «null 을 걸러내면» 전력이 달라진다. 길이를 그대로 보존한다 (`petUids` 는 3칸).
  *   `merc.squadId`/`slotIndex` 도 이 배열의 사본이라 복원할 때 다시 만든다.
  *
- * @module tools/lib/runrows
+ * ★★ **import 가 0개다.** 그래서 서버 묶음(`_power`)에 넣어도 닫힘이 한 파일도 안 늘어난다 —
+ *   `itembound.js` 와 같은 이유로 `src/game/` 에 둔다. 서버의 `run_import`/`run_snapshot`
+ *   이 이 파일을 **그대로** 쓴다. 사상이 두 벌이 되면 반드시 갈라진다.
+ *
+ * @module game/runrows
  */
 
 /* ════════════════════════════════════════════════════════════════════════════

@@ -92,7 +92,10 @@ const BUNDLES = [
     entry: ['src/game/squad.js', 'src/game/merc.js', 'src/game/gear.js',
       /* ★ 아이템 위조 검사 (§113). import 가 0개라 닫힘이 안 늘어난다 —
        *   게임 모듈을 인자로 받는 모양이라 그렇다. */
-      'src/game/itembound.js'],
+      'src/game/itembound.js',
+      /* ★ 세이브 ↔ run_* 사상(§112). 이것도 import 가 0개다 —
+       *   서버의 run_import/run_snapshot 이 **그대로** 쓴다. 두 벌이 되면 갈라진다. */
+      'src/game/runrows.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },

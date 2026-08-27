@@ -14,5 +14,6 @@
   "src/game/gear.js": "aa8440bc",
   "src/game/itembound.js": "b415e751",
   "src/game/merc.js": "69b74820",
+  "src/game/runrows.js": "45a6c41f",
   "src/game/squad.js": "78330605"
 }
