@@ -1,12 +1,11 @@
 // 의뢰 생성 / 전투 정의 변환 / 보상 정산.
 // 순수 JS: DOM을 만지지 않는다. state.js와 순환 참조라 네임스페이스로 받는다.
-import { clamp, num, scaleStats } from '../core/util.js';
+import { clamp, num } from '../core/util.js';
 import { rng } from '../core/rng.js';
 import { getCity, REGIONS } from '../data/world.js';
-import { ARCHETYPES, getClass, promoteOptions, classChain } from '../data/classes.js';
+import { getClass, promoteOptions, classChain } from '../data/classes.js';
 import { traitOfChain } from '../data/lineage.js';
-import { getFormation, formationMods } from '../data/formations.js';
-import { buildEnemySquad, getEnemy, enemiesFor } from '../data/enemies.js';
+import { buildEnemySquad, enemiesFor } from '../data/enemies.js';
 import * as State from './state.js';
 import * as Merc from './merc.js';
 import * as Squad from './squad.js';
@@ -14,11 +13,21 @@ import * as Pet from './pet.js';
 // 세트 고유 효과 조회용. **네임스페이스로 받는다** — `setSpecialsFor` 는 gear.js 쪽에서 나중에
 // 붙는 함수라, 이름을 콕 집어 import 하면 아직 없을 때 모듈 링크 단계에서 통째로 터진다.
 import * as Gear from './gear.js';
+/* ★★ 적 생성부는 **의존성 가벼운 모듈**로 떼어 놨다 (`game/enemygen.js`).
+ *   나락·탑을 서버에서 다시 돌리려면 «적을 만드는 절반»만 필요한데, 이 파일은
+ *   state·gear·squad·pet·world 를 전부 물어서 통째로는 서버로 못 간다.
+ *   ★ 여기서 다시 정의하지 마라 — **정의는 enemygen.js 한 벌뿐이다.** 아래는 재수출이다. */
+import {
+  MAX_QUEST_LEVEL, RANK_IDX, RANK_POWER, GROWTH_RATE, FALLBACK_SLOTS, ELITE_PREFIX,
+  hashStr, slotsOf, enemyStats, withFormation, enemyUnitDefs,
+} from './enemygen.js';
+
+/** 적 생성부의 공개 이름들 — 기존 `import { … } from './quest.js'` 를 전부 그대로 살린다. */
+export { MAX_QUEST_LEVEL, ELITE_PREFIX, enemyStats, enemyUnitDefs };
 
 /* ------------------------------------------------------------------ 상수 */
 
 export const RANKS = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
-const RANK_IDX = { F: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
 /* ════════════════════════════════════════════════════════════════════════
  *  난이도 설계 (설계 C·D·E·F)
  * ════════════════════════════════════════════════════════════════════════
@@ -33,11 +42,8 @@ const RANK_IDX = { F: 0, E: 1, D: 2, C: 3, B: 4, A: 5, S: 6 };
  * **F랭크는 손대지 않는다** — 첫 전투에서 전멸하면 게임이 시작되지 않는다.
  */
 
-/** 레벨 상한 (권장 레벨·적 레벨·전리품 ilvl 공용).
- *  merc.js `MAX_LEVEL` 과 **반드시 같은 값**이어야 한다.
- *  여기서 import 하지 않는 이유: merc → state → quest → merc 순환이라
- *  최상위에서 `Merc.MAX_LEVEL` 을 읽으면 TDZ ReferenceError 가 날 수 있다. */
-export const MAX_QUEST_LEVEL = 80;
+/* 레벨 상한(MAX_QUEST_LEVEL)은 `enemygen.js` 가 `data/limits.js` 에서 받아 온다 — 위 재수출 참조.
+ * (merc.js `MAX_LEVEL` 과 **반드시 같은 값**이어야 하는데, 이제 둘 다 limits.js 한 곳을 본다.) */
 
 /** 랭크별 권장 레벨 구간 */
 // ── 설계 원칙: 하나의 랭크는 하나의 전직 차수 안에만 들어간다 ──
@@ -149,22 +155,9 @@ export const ELITE_MIN_RANK = 'D';
 const ELITE_CHANCE = { F: 0, E: 0, D: 0.12, C: 0.13, B: 0.14, A: 0.15, S: 0.16 };
 /** 서브랭크 보정 — S+ 가 0.16 + 0.04 = 0.20 이 되도록 맞춘 값 */
 const ELITE_SUB_CHANCE = { '-1': -0.02, 0: 0, 1: 0.04 };
-/** 정예 의뢰 적 전원 스탯 배율.
- *  ※ 7차 세션: 원래 1.30 이었는데 hp·atk·def·res 전부에 1.30 을 곱하면 실효 전투력이
- *  약 1.30²≈1.7배가 되어, 목표 승률 대역에 맞춰 둔 일반 의뢰를 승률 0~4%로 짓밟았다(실측
- *  하락폭 -52~-78%p). 목표는 같은 랭크 일반 대비 -18~28%p 이므로 배율을 크게 낮췄다. */
-const ELITE_MULT = 1.035;
-/** 그중 챔피언(정예 개체) 스탯 배율 — ELITE_MULT 를 곱하지 않고 **대체**한다.
- *  1~2기만 붙는 개체라 조금 더 세게 둔다(전장에서 '정예' 접두사로 바로 보인다). */
-const ELITE_CHAMP_MULT = 1.10;
-/** 챔피언 수 [최소, 최대] */
-const ELITE_CHAMPS = [1, 2];
-/** 스탯 배율이 spd 에 반영되는 비율.
- *  hp/atk/def/res 는 배율을 그대로 받지만 spd 까지 1.6배면 적이 두 배로 행동해 관전이
- *  불가능해진다(피해량이 아니라 행동 횟수가 두 배가 된다). 속도는 일부만 올린다. */
-const ELITE_SPD_SHARE = 0.25;
-/** 전장에서 바로 보이도록 이름에 붙는 접두사 */
-export const ELITE_PREFIX = '정예 ';
+/* 적 스탯에 실제로 곱해지는 값(ELITE_MULT · ELITE_CHAMP_MULT · ELITE_CHAMPS · ELITE_SPD_SHARE)과
+ * 이름 접두사(ELITE_PREFIX)는 `enemygen.js` 에 있다 — 적을 만드는 쪽에서만 쓰기 때문이다.
+ * 여기 남은 것은 «언제 뜨는가»(확률)와 «얼마를 주는가»(보상)뿐이다. */
 /** UI 배지/경고에 쓸 문자열 */
 export const ELITE_LABEL = '정예';
 export const ELITE_WARN = '정예 의뢰다. 적이 전원 강화되어 있고 정예 개체가 섞여 있다 — 권장 레벨을 넘겨 도전하는 편이 안전하다.';
@@ -235,19 +228,8 @@ const PROMO_STEP = [0, 0, 4, 4, 2, 8, 13];
 // ★ Lv80 상한을 넘긴 보정은 버려지지 않는다 — `overflowPower()` 가 초과분을 스탯 배율로
 //   환산한다. 그래서 S랭크(권장 55~80)에서도 이 값이 끝까지 유효하다.
 const RANK_CREEP = [0, 5, 2, 0, 0, 1, 2];
-/** 랭크별 적 스탯 직접 배율 — **1차 튜닝 노브** (설계 F) */
-// 레벨 보정(RANK_CREEP)은 덧셈이라 고레벨 랭크에서 효과가 급격히 약해진다.
-//   growth(lv+d)/growth(lv) = 1 + 0.085d/growth(lv)  ← 분모가 커질수록 이득이 줄어든다.
-// 반대로 이 배율은 레벨과 무관하게 일정하게 먹힌다. 목표 대역(설계 F)을 맞출 때는
-// 이 표를 0.02 단위로 움직여라 (경험적으로 0.02 ≈ 승률 3~5%p).
-//   F 88~100% / E 72~86 / D 62~78 / C 55~70 / B 48~64 / A 44~60 / S 40~56
-// **F는 1.00 고정** — 초반 보호 구간이라 절대 올리지 않는다.
-// ※ hp/atk/def/res/spd 전부에 곱해진다. 한쪽에서 HP와 화력이 함께 k배가 되면 체감은
-//   대략 k² 이므로 큰 값을 한 번에 넣지 마라.
-// ★ D 는 1.14 였다. 진형 6종의 전열 페널티를 줄이면서 **적 진형도 같이 강해져** D 승률이
-//   63.0% → 58.9% 로 목표(62~78%) 밖으로 떨어졌다. D 만 0.01 내려 64.8% 로 복귀시켰다.
-//   이 표는 매우 민감하다 — 실측으로 A 를 0.04 내리자 51.9% → 79.3% 로 뛰었다. 0.01 단위로 만져라.
-const RANK_POWER = [1.00, 1.04, 1.13, 1.12, 1.09, 1.06, 1.08];
+/* 랭크별 적 스탯 직접 배율(RANK_POWER)은 `enemygen.js` 에 있다 — 튜닝 지침도 거기 붙여 뒀다.
+ * 여기서는 buildWaves 가 wave.power 를 만들 때 읽기만 한다. */
 
 /** 레벨 lv 의 스탯 성장 배율 (SPEC §2.1) */
 const growthAt = (lv) => 1 + GROWTH_RATE * (Math.max(1, Math.round(lv)) - 1);
@@ -404,14 +386,8 @@ const repLoss = (gain) => Math.max(1, Math.round(gain));
 export const QUEST_TYPES = ['토벌', '호위', '탐색', '섬멸', '수호'];
 const TYPE_MULT = { 토벌: 1.0, 호위: 1.05, 탐색: 0.95, 섬멸: 1.15, 수호: 1.1 };
 
-const GROWTH_RATE = 0.085;
-const SCALING_KEYS = ['hp', 'atk', 'def', 'res', 'spd'];
-const FLAT_KEYS = ['crit', 'critDmg', 'eva'];
-const ENEMY_GRADE = ['E', 'D', 'C', 'B', 'A'];
-const FALLBACK_SLOTS = [
-  { x: 0.10, y: 0.28 }, { x: 0.10, y: 0.72 }, { x: 0.38, y: 0.14 },
-  { x: 0.38, y: 0.50 }, { x: 0.38, y: 0.86 }, { x: 0.74, y: 0.30 }, { x: 0.74, y: 0.70 },
-];
+/* GROWTH_RATE(스탯 성장률) · FALLBACK_SLOTS(진형 폴백 좌표) 는 `enemygen.js` 에서 받아 온다.
+ * 적 스탯 계산에 쓰는 SCALING_KEYS/FLAT_KEYS/ENEMY_GRADE 는 이제 그쪽에만 있다. */
 
 /* ------------------------------------------------------------------ 이름 소재 */
 
@@ -827,167 +803,11 @@ export function genQuests(cityId, day = 1, r = rng, squadCount = null) {
 
 /* ------------------------------------------------------------------ 전투 정의 */
 
-function hashStr(s) {
-  let h = 2166136261 >>> 0;
-  const str = String(s);
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
-function slotsOf(formationId) {
-  const f = getFormation(formationId) || getFormation('basic');
-  return f && Array.isArray(f.slots) && f.slots.length === 7 ? f.slots : FALLBACK_SLOTS;
-}
-
-/** 적 최종 스탯. SPEC §2.1 (등급/차수 배율 없음, mods는 아키타입 대비 배율) */
-export function enemyStats(enemy, level) {
-  const base = ARCHETYPES[enemy?.arch] || ARCHETYPES.fighter;
-  const mods = enemy?.mods || {};
-  const lv = clamp(Math.round(level || 1), 1, MAX_QUEST_LEVEL);
-  const growth = 1 + GROWTH_RATE * (lv - 1);
-  const out = {};
-  for (const k of SCALING_KEYS) out[k] = Math.max(1, Math.round(base[k] * (mods[k] ?? 1) * growth));
-  for (const k of FLAT_KEYS) out[k] = Math.round(base[k] * (mods[k] ?? 1));
-  return out;
-}
-
-/**
- * 진형 효과를 스탯에 반영한다.
- *
- * 이게 빠져 있으면 진형을 사고 바꿔도 전투 결과가 전혀 달라지지 않는다.
- * `squad.js` 의 squadUnitDefs 는 적용하고 있었지만, 의뢰 전투는 이 파일의
- * allyUnitDefs/enemyUnitDefs 경로를 타기 때문에 그동안 통째로 누락돼 있었다.
- *
- * 반드시 **아군과 적 양쪽 모두** 적용해야 한다. 한쪽만 적용하면 일방적인 버프가 되어
- * 랭크별 난이도 튜닝이 전부 어긋난다.
- */
-function withFormation(stats, formationId, slotIndex, unit) {
-  try {
-    const mods = formationMods(formationId || 'basic', slotIndex, unit);
-    return mods ? scaleStats(stats, mods) : stats;
-  } catch (e) {
-    console.warn('[quest] 진형 효과 계산 실패', e);
-    return stats;
-  }
-}
-
-/**
- * 낮은 랭크의 보스를 눌러준다.
- *
- * 보스는 같은 tier 일반 적의 약 2배 세기로 설계돼 있다. 3차 전직을 마친 B~S랭크 부대에게는
- * 알맞지만, E·D·C 랭크에서는 부대가 그 배율을 감당하지 못해 **보스전 승률이 0%** 였다(실측).
- * 보스가 뜬 의뢰는 사실상 자동 패배였다는 뜻이다.
- * 등장 빈도를 줄이는 대신, 낮은 랭크에서는 배율 자체를 낮춰 "어렵지만 이길 수는 있는" 수준으로 만든다.
- */
-const BOSS_SCALE = { F: 0.34, E: 0.34, D: 0.45, C: 0.62, B: 0.80, A: 0.85, S: 0.90 };
-const BOSS_SCALE_KEYS = ['hp', 'atk', 'def', 'res'];
-
-function dampBoss(stats, enemy, rank) {
-  const k = BOSS_SCALE[rank];
-  if (!enemy?.boss || k == null || k === 1) return stats;
-  const out = { ...stats };
-  for (const key of BOSS_SCALE_KEYS) out[key] = Math.max(1, Math.round(out[key] * k));
-  return out;
-}
-
-/**
- * 스탯 배율을 SCALING_KEYS 에 곱한다. spd 만 spdShare 비율로 눌러 적용할 수 있다.
- * 정예 배율(1.60)을 spd 에 그대로 곱하면 적이 두 배로 행동해 관전이 불가능해지므로
- * spd 는 일부만(ELITE_SPD_SHARE) 올린다. 랭크 난이도 배율(RANK_POWER)은 spdShare=1 로 전부 곱한다.
- */
-function applyMult(stats, mult, spdShare = 1) {
-  if (!Number.isFinite(mult) || mult === 1) return stats;
-  const out = { ...stats };
-  for (const k of SCALING_KEYS) {
-    const share = k === 'spd' ? spdShare : 1;
-    out[k] = Math.max(1, Math.round(out[k] * (1 + (mult - 1) * share)));
-  }
-  return out;
-}
-
-/**
- * 웨이브의 정예 배치를 정한다(설계 E).
- * enemies.js 가 유닛마다 eliteMult/champion/nameOverride 를 실어 줬으면 그대로 쓰고(권장 경로),
- * 아직 안 실렸는데 quest.elite/ wave.elite 만 켜져 있으면 여기서 폴백으로 계산한다 —
- * 그래야 enemies.js 갱신 여부와 무관하게 정예 의뢰가 실제로 강해진다.
- * @returns {(i:number, u:object)=>{mult:number, champion:boolean, nameOverride:(string|null)}}
- */
-function eliteResolver(wave, quest, waveIndex) {
-  const annotated = wave.units.some((u) => Number.isFinite(u?.eliteMult));
-  const on = annotated || !!(wave.elite || (quest && quest.elite));
-  if (!on) return () => ({ mult: 1, champion: false, nameOverride: null });
-  // 폴백: 앞쪽(전열, slotIndex 오름차순) 1~2기를 챔피언으로. 시드는 의뢰+웨이브로 결정론.
-  const seed = hashStr(`${quest?.id || 'q'}#elite#${waveIndex}`);
-  const champN = clamp(ELITE_CHAMPS[0] + (seed % 100 < 45 ? 1 : 0), ELITE_CHAMPS[0], ELITE_CHAMPS[1]);
-  const champSet = new Set();
-  for (let k = 0; k < wave.units.length && champSet.size < champN; k++) champSet.add(k);
-  return (i, u) => {
-    if (Number.isFinite(u?.eliteMult)) {
-      return { mult: u.eliteMult, champion: !!u.champion, nameOverride: u.nameOverride || null };
-    }
-    const champion = champSet.has(i);
-    return { mult: champion ? ELITE_CHAMP_MULT : ELITE_MULT, champion, nameOverride: null };
-  };
-}
-
-export function enemyUnitDefs(wave, quest, waveIndex) {
-  const slots = slotsOf(wave.formationId);
-  const nameCount = new Map();
-  for (const u of wave.units) nameCount.set(u.enemyId, (nameCount.get(u.enemyId) || 0) + 1);
-  const seenName = new Map();
-  // 웨이브 스탯 배율(설계 F). 옛 세이브(power 없음)는 랭크 기준 RANK_POWER 로 폴백한다.
-  const wavePower = Number.isFinite(wave.power) ? wave.power : (RANK_POWER[RANK_IDX[quest?.rank] ?? 0] ?? 1);
-  const resolveElite = eliteResolver(wave, quest, waveIndex);
-
-  return wave.units.map((u, i) => {
-    const e = getEnemy(u.enemyId);
-    if (!e) return null;
-    const n = (seenName.get(u.enemyId) || 0) + 1;
-    seenName.set(u.enemyId, n);
-    const label = nameCount.get(u.enemyId) > 1 ? `${e.name} ${n}` : e.name;
-    const si = clamp(u.slotIndex ?? i, 0, 6);
-    const elite = resolveElite(i, u);
-
-    // 스탯 파이프라인: 기본 → 랭크 배율(spd 전부) → 정예 배율(spd 일부) → 보스 감쇠 → 진형.
-    let stats = enemyStats(e, u.level);
-    stats = applyMult(stats, wavePower, 1);
-    stats = applyMult(stats, elite.mult, ELITE_SPD_SHARE);
-    stats = dampBoss(stats, e, quest.rank);
-    stats = withFormation(stats, wave.formationId, si, { arch: e.arch, classId: null, boss: !!e.boss });
-
-    // 정예 개체는 전장에서 바로 읽히도록 이름에 '정예 ' 접두사가 붙는다(또는 enemies.js 의 nameOverride).
-    let name = label;
-    if (elite.nameOverride) name = elite.nameOverride;
-    else if (elite.champion) name = `${ELITE_PREFIX}${label}`;
-
-    // 스킬: 적 기본 스킬 + enemies.js 가 정예 개체에 얹은 추가 스킬(addSkills).
-    const skills = Array.isArray(e.skills) ? e.skills.slice() : [];
-    if (Array.isArray(u.addSkills)) for (const s of u.addSkills) if (s && !skills.includes(s)) skills.push(s);
-
-    return {
-      uid: `en_${hashStr(quest.id).toString(36)}_${waveIndex}_${i}`,
-      name,
-      side: 'enemy',
-      enemyId: e.id,
-      classId: null,
-      level: u.level,
-      grade: e.boss ? 'S' : ENEMY_GRADE[clamp((e.tier || 1) - 1, 0, 4)],
-      stats,
-      skills,
-      basicFx: e.basicFx || 'slash',
-      basicRange: e.range || 'melee',
-      basicDmgType: e.dmgType || 'phys',
-      slot: slots[si],
-      slotIndex: si,
-      recipe: e.sprite,
-      boss: !!e.boss,
-      champion: !!elite.champion,
-    };
-  }).filter(Boolean);
-}
+/* ★ 적을 만드는 절반(enemyUnitDefs · enemyStats · slotsOf · withFormation · applyMult ·
+ *   dampBoss · eliteResolver 와 그 상수들)은 `game/enemygen.js` 로 옮겼다.
+ *   이 파일이 무는 것(state·gear·squad·pet·world) 없이도 돌아야 서버가 나락·탑을
+ *   다시 계산할 수 있기 때문이다. 아래 아군 경로는 거기서 import 해 **같은 함수**를 쓴다 —
+ *   진형 효과가 한쪽에만 걸리면 랭크 튜닝이 통째로 어긋난다. */
 
 /** 부상 판정 — squad.js의 canDeploy와 같은 기준을 써야 벤치 인원이 어긋나지 않는다. */
 function isBenched(m, day) {

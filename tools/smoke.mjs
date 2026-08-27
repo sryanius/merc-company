@@ -49,6 +49,38 @@ function decomment(x) {
   return out;
 }
 
+/** 이 소스가 참조하는 모듈 전부.
+ *  ★ 「`from` 을 optional 로 둔 하나의 정규식」으로는 **부수효과 import 를 놓친다.**
+ *  `import './x.js';` 다음 줄에 평범한 import 가 있으면 lazy 한 `[\s\S]*?\sfrom` 이
+ *  그 줄까지 건너뛰어 삼켜 버린다 — 실제로 메타 검사(enemies.js 가 squad.js 를 물게
+ *  심어 보기)에서 안 물어서 잡았다. 형태마다 따로 본다. */
+function specsOf(code) {
+  const src = decomment(code);
+  const out = [];
+  for (const m of src.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)) out.push(m[1]);
+  for (const m of src.matchAll(/(?:^|[\s;])import\s*['"]([^'"]+)['"]/g)) out.push(m[1]);
+  for (const m of src.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1]);
+  return out;
+}
+
+/** 진입점에서 import 를 따라 걸은 닫힘 (저장소 상대 경로) */
+function closureOf(startRel) {
+  const seen = new Set();
+  const stack = [startRel];
+  while (stack.length) {
+    const rel = stack.pop();
+    if (seen.has(rel)) continue;
+    const abs = join(rootDir, rel);
+    if (!existsSync(abs)) continue;
+    seen.add(rel);
+    for (const spec of specsOf(readFileSync(abs, 'utf8'))) {
+      if (!spec.startsWith('.')) continue;
+      stack.push(relative(rootDir, resolve(dirname(abs), spec)).split(sep).join('/'));
+    }
+  }
+  return [...seen].sort();
+}
+
 /** 여러 개를 모아 한 줄로 보고 (첫 8개만 상세) */
 function okAll(bad, label, total) {
   checks++;
@@ -3352,6 +3384,307 @@ section('모듈 간 import 정합성 (정적 분석)');
   }
   okAll(bad, '모든 import 가 실재하는 파일/이름을 가리킴', importCount);
   okAll(extBad, '모든 상대 import 가 .js 확장자 명시', importCount);
+}
+
+section('적 생성부가 가벼운 채로 남아 있는가 (game/enemygen.js)');
+{
+  /* ★ 왜 재는가
+   *   나락·탑을 **서버에서 다시 돌리려면 «적을 만드는 절반»만** 있으면 된다
+   *   (아군은 클라이언트가 편성을 올린다 — PvP 의 pvp_defense.units 와 같은 방식).
+   *   그래서 그 절반을 quest.js(state·gear·squad·pet·world 를 전부 문다)에서 떼어 놨다.
+   *   가벼움은 **주석으로는 안 지켜진다** — import 한 줄이면 게임 전체가 도로 딸려 온다.
+   *
+   * ★★ 그리고 사본을 만들면 안 된다. quest.js 가 상수를 도로 적어 두면 두 벌이 갈리고,
+   *   밸런스를 고치는 날 클라와 서버의 적이 조용히 달라진다 (§94 의 교훈).
+   *   quest.js 는 **import 해서 다시 내보내기만** 한다.
+   */
+  /* ※ specsOf·closureOf 는 하네스(맨 위)에 한 벌만 둔다 — 「나락·탑 러너」 절도 같은 것을 쓴다. */
+
+  /* ① 직접 import — 허용 목록 밖을 물면 실패 */
+  const ALLOWED_DIRECT = new Set([
+    '../core/util.js', '../core/rng.js', '../data/enemies.js',
+    '../data/formations.js', '../data/limits.js', '../data/classes.js',
+  ]);
+  const egSrc = readFileSync(srcDir('game/enemygen.js'), 'utf8');
+  const direct = specsOf(egSrc);
+  okAll(direct.filter((s) => !ALLOWED_DIRECT.has(s))
+    .map((s) => `'${s}' 는 허용 목록 밖이다 — 왜 필요한지 먼저 따져라`),
+  'enemygen 의 직접 import 가 허용 목록 안이다', ALLOWED_DIRECT.size);
+
+  /* ② 닫힘 — 게임 쪽(src/game/*)을 하나라도 물면 서버로 게임 전체가 딸려 간다 */
+  const ALLOWED_CLOSURE = new Set([
+    'src/game/enemygen.js',
+    'src/core/rng.js', 'src/core/util.js',
+    'src/data/classes.js', 'src/data/classes_t4.js', 'src/data/enemies.js',
+    'src/data/formations.js', 'src/data/limits.js', 'src/data/skills.js',
+  ]);
+  const eg = closureOf('src/game/enemygen.js');
+  okAll(eg.filter((f) => !ALLOWED_CLOSURE.has(f))
+    .map((f) => `${f} 까지 딸려 온다 — 서버로 게임 전체가 넘어간다`),
+  'enemygen 의 import 닫힘이 데이터 모듈 안에서 끝난다', ALLOWED_CLOSURE.size);
+
+  /* ③ 사본 금지 — quest.js 가 옮긴 것을 도로 정의하면 두 벌이 된다 */
+  const qSrc = decomment(readFileSync(srcDir('game/quest.js'), 'utf8'));
+  const dup = [];
+  for (const name of ['RANK_IDX', 'RANK_POWER', 'GROWTH_RATE', 'SCALING_KEYS', 'FLAT_KEYS',
+    'ENEMY_GRADE', 'FALLBACK_SLOTS', 'BOSS_SCALE', 'BOSS_SCALE_KEYS', 'MAX_QUEST_LEVEL',
+    'ELITE_MULT', 'ELITE_CHAMP_MULT', 'ELITE_CHAMPS', 'ELITE_SPD_SHARE', 'ELITE_PREFIX']) {
+    if (new RegExp(`(?:const|let|var)\\s+${name}\\s*=`).test(qSrc)) dup.push(`quest.js 가 ${name} 를 다시 정의한다`);
+  }
+  for (const fn of ['hashStr', 'slotsOf', 'enemyStats', 'withFormation', 'applyMult',
+    'dampBoss', 'eliteResolver', 'enemyUnitDefs']) {
+    if (new RegExp(`function\\s+${fn}\\s*\\(`).test(qSrc)) dup.push(`quest.js 가 ${fn}() 를 다시 정의한다`);
+  }
+  if (!/from\s+'\.\/enemygen\.js'/.test(qSrc)) dup.push('quest.js 가 enemygen.js 를 import 하지 않는다');
+  okAll(dup, 'quest.js 가 적 생성부를 베끼지 않고 import 한다', 24);
+
+  /* ④ 재수출이 살아 있는가 — 기존 호출부(ui·tools)가 quest.js 에서 그대로 받아 간다 */
+  const EG = need('game/enemygen.js');
+  const Limits = need('data/limits.js');
+  if (EG && Quest && Limits) {
+    const reex = [];
+    for (const name of ['enemyUnitDefs', 'enemyStats', 'ELITE_PREFIX', 'MAX_QUEST_LEVEL']) {
+      if (Quest[name] !== EG[name]) reex.push(`quest.${name} 가 enemygen 의 것과 다르다`);
+    }
+    okAll(reex, 'quest.js 가 enemygen 의 이름을 그대로 다시 내보낸다', 4);
+    ok(EG.MAX_QUEST_LEVEL === Limits.MAX_LEVEL,
+      '레벨 상한이 limits.js 한 곳에서 온다', `${EG.MAX_QUEST_LEVEL} vs ${Limits.MAX_LEVEL}`);
+  }
+
+  /* ⑤ 실제로 적이 나오는가 (직렬화 가능한 입력만 주고 부른다 — 서버가 하는 것과 같은 호출) */
+  if (EG && Enemies) {
+    const boss = Enemies.ENEMY_LIST.find((e) => e.boss);
+    const mob = Enemies.ENEMY_LIST.find((e) => !e.boss);
+    const mobs = Enemies.ENEMY_LIST.filter((e) => !e.boss);
+    const wave = { formationId: 'basic', power: 1.2, elite: true, units: [
+      { enemyId: boss.id, level: 50, slotIndex: 0 },
+      { enemyId: mob.id, level: 50, slotIndex: 1 },
+      { enemyId: mob.id, level: 50, slotIndex: 2 },     // 같은 적 → 이름에 번호가 붙어야 한다
+      { enemyId: mobs[1].id, level: 50, slotIndex: 3 },
+      { enemyId: mobs[2].id, level: 50, slotIndex: 4 },
+      { enemyId: mobs[3].id, level: 50, slotIndex: 5 },
+      { enemyId: '없는적', level: 50, slotIndex: 6 },
+    ] };
+    const call = () => EG.enemyUnitDefs(wave, { id: 'smoke_q', rank: 'A', elite: false }, 0);
+    const defs = call();
+    const gaps = [];
+    if (defs.length !== 6) gaps.push(`없는 적이 안 걸러졌다 (${defs.length}기)`);
+    if (!defs.every((u) => u.side === 'enemy' && u.stats && u.stats.hp > 0)) gaps.push('스탯이 안 붙었다');
+    if (!defs.some((u) => u.champion && u.name.startsWith(EG.ELITE_PREFIX))) gaps.push('정예 개체가 안 나왔다');
+    if (defs[1] && defs[2] && defs[1].name === defs[2].name) gaps.push('같은 적 이름에 번호가 안 붙었다');
+    if (defs[0] && !defs[0].boss) gaps.push('보스 표식이 빠졌다');
+    if (defs.some((u, i) => u.slotIndex !== i)) gaps.push('슬롯이 그대로 실리지 않았다');
+    /* ★ 같은 입력이면 몇 번을 불러도 같아야 한다 — 서버가 다시 계산할 수 있는 근거가 이것이다.
+     *   ※ 두 번만 비교하면 «가끔 달라지는» 것을 못 잡는다(메타 검사에서 실제로 놓쳤다). */
+    const shots = [JSON.stringify(defs), JSON.stringify(call()), JSON.stringify(call())];
+    if (new Set(shots).size !== 1) gaps.push('같은 입력에 결과가 달라진다 (결정론이 깨졌다)');
+    okAll(gaps, 'enemygen 이 단독으로 적을 만든다 (결정론)', 7);
+  }
+}
+
+section('나락·탑을 서버가 다시 돌릴 수 있는가 (game/runverify.js)');
+{
+  /* ★ 왜 재는가
+   *   서버는 클라가 올린 「45심층까지 내려갔다」를 믿을 수 없다. 나락·탑은 이미 결정론이라
+   *   **아군 편성만 받으면 같은 판을 다시 돌릴 수 있다** — 그게 `runverify.js` 다.
+   *   그런데 그게 성립하려면 두 가지가 동시에 참이어야 한다:
+   *     ㄱ. 그 모듈이 **가벼워야** 한다 (state/quest/gear 를 물면 게임 전체가 서버로 딸려 간다)
+   *     ㄴ. 클라가 실제로 돌린 것과 **같은 값**이 나와야 한다
+   *   ㄴ 을 「대충 비슷하다」로 두면 안 된다. 아래 ⑤ 가 dive()/climb() 의 도달값과
+   *   verify 의 도달값을 **정확히 같은지**로 본다.
+   *
+   * ★★ 그리고 사본을 만들면 안 된다 (§94). abyss.js·tower.js 가 시드나 층 루프를 도로
+   *   적어 두면 두 벌이 갈리고, 밸런스를 고치는 날 서버 판정과 클라 화면이 조용히 달라진다.
+   */
+  const RVsrc = readFileSync(srcDir('game/runverify.js'), 'utf8');
+  const ABsrc = readFileSync(srcDir('game/abyss.js'), 'utf8');
+  const TWsrc = readFileSync(srcDir('game/tower.js'), 'utf8');
+
+  /* ① 직접 import — 허용 목록 밖을 물면 실패 */
+  const RV_DIRECT = new Set([
+    '../core/util.js', '../core/rng.js', '../battle/engine.js',
+    '../data/abyss.js', '../data/tower.js', '../data/skills.js',
+    '../data/enemies.js', '../data/pets.js',
+    './enemygen.js', './pet.js',
+  ]);
+  okAll(specsOf(RVsrc).filter((s) => !RV_DIRECT.has(s))
+    .map((s) => `'${s}' 는 허용 목록 밖이다 — 왜 필요한지 먼저 따져라`),
+  'runverify 의 직접 import 가 허용 목록 안이다', RV_DIRECT.size);
+
+  /* ② 닫힘 — 상태를 무는 모듈이 하나라도 딸려 오면 서버로 게임 전체가 넘어간다 */
+  const RV_CLOSURE = new Set([
+    'src/game/runverify.js', 'src/game/enemygen.js', 'src/game/pet.js',
+    'src/battle/engine.js', 'src/battle/ai.js',
+    'src/core/rng.js', 'src/core/util.js',
+    'src/data/abyss.js', 'src/data/tower.js', 'src/data/pets.js',
+    'src/data/classes.js', 'src/data/classes_t4.js', 'src/data/enemies.js',
+    'src/data/formations.js', 'src/data/limits.js', 'src/data/skills.js',
+  ]);
+  const rvClosure = closureOf('src/game/runverify.js');
+  okAll(rvClosure.filter((f) => !RV_CLOSURE.has(f))
+    .map((f) => `${f} 까지 딸려 온다 — 서버로 게임 전체가 넘어간다`),
+  'runverify 의 import 닫힘이 데이터·전투 모듈 안에서 끝난다', RV_CLOSURE.size);
+
+  /* ③ 사본 금지 — abyss.js·tower.js 가 옮긴 것을 도로 정의하면 두 벌이 된다.
+   *   («상태를 만지는 것»만 저쪽에 남는다: 입장 판정·골드·펫 드랍·기록·로그 이름) */
+  const dup = [];
+  const MOVED = ['hashStr', 'pickWeighted', 'simulateBattle', 'depthSeed', 'abyssQuest',
+    'floorSeed', 'towerQuest', 'floorPet', 'towerPetDef', 'applyCarry'];
+  for (const [name, src] of [['abyss.js', decomment(ABsrc)], ['tower.js', decomment(TWsrc)]]) {
+    for (const fn of MOVED) {
+      if (new RegExp(`function\\s+${fn}\\s*\\(`).test(src)) dup.push(`${name} 가 ${fn}() 를 다시 정의한다`);
+    }
+    if (/from\s+'\.\.\/battle\/engine\.js'/.test(src)) dup.push(`${name} 가 엔진을 직접 돌린다 (전투 루프가 두 벌이 된다)`);
+    if (!/from\s+'\.\/runverify\.js'/.test(src)) dup.push(`${name} 가 runverify.js 를 import 하지 않는다`);
+  }
+  okAll(dup, 'abyss.js·tower.js 가 러너를 베끼지 않고 import 한다', MOVED.length * 2 + 4);
+
+  const RV = need('game/runverify.js');
+  const Abyss2 = need('game/abyss.js');
+  const Tower2 = need('game/tower.js');
+  const Quest2 = need('game/quest.js');
+  const State2 = need('game/state.js');
+  const Classes2 = need('data/classes.js');
+
+  if (RV && Abyss2 && Tower2 && Quest2 && State2 && Classes2) {
+    /* ④ 재수출이 살아 있는가 — 기존 호출부(ui·tools·스모크)가 저쪽에서 그대로 받아 간다 */
+    const reex = [];
+    for (const n of ['depthSeed', 'abyssQuest']) if (Abyss2[n] !== RV[n]) reex.push(`Abyss.${n} 가 runverify 의 것과 다르다`);
+    for (const n of ['floorSeed', 'towerQuest', 'floorPet']) if (Tower2[n] !== RV[n]) reex.push(`Tower.${n} 가 runverify 의 것과 다르다`);
+    okAll(reex, 'abyss.js·tower.js 가 러너의 이름을 그대로 다시 내보낸다', 5);
+
+    /* ⑤ ★★ 핵심 — 같은 세이브·같은 부대에서 dive()/climb() 과 verify 가 **같은 값**을 낸다.
+     *   아군 편성은 JSON 왕복을 시킨다 — 서버로 올라갔다 내려오는 것과 같은 취급이라야
+     *   "클라가 편성만 올리면 서버가 다시 돌린다" 를 실제로 증명한 것이 된다. */
+    const SQ7 = ['gatewarden', 'madgeneral', 'dragoonlord', 'shadowarcher',
+      'masterarcher', 'archmage', 'oathshield'];
+    const mkState = (seed) => {
+      State2.newGame(seed, '재계산스모크');
+      const st = State2.state;
+      st.gold = 9999999;                       // 탑 통행료로 멈추지 않게
+      st.roster = [];
+      const sq = st.squads[0];
+      sq.memberUids = new Array(7).fill(null);
+      SQ7.forEach((classId, i) => {
+        st.roster.push({
+          uid: `rv_${i}`, name: `단원${i}`, classId, level: 80, grade: 'A',
+          equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0,
+        });
+        sq.memberUids[i] = `rv_${i}`;
+      });
+      return st;
+    };
+    const missing = SQ7.filter((c) => !Classes2.getClass(c));
+    okAll(missing.map((c) => `클래스 ${c} 가 없다 — 스모크 부대를 갱신해라`),
+      '재계산 스모크가 쓰는 7인 부대가 실재한다', SQ7.length);
+
+    const gaps = [];
+    let abSame = 0, twSame = 0;
+    for (const seed of [101, 202, 303]) {
+      /* 나락 */
+      {
+        const st = mkState(seed);
+        const sq = st.squads[0];
+        const allies = JSON.parse(JSON.stringify(Quest2.allyUnitDefs(st, sq)));
+        const real = Abyss2.dive(st, sq.id, { force: true });
+        const v = RV.verifyAbyss({ allies, seed: st.seed, day: st.day, squadId: sq.id });
+        if (!(real.reached > 0)) gaps.push(`나락 seed=${seed}: 0심층에서 끝났다 — 검사가 무의미해진다`);
+        else if (real.reached !== v.reached) gaps.push(`나락 seed=${seed}: dive=${real.reached} verify=${v.reached}`);
+        else abSame++;
+      }
+      /* 탑 — 소탕 구간(startFloor > 1)까지 함께 본다 */
+      {
+        const st = mkState(seed);
+        const sq = st.squads[0];
+        st.tower = { best: 110, bestDay: 1, lastRunDay: 0, lastRunFloor: 110 };
+        const allies = JSON.parse(JSON.stringify(Quest2.allyUnitDefs(st, sq)));
+        const real = Tower2.climb(st, sq.id, { force: true });
+        const v = RV.verifyTower({ allies, seed: st.seed, day: st.day, squadId: sq.id, startFloor: real.from });
+        if (real.from <= 1) gaps.push(`탑 seed=${seed}: 소탕 구간이 안 잡혔다 (from=${real.from})`);
+        else if (real.log.some((e) => e.type === 'broke')) gaps.push(`탑 seed=${seed}: 골드가 모자라 멈췄다 — 검사가 무의미해진다`);
+        else if (real.reached <= real.from) gaps.push(`탑 seed=${seed}: 한 층도 못 올랐다 (reached=${real.reached})`);
+        else if (real.reached !== v.reached) gaps.push(`탑 seed=${seed}: climb=${real.reached} verify=${v.reached}`);
+        else twSame++;
+      }
+    }
+    okAll(gaps, `verify 가 dive()/climb() 과 같은 도달값을 낸다 (나락 ${abSame}·탑 ${twSame})`, 6);
+
+    /* ⑥ 펫이 어느 쪽에 실리는가.
+     *   아군 펫은 **편성에 실려 온다**(그래서 runverify 는 아군 펫을 몰라도 된다).
+     *   반대로 «탑의 주인»은 **적**이고 `pet:true` 가 아니다 — 안 잡으면 못 이긴다.
+     *   이걸 빼고 다시 돌리면 도달 층이 통째로 어긋난다(실측: 7/7 시드에서 +1~+24층). */
+    const Pet2 = need('game/pet.js');
+    const petBad = [];
+    {
+      const st = mkState(404);
+      const sq = st.squads[0];
+      const made = [['pet_warden', 'S'], ['pet_chalice', 'A'], ['pet_starcalf', 'B']]
+        .map(([sid, g]) => Pet2.makePet(st, sid, g));
+      made.forEach((p, i) => { st.pets.push(p); Pet2.assignPet(st, sq.id, i, p.uid); });
+      const allies = Quest2.allyUnitDefs(st, sq);
+      if (allies.filter((a) => a.pet).length !== 3) petBad.push('아군 편성에 펫이 안 실린다 — 서버가 아군 펫을 못 받는다');
+
+      const cfg = RV.towerBattleDefs({ allies, ctx: st, squadId: sq.id, floor: 7 });
+      const owner = cfg.enemies.find((e) => String(e.uid).startsWith('tw_pet_'));
+      if (!owner) petBad.push('탑의 주인이 적에 안 선다 — 재계산이 한 기 모자란다');
+      else {
+        if (owner.pet) petBad.push('탑의 주인에 pet 표식이 붙었다 — 안 잡아도 이겨 버린다');
+        if (!owner.boss) petBad.push('탑의 주인에 보스 표식이 없다');
+        if (!(owner.stats.hp > 0)) petBad.push('탑의 주인 스탯이 비었다');
+      }
+      // 나락에는 주인이 없다 (탑 전용이다)
+      const acfg = RV.abyssBattleDefs({ allies, ctx: st, squadId: sq.id, depth: 7 });
+      if (acfg.enemies.some((e) => String(e.uid).startsWith('tw_pet_'))) petBad.push('나락에 탑의 주인이 섞였다');
+    }
+    okAll(petBad, '아군 펫은 편성으로, 탑의 주인은 적으로 실린다', 6);
+
+    /* ⑦ 결정론 · 상태 불변.
+     *   ※ 두 번만 비교하면 «가끔 달라지는» 것을 못 잡는다(enemygen 절의 메타 검사에서 실제로 놓쳤다). */
+    const detBad = [];
+    {
+      const st = mkState(505);
+      const sq = st.squads[0];
+      const allies = JSON.parse(JSON.stringify(Quest2.allyUnitDefs(st, sq)));
+      const args = { allies, seed: st.seed, day: st.day, squadId: sq.id, maxDepth: 12 };
+      const before = JSON.stringify(allies);
+      const shots = [RV.verifyAbyss(args).reached, RV.verifyAbyss(args).reached, RV.verifyAbyss(args).reached];
+      if (new Set(shots).size !== 1) detBad.push(`같은 입력에 도달 심층이 달라진다 (${shots.join('/')})`);
+      const targs = { allies, seed: st.seed, day: st.day, squadId: sq.id, startFloor: 1, maxFloors: 8 };
+      const tshots = [RV.verifyTower(targs).reached, RV.verifyTower(targs).reached, RV.verifyTower(targs).reached];
+      if (new Set(tshots).size !== 1) detBad.push(`같은 입력에 도달 층이 달라진다 (${tshots.join('/')})`);
+      if (JSON.stringify(allies) !== before) detBad.push('올라온 편성을 러너가 고쳐 놨다 (다음 판이 어긋난다)');
+      /* 시드를 실제로 쓰는가 — 네 축(시드·날짜·부대·깊이)이 전부 판을 바꿔야 한다.
+       * ★ 「도달값이 달라지나」로 재면 안 된다. 상한에 걸리는 부대에서는 어느 시드든
+       *   같은 값이 나와 **검사가 통째로 거짓 실패**한다 (실제로 그렇게 만들었다가 걸렸다). */
+      const base = { seed: 12345, day: 7 };
+      const d0 = RV.depthSeed(base, 9, 'sqA');
+      const f0 = RV.floorSeed(base, 9, 'sqA');
+      for (const [why, ctx, n, sid] of [
+        ['시드', { seed: 54321, day: 7 }, 9, 'sqA'],
+        ['날짜', { seed: 12345, day: 8 }, 9, 'sqA'],
+        ['부대', base, 9, 'sqB'],
+        ['깊이', base, 10, 'sqA'],
+      ]) {
+        if (RV.depthSeed(ctx, n, sid) === d0) detBad.push(`${why} 를 바꿔도 심층 시드가 같다`);
+        if (RV.floorSeed(ctx, n, sid) === f0) detBad.push(`${why} 를 바꿔도 층 시드가 같다`);
+      }
+      /* 그리고 그 시드가 실제로 적 편성을 바꾼다.
+       * ★ 두 시드만 견주면 안 된다 — 얕은 곳은 적 풀이 작아서 **우연히 같은 편성**이 나온다
+       *   (실제로 9심층에서 그렇게 거짓 실패했다). 여러 시드를 모아 «전부 같은가»로 본다. */
+      const SEEDS4 = [12345, 54321, 777, 20260827];
+      const wave = (q) => JSON.stringify(q.waves[0].units);
+      const abWaves = new Set(SEEDS4.map((s) => wave(RV.abyssQuest({ seed: s, day: 7 }, 45, 'sqA'))));
+      const twWaves = new Set(SEEDS4.map((s) => wave(RV.towerQuest({ seed: s, day: 7 }, 250, 'sqA'))));
+      if (abWaves.size === 1) detBad.push('시드를 바꿔도 나락 적 편성이 그대로다');
+      if (twWaves.size === 1) detBad.push('시드를 바꿔도 탑 적 편성이 그대로다');
+      // 상한을 넘겨 달라고 해도 더 내려가지 않는다
+      if (RV.verifyAbyss({ ...args, maxDepth: 3 }).reached > 3) detBad.push('maxDepth 를 넘겨 내려간다');
+      // 소탕이 꼭대기까지 닿으면 한 층도 안 오른다 (여기서 clamp 하면 마지막 층을 또 싸운다)
+      const top = RV.verifyTower({ allies, seed: st.seed, day: st.day, squadId: sq.id, startFloor: 100000 });
+      if (top.reached !== 99999) detBad.push(`꼭대기 위에서 시작하면 그대로 끝나야 한다 (reached=${top.reached})`);
+    }
+    okAll(detBad, '러너가 결정론이고 시드를 실제로 쓰며 편성을 안 고친다', 15);
+  }
 }
 
 /* ══════════ 8차 확장: 10슬롯 / 세트 / 던전 / 달력 ══════════ */

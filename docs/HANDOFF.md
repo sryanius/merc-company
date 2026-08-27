@@ -7371,9 +7371,10 @@ gold_beg/send/decline/inbox/apply   … | authenticated=X
 
 ### 104.2 단계 (각 단계가 **혼자서도 배포 가능**해야 한다)
 
-**0단계 — 결정론 러너** *(진행 중)*
-`src/game/enemygen.js` (적 생성부를 의존성 가볍게 분리) + `src/game/runverify.js`
-(아군을 인자로 받는 dive/climb). **어느 길로 가도 필요한 조각**이다.
+**0단계 — 결정론 러너** *(완료 — §105 · §106)*
+`src/game/enemygen.js` (적 생성부를 의존성 가볍게 분리) **← 됐다 (§105)**
+\+ `src/game/runverify.js` (아군을 인자로 받는 dive/climb) **← 됐다 (§106)**.
+**어느 길로 가도 필요한 조각**이다.
 
 **1단계 — 명부·장비를 서버로**
 서버가 용병과 아이템을 갖는다. 고용·착용·판매·전직·레벨업이 서버 RPC 가 된다.
@@ -7441,3 +7442,179 @@ run_pets     user_id · uid · sid · grade · hp
   §104.1 의 구멍이 그대로 남는다.
 - 새 테이블·정책마다 `node tools/rlscheck.mjs`. 새 상수마다 실측 도구.
 - 순위표 다섯 축 중 무엇이 «사실» 이 됐는지 단계마다 여기 적어라.
+
+## 105. 적 생성부를 떼어 냈다 — `src/game/enemygen.js` (§104 0단계의 절반)
+
+`quest.js` 는 state·gear·squad·pet·world·merc 를 전부 문다(닫힘 23파일). 그래서 나락·탑을
+**서버에서 다시 돌리려면** 적 스탯 하나 계산하자고 게임 전체를 Deno 로 끌고 가야 했다.
+필요한 건 «적을 만드는 절반»뿐이다 — 아군은 클라가 편성을 올린다(PvP `pvp_defense.units` 와 같다).
+
+### 105.1 무엇을 옮겼나 (23개, 사본 없음)
+
+`enemyUnitDefs` · `enemyStats` · `slotsOf` · `withFormation` · `applyMult` · `dampBoss`
+· `eliteResolver` · `hashStr` 와 상수 `MAX_QUEST_LEVEL` `RANK_IDX` `RANK_POWER` `GROWTH_RATE`
+`SCALING_KEYS` `FLAT_KEYS` `ENEMY_GRADE` `FALLBACK_SLOTS` `BOSS_SCALE(_KEYS)`
+`ELITE_MULT` `ELITE_CHAMP_MULT` `ELITE_CHAMPS` `ELITE_SPD_SHARE` `ELITE_PREFIX`.
+
+★ **quest.js 에는 한 줄도 안 남겼다.** import 해서 쓰고, 밖으로 나가던 이름
+(`enemyUnitDefs` `enemyStats` `MAX_QUEST_LEVEL` `ELITE_PREFIX`)만 **다시 내보낸다.**
+호출부(ui/quests·ui/pvp·dungeon·tower·abyss·tools/balance…)는 **한 줄도 안 고쳤다.**
+
+★ 정예의 «언제 뜨나»(`ELITE_CHANCE`)·«얼마 주나»(`ELITE_REWARD`)는 의뢰 생성 쪽 이야기라
+quest.js 에 남겼다. 옮긴 것은 **적 스탯에 실제로 곱해지는 값**뿐이다.
+
+★ `MAX_QUEST_LEVEL` 은 80 을 손으로 적어 두던 자리였다 — 이제 `data/limits.js` 의
+`MAX_LEVEL` 을 받아 온다. merc.js 와 같은 방식이고, 사본이 하나 줄었다.
+
+닫힘 **9파일**: enemygen · core/util · core/rng · data/{classes, classes_t4, enemies,
+formations, limits, skills}. 전부 이미 서버에 있는 것들이다.
+
+### 105.2 증명 — 4,410조합 · 22,965기 · 바이트 일치
+
+임시 하네스(`tools/enemygen-parity.mjs`, 지금은 지웠다)로 옮기기 **전에** 기준을 떴다:
+도시 전부 × 날짜 3 × 시드 3 의 `genQuests` 웨이브 · 던전 4×10웨이브 · 탑 9층 · 나락 7심층
+· 합성 극단값(랭크 7 × 정예 on/off × `wave.power` 있음/없음, 정예 주석 경로, 진형 전종,
+슬롯 99/-3, 레벨 0/-5/999, 없는 적 id, `quest.id` 없음). 옮긴 뒤 같은 입력으로 다시 떠서
+`cmp` **바이트 비교 — 완전 동일.** (하네스 자체의 결정론도 두 번 떠서 확인했다.)
+
+메타 검사로 하네스가 무는지 먼저 봤다: `ELITE_SPD_SHARE` · `BOSS_SCALE.F` · `ENEMY_GRADE`
+· `RANK_POWER[0]` · `ELITE_CHAMP_MULT` · `GROWTH_RATE` 를 하나씩 흔들자 **6/6 전부 잡았다.**
+
+### 105.3 스모크에 계약을 굳혔다 (+6건 → 530건)
+
+가벼움은 주석으로 안 지켜진다. `import` 한 줄이면 게임 전체가 도로 딸려 온다.
+「적 생성부가 가벼운 채로 남아 있는가」 절을 뒀다: ① 직접 import 허용 목록 ② **닫힘** 전체
+③ quest.js 사본 금지(상수 15 + 함수 8) ④ 재수출이 같은 함수를 가리키는가 ⑤ 실제 생성 + 결정론
+⑥ 레벨 상한이 limits.js 한 곳에서 오는가. 심어서 **8/8 물었다.**
+
+★★ 메타 검사가 **내 검사의 구멍 둘**을 잡았다 (이게 없었으면 그대로 통과했다):
+- 닫힘 추적 정규식이 `from` 을 optional 로 둔 한 벌이었다 → **부수효과 import
+  (`import './x.js';`)를 통째로 놓친다.** 게으른 `[\s\S]*?\sfrom` 이 다음 줄까지 삼킨다.
+  형태별로 따로 본다(`from`·부수효과·동적). **`tools/syncshared.mjs` 의 `importsOf` 가
+  아직 그 한 벌이다** — 엔진 묶음에 부수효과 import 가 생기면 그 파일이 조용히 빠진 채
+  배포된다. (지금은 **묶음 안에** 그런 import 가 없어서 안 물릴 뿐이다 —
+  저장소에는 이미 있다: `src/ui/{codex,lineupview,pvpreplay}.js` 의 `classes_t4.js`.)
+- 결정론 검사를 **두 번만** 비교했더니 «가끔 달라지는» 심은 버그를 1/4 확률로 놓쳤다.
+  유닛을 늘리고 세 번 비교한다.
+
+### 105.4 다음 사람에게
+
+- `sw.js` `APP_SHELL` 에 `./src/game/enemygen.js` 를 넣고 `CACHE` 를 v144 로 올렸다.
+- **아직 배포 안 했다.** `syncshared.mjs` 의 «전투 엔진» entry 는 **건드리지 않았다** —
+  거기 파일을 더하면 `ENGINE_HASH` 가 바뀌어 모두의 PvP 등록이 한꺼번에 무효가 된다.
+  서버로 보낼 때는 **별도 묶음**으로 격리해라(`data/enemies.js` 가 새로 들어간다).
+- 0단계의 나머지는 `runverify.js` (아군을 인자로 받는 dive/climb) 다.
+
+## 106. 나락·탑을 **아군을 인자로 받아** 다시 돌린다 — `src/game/runverify.js` (0단계 완료)
+
+§105 로 «적을 만드는 절반»이 가벼워졌다. 남은 절반은 **런 전체를 다시 돌리는 것**이다.
+시드는 이미 결정론이라 (`ab#심층#부대#일차 ^ seed`, `tw#층#부대#일차 ^ seed`)
+**아군 편성만 받으면 서버가 같은 판을 그대로 다시 돌릴 수 있다.**
+
+```js
+verifyAbyss({ allies, seed, day, squadId, maxDepth })  → { reached, log }
+verifyTower({ allies, seed, day, squadId, startFloor, maxFloors }) → { reached, log }
+```
+
+`state` 를 안 받는다. `allies` 는 `Quest.allyUnitDefs()` 가 만든 UnitDef 배열 그대로다
+(PvP `pvp_defense.units` 와 같은 모양 — 증명에서 **JSON 왕복**을 시켜 확인했다).
+
+### 106.1 사본을 만들지 않았다 — abyss.js·tower.js 가 이 모듈을 **쓴다**
+
+새 파일에 «한 벌»을 두고 저쪽이 import 한다. 저쪽에 남은 것은 **상태를 만지는 것뿐**이다:
+입장 판정 · 골드 지급/차감 · 펫 드랍 · 기록 갱신 · 로그의 사람 이름.
+
+옮긴 것: `depthSeed` `floorSeed` `abyssQuest` `towerQuest` `floorPet` `towerPetDef`
+`applyCarry` `simulateBattle` `runOneDepth` `runOneFloor` `runAbyss` `runTower` `pickWeighted`
+— 그리고 **`hashStr` 사본 둘이 사라졌다** (abyss.js·tower.js 에 각각 있던 것을
+`enemygen.hashStr` 하나로 모았다. 이제 저장소에 FNV-1a 는 한 벌이다).
+
+- `Abyss.depthSeed` `Abyss.abyssQuest` `Tower.floorSeed` `Tower.towerQuest` `Tower.floorPet`
+  은 **그대로 다시 내보낸다** — `ui/*`·`tools/*`·스모크의 호출부를 한 줄도 안 고쳤다
+  (`st` 는 `.seed`·`.day` 만 읽히므로 서명이 같다).
+- `dive()`/`climb()` 은 루프를 **훅 셋**(`before`/`onWin`/`after`)으로만 남겼다.
+  `before` 는 탑의 통행료(골드 부족 → 멈춤), `onWin` 은 골드·드랍·쓰러진 사람,
+  `after` 는 UI 진행 콜백이다. 로그 순서(sweep→broke/lose→fall→drop→rest)가 그대로다.
+- 아군 조립은 이제 `Quest.allyUnitDefs` **하나만** 부른다. 예전 주석은 «questBattleDefs 를
+  지난다» 였는데, 그 함수가 아군에 하는 일이 정확히 `allyUnitDefs(st, squad)` 한 줄이다.
+  경로는 여전히 한 벌이고, PvP 등록이 쓰는 것과 같은 함수다.
+- `towerQuest` 의 적 레벨은 `80` 을 손으로 적던 자리였다 → `enemygen.MAX_QUEST_LEVEL`
+  (= `data/limits.js` 의 `MAX_LEVEL`) 을 받는다. 사본이 하나 더 줄었다.
+
+### 106.2 증명 — 먼저 재고, 고친 뒤 다시 쟀다
+
+**(가) 리팩터가 아무것도 안 바꿨나.** HEAD 에서 기준을 뜨고(7시드 × `dive`+`climb`),
+옮긴 뒤 같은 입력으로 다시 떠 비교했다 — `reached` 뿐 아니라 **골드·소모골드·펫 드랍·로그
+JSON 까지 완전 동일.** (메타 검사로 소스를 흔든 뒤에도 다시 떠서 동일함을 재확인했다.)
+
+**(나) 서버 재계산이 클라와 같은 값을 내나.** 3부대(초반 Lv30 2차 / 중반 Lv55 3차 /
+최종 Lv80 4차 풀세트+고급펫) × 8시드 × 3날짜:
+
+| | 일치 | 불일치 |
+|---|---|---|
+| 나락 `dive().reached` vs `verifyAbyss().reached` | **72** | 0 |
+| 탑 `climb().reached` vs `verifyTower().reached` | **72** | 0 |
+| 탑 — 소탕 구간이 있는 경우(`startFloor > 1`) | **8** | 0 |
+
+같은 입력을 3번 돌려 결정론도 봤다(2번만 보면 «가끔 달라지는» 것을 놓친다 — §105.3).
+
+### 106.3 ★ 펫 — «아군 펫» 과 «탑의 주인» 은 다른 것이다
+
+- **아군 펫은 편성에 실려 온다.** `Quest.allyUnitDefs` 끝에서 `Pet.petUnitDefs(st, squad)`
+  를 붙인다(`quest.js:957`). 그래서 재계산은 아군 펫을 **몰라도 된다** — 스모크로 굳혔다.
+- **그런데 탑에는 «층의 주인»이 있다.** `tower.js` 의 `Pet.*` 사용처는 아군이 아니라
+  **적**이었다: 층마다 펫이 하나 `boss:true` 로 서고, `pet:true` 를 **일부러 안 붙여서**
+  잡아야만 이긴다. 재계산에서 이걸 빼면 적이 한 기 모자라다.
+  실측: 빼고 돌리자 **7/7 시드에서 도달 층이 달라졌다** — 70→73, 88→112, 71→88
+  (전부 **더 높게** 나온다 = 서버가 치트를 그대로 인정해 준다).
+  그래서 `data/pets.js`(종·등급) 와 `game/pet.js`(`petStats` 하나) 를 문다.
+
+### 106.4 import — 허용 목록에서 셋이 늘었다 (닫힘 16파일)
+
+받은 목록은 `core/util` `core/rng` `battle/engine` `data/abyss` `data/tower` `data/skills`
+`./enemygen` 일곱이었다. 실제로는 **셋이 더 필요했다.**
+
+| 늘어난 것 | 왜 | 닫힘 비용 |
+|---|---|---|
+| `data/enemies.js` (`enemiesFor`) | 심층/층의 적 풀을 뽑는다. 없으면 «어느 적이 나오나»를 재현 못 한다 | **0** — `enemygen` 이 이미 문다 |
+| `data/pets.js` | 층의 주인 종·등급 (§106.3) | +1 (`data/skills` 밖에 안 문다) |
+| `game/pet.js` (`petStats`) | 층의 주인 스탯 공식. 베껴 적으면 §94 사본이 된다 | +1 (`core/util`+`data/pets`) |
+
+닫힘 **16파일**: runverify · enemygen · pet · battle/{engine,ai} · core/{util,rng} ·
+data/{abyss,tower,pets,classes,classes_t4,enemies,formations,limits,skills}.
+**state·quest·gear·squad·merc·world 는 하나도 안 딸려 온다** — 그게 존재 이유다.
+
+★ 스킬 해석기를 **cfg 에 직접 싣는다**(`cfg.getSkill`). 전역 `setSkillResolver` 는 UI 부팅이
+불러 주는데 서버에는 그 부팅이 없다. 빼먹으면 스킬이 통째로 사라져 승률이 완전히 달라진다
+(6차 세션 사고). 엔진이 `cfg.getSkill` 을 먼저 보므로 기존 경로와 결과가 같다 — (가)로 확인.
+
+### 106.5 스모크 (+8건 → 539건)
+
+「나락·탑을 서버가 다시 돌릴 수 있는가」 절: ① 직접 import 허용 목록 ② 닫힘 전체
+③ abyss/tower 사본 금지(옮긴 함수 10 × 2 + 엔진 직접호출 금지 + import 확인)
+④ 재수출이 같은 함수인가 ⑤ **`dive()`/`climb()` 과 도달값이 같은가**(3시드 · 소탕 구간 포함)
+⑥ 아군 펫은 편성으로·탑의 주인은 적으로 ⑦ 결정론 3회 + 시드 네 축 + 편성 불변.
+심어서 **10/10 물었다.**
+
+★ 메타 검사가 **내 검사의 거짓 실패 하나**를 잡았다: ⑦ 의 「시드를 실제로 쓰나」를 처음엔
+«도달 심층이 달라지나» 로 쟀는데, 상한(`maxDepth`)에 걸리는 부대에서는 어느 시드든 같은 값이
+나와 **정상 코드가 실패했다.** 시드 함수와 적 편성을 직접 견주는 쪽으로 바꿨다.
+(그리고 얕은 곳은 적 풀이 작아 **두 시드가 우연히 같은 편성**을 낸다 — 9심층에서 실제로
+그랬다. 여러 시드를 모아 «전부 같은가» 로 본다.)
+
+★ `specsOf`/`closureOf`(import 닫힘 추적)는 §105 절 안에 있던 것을 **하네스 맨 위로 올려
+한 벌만** 뒀다. 새 절이 같은 것을 쓴다 — 복사했으면 §94 가 그대로 반복됐다.
+
+### 106.6 다음 사람에게
+
+- **아직 배포 안 했다.** `syncshared.mjs` 의 «전투 엔진» entry 는 **안 건드렸다** —
+  거기 파일을 더하면 `ENGINE_HASH` 가 바뀌어 모두의 PvP 등록이 한꺼번에 무효가 된다.
+  서버로 보낼 때는 **별도 묶음**으로 격리해라 (`runverify` 는 `data/pets.js`·`game/pet.js`
+  까지 끌고 간다).
+- `sw.js` `APP_SHELL` 에 `./src/game/runverify.js` 를 넣고 `CACHE` 를 **v145** 로 올렸다.
+- ★ **탑은 «골드»를 재계산하지 못한다.** 등반은 「통행료를 못 내면 멈춘다」는 규칙도 있는데
+  그건 지갑(=상태)이라 편성만으로는 못 잰다. 그래서 `verifyTower().reached` 는 **상한**이다 —
+  골드가 모자랐다면 실제 도달은 그보다 낮을 뿐 높을 수 없다. 2단계에서 서버가 골드를
+  갖게 되면 그때 `before` 훅에 같은 규칙을 얹어라 (루프는 이미 한 벌이다).
+- `runverify.js` 는 `game/` 에 있지만 **게임 상태를 모른다.** 거기에 `state` 를 물리고 싶어지면
+  그 순간 §104 0단계가 무너진다 — 스모크 ①②가 막는다.

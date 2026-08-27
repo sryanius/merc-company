@@ -15,28 +15,35 @@
  * 13층에서 런 전체가 조용히 패배 처리된다.
  * 그래서 여기서 헤드리스 `simulate()` 로 돌리고, 플레이어가 고른 층만 UI 가 전투 화면으로 띄운다.
  *
- * ── 아군 편성은 반드시 questBattleDefs 를 지난다
+ * ── 아군 편성은 반드시 allyUnitDefs 를 지난다
  * 이 프로젝트는 아군 UnitDef 조립 경로가 갈려서 진형과 세트 효과가 각각 한 번씩
- * 조용히 안 먹은 전례가 있다. 던전과 같은 방식으로 **합성 의뢰 → questBattleDefs** 에
- * 위임한다. 그래야 진형·장비·세트 고유효과·펫이 전부 한 경로로 들어온다.
+ * 조용히 안 먹은 전례가 있다. 여기서는 **직접 조립하지 않고** `quest.js` 의
+ * `allyUnitDefs` 하나만 부른다 (`questBattleDefs` 도, PvP 등록도 같은 함수를 쓴다).
+ * 그래야 진형·장비·세트 고유효과·펫이 전부 한 경로로 들어온다.
+ *
+ * ── 층을 실제로 굴리는 부분은 `game/runverify.js` 에 있다
+ * 시드·합성 의뢰·층의 주인(펫)·이월 체력·등반 루프는 **서버도 그대로 다시 돌려야** 하므로
+ * state 를 안 무는 모듈로 옮겼다. 여기 남은 것은 **상태를 만지는 부분뿐**이다 —
+ * 입장 판정 · 골드 차감 · 펫 드랍 · 기록 갱신 · 로그의 사람 이름. (사본 금지: §94)
  *
  * @module game/tower
  */
 
-import { clamp } from '../core/util.js';
 import { RNG } from '../core/rng.js';
-import { createBattle } from '../battle/engine.js';
 import {
-  TOWER_FLOORS, floorCost, costRange, sweepLimit, floorPower, floorEnemyCount,
-  isRestFloor, tierWeights, gradeWeights, dropChance, zoneOf,
+  TOWER_FLOORS, floorCost, costRange, sweepLimit, floorPower,
+  isRestFloor, dropChance, zoneOf,
 } from '../data/tower.js';
-import { PET_GRADES, petsOfTier, getPetSpecies } from '../data/pets.js';
 import * as State from './state.js';
 import * as Quest from './quest.js';
 import * as Pet from './pet.js';
-import { enemiesFor } from '../data/enemies.js';
+import * as RV from './runverify.js';
 
 export { TOWER_FLOORS, floorCost, costRange, sweepLimit, floorPower, zoneOf, isRestFloor };
+
+/** 층 시드·합성 의뢰·층의 주인은 `runverify.js` 한 벌뿐이다 — 이름만 다시 내보낸다.
+ *  (`st` 는 `.seed`·`.day` 만 읽히므로 서명이 그대로다.) */
+export { floorSeed, towerQuest, floorPet } from './runverify.js';
 
 /* ─────────────────────────── 입장 판정 ─────────────────────────── */
 
@@ -83,203 +90,47 @@ export function daysUntilEntry(st = State.state) {
   return 0;
 }
 
-/* ─────────────────────────── 층별 난수 ───────────────────────────
- * ★ 드랍을 모듈 전역 `globalRng` 로 굴리면 안 된다. `load()` 가 그 시드를 게임 최초 상태로
- *   되감기 때문에, 새로고침 → 같은 호출 순서 재현 → **원하는 펫이 나올 때까지 반복**이 된다.
- *   (전투 시드는 이미 날짜를 섞어 이 문제를 막아 뒀는데 드랍만 빠져 있었다.)
- *   층마다 독립 RNG 를 만들어 그 비대칭을 상속하지 않는다.
- */
+/* ─────────────────────────── 부대 · 편성 ─────────────────────────── */
 
-function hashStr(s) {
-  let h = 2166136261 >>> 0;
-  const str = String(s);
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
-/** 이 층 전용 시드 — 같은 날·같은 부대·같은 층이면 항상 같다 */
-export function floorSeed(st, floor, squadId) {
-  return (hashStr(`tw#${floor}#${squadId || ''}#${st.day || 0}`) ^ ((st.seed || 0) >>> 0)) >>> 0;
-}
-
-/** 가중치 배열에서 하나 고른다 */
-function pickWeighted(r, weights) {
-  let total = 0;
-  for (const w of weights) total += Math.max(0, w);
-  if (total <= 0) return 0;
-  let x = r.float(0, total);
-  for (let i = 0; i < weights.length; i++) {
-    x -= Math.max(0, weights[i]);
-    if (x <= 0) return i;
-  }
-  return weights.length - 1;
-}
-
-/* ─────────────────────────── 층 편성 ─────────────────────────── */
-
-/** 이 층에 나올 펫 (종 + 등급). 층이 오를수록 높은 tier·등급이 나온다. */
-export function floorPet(st, floor, squadId) {
-  const r = new RNG(floorSeed(st, floor, squadId) ^ 0x9e3779b9);
-  const tier = pickWeighted(r, tierWeights(floor)) + 1;
-  const pool = petsOfTier(tier);
-  if (!pool.length) return null;
-  const sp = pool[Math.floor(r.float(0, pool.length)) % pool.length];
-  const grade = PET_GRADES[clamp(pickWeighted(r, gradeWeights(floor)), 0, PET_GRADES.length - 1)];
-  return { sid: sp.id, grade };
+/** `questBattleDefs` 와 같은 규칙으로 부대를 고른다 (없으면 첫 부대). */
+function squadOf(st, squadId) {
+  const squad = (squadId ? (st.squads || []).find((s) => s.id === squadId) : null) || (st.squads || [])[0];
+  if (!squad) throw new Error('출정할 부대가 없습니다.');
+  return squad;
 }
 
 /**
- * 층 하나를 합성 의뢰로 만든다 (던전의 dungeonQuest 와 같은 방식).
- * 적 종류는 층수에 맞춰 enemies.js 에서 뽑고, 배율은 floorPower 로 준다.
- */
-export function towerQuest(st, floor, squadId) {
-  const f = clamp(Math.round(floor), 1, TOWER_FLOORS);
-  const r = new RNG(floorSeed(st, f, squadId));
-  const count = floorEnemyCount(f);
-  const power = floorPower(f);
-
-  // 적 풀: 층이 오를수록 높은 tier 를 섞는다. (적 tier 상한은 5, 레벨은 80 클램프)
-  // enemiesFor(biome, tier, opt) — 탑은 동굴 지형으로 고정한다.
-  const maxTier = clamp(1 + Math.floor((f / TOWER_FLOORS) * 5), 1, 5);
-  const usable = enemiesFor('cave', maxTier, { spread: 1 }) || [];
-  if (!usable.length) return null;
-
-  const units = [];
-  for (let i = 0; i < count; i++) {
-    const e = usable[Math.floor(r.float(0, usable.length)) % usable.length];
-    units.push({ enemyId: e.id, level: 80, slotIndex: i });
-  }
-
-  return {
-    id: `tw_${f}`,
-    name: `무한의 탑 ${f}층`,
-    type: '섬멸',
-    cityId: null,                 // 도시가 아니다 → 평판 경로를 안 탄다
-    biome: 'cave',
-    rank: 'S',
-    sub: 0,
-    rankLabel: 'S',
-    elite: false,
-    level: 80,
-    days: 0,                      // 부대를 잠그지 않는다
-    waves: [{ units, formationId: 'basic', power }],
-    reward: { gold: 0, exp: 0, renown: 0, itemRolls: [] },
-    desc: `${zoneOf(f)} — ${f}층.`,
-    expiresDay: Number.MAX_SAFE_INTEGER,
-    towerFloor: f,
-  };
-}
-
-/**
- * 층 전투 설정. 아군은 questBattleDefs 를 그대로 지나므로
- * 진형·장비·세트 고유효과·펫이 전부 실린다.
+ * 층 전투 설정. 아군은 `allyUnitDefs` 를 그대로 지나므로
+ * 진형·장비·세트 고유효과·펫이 전부 실린다. 적 쪽에는 «층의 주인»(펫)이 하나 더 선다.
  *
  * @param {object} opts `{carry: {uid: hp}}` 층 이월 체력
  */
 export function towerBattleDefs(st, floor, squadId, opts = {}) {
-  const f = clamp(Math.round(floor), 1, TOWER_FLOORS);
-  const q = towerQuest(st, f, squadId);
-  if (!q) throw new Error('탑 편성을 만들지 못했다.');
-
-  const cfg = Quest.questBattleDefs(q, 0, st, squadId);
-  cfg.seed = floorSeed(st, f, squadId);
-  cfg.towerFloor = f;
-  cfg.tower = true;
-  cfg.title = `무한의 탑 ${f}층 — ${zoneOf(f)}`;
-
-  // ★ 층의 주인 — 펫이 적으로 하나 선다.
-  //   `pet:true` 를 **안** 붙인다. 붙이면 엔진이 승패에서 빼기 때문에 안 잡아도 이겨 버린다.
-  //   "이기면 얻는다" 가 성립하려면 실제로 쓰러뜨려야 한다.
-  const pp = floorPet(st, f, squadId);
-  if (pp) {
-    const sp = getPetSpecies(pp.sid);
-    const stats = Pet.petStats(pp);
-    const power = floorPower(f);
-    cfg.enemies.push({
-      uid: `tw_pet_${f}`,
-      name: `${sp.name} (탑의 주인)`,
-      side: 'enemy',
-      classId: null,
-      enemyId: null,
-      level: 80,
-      grade: pp.grade,
-      // 적으로 설 때는 층 배율을 그대로 먹인다 — 아군 펫과 같은 값이면 후반부에 종잇장이 된다
-      stats: {
-        hp: Math.round(stats.hp * power), atk: Math.round(stats.atk * power),
-        def: Math.round(stats.def * power), res: Math.round(stats.res * power),
-        spd: stats.spd, crit: stats.crit, critDmg: stats.critDmg, eva: stats.eva,
-      },
-      skills: Array.isArray(sp.skills) ? sp.skills.slice() : [],
-      basicFx: sp.basicFx || 'slash',
-      basicRange: sp.basicRange || 'melee',
-      basicDmgType: sp.basicDmgType || 'phys',
-      slot: { x: 0.96, y: 0.5 },
-      recipe: sp.sprite,
-      boss: true,
-      specials: [],
-      towerPet: pp,          // 드랍 판정이 읽는다
-    });
-  }
-
-  /* 층 이월 체력.
-   * carry[uid] === 0 은 **앞 층에서 쓰러졌다**는 뜻이다. 이때 hp 를 1 로 clamp 하면
-   * 쓰러진 단원이 다음 층에 멀쩡히 나오게 된다 — 아예 편성에서 뺀다.
-   * (25층마다 오는 회복 지점에서 carry 를 비우면 전원 복귀한다.) */
-  const carry = opts.carry;
-  if (carry) {
-    cfg.allies = cfg.allies.filter((a) => !(carry[a.uid] === 0));
-    for (const a of cfg.allies) {
-      if (Object.prototype.hasOwnProperty.call(carry, a.uid)) {
-        a.hp = clamp(Math.round(carry[a.uid]), 1, Math.round(a.stats.hp));
-      }
-    }
-  }
-  return cfg;
-}
-
-/* ─────────────────────────── 한 층 시뮬 ─────────────────────────── */
-
-/**
- * 전투 하나를 헤드리스로 끝까지 돌린다 (ui/battle.js 를 거치지 않는다).
- * 결과 객체에는 생존자 uid 만 있고 **남은 체력이 없다** — 층 이월에 필요하므로
- * 전투 객체(`unitOf`)를 같이 돌려준다.
- */
-function simulateBattle(cfg, maxSeconds = 60) {
-  const b = createBattle(cfg);
-  const dt = 1 / 60;
-  let t = 0;
-  while (!b.finished && t < maxSeconds) { b.step(dt); t += dt; }
-  return b;
+  const squad = squadOf(st, squadId);
+  return RV.towerBattleDefs({
+    allies: Quest.allyUnitDefs(st, squad),
+    ctx: st,
+    squadId,
+    floor,
+    carry: opts.carry,
+    allyFormationId: squad.formationId,
+  });
 }
 
 /**
  * 한 층을 치른다. **상태를 바꾸지 않는다** — 골드 차감·기록은 호출자(climb)가 한다.
- * @returns {{win:boolean, floor:number, carry:object, pet:object|null, time:number}}
+ * @returns {{win:boolean, floor:number, carry:object, time:number}}
  */
 export function runFloor(st, squadId, floor, carry = null) {
-  const f = clamp(Math.round(floor), 1, TOWER_FLOORS);
-  const cfg = towerBattleDefs(st, f, squadId, { carry });
-  const b = simulateBattle(cfg);
-  const res = b.result;
-  const win = res.winner === 'ally';
-
-  // 살아남은 아군의 체력을 다음 층으로 넘긴다.
-  // ★ 죽은 단원은 아예 넘기지 않는다 — carry 에 없으면 다음 층에서 만피로 서므로,
-  //   "쓰러진 단원이 다음 층에 멀쩡히 나온다"가 된다. 그래서 0 을 명시적으로 넣는다.
-  // ★ 쓰러진 사람의 0 은 `towerBattleDefs` 가 그를 편성에서 빼기 때문에 아래 루프에 안 잡힌다.
-  //    그래서 0 이 한 층만 살고 사라져 **두 층 뒤에 만피로 복귀**했다. 앞선 0 을 먼저 옮겨 둔다.
-  const next = {};
-  if (win) {
-    if (carry) for (const [uid, hp] of Object.entries(carry)) if (hp === 0) next[uid] = 0;
-    for (const a of cfg.allies) {
-      const u = b.unitOf(a.uid);
-      next[a.uid] = u && u.alive ? Math.max(1, Math.round(u.hp)) : 0;
-    }
-  }
-  return { win, floor: f, carry: next, time: res.time, result: res, cfg };
+  const squad = squadOf(st, squadId);
+  return RV.runOneFloor({
+    allies: Quest.allyUnitDefs(st, squad),
+    ctx: st,
+    squadId,
+    floor,
+    carry,
+    allyFormationId: squad.formationId,
+  });
 }
 
 /* ─────────────────────────── 등반 ─────────────────────────── */
@@ -324,63 +175,56 @@ export function climb(st, squadId, opts = {}) {
     log.push({ type: 'sweep', from: 1, to: sweepTo, cost });
   }
 
-  /* ── 2) 등반 구간 — 여기서부터 실제로 싸운다. 체력은 층을 넘어 이월된다. */
+  /* ── 2) 등반 구간 — 여기서부터 실제로 싸운다. 체력은 층을 넘어 이월된다.
+   *    ★ 등반 루프 자체는 `runverify.js` 한 벌뿐이다 (서버가 그대로 다시 돌린다).
+   *      여기서는 **상태를 만지는 것**만 훅으로 얹는다: 통행료·펫 드랍·쓰러진 사람 이름. */
   const from = floor;
-  let carry = null;             // null = 만피에서 시작
-  let reached = floor - 1;
 
-  for (let n = 0; n < maxFloors && floor <= TOWER_FLOORS; n++, floor++) {
-    const cost = floorCost(floor);
-    if (st.gold < cost) {
-      log.push({ type: 'broke', floor, cost, gold: st.gold });
-      break;
-    }
-    st.gold -= cost;
-    spent += cost;
-
-    const r = runFloor(st, squadId, floor, carry);
-    if (!r.win) {
-      log.push({ type: 'lose', floor, time: r.time });
-      break;
-    }
-    reached = floor;
-
-    /* 이번 층에서 쓰러진 단원을 로그에 남긴다.
-     * 쓰러진 단원은 다음 회복 지점까지 편성에서 빠지는데(= 설계), 알려 주지 않으면
-     * "사람이 조용히 사라진다"로 읽힌다. 누가 언제 빠졌는지 이름으로 적는다. */
-    const fell = [];
-    for (const [uid, hp] of Object.entries(r.carry)) {
-      if (hp !== 0) continue;
-      if (carry && carry[uid] === 0) continue;          // 앞 층에서 이미 빠진 사람
-      const m = (st.roster || []).find((x) => x && x.uid === uid);
-      fell.push(m ? m.name : (Pet.getPet(st, uid) ? Pet.petLabel(Pet.getPet(st, uid)) : uid));
-    }
-    if (fell.length) log.push({ type: 'fall', floor, names: fell });
-
-    carry = r.carry;
-
-    // 펫 드랍 — 층 전용 RNG (globalRng 금지: load() 가 시드를 되감아 리롤이 가능해진다)
-    const pp = floorPet(st, floor, squadId);
-    if (pp) {
-      const dr = new RNG(floorSeed(st, floor, squadId) ^ 0x5bf03635);
-      if (dr.chance(dropChance(floor))) {
-        const pet = Pet.makePet(st, pp.sid, pp.grade);
-        if (pet) {
-          if (!Array.isArray(st.pets)) st.pets = [];
-          st.pets.push(pet);
-          gotPets.push(pet);
-          log.push({ type: 'drop', floor, pet });
-        }
+  const { reached } = RV.runTower({
+    allies: Quest.allyUnitDefs(st, sq),
+    ctx: st,
+    squadId,
+    startFloor: from,
+    maxFloors,
+    allyFormationId: sq.formationId,
+    log,
+    before: (f) => {
+      const cost = floorCost(f);
+      if (st.gold < cost) {
+        log.push({ type: 'broke', floor: f, cost, gold: st.gold });
+        return false;
       }
-    }
+      st.gold -= cost;
+      spent += cost;
+      return true;
+    },
+    onWin: (f, r, carry) => {
+      /* 이번 층에서 쓰러진 단원을 로그에 남긴다.
+       * 쓰러진 단원은 다음 회복 지점까지 편성에서 빠지는데(= 설계), 알려 주지 않으면
+       * "사람이 조용히 사라진다"로 읽힌다. 누가 언제 빠졌는지 이름으로 적는다. */
+      const fell = [];
+      for (const [uid, hp] of Object.entries(r.carry)) {
+        if (hp !== 0) continue;
+        if (carry && carry[uid] === 0) continue;          // 앞 층에서 이미 빠진 사람
+        const m = (st.roster || []).find((x) => x && x.uid === uid);
+        fell.push(m ? m.name : (Pet.getPet(st, uid) ? Pet.petLabel(Pet.getPet(st, uid)) : uid));
+      }
+      if (fell.length) log.push({ type: 'fall', floor: f, names: fell });
 
-    // 회복 지점
-    if (isRestFloor(floor)) {
-      carry = null;
-      log.push({ type: 'rest', floor });
-    }
-    if (typeof opts.onFloor === 'function') opts.onFloor(floor, r);
-  }
+      // 펫 드랍 — 층 전용 RNG (globalRng 금지: load() 가 시드를 되감아 리롤이 가능해진다)
+      const pp = RV.floorPet(st, f, squadId);
+      if (!pp) return;
+      const dr = new RNG(RV.floorSeed(st, f, squadId) ^ 0x5bf03635);
+      if (!dr.chance(dropChance(f))) return;
+      const pet = Pet.makePet(st, pp.sid, pp.grade);
+      if (!pet) return;
+      if (!Array.isArray(st.pets)) st.pets = [];
+      st.pets.push(pet);
+      gotPets.push(pet);
+      log.push({ type: 'drop', floor: f, pet });
+    },
+    after: (f, r) => { if (typeof opts.onFloor === 'function') opts.onFloor(f, r); },
+  });
 
   // 기록 갱신
   if (!st.tower) st.tower = { best: 0, bestDay: 0, lastRunDay: 0, lastRunFloor: 0 };
