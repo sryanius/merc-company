@@ -25,6 +25,46 @@ function section(name) {
   curSection = name;
   process.stdout.write(`\n── ${name}\n`);
 }
+
+/** 결과를 찍는다. 끝까지 갔든 도중에 죽었든 **같은 것**을 찍는다. */
+function report(crash) {
+  process.stdout.write('\n' + '─'.repeat(64) + '\n');
+  if (crash) {
+    process.stdout.write(`💥 «${curSection}» 절에서 죽었다 — 나머지 절은 아예 안 돌았다\n`);
+    process.stdout.write(`   ${crash}\n`);
+    /* ★★ 가장 흔한 원인을 **먼저** 짚어 준다.
+     *   `need()` 는 못 읽은 모듈에 null 을 돌려주고, 그걸 받아 쓰는 절이
+     *   «Cannot read properties of null» 로 터진다. 그러면 진짜 원인
+     *   (그 모듈을 애초에 왜 못 읽었나)이 화면에서 사라진다.
+     *   실제로 겪었다: 순환 import 를 되살렸더니 엉뚱한 절에서 TypeError 가 났다 (§108). */
+    const bad = failures.filter((f) => f.label.startsWith('import '));
+    if (bad.length) {
+      process.stdout.write('\n   ★ 위쪽에서 못 읽은 모듈이 있다 — 그게 원인일 가능성이 높다:\n');
+      for (const f of bad) process.stdout.write(`     · ${f.label} — ${f.detail}\n`);
+      process.stdout.write('     (순환 import 를 되살리면 여기가 먼저 터진다)\n');
+    }
+    process.stdout.write('\n');
+  }
+  if (!failures.length && !crash) {
+    process.stdout.write(`✅ 전부 통과 — 검사 ${checks}건\n`);
+    return;
+  }
+  process.stdout.write(`❌ 실패 ${failures.length}건 / 검사 ${checks}건\n\n`);
+  for (const f of failures) process.stdout.write(`  [${f.section}] ${f.label}\n      ${f.detail}\n`);
+}
+
+/* 도중에 죽어도 여태 모은 실패를 **반드시** 찍는다. 안 그러면 스택만 남고
+ * 「무엇이 몇 건 틀렸나」 가 통째로 사라진다 — 실제로 그래서 원인을 못 봤다 (§108). */
+let crashed = false;
+function onCrash(e) {
+  if (crashed) return;
+  crashed = true;
+  report(String((e && e.stack) || e).split('\n').slice(0, 3).join('\n   '));
+  process.exit(1);
+}
+process.on('uncaughtException', onCrash);
+process.on('unhandledRejection', onCrash);
+
 function ok(cond, label, detail) {
   checks++;
   if (cond) return true;
@@ -7018,11 +7058,5 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
-process.stdout.write('\n' + '─'.repeat(64) + '\n');
-if (!failures.length) {
-  process.stdout.write(`✅ 전부 통과 — 검사 ${checks}건\n`);
-  process.exit(0);
-}
-process.stdout.write(`❌ 실패 ${failures.length}건 / 검사 ${checks}건\n\n`);
-for (const f of failures) process.stdout.write(`  [${f.section}] ${f.label}\n      ${f.detail}\n`);
-process.exit(1);
+report();
+process.exit(failures.length ? 1 : 0);

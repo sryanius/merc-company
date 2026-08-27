@@ -7781,8 +7781,11 @@ data/{abyss,tower,pets,classes,classes_t4,enemies,formations,limits,skills}.
 - `gear.js` 에 되물기를 되심음 → 순환이 되살아나 스모크가 **앞 절에서 죽는다**
   (`State.newGame` 이 null). 그래서 내 절까지 못 간다 — 검사가 무는지는
   내용에 직접 대고 따로 확인했다 (`./state.js` 를 잡는다).
-  ★ 남은 흠: 되물기가 생기면 스모크가 **깨끗한 실패가 아니라 TypeError 로 죽는다.**
-    고쳐 두면 다음 사람이 원인을 빨리 찾는다.
+  ★ 고쳐 뒀다: 이제 **깨끗이 죽는다.** 결과 출력을 `report()` 로 빼고
+    `uncaughtException`/`unhandledRejection` 에 물려서, 도중에 죽어도
+    ① 어느 절에서 죽었는지 ② 스택 세 줄 ③ **여태 모은 실패 전부**
+    ④ 「위쪽에서 못 읽은 모듈이 있다 — 그게 원인이다」 힌트를 찍는다.
+    예전엔 스택만 남고 「무엇이 몇 건 틀렸나」 가 통째로 사라졌다.
 
 ### 다음
 
