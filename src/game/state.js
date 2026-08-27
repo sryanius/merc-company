@@ -26,6 +26,7 @@ import {
 } from '../data/limits.js';
 // 순환 참조(state <-> quest, state <-> gear/merc/squad)를 안전하게 다루려고 네임스페이스로 받는다.
 // 최상위에서는 절대 호출하지 않는다.
+import { hashStr } from './enemygen.js';
 import { bindAmbient } from './ambient.js';
 import * as Merc from './merc.js';
 import * as Gear from './gear.js';
@@ -1803,12 +1804,28 @@ function genShop(city, r) {
 export function refreshCity(cityId = state.cityId, force = false) {
   const city = getCity(cityId);
   if (!city) return null;
-  const r = rng;
+
+  /* ★★★ **자리마다 정해진 시드를 쓴다** (§119) — 예전엔 `const r = rng` 로 전역을 썼다.
+   *
+   *   전역이면 목록이 «그때까지 난수를 몇 번 썼나» 에 의존한다. 실측: 사이에 난수를
+   *   다섯 번만 더 써도 주점 목록이 통째로 달라졌다.
+   *   그래서 §104.4 가 적어 둔 「주점·의뢰 목록은 (seed, day, city) 로 서버가 다시 만들 수
+   *   있다」 가 **거짓이었고**, 서버가 「이 후보가 실제로 그 주점에 있었나」 를 못 물었다.
+   *
+   *   나락·탑이 쓰는 방식 그대로다 (`runverify.js depthSeed`):
+   *     같은 (판, 도시, 날) 이면 **항상 같은 목록**. 분포는 그대로다.
+   *
+   * ★ `genShop` 은 여기서 못 고친다 — **명부 평균 레벨에 의존**하기 때문이다
+   *   (state.js genShop 의 `avgLv`). 그건 «그 시점의 명부» 를 알아야 재현되는데
+   *   최종 세이브만으로는 모른다. 상점을 서버가 검증하려면 그 의존부터 끊어야 한다. */
+  const seedFor = (kind) =>
+    new RNG((hashStr(`${kind}#${cityId}#${state.day}`) ^ ((state.seed || 0) >>> 0)) >>> 0);
+
   const stale = (e) => force || !e || !Array.isArray(e.list) || state.day - (e.day || 0) >= REFRESH_DAYS;
   let changed = false;
 
   if (stale(state.quests[cityId])) {
-    state.quests[cityId] = { day: state.day, list: Quest.genQuests(cityId, state.day, r) };
+    state.quests[cityId] = { day: state.day, list: Quest.genQuests(cityId, state.day, seedFor('qs')) };
     changed = true;
   } else {
     const before = state.quests[cityId].list.length;
@@ -1816,11 +1833,11 @@ export function refreshCity(cityId = state.cityId, force = false) {
     changed = changed || state.quests[cityId].list.length !== before;
   }
   if (stale(state.tavern[cityId])) {
-    state.tavern[cityId] = { day: state.day, list: genTavern(city, r) };
+    state.tavern[cityId] = { day: state.day, list: genTavern(city, seedFor('tv')) };
     changed = true;
   }
   if (stale(state.shop[cityId])) {
-    state.shop[cityId] = { day: state.day, list: genShop(city, r) };
+    state.shop[cityId] = { day: state.day, list: genShop(city, seedFor('sh')) };
     changed = true;
   }
 

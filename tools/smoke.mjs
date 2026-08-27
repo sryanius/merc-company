@@ -7814,6 +7814,64 @@ section('S 용병을 고용 시점으로 소급해서 센다');
   }
 }
 
+section('주점 목록이 (판·도시·날) 로 재현된다');
+{
+  /* ★★★ §119. §104.4 가 「주점·의뢰 목록은 (seed, day, city) 로 서버가 다시 만들 수 있다」 고
+   *   적어 뒀는데 **거짓이었다.** `refreshCity` 가 `const r = rng` 로 전역을 썼기 때문이다 —
+   *   목록이 «그때까지 난수를 몇 번 썼나» 에 의존했다. 실측: 사이에 난수를 다섯 번만
+   *   더 써도 주점 목록이 통째로 달라졌다.
+   *
+   *   그래서 서버가 「이 후보가 실제로 그 주점에 있었나」 를 못 물었고,
+   *   그게 고용 RPC 를 막고 있었다 (§104 1단계의 마지막 조각).
+   *
+   * ★ 나락·탑이 쓰는 방식 그대로 고쳤다 (`runverify.js depthSeed`) — 분포는 그대로다.
+   * ★ 다시뽑기 기능은 없다 (`force=true` 를 쓰는 곳은 `newGame` 뿐) — 결정론이 아무것도 안 깬다. */
+  try {
+    const ST = await import('../src/game/state.js');
+    const ME = await import('../src/game/merc.js');
+
+    const listOf = (seed, day, cityId, extraDraws) => {
+      ST.newGame(seed, '재현검사');
+      const st = ST.state;
+      /* «그 사이 다른 일을 했다» — 전역 rng 를 그만큼 더 소비한다 */
+      for (let i = 0; i < extraDraws; i++) ME.createMerc({ classId: 'archer', grade: 'C', level: 1 });
+      st.day = day;
+      const r = ST.refreshCity(cityId || st.cityId, true);
+      return (r.tavern || []).map((x) => `${x.classId}:${x.cost}`).join(',');
+    };
+
+    const base = listOf(20260828, 10, null, 0);
+    ok(base.length > 0, '주점 목록이 비어 있지 않다', base.slice(0, 60));
+    ok(listOf(20260828, 10, null, 0) === base, '같은 (판·도시·날) 이면 같은 목록');
+    /* ★★ 이게 §119 가 고친 자리다 — 예전엔 여기서 달라졌다 */
+    ok(listOf(20260828, 10, null, 5) === base,
+      '그 사이 난수를 더 써도 같은 목록 (전역 rng 를 안 쓴다)',
+      `${base.slice(0, 40)} vs ${listOf(20260828, 10, null, 5).slice(0, 40)}`);
+
+    /* ★★ 반대쪽도 봐야 한다 — **시드를 고정값으로 박아도 위 셋은 통과한다.**
+     *   판·날이 다르면 목록도 달라져야 «자리마다 정해진 시드» 가 실제로 도는 것이다. */
+    const diffs = [];
+    if (listOf(20260828, 13, null, 0) === base) diffs.push('날이 달라도 목록이 같다');
+    if (listOf(99999999, 10, null, 0) === base) diffs.push('판(seed)이 달라도 목록이 같다');
+    okAll(diffs, '판·날이 다르면 목록도 다르다 (시드가 실제로 섞인다)', 2);
+
+    /* ★★ **못 고친 것을 못 박아 둔다.** `genShop` 은 명부 평균 레벨에 의존한다 —
+     *   «그 시점의 명부» 를 알아야 재현되는데 최종 세이브만으로는 모른다.
+     *   이 사실이 바뀌면(= 상점도 재현 가능해지면) 이 검사가 알려 준다. */
+    const shopBy = (lv) => {
+      ST.newGame(20260828, '상점검사');
+      for (const m of ST.state.roster) m.level = lv;
+      ST.state.day = 10;
+      return (ST.refreshCity(ST.state.cityId, true).shop || []).map((x) => `${x.baseId}:${x.ilvl}`).join(',');
+    };
+    ok(shopBy(1) !== shopBy(50),
+      '상점은 아직 명부에 의존한다 (재현 불가 — 알고 있는 한계다)',
+      '같아졌다면 의존이 끊긴 것이다 — §119 의 한계 문단을 지우고 상점도 검증에 넣어라');
+  } catch (e) {
+    ok(false, '도시 목록 재현을 굴려 본다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
