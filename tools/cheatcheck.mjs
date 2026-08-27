@@ -26,6 +26,16 @@ const base = (o = {}) => ({
   questsDone: 120, battlesWon: 300, battlesLost: 40,
   gold: 50_000, renown: 2_000, cityId: 'greenhold',
   rosterN: 30, rosterCap: 40, topLevel: 62, squadsN: 4, petsN: 6, itemsN: 200,
+  /* ★★ 이 칸이 **없었다.** 이 픽스처가 전력 축(§96)보다 먼저 쓰였기 때문인데,
+   *   그 탓에 「기록은 있는데 전력이 하나도 없는」 세이브가 «평범한 세이브» 행세를 했다.
+   *   §111 에서 그 조합을 신호로 보게 되자 여기 15건이 한꺼번에 물렸다 —
+   *   **계측기가 제 일을 한 것이다.** 픽스처를 현실에 맞춘다.
+   *
+   * ★ 값의 근거: 나락 40 은 최소 7,500 · 탑 150 은 최소 10,854 가 필요하다(실측).
+   *   실계정 중 나락 52·탑 191 인 사람이 46,581 이다. 35,000 이면 그 사이에 든다.
+   *   (레벨 62 천장은 17만대라 위쪽으로도 여유가 있다.)
+   * ★ 섹션 7 픽스처들도 같은 이유로 이미 손본 적이 있다 (그쪽 주석 참고). */
+  topPower: 35_000,
   ...o,
 });
 
@@ -62,6 +72,11 @@ console.log('\n── 1. 정상 플레이를 막지 않는가 (오탐)');
       abyssBest: 80, abyssBestDay: 295, abyssLastRunDay: 295,
       towerBest: 470, towerBestDay: 290, towerLastRunDay: 290,
       questsDone: 800, battlesWon: 2000, gold: 2_000_000, renown: 40_000,
+      /* ★★ 이 판은 **교차 검증을 한 번도 안 받고 있었다.** base 의 전력이 0 이라
+       *   검사가 통째로 건너뛰어졌기 때문이다 (§111 이 막은 바로 그 자리).
+       *   base 에 전력이 생기자 중반 값 35,000 을 물려받아 「탑 470 인데 54,405 필요」로 걸렸다.
+       *   ⇒ 후반부 판이므로 **후반부 전력**을 준다. 실계정 참고: 나락 92·탑 500 인 사람이 166,894. */
+      topPower: 120_000,
     })],
     ['나락 만렙 부대 한 주 수입', prev, dove(107, 80, { gold: 50_000 + goldRange(80) })],
     ['같은 날 두 번 제출 (그 사이 잠수 한 번)', prev, dove(100, 90, { abyssLastRunDay: 99, abyssBestDay: 99 })],
@@ -173,6 +188,7 @@ console.log('\n── 6. 실제 잠수로 만든 세이브');
   const State = await import('../src/game/state.js');
   const Abyss = await import('../src/game/abyss.js');
   const Merc = await import('../src/game/merc.js');
+  const Squad = await import('../src/game/squad.js');
   const { RNG } = await import('../src/core/rng.js');
   const { setSkillResolver } = await import('../src/battle/engine.js');
   const { getSkill } = await import('../src/data/skills.js');
@@ -192,6 +208,12 @@ console.log('\n── 6. 실제 잠수로 만든 세이브');
     st.day = 1 + w * 7;                       // 주마다 한 번 — 게임이 강제하는 그대로
     const r = Abyss.dive(st, st.squads[0].id, {});
     if (!r.ok) { bad.push(`${w + 1}주차 잠수 실패: ${r.reason}`); continue; }
+    /* ★★ **제출 직전에 전력을 찍는다 — `src/net/cloud.js` 가 하는 그대로다.**
+     *   이게 없어서 이 절의 세이브는 전력이 늘 0 이었고, 그 탓에
+     *   ① 기록↔전력 교차 검증을 **한 번도 안 받았고**
+     *   ② §111 이 「기록은 있는데 전력이 없다」 를 신호로 보게 되자 전부 걸렸다.
+     *   실제 클라가 밟는 경로를 안 밟은 하네스 쪽 구멍이었다. */
+    Squad.stampSquadPower(st);
     const cur = Rules.extractScore(st);
     const v = judge(prev, cur);
     if (v.verdict !== 'ok') {

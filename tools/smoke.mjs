@@ -7197,23 +7197,37 @@ section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
       abyssBestDay: 2100, abyssLastRunDay: 2100, towerBestDay: 2000, towerLastRunDay: 2000,
     };
 
+    /* 기록이 없는 판 (새 계정이 정상적으로 시작한 모습) */
+    const FRESH = {
+      day: 1, rosterCap: 20, rosterN: 4, sMercs: 0, hiredN: 0, topLevel: 5,
+      questsDone: 0, battlesWon: 0, abyssBest: 0, towerBest: 0,
+      abyssBestDay: 0, abyssLastRunDay: 0, towerBestDay: 0, towerLastRunDay: 0,
+    };
+
     const CASES = [
       /* [설명, 입력, 기대 등급] */
+      /* ── 막아야 하는 것 ── */
       ['치트가 전력 0 으로 도망 (알리바이 27127)', { topPower: 0, seenPower: 27127 }, 'C'],
       ['치트가 전력 1 로 도망', { topPower: 1, seenPower: 27127 }, 'C'],
       ['치트 그대로 (27127)', { topPower: 27127, seenPower: 27127 }, 'C'],
-      /* ★ 아래는 전부 ok 여야 한다 — 하나라도 걸리면 정상 플레이어를 때린 것이다 */
+      /* ★★ 제작자 지적: 「용병단을 새로 만들면?」 — 알리바이가 없는 새 계정.
+       *   이걸 못 막으면 나락·탑 두 축을 최대치로 올릴 수 있다. */
+      ['★새 계정 치트 — 기록만 적고 전력 0 (알리바이 없음)', { topPower: 0, seenPower: 0 }, 'C'],
+      ['★새 계정 치트 — 나락 300 · 탑 500 · 전력 0', {
+        topPower: 0, seenPower: 0, abyssBest: 300, towerBest: 500,
+        day: 2000, questsDone: 1000, battlesWon: 3000, renown: 5000,
+        abyssBestDay: 1900, abyssLastRunDay: 1900, towerBestDay: 1800, towerLastRunDay: 1800,
+      }, 'C'],
+
+      /* ── 아래는 전부 ok 여야 한다 — 하나라도 걸리면 정상 플레이어를 때린 것이다 ── */
       ['정상 플레이어', { ...RYA, topPower: 166894, seenPower: 166894 }, 'ok'],
-      ['정상인데 장비를 다 팔았다', { ...RYA, topPower: 1000, seenPower: 166894 }, 'ok'],
-      ['옛 클라 — 전력 0 · 알리바이 0', { ...RYA, topPower: 0, seenPower: 0 }, 'ok'],
-      ['새로 시작 — 기록 0', {
-        ...RYA, day: 1, rosterCap: 20, rosterN: 4, sMercs: 0, hiredN: 0, topLevel: 5,
-        questsDone: 0, battlesWon: 0, abyssBest: 0, towerBest: 0,
-        abyssBestDay: 0, abyssLastRunDay: 0, towerBestDay: 0, towerLastRunDay: 0,
-        topPower: 0, seenPower: 166894,
-      }, 'ok'],
-      /* 하위 호환 — seenPower 를 안 주면 오늘 동작 그대로 */
-      ['seenPower 없음 · 전력 0 (오늘과 같다)', { topPower: 0 }, 'ok'],
+      ['정상인데 장비를 다 팔았다 (알리바이가 구제한다)', { ...RYA, topPower: 1000, seenPower: 166894 }, 'ok'],
+      ['새 계정 정상 — 기록 0 · 전력 1577', { ...RYA, ...FRESH, topPower: 1577, seenPower: 0 }, 'ok'],
+      ['새 계정 정상 — 기록 0 · 전력 0 (첫 제출 전)', { ...RYA, ...FRESH, topPower: 0, seenPower: 0 }, 'ok'],
+      ['새로 시작 — 옛 판 알리바이가 남아 있어도', { ...RYA, ...FRESH, topPower: 0, seenPower: 166894 }, 'ok'],
+
+      /* ── 하위 호환: seenPower 를 안 줘도 «기록 있는데 전력 0» 은 잡는다 ── */
+      ['seenPower 없음 · 전력 0 · 기록 있음', { topPower: 0 }, 'C'],
       ['seenPower 없음 · 전력 27127', {}, 'C'],
     ];
 
@@ -7227,18 +7241,15 @@ section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
     /* ★★ **알리바이를 «올리면» 판정이 나빠지면 안 된다** — 정상 플레이어를 새로
      *   때릴 위험이 없다는 근거가 이것이다.
      *
-     * ★★ 단 하나 예외가 있고, 그게 이 수정의 **목적 그 자체**다:
-     *   `0` 은 값이 아니라 **「모른다」 라는 표식**이라, 0 → 1 로 넘어가는 순간
-     *   검사가 «꺼짐 → 켜짐» 으로 바뀐다. 그래서 1 부터 훑는다.
-     *   (검사를 처음 짤 때 0 부터 훑었더니 여기서 물렸다 — 내 「구조적으로 0」
-     *    이라는 주장이 정확히 이 경계에서 틀렸다는 것을 검사가 잡아 줬다.)
-     *
-     * ★★ 그 예외가 무는 실제 대가는 아래 「모른다→안다」 판에 따로 적어 뒀다. */
+     * ★ 처음엔 이게 0 → 1 경계에서 깨졌다 (0 은 값이 아니라 「모른다」 라는 표식이라
+     *   검사가 «꺼짐 → 켜짐» 이 됐다). 「기록이 있는데 전력이 없다」 를 따로 잡게 되면서
+     *   그 불연속이 사라졌다 — **이제 0 부터 훑어도 단조롭다.** 그래서 0 부터 훑는다.
+     *   («구조적으로 0» 이라고 적으려던 내 주장이 경계에서 틀렸던 것을 이 검사가 잡았다.) */
     const RANK = { ok: 0, C: 1, B: 1, A: 2 };
     const monotone = [];
     for (const base of [{}, { ...RYA, topPower: 166894 }, { topPower: 5000 }, { ...RYA, topPower: 0 }]) {
       let prevRank = null;
-      for (const sp of [1, 1000, 27127, 100000, 190470]) {
+      for (const sp of [0, 1, 1000, 27127, 100000, 190470]) {
         const r = RANK[tier({ ...base, seenPower: sp })];
         if (prevRank != null && r > prevRank) {
           monotone.push(`알리바이를 ${sp} 로 올렸더니 판정이 나빠졌다 (${JSON.stringify(base).slice(0, 60)})`);
@@ -7246,24 +7257,25 @@ section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
         prevRank = r;
       }
     }
-    okAll(monotone, '알리바이를 올려도 판정이 나빠지지 않는다 (0 은 값이 아니라 표식)', 4);
+    okAll(monotone, '알리바이를 올려도 판정이 나빠지지 않는다 (0 부터 단조롭다)', 4);
 
-    /* ★★ 「모른다 → 안다」 의 대가를 **숫자로 남긴다.**
+    /* ★★ **대가를 숫자로 남긴다.**
      *
-     *   전력을 0 으로 신고했는데 알리바이가 **작게라도 있으면** 검사가 켜진다.
-     *   그게 치트를 막는 자리인 동시에, **딱 한 부류의 정상 플레이어를 때릴 수 있다:**
-     *   알리바이가 오래돼 낮은데(예: 25일차에 5,680 을 올린 뒤) 그동안 오프라인으로
-     *   기록을 크게 올렸고, 마지막 제출을 **전력을 안 찍는 옛 클라**로 한 사람.
+     *   「기록이 있는데 전력이 하나도 없다」 를 잡으면 **딱 한 부류의 정상 플레이어**가
+     *   같이 걸린다: 제출 직전에 `stampSquadPower` 를 안 부르는 **옛 클라**
+     *   (서비스워커에 캐시된 버전 — §41 이 그 시차를 적어 뒀다).
      *
+     *   ★ 실측한 대가: 지금 계정 7개 중 「기록 있는데 전력 0」 은 **0개**다
+     *     (전력 분포 9,456 ~ 174,034). 게다가 전부 알리바이가 있어 먼저 구제된다.
      *   ★ 거절이 아니라 표시(C)다 — 순위표에서만 빠지고 사람이 되돌릴 수 있다.
-     *   ★ 지금 클라는 제출 직전에 `stampSquadPower` 를 부르므로(cloud.js) 그 부류가
-     *     생기려면 서비스워커에 캐시된 옛 클라여야 한다 (§41 이 그 시차를 적어 뒀다).
      *   ⇒ 이 검사는 그 대가가 **여전히 그 모양인지**를 지킨다. 모양이 바뀌면 다시 재라. */
-    ok(tier({ ...RYA, topPower: 0, seenPower: 0 }) === 'ok'
-      && tier({ ...RYA, topPower: 0, seenPower: 5680 }) === 'C',
-      '「모른다(0)」 는 넘어가고 「낮게라도 안다」 는 검사한다 — 그 대가를 안다',
-      `알리바이 0 → ${tier({ ...RYA, topPower: 0, seenPower: 0 })} · `
-      + `알리바이 5680 → ${tier({ ...RYA, topPower: 0, seenPower: 5680 })}`);
+    ok(tier({ ...RYA, topPower: 0, seenPower: 0 }) === 'C'
+      && tier({ ...RYA, ...FRESH, topPower: 0, seenPower: 0 }) === 'ok'
+      && tier({ ...RYA, topPower: 0, seenPower: 200000 }) === 'ok',
+      '기록이 있어야만 「전력 없음」 을 잡는다 (그 대가를 안다)',
+      `기록O·알리바이X → ${tier({ ...RYA, topPower: 0, seenPower: 0 })} · `
+      + `기록X → ${tier({ ...RYA, ...FRESH, topPower: 0, seenPower: 0 })} · `
+      + `알리바이 충분 → ${tier({ ...RYA, topPower: 0, seenPower: 200000 })}`);
 
     /* 서버가 실제로 그 값을 넣어 주나 — 안 넣으면 위 전부가 죽은 코드다 */
     const idx = decomment(readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8'));
