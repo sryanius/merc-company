@@ -110,6 +110,7 @@ Settings → API 에서:
 | `013_run_state.sql` | 진행도를 서버가 갖는다 — **1단계: 명부·장비** |
 | `014_gold_send_fix.sql` | `gold_send` 가 **부를 때마다 죽고 있었다** — 잠금 문장이 틀렸다 |
 | `015_run_state_gaps.sql` | 013 이 **잃는 칸**을 메운다 — 이관보다 반드시 먼저 |
+| `017_rank_axes_fix.sql` | `rank_of` 가 모르는 축에 조용히 오답을 내던 것 · 전력 상한 정렬 |
 | `016_run_import.sql` | `run_import` / `run_snapshot` — 세이브를 서버로 한 번 옮긴다 |
 
 ★ **SQL 함수를 만들거나 고치면 `node tools/sqlcheck.mjs` 를 돌려라.**

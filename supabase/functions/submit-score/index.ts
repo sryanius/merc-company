@@ -102,10 +102,14 @@ Deno.serve(async (req) => {
    * ★ 조회가 실패하면 **막지 않는다** — 아래 탐침 세기와 같은 원칙. 0 이면 오늘 동작 그대로다.
    * ★★ 사유는 클라이언트에 안 나간다 (§55). 이 값도 응답에 안 싣는다. */
   let seenPower = 0;
+  let prevStatus = '';
+  let prevSeed: number | null = null;
   try {
     const { data: seenRow } = await admin
-      .from('scores').select('top_power').eq('user_id', userId).maybeSingle();
+      .from('scores').select('top_power, status, seed').eq('user_id', userId).maybeSingle();
     seenPower = Math.max(0, Math.round(Number(seenRow?.top_power) || 0));
+    prevStatus = String(seenRow?.status || '');
+    prevSeed = seenRow?.seed == null ? null : Number(seenRow.seed);
   } catch (e) {
     console.error('[submit-score] 이전 전력 조회 실패 — 막지 않고 넘어간다', e);
   }
@@ -198,6 +202,32 @@ Deno.serve(async (req) => {
    *   §96 의 `숨단` 이 정확히 이 경로였다: 여러 번 걸린 뒤 통과한 값이 1위로 올라갔다. */
   let status = verdict.verdict === 'flag' ? 'flagged' : 'ok';
   if (probe.hold) status = 'held';
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * ★★★ **시드를 갈아타서 표식을 씻는 길을 막는다** (§117)
+   *
+   *   `scores_monotonic` 트리거는 `when (old.seed = new.seed)` 라 시드가 바뀌면
+   *   아예 안 돈다. `rules.js` 도 `sameRun` 이 거짓이면 `compareTo = null` 로 두어
+   *   케이던스·단조성·증가분 검사를 **전부** 건너뛴다 (그건 옳다 — 새 판을 옛 판과
+   *   견주면 새로 시작한 사람이 전원 거절된다).
+   *
+   *   그 둘이 겹치면서 **«새 판으로 갈아타면 표식이 씻긴다»** 가 됐다.
+   *   실제로 일어났다: 표시돼 있던 계정이 08-27 13:50 에 다른 시드로 제출하며
+   *   `ok` 로 돌아갔다. 일차가 274 → 260 으로 **줄어** 있었는데도 트리거가 안 돌았다.
+   *
+   * ★ 그래서 **그 경우에만** 표식을 유지한다:
+   *     이미 표시된 계정 + 시드가 바뀜  →  표식 유지
+   *
+   *   · 표시된 적 없는 사람은 **아무 영향이 없다** (새로 시작해도 그대로 ok).
+   *   · 오탐으로 표시됐던 사람은 유지되지만, 그건 `db/README.md` 가 이미 정해 둔
+   *     운영 경로다 — 사람이 `scores.status` 를 `'ok'` 로 되돌린다.
+   *   · 같은 시드로 고쳐서 다시 올리는 정상 경로는 **그대로 풀린다.**
+   * ══════════════════════════════════════════════════════════════════════════ */
+  const seedChanged = prevSeed != null && Number(score.seed) !== prevSeed;
+  if (status === 'ok' && seedChanged && (prevStatus === 'flagged' || prevStatus === 'held')) {
+    status = prevStatus;
+    console.error('[submit-score] 시드가 바뀌었지만 표식을 유지한다', { userId, prevSeed, seed: score.seed });
+  }
   if (verdict.verdict === 'flag') {
     await admin.from('rejections').insert({
       user_id: userId, tier: verdict.tier, reasons: verdict.reasons,

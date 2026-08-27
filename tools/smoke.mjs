@@ -7712,6 +7712,46 @@ section('이관 배선 — 클라가 서버와 같은 사상을 쓴다');
   }
 }
 
+section('시드를 갈아타도 표식이 안 씻긴다');
+{
+  /* ★★★ §117. 실제로 일어났다 — 표시돼 있던 계정이 **다른 시드로 제출하며 `ok` 로 돌아갔다.**
+   *   일차가 274 → 260 으로 **줄어** 있었는데도 아무 검사에 안 걸렸다.
+   *
+   *   원인은 둘이 겹친 것이다:
+   *     · `scores_monotonic` 트리거가 `when (old.seed = new.seed)` — 시드가 바뀌면 안 돈다
+   *     · `rules.js` 도 `sameRun` 이 거짓이면 `compareTo = null` (그건 옳다 —
+   *       새 판을 옛 판과 견주면 새로 시작한 사람이 전원 거절된다)
+   *   ⇒ 「새 판으로 갈아타면 이력 검사가 통째로 꺼진다」 가 됐다.
+   *
+   * ★ 고친 방향은 **아주 좁다**: 이미 표시된 계정이 시드를 바꿔 왔을 때만 표식을 유지한다.
+   *   표시된 적 없는 사람은 새로 시작해도 아무 영향이 없다.
+   *
+   * ★ DB 가 필요해서 굴리지는 못한다 — 배선을 본다 (`rlscheck` 와 같은 짜임새). */
+  const idx = decomment(readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8'));
+  const wire = [];
+  if (!/select\(['"][^'"]*\bstatus\b[^'"]*['"]\)/.test(idx)) wire.push('이전 status 를 안 읽는다');
+  if (!/select\(['"][^'"]*\bseed\b[^'"]*['"]\)/.test(idx)) wire.push('이전 seed 를 안 읽는다');
+  if (!/seedChanged/.test(idx)) wire.push('시드가 바뀌었는지 안 본다');
+  /* ★ 표식 유지가 **ok 로 판정났을 때만** 걸려야 한다 — 아니면 새 판정을 덮어쓴다 */
+  if (!/status === ['"]ok['"][\s\S]{0,120}seedChanged/.test(idx)) {
+    wire.push('표식 유지가 «ok 로 판정났을 때만» 이 아니다');
+  }
+  /* ★ 표시된 적 없는 사람은 절대 안 걸려야 한다 */
+  if (!/prevStatus === ['"]flagged['"][\s\S]{0,60}prevStatus === ['"]held['"]/.test(idx)) {
+    wire.push('이전 상태가 flagged·held 일 때로 안 좁혀져 있다');
+  }
+  /* ★ 사유는 서버 로그로만 (§55) — 응답에 안 실린다 */
+  if (/json\(\{[^}]*seedChanged/.test(idx)) wire.push('시드 갈아타기 사실이 응답에 실린다 (§55 위반)');
+  okAll(wire, '시드 갈아타기로 표식을 씻지 못한다', 6);
+
+  /* ★★ 트리거 쪽 전제도 못 박는다 — `when (old.seed = new.seed)` 가 사라지면
+   *   새로 시작한 사람이 «기록이 줄었다» 로 전원 막힌다. 그 조건은 **있어야 한다.** */
+  const init = decomment(readFileSync(join(rootDir, 'db/001_init.sql'), 'utf8'));
+  ok(/when\s*\(\s*old\.seed\s*=\s*new\.seed\s*\)/.test(init),
+    'scores_monotonic 트리거는 같은 판일 때만 돈다 (새로 시작한 사람을 막으면 안 된다)',
+    '이 조건을 빼면 새 판이 전부 «기록이 줄었다» 로 거절된다');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
