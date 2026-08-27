@@ -434,6 +434,67 @@ export const POWER_BY_LEVEL = [123543, 131145, 139615, 148078, 156562, 165032, 1
  */
 export const POWER_SLACK = 1.05;
 
+/* ── 기록 ↔ 전력 (교차 검증) ──────────────────────────────────────
+ *
+ * ★★ 세 번째 치트가 **전력만 낮춰서** 통과했다 (§103).
+ *   전력 상한은 «너무 큰 전력» 만 잡는다. 그래서 27,127 로 내려놓고
+ *   나락 96심층 · 탑 490층은 그대로 뒀다 — 기록은 `checkCadence` 가 감소를 거절하므로
+ *   낮출 수도 없다. **값 하나하나는 다 통과하는데 서로 모순이다.**
+ *
+ * ★★ 그래서 «심층·층에 서려면 전력이 최소 얼마인가» 를 실측해 표로 박는다.
+ *   `node tools/abysspower.mjs` · `node tools/towerpower.mjs`
+ *
+ * ★★★ **비율로 보면 안 된다.** 「전력 ÷ 층수」 는 오탐 기계다 —
+ *   2인 풀세트(46,756)가 7인 맨몸(61,081)보다 **훨씬 깊이 간다.**
+ *   전력은 인원에 거의 비례하는데 전투력은 아니기 때문이다.
+ *   ⇒ 반드시 «전력 P **이하**로 도달한 최대» 라는 **상단 포락선**으로 쓴다 (아래 표가 그것이다).
+ *
+ * ★ 표는 (전력, 그 전력 이하로 도달한 최대) 쌍이고 전력 오름차순이다.
+ */
+
+/** 황금 나락 — 실측 (`tools/abysspower.mjs`) */
+export const ABYSS_POWER_CURVE = [
+  [5_000, 18], [10_000, 29], [20_000, 51], [30_000, 66],
+  [50_000, 86], [75_000, 108], [100_000, 128], [190_470, 163],
+];
+
+/** 무한의 탑 — 실측 (`tools/towerpower.mjs`, 월 5회 누적 최댓값) */
+export const TOWER_POWER_CURVE = [
+  [21_708, 235], [26_756, 283], [46_756, 404], [66_454, 407],
+  [91_545, 443], [117_121, 483], [125_086, 498], [165_368, 500],
+];
+
+/**
+ * 그 기록을 세우려면 전력이 최소 얼마여야 하는가 (표를 거꾸로 읽는다).
+ * @returns {number} 0 이면 «그 정도는 아무 전력으로도 된다»
+ */
+function minPowerFor(curve, record) {
+  const r = Number(record) || 0;
+  if (r <= 0) return 0;
+  let prev = null;
+  for (const [pw, best] of curve) {
+    if (best >= r) {
+      if (!prev) return pw;
+      /* 두 지점 사이는 선형으로 본다 — 표가 성긴 만큼 낮은 쪽으로 눕는다(=후하다) */
+      const [pw0, b0] = prev;
+      const t = (r - b0) / Math.max(1, best - b0);
+      return pw0 + (pw - pw0) * t;
+    }
+    prev = [pw, best];
+  }
+  /* 표 밖 — 표의 끝보다 깊다. 끝 값을 쓴다 (더 세게 잡지 않는다) */
+  return curve[curve.length - 1][0];
+}
+
+/**
+ * 기록 대비 전력이 말이 되는가.
+ *
+ * ★★ **거절이 아니라 표시여야 한다.** 전력은 «제출 시점 스냅샷» 이고 기록은 «과거» 다 —
+ *   500층을 찍은 뒤 장비를 전부 팔고 단원을 해고하면 정상 플레이어도 여기 걸린다.
+ *   그래서 실측 최소치의 절반까지 봐준다.
+ */
+export const RECORD_POWER_SLACK = 0.5;
+
 /**
  * 이 최고레벨에서 부대 하나가 낼 수 있는 전력의 천장 (사이는 선형 보간).
  * @param {number} level 명부의 최고 레벨
@@ -563,6 +624,33 @@ function absoluteOddities(s) {
   const pCap = Math.ceil(powerCeiling(s.topLevel) * POWER_SLACK);
   if (s.topPower > pCap) {
     bad.push(`부대 전력 ${s.topPower} · 최고레벨 ${s.topLevel} 천장 ${pCap}`);
+  }
+
+  /* ★★ **기록 ↔ 전력 교차 검증** (§103).
+   *
+   *   지금까지의 검사는 전부 «이 값이 일차에 비해 말이 되나» 였다 — 값끼리 안 견줬다.
+   *   그래서 세 번째 치트가 **전력만 낮춰서** 통과했다:
+   *     전력 27,127 인데 나락 96심층 · 탑 490층.
+   *   실측으로 나락 96 은 최소 57,122, 탑 490 은 최소 125,086 이 필요하다.
+   *   («여기이름…» 이 전력 46,581 로 나락 52 · 탑 191 인 것과도 앞뒤가 맞는다.)
+   *
+   * ★ 표시(flag)다, 거절이 아니다 — 전력은 «제출 시점» 이고 기록은 «과거» 라,
+   *   기록을 세운 뒤 장비를 전부 팔면 정상 플레이어도 여기 걸린다.
+   *   그래서 실측 최소치의 절반까지 봐준다 (`RECORD_POWER_SLACK`). */
+  /* ★★ **전력을 안 찍었으면 대조하지 않는다.**
+   *   `topPower` 는 `squad.js stampSquadPower()` 가 제출 직전에 찍는다.
+   *   그 경로를 안 탄 세이브(옛 클라·도구가 만든 것)는 0 이고,
+   *   그때 이 검사를 돌리면 **기록이 있는 사람이 전원 걸린다.**
+   *   실제로 계측기(`tools/cheatcheck.mjs`)가 그걸 잡아 줬다. */
+  const forCross = s.topPower > 0 ? [
+    ['나락', s.abyssBest, ABYSS_POWER_CURVE],
+    ['탑', s.towerBest, TOWER_POWER_CURVE],
+  ] : [];
+  for (const [label, rec, curve] of forCross) {
+    const need = Math.ceil(minPowerFor(curve, rec) * RECORD_POWER_SLACK);
+    if (rec > 0 && need > 0 && s.topPower < need) {
+      bad.push(`${label} ${rec} 인데 부대 전력 ${s.topPower} — 최소 ${need} 은 있어야 한다`);
+    }
   }
   return bad;
 }

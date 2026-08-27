@@ -5971,6 +5971,45 @@ section('순위표 치트 — 부대 전력·S용병 상한');
      *   **전력 검사가 대신 물어서** 검사가 통과했다 (메타 검사로 잡았다).
      *   그래서 «전력은 정상인데 S만 이상한» 프로필을 따로 둔다 — 한 검사가
      *   다른 검사의 구멍을 가리지 못하게. */
+    /* ★★ **기록 ↔ 전력 교차 검증** (§103).
+     *   세 번째 치트는 «전력만 낮춰서» 통과했다 — 값끼리 안 견줬기 때문이다.
+     *   실측: 나락 96 은 최소 57,122 · 탑 490 은 최소 125,086 이 필요하다.
+     *
+     * ★ 비율(전력÷층)로 보면 안 된다 — 2인 풀세트가 7인 맨몸보다 깊이 간다.
+     *   반드시 «전력 P 이하로 도달한 최대» 라는 상단 포락선이어야 한다. */
+    const CROSS = [
+      { nm: '전력만 낮춘 치트', day: 122, questsDone: 301, battlesWon: 302, rosterN: 7, sMercs: 7,
+        topLevel: 80, topPower: 27127, abyssBest: 96, towerBest: 490 },
+    ];
+    for (const c of CROSS) {
+      const v = RL.judge(null, mk(c));
+      if (v.verdict === 'ok') behave.push(`${c.nm} 이 통과한다 — 기록과 전력을 안 견준다`);
+      else if (!v.reasons.some((x) => /나락 .* 부대 전력|탑 .* 부대 전력/.test(x))) {
+        behave.push(`${c.nm} 이 걸리긴 하는데 기록↔전력 사유가 아니다 (${v.reasons.join(' / ')})`);
+      }
+    }
+    /* ★ 그리고 **정상 최강**은 걸리면 안 된다 — 랴니는 탑 500 에 전력 166,894 로
+     *   실측 최소(165,368)와 1% 차이다. 여기서 오탐이 나면 최상위가 통째로 잘린다. */
+    for (const f of [
+      { nm: '랴니(탑500)', day: 2129, questsDone: 811, battlesWon: 3861, rosterN: 38, sMercs: 38,
+        topLevel: 80, topPower: 166894, abyssBest: 92, towerBest: 500 },
+      { nm: '여기이름(탑191)', day: 349, questsDone: 588, battlesWon: 1013, rosterN: 26, sMercs: 0,
+        topLevel: 79, topPower: 46581, abyssBest: 52, towerBest: 191 },
+    ]) {
+      const v = RL.judge(null, mk(f));
+      if (v.verdict !== 'ok') behave.push(`정상 등재 ${f.nm} 이 기록↔전력에 걸린다 — ${v.reasons.join(' / ')}`);
+    }
+
+    /* ★ 곡선이 «전력이 오르면 도달도 오른다» 로 정렬돼 있어야 한다 (포락선이 깨지면 판정이 뒤집힌다) */
+    for (const [nm, curve] of [['나락', RL.ABYSS_POWER_CURVE], ['탑', RL.TOWER_POWER_CURVE]]) {
+      if (!Array.isArray(curve) || curve.length < 4) { behave.push(`${nm} 곡선이 없거나 너무 성기다`); continue; }
+      for (let i = 1; i < curve.length; i++) {
+        if (!(curve[i][0] > curve[i - 1][0] && curve[i][1] >= curve[i - 1][1])) {
+          behave.push(`${nm} 곡선이 단조가 아니다 (${curve[i - 1]} → ${curve[i]})`);
+        }
+      }
+    }
+
     const S_ONLY = [
       /* 실제 치트가 쓴 모양 — 1일차에 전원 S */
       { nm: '1일차 S 7명', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 100000 },
@@ -5993,7 +6032,7 @@ section('순위표 치트 — 부대 전력·S용병 상한');
       const v = RL.judge(null, mk(f));
       if (v.verdict !== 'ok') behave.push(`정상 등재 ${f.nm} 이 걸린다 — ${v.reasons.join(' / ')}`);
     }
-    okAll(behave, '치트 등재는 걸리고 정상 등재는 통과한다', 16 + FAIR.length);
+    okAll(behave, '치트 등재는 걸리고 정상 등재는 통과한다', 20 + FAIR.length);
 
     /* ── ⑤ 미래 고용을 안 센다 ──
      *   1일차 세이브에 hiredDay:2 를 적어 넣어 «고용된 단원» 을 부풀리던 자리다. */

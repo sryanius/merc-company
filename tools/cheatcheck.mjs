@@ -251,14 +251,19 @@ console.log(NLC + '── 7. 총량 불변식 (실제 조작 기록 + 오탐 검
     [false, '계량기 이전부터 하던 사람 (hires 0 · 단원 40 · S 15)', S0({ day: 400, questsDone: 300,
       battlesWon: 700, battlesLost: 90, topLevel: 80, rosterN: 40, rosterCap: 40, squadsN: 5,
       sMercs: 15, hires: 0, specHires: 0, hiredN: 36, topPower: 70000,
-      towerBest: 480, towerBestDay: 390, abyssBest: 120, gold: 900000, renown: 9000 })],
+      /* ★ 기록은 전력에 맞춰 낮췄다. 예전 값(탑 480 · 나락 120)은 **재기 전에 손으로 적은**
+       *   조합이라 실측상 전력 7만으로는 못 닿는다 (탑 480 ≈ 12만 · 나락 120 ≈ 9.3만 필요).
+       *   시나리오의 뜻은 «계량기 이전부터 하던 사람» 이고 그건 그대로다. */
+      towerBest: 400, towerBestDay: 390, abyssBest: 100, gold: 900000, renown: 9000 })],
     [false, '보통 진행 (30일차)', S0({ day: 30, questsDone: 25, battlesWon: 50, battlesLost: 6,
       topLevel: 22, rosterN: 12, rosterCap: 20, squadsN: 2, sMercs: 1, hires: 8, specHires: 3,
       hiredN: 8, topPower: 9000, gold: 40000, renown: 300 })],
     [false, '명물 도시를 오래 돈 사람 (고용 300회에 S 25명)', S0({ day: 260, questsDone: 200,
       battlesWon: 460, battlesLost: 50, topLevel: 80, rosterN: 48, rosterCap: 50, squadsN: 5,
       sMercs: 25, hires: 300, specHires: 260, hiredN: 44, topPower: 74000,
-      towerBest: 470, towerBestDay: 253, abyssBest: 150, gold: 700000, renown: 6000 })],
+      /* ★ 위와 같은 이유로 기록을 전력에 맞췄다 — 이 시나리오가 겨누는 축은
+       *   «고용 300회에 S 25명» 이지 나락·탑이 아니다. */
+      towerBest: 400, towerBestDay: 253, abyssBest: 105, gold: 700000, renown: 6000 })],
     [false, '1일차 고용은 hiredDay 가 1 이라 hiredN 이 덜 세어진다', S0({ day: 12, questsDone: 8,
       battlesWon: 16, topLevel: 9, rosterN: 7, rosterCap: 20, sMercs: 1, hires: 3,
       specHires: 2, hiredN: 1, gold: 3000, renown: 40 })],
