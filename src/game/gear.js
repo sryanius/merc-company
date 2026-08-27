@@ -5,7 +5,7 @@
 //     stats, baseStats, affixes:[{id,name,stats,kind}], value, weight, desc }
 //   ※ `stats` 는 베이스 + 접사를 모두 합친 "최종 합계"다. baseStats는 표기용 원본.
 //
-// 주의: state.js 와 순환 import 관계다. `globalState` 는 함수 안에서만 읽는다.
+// 주의: 예전엔 state.js 를 되물었다 (순환). 지금은 ambient.js 한 칸만 본다 — §108.
 import { clamp } from '../core/util.js';
 import { rng as defaultRng, uid } from '../core/rng.js';
 import { ITEM_BASES, PREFIXES, SUFFIXES, WEAPON_TYPES, basesFor } from '../data/items.js';
@@ -16,7 +16,7 @@ import * as ITEMS from '../data/items.js';
 // items.js 의 ITEM_SETS(2피스 소형 세트 3종)와 공존하며, 같은 id 가 있으면 sets.js 가 이긴다.
 import * as SETS_DATA from '../data/sets.js';
 import { getClass } from '../data/classes.js';
-import { state as globalState } from './state.js';
+import { ambientState } from './ambient.js';
 
 /* ─────────────────────────── 상수 ─────────────────────────── */
 
@@ -134,8 +134,8 @@ export function josa(word, pair = '을/를') {
 
 /* ─────────────────────────── 내부 헬퍼 ─────────────────────────── */
 
-/** 순환 import 대비 안전 접근 */
-function gs() { try { return globalState; } catch { return null; } }
+/** 「인자를 생략하면 전역」 — 안 묶였으면 null (예전 TDZ 때와 같은 값) */
+function gs() { return ambientState(); }
 function useState(s) {
   if (s && (Array.isArray(s.items) || Array.isArray(s.roster) || Array.isArray(s.squads))) return s;
   return gs();

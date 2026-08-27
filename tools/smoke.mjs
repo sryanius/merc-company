@@ -6918,6 +6918,104 @@ section('import 를 걷는 눈이 부수효과 import 를 놓치지 않는다');
   okAll(dupes, '걷는 눈은 lib/imports.mjs 한 벌뿐이다', 4);
 }
 
+section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸');
+{
+  /* ★★ 왜 이 절이 있나 — **서버가 전력을 스스로 계산하려면 필요했다** (§104 1단계).
+   *
+   *   `gear.js` · `merc.js` · `squad.js` 가 `state.js` 를 **되물고** 있었다.
+   *   쓰는 것은 딱 하나 — 「첫 인자를 생략하면 전역 state 를 쓴다」 는 **편의 기본값**이다.
+   *   그런데 `state.js` 는 quest·world·enemies·abyss·tower 까지 게임 전체를 문다.
+   *
+   *     전력 계산의 닫힘:  23개 · 774KB   →  15개 · 462KB
+   *     (참고: 이미 배포 중인 전투 엔진 묶음이 9개 · 212KB)
+   *
+   *   ⇒ 편의 기본값 하나 때문에 게임 전체가 끌려오고 있었다. `game/ambient.js` 로 끊었다.
+   *
+   * ★ 이 절이 막는 것은 **조용한 되돌림**이다. 누가 편하다고 `state.js` 를 다시 물면
+   *   그날 닫힘이 도로 774KB 가 되고, 서버로 못 가져간다 — 그런데 게임은 멀쩡히 돈다.
+   *   숫자로 못 박는다. */
+
+  const LIGHT = ['src/game/gear.js', 'src/game/merc.js', 'src/game/squad.js'];
+
+  /* ① 되물기가 다시 생기지 않았나 */
+  const back = [];
+  for (const rel of LIGHT) {
+    for (const spec of specsOf(readFileSync(join(rootDir, rel), 'utf8'))) {
+      if (/(^|\/)state\.js$/.test(spec)) back.push(`${rel} 이 ${spec} 를 다시 문다`);
+    }
+  }
+  okAll(back, '전력 모듈 셋이 state.js 를 되물지 않는다', LIGHT.length);
+
+  /* ② 닫힘을 **수로** 본다. 무엇이 들어오면 안 되는지도 이름으로 못 박는다 —
+   *   개수만 보면 «가벼운 파일 하나로 바꿔치기» 를 못 잡는다. */
+  const POWER_CLOSURE = closureOf('src/game/squad.js')
+    .concat(closureOf('src/game/merc.js'))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort();
+  const HEAVY = ['src/game/state.js', 'src/game/quest.js', 'src/data/world.js',
+    'src/data/enemies.js', 'src/data/abyss.js', 'src/data/tower.js', 'src/game/enemygen.js'];
+  const dragged = HEAVY.filter((h) => POWER_CLOSURE.includes(h));
+  okAll(dragged.map((h) => `${h} 가 끌려온다`), '무거운 것들이 전력 닫힘에 안 들어온다', HEAVY.length);
+
+  /* ★ 20개는 «지금 15개» 에 여유를 둔 선이다. 늘리기 전에 무엇이 늘었는지 봐라 —
+   *   서버 묶음으로 갈 목록이다. */
+  ok(POWER_CLOSURE.length <= 20, '전력 닫힘이 가벼운 채로 남아 있다',
+    `${POWER_CLOSURE.length}개: ${POWER_CLOSURE.join(', ')}`);
+
+  /* ③ **묶는 쪽이 실제로 묶나.** 안 묶으면 `gs()` 가 조용히 null 이 되고
+   *   화면이 «말없이 빈다» — 오류도 안 난다. 가장 무서운 실패다. */
+  const stSrc = decomment(readFileSync(srcDir('game/state.js'), 'utf8'));
+  ok(/bindAmbient\s*\(\s*\{[^}]*\bstate\b[^}]*\baddLog\b[^}]*\}\s*\)/.test(stSrc),
+    'state.js 가 bindAmbient({ state, addLog }) 를 실제로 부른다',
+    '부르는 곳이 없다 — gear·merc·squad 의 «인자 생략» 이 전부 null 이 된다');
+
+  /* ④ **스냅샷 전제**: `state` 는 재대입이 없다.
+   *   `export const` 이 아니게 되거나 어딘가에서 `state = …` 하면
+   *   ambient 가 옛 객체를 붙들고 조용히 어긋난다. */
+  ok(/export\s+const\s+state\s*=/.test(stSrc), 'state 는 export const 다 (재대입 금지)',
+    'let 이 되면 ambient 스냅샷이 옛 객체를 붙든다');
+  const reassign = stSrc.split(/\r?\n/)
+    .filter((l) => /(^|[^.\w'"])state\s*=[^=>]/.test(l) && !/export\s+const\s+state\s*=/.test(l));
+  okAll(reassign.map((l) => `재대입처럼 보인다: ${l.trim().slice(0, 70)}`),
+    'state 에 재대입하는 곳이 없다', 1);
+
+  /* ⑤ **굴려서 확인한다.** 위 넷은 전부 글자 검사다 — 글자가 맞아도 안 묶일 수 있다. */
+  try {
+    const ST = await import('../src/game/state.js');
+    const AM = await import('../src/game/ambient.js');
+    const GE = await import('../src/game/gear.js');
+    const SQ = await import('../src/game/squad.js');
+
+    ok(AM.ambientState() === ST.state, 'ambient 가 살아 있는 그 state 를 가리킨다',
+      AM.ambientState() == null ? 'null 이다 — 안 묶였다' : '다른 객체다');
+
+    /* 인자를 생략한 호출이 전역을 실제로 본다 */
+    const probe = { uid: 'smoke-amb-1', baseId: 'x', slot: 'weapon', name: '스모크검' };
+    ST.state.items.push(probe);
+    ok(GE.itemFinder()('smoke-amb-1') === probe, 'gear.itemFinder() 가 인자 없이 전역을 찾는다');
+    ST.state.items.pop();
+
+    /* 일지 — ambientLog 가 state.addLog 에 닿나 */
+    const n = ST.state.log.length;
+    AM.ambientLog('스모크 한 줄');
+    ok(ST.state.log.length === n + 1 && ST.state.log[0].text === '스모크 한 줄',
+      'ambientLog 가 전역 일지에 닿는다', `${n} → ${ST.state.log.length}`);
+    ST.state.log.shift();
+
+    /* 전력이 실제로 «값» 을 낸다. ★ 0 을 통과로 세면 안 된다 —
+     *   전에 0 대 0 을 비교해 놓고 통과라고 한 적이 있다. */
+    ST.newGame(20260827, '스모크단');
+    const sqId = ST.state.squads[0] && ST.state.squads[0].id;
+    const pw = sqId ? SQ.squadPower(ST.state, sqId) : 0;
+    ok(pw > 0, '끊은 뒤에도 부대 전력이 실제 값을 낸다 (0 은 통과가 아니다)', `전력 ${pw}`);
+    SQ.stampSquadPower(ST.state);
+    ok(ST.state.squads.every((q) => Number(q.power) > 0), 'stampSquadPower 가 값을 찍는다',
+      ST.state.squads.map((q) => q.power).join(', '));
+  } catch (e) {
+    ok(false, 'ambient 를 굴려 본다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 process.stdout.write('\n' + '─'.repeat(64) + '\n');

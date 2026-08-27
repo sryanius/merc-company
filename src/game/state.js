@@ -23,6 +23,7 @@ import {
 } from '../data/limits.js';
 // 순환 참조(state <-> quest, state <-> gear/merc/squad)를 안전하게 다루려고 네임스페이스로 받는다.
 // 최상위에서는 절대 호출하지 않는다.
+import { bindAmbient } from './ambient.js';
 import * as Merc from './merc.js';
 import * as Gear from './gear.js';
 import * as Quest from './quest.js';
@@ -1012,6 +1013,19 @@ export function addLog(text) {
   touch();
   return entry;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 「인자를 생략하면 전역」 을 gear·merc·squad 에 넘겨준다 — §108
+ *
+ * ★★ 예전엔 저쪽이 `import { state } from './state.js'` 로 **되물었다.**
+ *   쓰는 것은 이 편의 기본값 하나뿐인데, 그것 때문에 전력 계산의 닫힘이
+ *   **23개·774KB** (게임 전체) 였다. 방향을 한쪽으로만 두니 **14개·464KB** 다.
+ *   서버(§104)가 전력을 스스로 계산하려면 이게 필요했다.
+ *
+ * ★ 여기서 부르는 이유: `state` 와 `addLog` 가 **둘 다 정의된 뒤**여야 한다.
+ * ★ 스냅샷이어도 되는 이유는 ambient.js 머리말에 적었다 (state 는 재대입이 없다).
+ * ════════════════════════════════════════════════════════════════════════════ */
+bindAmbient({ state, addLog });
 
 export function addGold(n) {
   state.gold = Math.max(0, Math.round(state.gold + (n || 0)));

@@ -9,7 +9,7 @@
 // 날짜는 플레이어가 도시 화면에서 직접 넘기고, 그때 원정 나간 부대가 복귀한다.
 // 덕분에 같은 날 다른 부대를 다른 의뢰에 보낼 수 있고, 부대를 여러 개 두는 이유가 생긴다.
 //
-// 주의: state.js 와 순환 import 관계다. `globalState` 는 함수 안에서만 읽는다.
+// 주의: 예전엔 state.js 를 되물었다 (순환). 지금은 ambient.js 한 칸만 본다 — §108.
 import { clamp, num, scaleStats } from '../core/util.js';
 import { uid } from '../core/rng.js';
 import { getClass } from '../data/classes.js';
@@ -19,7 +19,7 @@ import { josa } from './gear.js';
 // 세트 고유 효과 조회용. **네임스페이스로 받는다** — `setSpecialsFor` 는 gear.js 쪽에서 나중에
 // 붙는 함수라, 이름을 콕 집어 import 하면 아직 없을 때 모듈 링크 단계에서 통째로 터진다.
 import * as Gear from './gear.js';
-import { state as globalState, addLog } from './state.js';
+import { ambientState, ambientLog } from './ambient.js';
 import { PETS_PER_SQUAD } from '../data/pets.js';
 
 /** 부대 정원 */
@@ -47,9 +47,9 @@ const DEFAULT_SLOTS = [
 
 /* ─────────────────────────── 내부 헬퍼 ─────────────────────────── */
 
-function gs() { try { return globalState; } catch { return null; } }
+function gs() { return ambientState(); }
 /** 순환 import 로 state.js 가 아직 준비 전일 수 있으니 로그는 감싸서 남긴다 */
-function log(text) { try { if (typeof addLog === 'function') addLog(text); } catch { /* noop */ } }
+function log(text) { ambientLog(text); }
 function isState(s) { return !!(s && (Array.isArray(s.squads) || Array.isArray(s.roster) || Array.isArray(s.items))); }
 function useState(s) { return isState(s) ? s : gs(); }
 /** 첫 인자가 state가 아닌 "값"이면 state를 생략한 호출로 보고 인자를 한 칸 민다 */

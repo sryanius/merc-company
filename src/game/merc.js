@@ -2,7 +2,7 @@
 // 순수 JS: 모듈 최상위에서 document·window·canvas를 만지지 않는다 (node import 가능).
 import { MAX_LEVEL as LIMIT_MAX_LEVEL } from '../data/limits.js';
 //
-// 주의: state.js 와는 순환 import 관계다. `globalState` 는 반드시 함수 "안"에서만 읽는다.
+// 주의: 예전엔 state.js 를 되물었다 (순환). 지금은 ambient.js 한 칸만 본다 — §108.
 import { clamp, clone, lerp } from '../core/util.js';
 import { rng as defaultRng, uid } from '../core/rng.js';
 import { ARCHETYPES, CLASSES, getClass, promoteOptions } from '../data/classes.js';
@@ -12,7 +12,7 @@ import {
   SLOTS, setBonusStats, setBonusFromWorn, setProgress, normalizeEquipment,
   isTwoHandedType, isTwoHandedItem, equippableSlotCount, josa,
 } from './gear.js';
-import { state as globalState } from './state.js';
+import { ambientState } from './ambient.js';
 
 /* ─────────────────────────── 상수 (SPEC §2.1 / §2.4) ─────────────────────────── */
 
@@ -296,8 +296,8 @@ function klass(id) {
   return (CLASSES && CLASSES[id]) || null;
 }
 
-/** 순환 import 중이면 state가 아직 초기화 전일 수 있다 (TDZ) — 안전하게 읽는다 */
-function gs() { try { return globalState; } catch { return null; } }
+/** 「인자를 생략하면 전역」 — 안 묶였으면 null (예전 TDZ 때와 같은 값) */
+function gs() { return ambientState(); }
 
 const _itemIndex = new WeakMap();
 function indexItems(arr) {
