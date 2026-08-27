@@ -103,6 +103,28 @@ export function extractScore(st) {
       const hd = Number(m && m.hiredDay) || 0;
       return a + (hd > 1 && hd <= (Number(st.day) || 0) ? 1 : 0);
     }, 0),
+    /* ★★★ **S 를 «언제 얻었는가» 로 소급해서 센다** (§118).
+     *
+     *   `sMercs` 상한은 «오늘» 기준이라, 일차가 커지면 상한도 같이 커진다.
+     *   그래서 **1일차에 S 4명을 만들어 넣고 274일차까지 굴리면 통과한다** —
+     *   실제로 그 계정이 08-26 에 「S 용병 4명 · 1일차 상한 2」로 걸렸다가,
+     *   일차를 키우자 상한이 17 이 되어 조용히 통과했다.
+     *
+     *   ★ 그런데 **증거는 세이브에 그대로 남아 있다.** 시작 단원 4명은 `hiredDay = 1` 이고
+     *     등급이 C·C·D·D 로 **고정**이므로, 1일차 S 는 «그날 고용했다» 는 뜻이다.
+     *   ⇒ 고용 시점을 오름차순으로 놓고 «그 시점의 상한» 을 하나씩 물으면 그때 걸린다.
+     *
+     *   ★ 오늘 이후·없는 값은 **오늘로 본다** (플레이어에게 유리한 쪽).
+     *     `hiredDay` 를 지워서 피하려 하면 위 `hiredN` 이 줄어
+     *     `sMercs > hiredN + START_ROSTER` 가 대신 문다 (A등급 거절). */
+    sHiredDays: roster
+      .filter((m) => m && m.grade === 'S')
+      .map((m) => {
+        const hd = Math.round(Number(m.hiredDay) || 0);
+        const day = Math.max(1, Math.round(Number(st.day) || 1));
+        return hd >= 1 && hd <= day ? hd : day;
+      })
+      .sort((a, b) => a - b),
     topPower: Math.round(Math.max(0, ...(Array.isArray(st.squads) ? st.squads : [])
       .map((sq) => Number(sq && sq.power) || 0), 0)),
     squad: topSquadOf(st),
@@ -611,6 +633,38 @@ function absoluteOddities(s) {
   const fromHires = Math.ceil(specPossible * S_CHANCE_MAX * S_LUCK_SLACK);
   const sCap = Math.max(2, Math.ceil(s.day * 0.06), fromHires);
   if (s.sMercs > sCap) bad.push(`S 용병 ${s.sMercs}명 · ${s.day}일차 상한 ${sCap}`);
+
+  /* ★★★ 같은 상한을 **고용 시점으로 소급해서** 묻는다 (§118).
+   *
+   *   위 상한은 «오늘» 기준이라 일차가 커지면 같이 커진다. 그래서
+   *   **1일차에 S 4명을 만들어 넣고 일차만 키우면 통과한다** —
+   *   실제로 그 계정이 「S 용병 4명 · 1일차 상한 2」로 걸렸다가,
+   *   274일차가 되자 상한이 17 이 되어 조용히 통과했다.
+   *
+   *   그런데 **증거는 세이브에 그대로 남아 있다** — 시작 단원은 C·C·D·D 고정이므로
+   *   `hiredDay = 1` 인 S 는 «그날 고용했다» 는 뜻이다.
+   *   고용 시점을 오름차순으로 놓고 «그 시점의 상한» 을 하나씩 물으면 그때 걸린다.
+   *
+   * ★ `specSeen` 은 **총량**을 그대로 쓴다 — 그 시점까지의 고용 횟수는 모른다.
+   *   즉 «지금까지 한 고용을 전부 그날 이전에 했다» 고 봐 주는 것이라 **플레이어에게 유리**하다.
+   *
+   * ★★ 실측 (실제 세이브 9개): 정상 계정의 여유는 −5 ~ −79 였고,
+   *   치트 계정 둘만 +2 로 걸렸다. 가장 빠듯한 정상 계정도 −5 다.
+   *
+   * ★ 표시(C)다, 거절이 아니다 — 옛 세이브의 `hiredDay` 가 이상할 여지를 남긴다. */
+  const sDays = Array.isArray(s.sHiredDays) ? s.sHiredDays : null;
+  if (sDays && sDays.length) {
+    for (let i = 0; i < sDays.length; i++) {
+      const d = Math.max(1, Math.round(Number(sDays[i]) || 1));
+      if (d >= s.day) break;                       // 오늘 시점은 위에서 이미 봤다
+      const capThen = Math.max(2, Math.ceil(d * 0.06),
+        Math.ceil(Math.min(specSeen, d * SPEC_HIRES_PER_DAY) * S_CHANCE_MAX * S_LUCK_SLACK));
+      if (i + 1 > capThen) {
+        bad.push(`${d}일차까지 S 용병 ${i + 1}명 · 그 시점 상한 ${capThen}`);
+        break;                                     // 가장 이른 위반 하나만 적는다
+      }
+    }
+  }
 
   /* ★★ 부대 전력이 **게임이 만들 수 있는 값**인가.
    *

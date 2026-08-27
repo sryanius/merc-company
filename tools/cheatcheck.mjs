@@ -293,6 +293,32 @@ console.log(NLC + '── 7. 총량 불변식 (실제 조작 기록 + 오탐 검
       battlesWon: 400, battlesLost: 40, topLevel: 76, rosterN: 30, rosterCap: 40, squadsN: 4,
       sMercs: 12, hires: 140, specHires: 120, hiredN: 26, topPower: 68000,
       towerBest: 430, towerBestDay: 197, abyssBest: 100, gold: 500000, renown: 5000 })],
+
+    /* ★★★ §118 — **S 를 «언제 얻었는가» 로 소급해서 센다.**
+     *
+     *   실제로 일어난 일: 그 계정이 08-26 에 「S 용병 4명 · 1일차 상한 2」로 걸렸다가,
+     *   같은 명부에 **일차만 274 로 키우자** 상한이 17 이 되어 조용히 통과했다.
+     *   상한이 «오늘» 기준이라 시간이 지나면 저절로 헐거워지는 구조였다.
+     *
+     *   시작 단원 4명은 `hiredDay = 1` 이고 등급이 C·C·D·D 로 **고정**이므로,
+     *   1일차 S 는 «그날 고용» 이다 — 그 시점의 상한(2)으로 물으면 그때 걸린다. */
+    [true, '1일차에 S 4명 · 일차만 274 로 키움', S0({ day: 274, questsDone: 76,
+      battlesWon: 300, battlesLost: 20, topLevel: 80, rosterN: 9, rosterCap: 70, squadsN: 1,
+      sMercs: 9, hires: 93, specHires: 93, hiredN: 8, topPower: 86000,
+      abyssBest: 54, abyssBestDay: 260, abyssLastRunDay: 260,
+      towerBest: 224, towerBestDay: 250, towerLastRunDay: 250,
+      gold: 1069929, renown: 3000,
+      sHiredDays: [1, 1, 1, 1, 30, 35, 40, 173, 228] })],
+
+    /* ★ 반대쪽 — **오래 한 사람은 S 가 많아도 안 걸려야 한다.**
+     *   실계정 모양 그대로다 (3055일차 · S 48명 · 명물 고용 391회). */
+    [false, '3055일차 S 48명 (고용 시점이 고르게 퍼져 있다)', S0({ day: 3055, questsDone: 1145,
+      battlesWon: 2600, battlesLost: 200, topLevel: 80, rosterN: 48, rosterCap: 70, squadsN: 5,
+      sMercs: 48, hires: 391, specHires: 391, hiredN: 48, topPower: 174034,
+      abyssBest: 95, abyssBestDay: 3000, abyssLastRunDay: 3000,
+      towerBest: 500, towerBestDay: 2900, towerLastRunDay: 2900,
+      gold: 8291589, renown: 40000,
+      sHiredDays: Array.from({ length: 48 }, (_, i) => 673 + i * 45) })],
   ];
   for (const [shouldCatch, name, sc] of CASES) {
     const v = judge(null, sc);

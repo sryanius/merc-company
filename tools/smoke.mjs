@@ -7752,6 +7752,68 @@ section('시드를 갈아타도 표식이 안 씻긴다');
     '이 조건을 빼면 새 판이 전부 «기록이 줄었다» 로 거절된다');
 }
 
+section('S 용병을 고용 시점으로 소급해서 센다');
+{
+  /* ★★★ §118. 제작자 지적: 「모두 S용병인것부터 그럴듯하지 않아」
+   *   「딱 한부대만 등록되어있고 모두 S잖아」
+   *
+   *   `sMercs` 상한은 «오늘» 기준이라 **일차가 커지면 상한도 같이 커진다.**
+   *   그래서 1일차에 S 4명을 만들어 넣고 일차만 키우면 통과한다 — 실제로 그랬다:
+   *     08-26  「S 용병 4명 · 1일차 상한 2」로 걸림
+   *     08-27  같은 명부에 일차가 274 가 되자 상한이 17 → **조용히 통과**
+   *
+   *   ★ 그런데 증거는 세이브에 그대로 남아 있다. 시작 단원 4명은 `hiredDay = 1` 이고
+   *     등급이 **C·C·D·D 로 고정**이다 (state.js newGame). 즉 1일차 S 는 «그날 고용» 이다.
+   *   ⇒ 고용 시점을 오름차순으로 놓고 «그 시점의 상한» 을 물으면 그때 걸린다.
+   *
+   * ★★ 실측 (실제 세이브 9개): 치트 둘만 걸리고, 정상 계정의 여유는 −5 ~ −79 였다.
+   *   3055일차 S 48명도 통과한다. */
+  const RL4 = need('game/rules.js');
+  if (RL4) {
+    const mkSt = (day, sGrades, specHires) => ({
+      seed: 1, dataVersion: 9, companyName: 'x', day,
+      gold: 0, renown: 0, cityId: null, rosterCap: 70,
+      stats: { questsDone: 0, battlesWon: 99999, battlesLost: 0, hires: specHires, specHires },
+      roster: sGrades.map((hd, i) => ({ uid: 'm' + i, grade: 'S', hiredDay: hd, level: 1 })),
+      items: [], squads: [], pets: [],
+      abyss: { best: 0, bestDay: 0, lastRunDay: 0 }, tower: { best: 0, bestDay: 0, lastRunDay: 0 },
+    });
+    const tier4 = (day, hiredDays, specHires) => {
+      const sc = RL4.extractScore(mkSt(day, hiredDays, specHires));
+      sc.battlesWon = 99999; sc.questsDone = 0; sc.topPower = 0; sc.topLevel = 1;
+      return RL4.judge(null, sc).tier || 'ok';
+    };
+
+    /* extractScore 가 고용 시점을 실제로 뽑는가 — 이게 없으면 아래가 전부 죽은 검사다 */
+    const sc0 = RL4.extractScore(mkSt(100, [1, 1, 30, 60], 200));
+    ok(Array.isArray(sc0.sHiredDays) && sc0.sHiredDays.length === 4,
+      'extractScore 가 S 의 고용 시점을 뽑는다', JSON.stringify(sc0.sHiredDays));
+    ok(JSON.stringify(sc0.sHiredDays) === JSON.stringify([1, 1, 30, 60]),
+      'S 의 고용 시점이 오름차순으로 나온다', JSON.stringify(sc0.sHiredDays));
+
+    const CASES = [
+      /* ── 잡아야 하는 것: 1일차에 S 를 여러 명 만들어 넣고 일차만 키운 것 ── */
+      ['1일차 S 4명 · 일차 274 (실제로 통과했던 모양)', () => tier4(274, [1, 1, 1, 1, 30, 35, 40, 173, 228], 93), 'C'],
+      ['1일차 S 4명 · 일차 127', () => tier4(127, [1, 1, 1, 1, 30, 35, 40], 150), 'C'],
+      ['1일차 S 3명', () => tier4(500, [1, 1, 1], 3000), 'C'],
+      /* ── 통과해야 하는 것 ── */
+      ['1일차 S 2명 (시작 골드로 가능한 만큼)', () => tier4(500, [1, 1], 3000), 'ok'],
+      ['3055일차 S 48명 (실계정 모양)', () => tier4(3055, Array.from({ length: 48 }, (_, i) => 673 + i * 45), 391), 'ok'],
+      ['2129일차 S 38명 (실계정 모양)', () => tier4(2129, Array.from({ length: 38 }, (_, i) => 96 + i * 50), 503), 'ok'],
+      ['S 가 없다', () => tier4(300, [], 100), 'ok'],
+      /* ★ 고용 시점이 없거나 미래면 **오늘로 본다** — 옛 세이브를 안 때린다 */
+      ['고용 시점이 미래여도 안 걸린다', () => tier4(300, [9999, 9999], 100), 'ok'],
+    ];
+    const wrong = [];
+    for (const [label, run, want] of CASES) {
+      let got = '(터짐)';
+      try { got = run(); } catch (e) { got = `ERR ${(e && e.message) || e}`; }
+      if (got !== want) wrong.push(`${label} — ${want} 여야 하는데 ${got}`);
+    }
+    okAll(wrong, '소급 상한이 옛 조작만 잡고 정상은 안 잡는다', CASES.length);
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
