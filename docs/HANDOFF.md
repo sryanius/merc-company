@@ -8945,3 +8945,26 @@ battlesWon · rosterCap · itemsN · petsN · hires · hiredN   → ×100000 까
 - 명성 상한이 의뢰 상한을 **따라가는가**
 
 메타: 옛 상한으로 되돌리면 3건, `day × 2` 로 과하게 조이면 2건 물었다.
+
+
+## 121.1 `statbound.js` 의 사본은 **그대로 둔다** (재고 내린 결정)
+
+§113 무렵부터 「§108 로 `merc.js` 를 서버로 옮길 수 있게 됐으니
+`statbound.js` 의 손으로 베낀 상수 8개를 없앨 수 있다」 를 곁가지로 적어 뒀다. 재 봤다.
+
+★ 먼저 **ENGINE_HASH 가 무엇인지** 확인했다 — `src/data/enginever.js` 는
+  **파일 8개의 «내용»** 을 접은 값이다 (`ai·engine·rng·util·classes·classes_t4·formations·skills`).
+  ⇒ **묶음에 파일을 더하는 것은 안전하다.** 그 8개를 편집하는 것만 위험하다.
+  (이건 앞으로도 계속 쓸 사실이라 적어 둔다.)
+
+★ 그래서 기술적으로는 가능하다. 그런데 `statbound.js` 는 `pvp-battle` 함수에 있고
+  `merc.js` 는 `submit-score/_power` 에 있다 — 없애려면 **`pvp-battle` 에도 같은 18개를
+  또 복사**해야 한다. 세 번째 사본이다.
+
+★★ 그리고 **드리프트 위험이 이미 0 이다.** `tools/smoke.mjs` 의 「PvP 스탯 상한 검사」 절이
+  상수 6개(`GRADE_MULT`·`GRADE_IDX`·`TIER_MULT`·`SCALING_KEYS`·`FLAT_KEYS`·`GROWTH_RATE`)를
+  하나씩 대조하고, `bareStats` 계산까지 merc.js 와 맞대 본다.
+
+⇒ **사본 하나를 없애려고 파일 18개를 더 만드는 거래는 손해다.** 그대로 둔다.
+  옛 주석이 「merc.js 는 서버로 못 옮긴다」 라고 (지금은 거짓인) 이유를 적고 있어서
+  그것만 바로잡았다.

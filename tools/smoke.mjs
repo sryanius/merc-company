@@ -2673,9 +2673,17 @@ section('PvP 스탯 상한 검사 (위조 1차 방어선)');
   if (B && Merc && Gear && CL3 && SETS3) {
     const faults = [];
 
-    /* ① 상수 중복이 merc.js 와 같은가 —
-     *   statbound.js 는 merc.js 의 상수를 옮겨 적었다 (merc.js 는 state.js 를 물어 서버로 못 옮긴다).
-     *   어긋나면 **정상 유닛이 걸린다.** 값을 하나씩 대조한다. */
+    /* ① 상수 중복이 merc.js 와 같은가 — 어긋나면 **정상 유닛이 걸린다.**
+     *
+     * ★ 옛 주석은 「merc.js 는 state.js 를 물어 서버로 못 옮긴다」 였다.
+     *   **§108 에서 그 전제가 깨졌다** — 지금 merc.js 는 `_power` 묶음에 들어 있다.
+     *
+     * ★★ 그런데도 사본을 **그대로 둔다.** 없애려면 `pvp-battle` 에도 같은 18개 묶음을
+     *   또 복사해야 하는데(세 번째 사본), 지금 이 검사가 상수 6개 + `bareStats` 계산까지
+     *   전부 대조하고 있어서 **드리프트 위험이 이미 0 이다.**
+     *   ⇒ 사본 하나를 없애려고 파일 18개를 더 만드는 거래는 손해다.
+     *   (이 판단이 바뀌면 `tools/syncshared.mjs` 에 묶음을 하나 더 넣으면 된다.
+     *    ENGINE_HASH 는 «파일 8개의 내용» 이라 묶음을 늘려도 안 바뀐다 — 확인했다.) */
     const pairs = [
       ['GRADE_MULT', B.GRADE_MULT, Merc.GRADE_MULT],
       ['GRADE_IDX', B.GRADE_IDX, Merc.GRADE_IDX],
