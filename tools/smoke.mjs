@@ -7442,6 +7442,44 @@ section('세이브가 run_* 표를 왕복해도 아무것도 안 잃는다');
     const leaked = ['abyssRest', 'towerRest', 'statsRest'].filter((k) => k in back);
     okAll(leaked.map((k) => `${k} 가 세이브 최상위로 새어 나왔다`),
       '표 안에서만 쓰는 보조 칸이 안 새어 나온다', 3);
+
+    /* ★★ «data 가 컬럼을 이긴다» 구멍 — 왕복 검사로는 **구조적으로 못 잡는다.**
+     *
+     *   왕복은 toRows→fromRows 라 `data` 에 승격 컬럼과 같은 이름이 들어갈 일이 없다
+     *   (toRows 가 `rest(x, COLS)` 로 빼고 담기 때문이다). 그런데 이관은 **클라가 보낸
+     *   행을 그대로** 받는다 — `data` 에 아무 키나 실을 수 있다.
+     *
+     *   db/016_run_import.sql 은 **컬럼만** 자른다 (level ≤ 80 :129 · rarity ≤ 5 :146 ·
+     *   ilvl ≤ 80 :147). `data` jsonb 는 검사 없이 통째로 들어간다(:126·152).
+     *   ⇒ fromRows 가 `data` 를 **나중에** 펴면 그 클램프가 통째로 무의미해진다.
+     *   실측으로 6/6 뚫렸다 — 용병 level·grade, 아이템 rarity·ilvl, 펫 grade.
+     *
+     *   그래서 «행을 손으로 지어서» 묻는다. 이게 이 검사의 값어치다. */
+    const forged = RR.fromRows({
+      state: { seed: 1, day: 10, gold: 0, renown: 0, city_id: 'greenhold', roster_cap: 20, data: {} },
+      mercs: [{ uid: 'm1', class_id: 'archer', grade: 'C', level: 80, hired_day: 3,
+        data: { level: 999, grade: 'S', nickname: '살아야 한다' } }],
+      items: [{ uid: 'i1', base_id: 'sword_1', slot: 'weapon', rarity: 5, ilvl: 80, set_id: null,
+        data: { rarity: 99, ilvl: 9999, stats: { atk: 12 } } }],
+      pets: [{ uid: 'p1', sid: 'wolf', grade: 'C', data: { grade: 'S' } }],
+      squads: [], quests: [],
+    });
+    const fm = forged.roster[0];
+    const fi = forged.items[0];
+    const fp = (forged.pets || [])[0] || {};
+    const pierced = [];
+    if (fm.level !== 80) pierced.push(`용병 level 이 data 로 덮였다: 컬럼 80 → ${fm.level}`);
+    if (fm.grade !== 'C') pierced.push(`용병 grade 가 data 로 덮였다: 컬럼 C → ${fm.grade}`);
+    if (fi.rarity !== 5) pierced.push(`아이템 rarity 가 data 로 덮였다: 컬럼 5 → ${fi.rarity}`);
+    if (fi.ilvl !== 80) pierced.push(`아이템 ilvl 이 data 로 덮였다: 컬럼 80 → ${fi.ilvl}`);
+    if (fp.grade !== 'C') pierced.push(`펫 grade 가 data 로 덮였다: 컬럼 C → ${fp.grade}`);
+    okAll(pierced, 'data jsonb 로 컬럼 클램프를 우회할 수 없다', 5);
+
+    /* ★ 그리고 **과잉수정 감시** — 컬럼이 아닌 진짜 data 는 살아야 한다.
+     *   (이 줄이 없으면 「data 를 통째로 버린다」 는 오답도 위 검사를 통과한다.) */
+    ok(fm.nickname === '살아야 한다' && fi.stats && fi.stats.atk === 12,
+      '컬럼이 아닌 data 키는 그대로 살아 온다',
+      `nickname=${fm.nickname} · stats.atk=${fi.stats && fi.stats.atk}`);
   } catch (e) {
     ok(false, '왕복 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }

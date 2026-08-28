@@ -184,7 +184,14 @@ export function fromRows(rows) {
   const r = rows || {};
   const S = r.state || {};
 
+  /* ★★ `data` 를 **먼저** 편다 — 아래 컬럼들이 이겨야 한다.
+   *
+   *   db/016_run_import.sql 은 **컬럼만** 자른다 (level ≤ 80 · rarity ≤ 5 · ilvl ≤ 80).
+   *   `data` jsonb 는 검사 없이 통째로 들어간다. 그래서 `data` 를 **나중에** 펴면
+   *   `{level:999, grade:'S'}` 한 줄로 그 클램프가 통째로 무의미해진다 — 실측으로 6/6 뚫렸다.
+   *   state 쪽(아래)은 처음부터 이 순서였다. 이제 넷이 같은 계약이다. */
   const items = (r.items || []).map((x) => ({
+    ...(x.data || {}),
     uid: x.uid,
     baseId: x.base_id,
     slot: x.slot,
@@ -194,7 +201,6 @@ export function fromRows(rows) {
      *   **키로 갖고 있다.** 바꿔 놓으면 왕복할 때마다 키 하나가 사라진다 (왕복 검사가 잡았다). */
     setId: x.set_id,
     ...(x.locked ? { locked: true } : {}),
-    ...(x.data || {}),
   }));
 
   /* 착용을 되세운다: 아이템 쪽 기록 → merc.equipment */
@@ -205,13 +211,14 @@ export function fromRows(rows) {
     equipOf.get(x.equipped_by)[x.equipped_slot] = x.uid;
   }
 
+  /* ★★ `data` 를 먼저 편다 — 위 items 와 같은 이유다 (컬럼이 이겨야 한다). */
   const roster = (r.mercs || []).map((x) => ({
+    ...(x.data || {}),
     uid: x.uid,
     classId: x.class_id,
     grade: x.grade,
     level: x.level,
     hiredDay: x.hired_day,
-    ...(x.data || {}),
     equipment: equipOf.get(x.uid) || {},
   }));
 
@@ -250,7 +257,8 @@ export function fromRows(rows) {
     companyName: S.company_name == null ? undefined : S.company_name,
     flagSquadId: S.flag_squad_id == null ? null : S.flag_squad_id,
     roster, items, squads,
-    pets: (r.pets || []).map((p) => ({ uid: p.uid, sid: p.sid, grade: p.grade, ...(p.data || {}) })),
+    /* ★★ `data` 먼저 — 컬럼이 이긴다 (위 items·roster 와 같은 계약). */
+    pets: (r.pets || []).map((p) => ({ ...(p.data || {}), uid: p.uid, sid: p.sid, grade: p.grade })),
     /* ★ 편 컬럼 + `data` 에 남겨 둔 나머지 하위 키를 합친다 (toRows 의 짝) */
     stats: {
       ...((S.data || {}).statsRest || {}),
