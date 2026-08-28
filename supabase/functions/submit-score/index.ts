@@ -484,6 +484,59 @@ function sanitizeSquad(raw: unknown) {
         sMercs: { 서버: srvS, 클라: cliS, 차: srvS - cliS },
         명부: (st.roster || []).length,
       });
+
+      /* ═══════════ 나락·탑을 **다시 돌린다** (§104 2단계) ═══════════════════
+       *
+       * ★★ **«다르면 거절» 로 짜면 안 된다.** 후퇴(ui/battle.js)가 전투 중간에
+       *   `{...b.result, winner:'enemy'}` 를 합성한다 — `finish()` 를 안 지나므로
+       *   서버가 같은 시드로 다시 돌리면 **그 판을 이겼을 수 있다.**
+       *   ⇒ 서버 값은 **상한**이다. 클라 신고가 그 아래면 그대로 둔다.
+       *
+       * ★ 실측(랴니, 부대 5개): 나락 서버 상한 **95** vs 클라 **92** — 아래다. ✓
+       *   ★★ 탑은 서버도 클라도 **500 = TOWER_FLOORS 천장**이라 **아무것도 증명 못 한다.**
+       *     천장에 닿은 계정에서는 이 축이 신호가 아니다. 그 아래 계정에서만 쓸모가 있다.
+       *
+       * ★★ **부대 하나만 돌리면 틀린다.** 전력이 깊이를 예측하지 않는다 —
+       *   실측: 제1부대(전력 166,274) 나락 76, 제2부대(161,199) **95**. 편성이 정한다.
+       *   ⇒ 전부 돌리되 **시간 예산**으로 자른다 (실측 부대당 55~574ms).
+       *
+       * ★ 이 값은 아직 **판정에 안 쓴다.** 로그로만 본다 (그림자 모드의 계약). */
+      try {
+        const [{ verifyAbyss, verifyTower }, { squadUnitDefs }] = await Promise.all([
+          import('./_power/runverify.js'),
+          import('./_power/squad.js'),
+        ]);
+        const BUDGET_MS = 2500;                 // ★ 응답을 늦추지 않도록 예산으로 자른다
+        const t0 = Date.now();
+        let bestAbyss = 0;
+        let bestTower = 0;
+        let ran = 0;
+        for (const q of st.squads || []) {
+          if (Date.now() - t0 > BUDGET_MS) break;
+          const allies = squadUnitDefs(st, q.id) || [];
+          if (!allies.length) continue;
+          ran++;
+          try {
+            const a = verifyAbyss({ allies, seed: st.seed, day: st.day, squadId: q.id, allyFormationId: q.formationId });
+            if ((a?.reached || 0) > bestAbyss) bestAbyss = a.reached;
+          } catch (e) { console.error('[그림자] verifyAbyss 실패', q.id, String((e as Error)?.message || e)); }
+          if (Date.now() - t0 > BUDGET_MS) break;
+          try {
+            const w = verifyTower({ allies, seed: st.seed, day: st.day, squadId: q.id, allyFormationId: q.formationId });
+            if ((w?.reached || 0) > bestTower) bestTower = w.reached;
+          } catch (e) { console.error('[그림자] verifyTower 실패', q.id, String((e as Error)?.message || e)); }
+        }
+        console.error('[그림자] 나락·탑 상한 vs 클라 신고', {
+          userId,
+          나락: { 상한: bestAbyss, 클라: score.abyssBest, 넘었나: Number(score.abyssBest) > bestAbyss },
+          탑: { 상한: bestTower, 클라: score.towerBest, 넘었나: Number(score.towerBest) > bestTower },
+          부대: `${ran}/${(st.squads || []).length}`,
+          걸린시간: Date.now() - t0,
+        });
+      } catch (e) {
+        console.error('[그림자] 나락·탑 재현 실패 — 판정과 응답에는 영향이 없다',
+          String((e as Error)?.message || e));
+      }
     }
   } catch (e) {
     /* ★ 여기서 죽어도 오늘 경로에는 아무 영향이 없어야 한다 — 이게 그림자 모드의 계약이다. */

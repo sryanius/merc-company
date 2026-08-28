@@ -4963,7 +4963,7 @@ section('서버 공유 규칙');
       '진 판에서도 살아남는 단원이 있다 (부분 패)', `${loserSurvived}/${losses}`);
   }
 
-  /* ★★★ **이 검사는 죽어 있었다.** 커밋된 정규식이 `/[.]margin/` 였다 —
+  /* ★★★ **이 검사는 죽어 있었다.** 커밋된 정규식이 `/[.]margin/`  (← 마지막 글자가 눈에 안 보이는 0x08 이었다) 였다 —
    *   `margin` 뒤에 보이지 않는 **백스페이스(0x08)** 를 요구해서 아무것도 안 물었다.
    *   그 사이 `src/game/quest.js:1174` 가 `res.margin` 을 **읽기 시작했다**
    *   (패배 경험치의 진행도 계산). §25 의 「읽는 곳이 하나도 없다」 는 이제 거짓이다.
@@ -7215,14 +7215,28 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
    *   ⇒ 이제 **syncshared 가 쓰는 그 entry 를 그대로 읽어** 진짜 묶음을 잰다. */
   const POWER_BUNDLE = BUNDLES.find((b) => b.name === '전력 계산');
   const POWER_CLOSURE = closureOf(POWER_BUNDLE.entry, []);
-  const HEAVY = ['src/game/state.js', 'src/game/quest.js', 'src/data/world.js',
-    'src/data/enemies.js', 'src/data/abyss.js', 'src/data/tower.js', 'src/game/enemygen.js'];
+  /* ★★ 「무거운 것」 목록은 **뜻이 바뀌었다.** 예전엔 `enemies·abyss·tower·enemygen` 도
+   *   여기 있었는데, §104 2단계가 `runverify.js` 를 넣으면서 **일부러** 들어왔다 —
+   *   서버가 나락·탑을 다시 돌리려면 적 생성표가 있어야 한다.
+   *
+   *   ⇒ 목록에 남는 것은 «들어오면 전환이 무의미해지는 것» 셋이다:
+   *     `state.js` — 게임 전체가 딸려 온다 (§108 이 끊은 그 되물기)
+   *     `quest.js` — `state.js` 를 되물어서 결국 같은 결과다 (§104 조각 A 실측)
+   *     `world.js` — 도시 표. 전력·검증 어디에도 필요 없다 (들어오면 뭔가 잘못 물린 것) */
+  const HEAVY = ['src/game/state.js', 'src/game/quest.js', 'src/data/world.js'];
   const dragged = HEAVY.filter((h) => POWER_CLOSURE.includes(h));
   okAll(dragged.map((h) => `${h} 가 끌려온다`), '무거운 것들이 전력 닫힘에 안 들어온다', HEAVY.length);
 
-  /* ★ 20개는 «지금 18개» 에 둔 선이다. 늘리기 전에 무엇이 늘었는지 봐라 —
-   *   서버 묶음으로 실제로 가는 목록이다. 천장을 올릴 땐 이 숫자와 근거를 같이 고쳐라. */
-  ok(POWER_CLOSURE.length <= 20, '전력 닫힘이 가벼운 채로 남아 있다',
+  /* ★ 「일부러 들여온 것」 은 **있는지도 확인한다** — 없으면 이 천장이 헐거워진 것이다. */
+  const WANTED = ['src/game/runverify.js', 'src/battle/engine.js', 'src/data/abyss.js', 'src/data/tower.js'];
+  okAll(WANTED.filter((w) => !POWER_CLOSURE.includes(w))
+    .map((w) => `${w} 가 없다 — 서버가 나락·탑을 다시 못 돌린다`),
+    '나락·탑 재현에 필요한 것이 들어 있다', WANTED.length);
+
+  /* ★ 28개는 «지금 26개» 에 둔 선이다 (§104 2단계 전에는 18개·천장 20 이었다).
+   *   늘리기 전에 무엇이 늘었는지 봐라 — 서버 묶음으로 실제로 가는 목록이다.
+   *   천장을 올릴 땐 이 숫자와 **근거를 같이** 고쳐라. */
+  ok(POWER_CLOSURE.length <= 28, '전력 닫힘이 가벼운 채로 남아 있다',
     `${POWER_CLOSURE.length}개: ${POWER_CLOSURE.join(', ')}`);
 
   /* ★★ 세 묶음을 **전부** 잰다 — syncshared 와 같은 걷기, 같은 정의.
@@ -7722,6 +7736,19 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
   /* ⑤ try/catch 로 감싸야 한다 — 죽어도 오늘 경로가 그대로여야 한다 */
   ok(/try \{/.test(shadow) && /\} catch/.test(shadow), '그림자 블록이 try/catch 안에 있다',
     '안 감싸면 읽기 실패 한 번이 제출을 통째로 500 으로 만든다');
+
+  /* ⑦ ★★ 나락·탑 재현 (§104 2단계) — **상한이지 정답이 아니다.**
+   *   후퇴가 전투 중간에 결과를 합성하므로(finish() 를 안 지난다) 서버가 같은 시드로
+   *   다시 돌리면 그 판을 이겼을 수 있다. ⇒ «다르면 거절» 로 짜면 정상 플레이어를 문다. */
+  ok(/verifyAbyss/.test(shadowCode) && /verifyTower/.test(shadowCode),
+    '서버가 나락·탑을 다시 돌린다', '안 돌리면 그 두 축은 여전히 자기 신고다');
+  ok(/넘었나/.test(shadow), '결과를 «넘었나» 로만 적는다 (상한)',
+    '「같다/다르다」 로 적으면 다음 사람이 거절 규칙으로 바꾼다');
+  ok(/BUDGET_MS/.test(shadowCode), '시간 예산으로 자른다',
+    '부대가 많으면 응답이 그만큼 늦어진다 (실측 부대당 55~574ms)');
+  /* ★★ 부대 하나만 돌리면 틀린다 — 전력이 깊이를 예측하지 않는다 (실측 166,274→76 vs 161,199→95) */
+  ok(/for \(const q of st\.squads/.test(shadowCode), '부대를 전부 돌린다 (예산 안에서)',
+    '가장 센 부대만 돌리면 틀린다 — 전력이 깊이를 예측하지 않는다');
 
   /* ⑥ ★ 응답에 안 실린다 — 사유를 클라에 안 준다는 §55 의 결정과 같은 선이다 */
   const retIdx = iSrc.indexOf('return json({ ok: true, abyssBest');

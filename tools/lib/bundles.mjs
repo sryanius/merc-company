@@ -84,7 +84,17 @@ export const BUNDLES = [
       'src/game/runrows.js',
       /* ★ 주점 생성기 (§120) — 서버가 「이 후보가 실제로 그 주점에 있었나」 를 물으려면 필요하다.
        *   city 를 인자로 받아서 닫힘이 이 파일 하나만 늘어난다. */
-      'src/game/tavern.js'],
+      'src/game/tavern.js',
+      /* ★★ 나락·탑 재현 (§104 2단계). 여기서 닫힘이 **18 → 26개**(401→569KB)로 뛴다 —
+       *   `battle/engine.js`·`battle/ai.js`·`data/abyss.js`·`data/enemies.js`·`data/tower.js`·
+       *   `game/enemygen.js`·`game/pet.js` 가 따라온다. basename 충돌은 없다 (확인).
+       *
+       * ★ 이 순간부터 `_power` 가 ENGINE_HASH 대상 8개를 **전부** 품는다 (겹침 6 → 8).
+       *   복사본이라 지문 자체는 안 바뀐다. 그리고 그 8개는 **이미** `_engine` 묶음에
+       *   들어 있어서 «고치면 PvP 등록이 무효» 인 것도 **이 단계가 만든 제약이 아니다** —
+       *   전부터 그랬다. 늘어나는 것은 «사본이 하나 더» 라는 사실뿐이고,
+       *   그건 `syncshared` 의 HASHES.json 이 지킨다. */
+      'src/game/runverify.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },
