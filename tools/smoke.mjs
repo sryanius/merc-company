@@ -7890,6 +7890,73 @@ section('주점 목록이 (판·도시·날) 로 재현된다');
   }
 }
 
+section('의뢰 상한이 실계정에 여유를 남기면서 조여져 있다');
+{
+  /* ★★★ §121. **무방비 축을 전부 열어 놓고 훑어서** 찾았다.
+   *   축 하나씩만 흔들면 사슬을 놓친다 — `rosterCap` 을 열면 `rosterN` 이,
+   *   그러면 `sMercs` 가 따라 열리는 식이다. 그래서 무방비 축을 **동시에** 열고 쟀다.
+   *
+   *   결과: 첫 제출로 349일차에 **의뢰 17,450건**이 통과했다 (실계정 최고의 15배).
+   *   완료의뢰는 순위 축이라 그것만으로 1위가 된다.
+   *
+   * ★ 실측한 하루당 비율: 정상 최고 **1.68/일** · 3055일차는 0.37/일.
+   *   이론상 가용량은 «도시 목록 18건 / 3일» ≈ **6/일** 이다
+   *   (`recallSquad` 가 공짜라 부대 수로는 안 잡힌다 — 가용량이 진짜 벽이다).
+   *
+   * ⇒ `day × 15 + 200` 으로 조였다. 상수항은 **1일차** 때문이다 —
+   *   그날 목록 18건을 다 돌 수 있으므로 비례항만 두면 초반에 오탐이 난다.
+   *
+   * ★★ 이 절은 **양쪽을 다 본다**: 실계정이 안 걸리는가 · 조작이 걸리는가.
+   *   한쪽만 보면 「전부 통과」 나 「전부 거절」 인 상한도 통과한다. */
+  const RL5 = need('game/rules.js');
+  if (RL5) {
+    const mk = (day, questsDone, extra = {}) => ({
+      seed: 1, dataVersion: 9, companyName: 'x', day,
+      gold: 0, renown: 0, cityId: null, rosterCap: 70,
+      questsDone, battlesWon: questsDone * 3 + 100, battlesLost: 10,
+      hires: 0, specHires: 0, rosterN: 4, topLevel: 1, sMercs: 0, hiredN: 0,
+      itemsN: 0, petsN: 0, squadsN: 1,
+      abyssBest: 0, abyssBestDay: 0, abyssLastRunDay: 0,
+      towerBest: 0, towerBestDay: 0, towerLastRunDay: 0,
+      topPower: 0, seenPower: 0, sHiredDays: [], squad: null, squadsFull: [],
+      ...extra,
+    });
+    const tierOf = (day, q, extra) => (RL5.judge(null, mk(day, q, extra)).tier || 'ok');
+
+    /* ── 실계정 (docs/HANDOFF.md §121 의 실측표) — **하나도 걸리면 안 된다** ── */
+    const REAL = [[40, 48], [127, 302], [274, 76], [349, 588], [351, 246],
+      [1135, 460], [2129, 811], [3055, 1145]];
+    const hit = [];
+    for (const [day, q] of REAL) {
+      const t = tierOf(day, q);
+      if (t !== 'ok') hit.push(`${day}일차 의뢰 ${q}건이 걸렸다 (${t}) — 실계정이다`);
+    }
+    okAll(hit, '실계정의 의뢰 수는 하나도 안 걸린다', REAL.length);
+
+    /* ★ 여유가 **얼마나** 남는지도 본다 — 「간신히 통과」 면 다음 밸런스 패치에 터진다 */
+    const tight = REAL.map(([day, q]) => ({ day, q, ratio: (day * 15 + 200) / (q || 1) }))
+      .sort((a, b) => a.ratio - b.ratio)[0];
+    ok(tight && tight.ratio >= 5, '가장 빠듯한 실계정도 5배 이상 여유가 있다',
+      tight ? `${tight.day}일차 ${tight.q}건 → ${tight.ratio.toFixed(1)}배` : '(없다)');
+
+    /* ── 조작 — 걸려야 한다 ── */
+    const miss = [];
+    if (tierOf(349, 17450) === 'ok') miss.push('349일차 의뢰 17,450건이 통과한다 (조이기 전 값)');
+    if (tierOf(349, 6000) === 'ok') miss.push('349일차 의뢰 6,000건이 통과한다');
+    if (tierOf(1, 500) === 'ok') miss.push('1일차 의뢰 500건이 통과한다');
+    okAll(miss, '부풀린 의뢰 수는 걸린다', 3);
+
+    /* ★ 1일차 상수항이 실제로 도는가 — 없으면 초반이 통째로 오탐이다 */
+    ok(tierOf(1, 18) === 'ok', '1일차에 목록 18건을 다 돌아도 안 걸린다 (상수항이 있다)',
+      `1일차 18건 → ${tierOf(1, 18)}`);
+
+    /* ★★ 명성 상한이 의뢰 상한을 따라간다 — 한쪽만 조이면 명성이 구멍으로 남는다 */
+    ok(tierOf(349, 588, { renown: 400000 }) !== 'ok',
+      '명성 상한이 의뢰 상한을 따라 조여진다', `349일차 명성 40만 → ${tierOf(349, 588, { renown: 400000 })}`);
+    ok(tierOf(349, 588, { renown: 2808 }) === 'ok', '실계정의 명성은 안 걸린다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
