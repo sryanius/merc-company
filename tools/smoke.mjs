@@ -7478,6 +7478,85 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('하루 넘기기 — 서버 사본과 클라 원본이 같은 답을 내나');
+{
+  /* ★★ `run-op` 이 `_rules/day.js` 를 부른다. 그 사본이 원본과 갈라지면
+   *   **날짜와 골드가 서버·클라에서 달라진다** — 되돌리기 어려운 종류의 어긋남이다.
+   *   `syncshared` 의 HASHES 가 바이트를 지키지만, 그것과 «같은 답을 내나» 는 다른 질문이다.
+   *
+   * ★ 그래서 **양쪽을 실제로 굴려서** 견준다. 실계정 모양(명부 42·부대 5)으로.
+   *
+   * ★★ 임금 반올림은 «합계 1회» 다 — 제작자 결정. 인당 반올림이면 랴니에서 13,805 → 13,807. */
+  try {
+    const SRC = await import('../src/game/day.js');
+    const CPY = await import('../supabase/functions/run-op/_rules/day.js');
+    const noop = { addLog: () => {}, touch: () => {}, expireCityLists: () => {} };
+    SRC.bindDay(noop); CPY.bindDay(noop);
+
+    const ST15 = await import('../src/game/state.js');
+    ST15.newGame(1515, '하루사본검사');
+    ST15.advanceDays(50);
+    /* ★ 판을 실하게 만든다 — 그냥 50일을 넘기면 **파산**해서 임금이 0 이고
+     *   「밀린 임금」 갈래로만 간다. 그러면 이 검사가 임금 경로를 하나도 안 밟는다.
+     *   (실제로 그렇게 나와서 판을 다시 세웠다 — 「0 대 0」 의 또 다른 모양이다.) */
+    ST15.state.gold = 5_000_000;
+    /* ★★ **대기 인원이 있어야 반올림 차이가 생긴다.** 배치된 단원은 `base` 그대로라
+     *   합계·인당이 같다. 대기는 `base × 0.25` 라 소수가 나오고 거기서 갈린다.
+     *   ★ 처음엔 대기가 0명이라 메타 검사(사본의 반올림을 인당으로 바꾸기)가 **안 물었다.**
+     *     하네스가 아니라 판이 틀렸다 (§118 의 교훈이 또 나왔다). */
+    const MEc = await import('../src/game/merc.js');
+    const RNc = await import('../src/core/rng.js');
+    const rngc = new RNc.RNG(1515);
+    for (let i = 0; i < 12; i++) {
+      try {
+        const m = MEc.createMerc({ classId: 'swordsman', grade: 'C', level: 20, rng: rngc });
+        if (m) { m.squadId = null; m.slotIndex = -1; ST15.state.roster.push(m); }
+      } catch { /* 만들 수 없으면 아래 ok 가 문다 */ }
+    }
+    const benchN = (ST15.state.roster || []).filter((m) => m && !m.squadId).length;
+    ok(benchN >= 5, '판에 대기 인원이 있다 (없으면 반올림 차이가 안 생긴다)', `${benchN}명`);
+    const snap = () => JSON.parse(JSON.stringify(ST15.state));
+
+    const a = snap();
+    const b = snap();
+    const upA = SRC.dailyUpkeep(a);
+    const upB = CPY.dailyUpkeep(b);
+    ok(upA === upB, '두 사본의 하루 임금이 같다', `${upA} vs ${upB}`);
+
+    const outA = SRC.advanceDays(a, 7);
+    const outB = CPY.advanceDays(b, 7);
+    const diffs = [];
+    if (a.day !== b.day) diffs.push(`날짜 ${a.day} vs ${b.day}`);
+    if (a.gold !== b.gold) diffs.push(`골드 ${a.gold} vs ${b.gold}`);
+    if (outA.upkeep !== outB.upkeep) diffs.push(`임금 ${outA.upkeep} vs ${outB.upkeep}`);
+    if (outA.recovered.length !== outB.recovered.length) diffs.push(`회복 ${outA.recovered.length} vs ${outB.recovered.length}`);
+    if (outA.returned.length !== outB.returned.length) diffs.push(`복귀 ${outA.returned.length} vs ${outB.returned.length}`);
+    okAll(diffs, '7일을 넘겨도 서버 사본과 원본이 같다', 5);
+
+    /* ★ 판이 실한가 — 0 대 0 이면 아무것도 증명 못 한다 */
+    ok(a.day > 50 && outA.upkeep > 0, '판이 실하다 (날짜가 가고 임금이 나갔다)',
+      `${a.day}일차 · 임금 ${outA.upkeep}G`);
+
+    /* ★★ 반올림이 «합계 1회» 인가 — 인당으로 바뀌면 여기서 문다 */
+    const bulk = SRC.dailyUpkeep(a);
+    const each = (a.roster || []).reduce((t, m) => t + SRC.upkeepOfMerc(m, a), 0);
+    /* ★★ 방향은 **고정이 아니다.** 소수부에 따라 합계가 클 수도 작을 수도 있다 —
+     *   실측: 대기 10명(base 7)에서는 합계 18 < 인당 20, 이 판에서는 합계 59 > 인당 56.
+     *   처음엔 `bulk <= each` 로 단정했다가 걸렸다. **방향을 주장하면 안 된다.**
+     *   ⇒ 여기서 묻는 것은 «둘이 실제로 갈리나» 다 — 안 갈리면 이 결정이 무의미해지고
+     *     이 검사도 아무것도 안 지킨다. */
+    ok(bulk !== each, '대기 인원이 있으면 두 반올림이 실제로 갈린다',
+      `합계 ${bulk} · 인당 ${each} — 같으면 판에 대기가 없다는 뜻이다`);
+    ok(bulk === SRC.dailyUpkeep(a), 'dailyUpkeep 이 «합계 1회» 쪽을 돌려준다',
+      '인당으로 바뀌면 대기 인원이 많은 계정이 하루 최대 17G 를 더 낸다');
+    const daySrc15 = readFileSync(srcDir('game/day.js'), 'utf8');
+    ok(/합계 1회» 다/.test(daySrc15), '어느 반올림이 정답인지 코드에 적혀 있다',
+      '안 적으면 다음 사람이 인당으로 바꾼다 (대기 70명에서 하루 17G 차)');
+  } catch (e) {
+    ok(false, '하루 사본 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('하루 계산이 state.js 를 되묻지 않는가 (game/day.js)');
 {
   /* ★★ §104 3단계에서 **서버가 날짜를 소유**하려면 이 계산이 «전역 state 를 되묻지 않고»

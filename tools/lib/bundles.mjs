@@ -94,7 +94,9 @@ export const BUNDLES = [
        *   들어 있어서 «고치면 PvP 등록이 무효» 인 것도 **이 단계가 만든 제약이 아니다** —
        *   전부터 그랬다. 늘어나는 것은 «사본이 하나 더» 라는 사실뿐이고,
        *   그건 `syncshared` 의 HASHES.json 이 지킨다. */
-      'src/game/runverify.js'],
+      'src/game/runverify.js',
+      /* ★ 하루 넘기기 (§104 3단계). `state.js` 를 안 물어서 닫힘이 **자기 하나만** 는다. */
+      'src/game/day.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },
@@ -122,7 +124,10 @@ export const BUNDLES = [
        *   맞게 짚은 뒤에도 답이 틀렸다 (`equipIssue` 는 클래스 무기 타입을 **손 슬롯에만**
        *   적용하는데 방어구·장신구까지 셌다). 판정부를 부르니 한 번에 맞았다.
        *   ⇒ 닫힘이 2개 61KB → **8개 230KB** 로 는다. 그 값을 치를 만하다. */
-      'src/game/gear.js'],
+      'src/game/gear.js',
+      /* ★ 하루 넘기기 (§104 3단계). `day.js` 는 `state.js` 를 안 물어서
+       *   `merc.js`·`runrows.js` 와 함께 와도 닫힘이 8 → 13개다. */
+      'src/game/day.js', 'src/game/runrows.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },

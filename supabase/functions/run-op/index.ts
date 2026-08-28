@@ -23,6 +23,14 @@ import { CLASSES, getClass, promoteOptions } from './_rules/classes.js';
 /* ★★ 판정부를 손으로 다시 쓰지 않는다 — 게임이 쓰는 그 함수를 그대로 부른다.
  *   손으로 옮겼다가 세 번 틀린 적이 있다 (§124). */
 import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
+/* ★★ 하루 넘기기도 **사본을 안 만든다** — `game/day.js` 를 그대로 부른다.
+ *   그 모듈은 `state.js` 를 안 물고 상태를 인자로 받는다 (§104 14단계). */
+import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
+import { fromRows } from './_rules/runrows.js';
+
+/* ★ 서버에서는 로그·저장을 클라가 소유한다 — 빈 함수로 묶는다.
+ *   ★ 안 묶으면 `advanceDays` 가 **던진다** (day.js 의 계약). 그래서 여기서 한 번 묶는다. */
+bindDay({ addLog: () => {}, touch: () => {}, expireCityLists: () => {} });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -195,6 +203,50 @@ Deno.serve(async (req) => {
       return json({ error: '적용하지 못했다' }, 500);
     }
     return json({ ok: true, replayed: false, result });
+  }
+
+  /* ═══════════════════════ 하루 넘기기 ═══════════════════════════════════
+   * ★★ **첫 배포는 «그림자» 다.** 서버가 계산해서 로그로만 남기고 `run_state` 를 안 고친다.
+   *   이유: 하루 루프는 임금·회복·원정복귀·평판감쇠 넷을 한꺼번에 바꾸는데,
+   *   그중 회복이 난수를 안 먹어도 **`m.maxHp` 를 다시 계산**하고 그 값이 아이템에
+   *   의존한다. 숫자가 맞는 것을 눈으로 본 뒤에 소유를 넘긴다.
+   *
+   * ★ 임금의 반올림은 **«합계 1회»** 다 — 제작자 결정 (day.js 의 머리 주석).
+   *   실측: 컬럼(class_id·grade·level)에서 다시 계산해도 랴니 42명에서 **차이 0**.
+   *
+   * ★ `day.js` 를 **그대로 부른다.** 여기서 하루 루프를 다시 쓰면 사본이 둘이 되고
+   *   반드시 갈라진다 (§94·§98·§107 — 이번 세션에만 세 번 겪었다). */
+  if (op === 'advanceDays') {
+    const n = Math.max(1, Math.min(365, Math.round(Number(body?.n) || 1)));
+
+    const [{ data: rs2 }, { data: rm2 }, { data: ri2 }, { data: rp2 }, { data: rq2 }] = await Promise.all([
+      admin.from('run_state').select('*').eq('user_id', userId).maybeSingle(),
+      admin.from('run_mercs').select('*').eq('user_id', userId),
+      admin.from('run_items').select('*').eq('user_id', userId),
+      admin.from('run_pets').select('*').eq('user_id', userId),
+      admin.from('run_squads').select('*').eq('user_id', userId),
+    ]);
+    if (!rs2) return json({ error: '아직 이관 전이다' }, 404);
+
+    const st2 = fromRows({ state: rs2, mercs: rm2 || [], items: ri2 || [],
+      pets: rp2 || [], squads: rq2 || [], quests: [] });
+    const before = { day: st2.day, gold: st2.gold, upkeep: dailyUpkeep(st2) };
+    let out = null;
+    try { out = advanceDays(st2, n); }
+    catch (e) { console.error('[run-op] advanceDays 실패', e); return json({ error: '계산하지 못했다' }, 500); }
+
+    const result = {
+      op: 'advanceDays', n,
+      day: { 전: before.day, 후: st2.day },
+      gold: { 전: before.gold, 후: st2.gold, 임금: out.upkeep, 밀린것: out.unpaid },
+      회복: (out.recovered || []).length, 복귀: (out.returned || []).length,
+      하루임금: before.upkeep,
+    };
+    console.error('[그림자] 하루 넘기기 — 계산만 하고 안 쓴다', { userId, result });
+
+    /* ★★ **아직 안 쓴다.** 원장도 안 남긴다 — 남기면 «했다» 가 되어
+     *   다음 진짜 호출이 재생으로 막힌다. */
+    return json({ ok: true, shadow: true, result });
   }
 
   if (op !== 'promote') return json({ error: '모르는 op 이다' }, 400);

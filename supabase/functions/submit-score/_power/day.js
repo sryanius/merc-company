@@ -16,7 +16,7 @@
  *
  * @module game/day
  */
-import { clamp, num } from '../core/util.js';
+import { clamp, num } from './util.js';
 /* ★ `merc.js` 는 §108 이후 `state.js` 를 되묻지 않는다 — 그래서 여기서 물어도 안전하다. */
 import * as Merc from './merc.js';
 

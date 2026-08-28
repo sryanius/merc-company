@@ -4,7 +4,12 @@
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
   "src/data/items.js": "23193f80",
+  "src/data/limits.js": "36471f9e",
+  "src/data/names.js": "aa62a17c",
   "src/data/sets.js": "dcc97cc0",
   "src/game/ambient.js": "7689dfc5",
-  "src/game/gear.js": "aa8440bc"
+  "src/game/day.js": "49194cbf",
+  "src/game/gear.js": "aa8440bc",
+  "src/game/merc.js": "69b74820",
+  "src/game/runrows.js": "880d355d"
 }
