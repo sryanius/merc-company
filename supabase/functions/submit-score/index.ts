@@ -589,8 +589,13 @@ function sanitizeSquad(raw: unknown) {
           걸린시간: Date.now() - t0,
         });
       } catch (e) {
-        console.error('[그림자] 나락·탑 재현 실패 — 판정과 응답에는 영향이 없다',
-          String((e as Error)?.message || e));
+        /* ★ **실패도 표에 남긴다.** 실패가 로그로만 가면 「안 돌았나 실패했나」 를
+         *   구별할 수 없다 — 실제로 `runs` 관측이 한 번 통째로 비어서 헤맸다. */
+        const msg = String((e as Error)?.message || e).slice(0, 200);
+        console.error('[그림자] 나락·탑 재현 실패 — 판정과 응답에는 영향이 없다', msg);
+        try {
+          await admin.from('shadow_obs').insert({ user_id: userId, kind: 'runs', obs: { failed: true, why: msg } });
+        } catch { /* 이것마저 실패하면 넘어간다 */ }
       }
     }
   } catch (e) {

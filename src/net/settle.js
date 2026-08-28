@@ -85,9 +85,17 @@ export function reportSettle(o) {
       autoSellRarity: Number(st.autoSellRarity),
     };
 
-    /* ★★ 여기서 `await` 하지 않는다. 실패해도 아무 일도 안 한다. */
+    /* ★★ 여기서 `await` 하지 않는다. 실패해도 아무 일도 안 한다.
+     *
+     * ★ 다만 **조용히 삼키지는 않는다.** 신고가 0건인데 「고장인가 옛 셸인가 안 했나」 를
+     *   구별 못 해 헤맨 적이 있다 (§137). 콘솔에 한 줄 남긴다 —
+     *   게임에는 영향이 없고, 사람이 F12 를 열면 바로 보인다. */
     Promise.resolve(authed(EP.fn('run-op'), { method: 'POST', body }, Auth))
-      .catch(() => { /* 신고 실패는 게임에 영향이 없다 */ });
+      .then((r) => {
+        if (r && r.ok) console.info('[정산신고] 보냈다', body.questId, r.status);
+        else console.warn('[정산신고] 서버가 안 받았다', r && r.status, r && r.error);
+      })
+      .catch((e) => { console.warn('[정산신고] 못 보냈다 (게임에는 영향 없다)', e); });
   } catch (e) {
     /* ★ 신고를 만들다 던져도 게임은 그대로 간다 — 이게 이 모듈의 계약이다. */
     console.warn('[settle] 신고를 만들지 못했다 (게임에는 영향 없다)', e);
