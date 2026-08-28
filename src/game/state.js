@@ -1592,9 +1592,14 @@ export function advanceDays(n = 1) {
       addLog(`${sq.name}이(가) 원정에서 복귀했다.`);
     }
 
-    /* 평판 감쇠 — 지금 있는 도시만 빼고 하루 1씩, 바닥(REP_DECAY_FLOOR)까지.
+    /* 평판 감쇠 — 하루 1씩, 바닥(REP_DECAY_FLOOR)까지.
      * ★ 도시가 16곳이라 전부 만점으로 유지하는 건 불가능하다 — 그게 목적이다.
-     *   «어느 도시를 거점으로 삼을까» 라는 선택이 생긴다. */
+     *   «어느 도시를 거점으로 삼을까» 라는 선택이 생긴다.
+     *
+     * ★★ 옛 주석은 「**지금 있는 도시만** 빼고」 였다 — **거짓이다.**
+     *   이 코드는 `state.cityId` 를 **안 본다.** 봐주는 기준은 `repTouch`,
+     *   즉 «최근에 그 도시 **일을 했나**» 다 (아래 `REP_DECAY_GRACE`).
+     *   서 있기만 해서는 안 봐준다. 주석을 따라 옮기면 잘못 구현한다. */
     if (REP_DECAY_PER_DAY > 0 && state.reputation) {
       const touch = state.repTouch && typeof state.repTouch === 'object' ? state.repTouch : {};
       for (const cid of Object.keys(state.reputation)) {
