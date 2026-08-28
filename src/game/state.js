@@ -28,6 +28,9 @@ import {
 // 최상위에서는 절대 호출하지 않는다.
 import { hashStr } from './enemygen.js';
 import { genTavern } from './tavern.js';
+/* ★★ 하루가 지나가는 계산은 `game/day.js` 한 벌이다 (§104 3단계 준비).
+ *   그 모듈은 `state.js` 를 **되묻지 않는다** — 상태를 인자로 받는다. */
+import * as Day from './day.js';
 import { bindAmbient } from './ambient.js';
 import * as Merc from './merc.js';
 import * as Gear from './gear.js';
@@ -115,9 +118,9 @@ export const REFRESH_DAYS = 3;
  * 회복이 느리면 "부상 → 출전 불가 → 수입 0 → 임금만 지출" 의 하강 나선이 생긴다.
  * 하루 단위로 눈에 띄게 회복되어야 플레이어가 다음 의뢰를 계획할 수 있다. */
 /** 건강한 단원의 하루 자연 회복량 (maxHp 비율) */
-export const RECOVER_READY = 0.30;
+/* ★ RECOVER_READY 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 /** 부상 중인 단원의 하루 자연 회복량 (maxHp 비율) */
-export const RECOVER_WOUNDED = 0.20;
+/* ★ RECOVER_WOUNDED 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 /** 여관 휴식이 하루당 추가로 회복시키는 양 (maxHp 비율) */
 export const REST_HEAL = 0.45;
 /** 여관 휴식이 하루당 추가로 단축하는 부상 잔여 일수 */
@@ -166,8 +169,8 @@ export const REP_QUEST_GAIN = { F: 2, E: 3, D: 4, C: 6, B: 8, A: 11, S: 14 };
  *
  * ★ 판단 기준은 «서 있는 곳» 이 아니라 **«최근에 일한 곳»** 이다 (REP_DECAY_GRACE).
  */
-export const REP_DECAY_PER_DAY = 1;
-export const REP_DECAY_FLOOR = 50;
+/* ★ REP_DECAY_PER_DAY 는 game/day.js 로 옮겼다 (아래에서 재수출) */
+/* ★ REP_DECAY_FLOOR 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 
 /**
  * 마지막으로 그 도시 일을 한 뒤 **며칠까지 봐주는가.**
@@ -177,7 +180,7 @@ export const REP_DECAY_FLOOR = 50;
  *   취지와 어긋난다 (제작자 지적).
  *   지금은 **최근에 그 도시에서 일했는가**로 본다. 서 있기만 해서는 안 된다.
  */
-export const REP_DECAY_GRACE = 7;
+/* ★ REP_DECAY_GRACE 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 
 /* ─────────────────────────── 단원 정원 노브 ───────────────────────────
  * 정원은 골드로 산다. 체증 비용이라 무한 확장은 못 하고, 확장할 때마다 의뢰를 더 돌아야 한다. */
@@ -1183,22 +1186,6 @@ export function removeItem(uidToRemove) {
  * `idx[uid]` / `idx.get(uid)` / `idx.find(fn)` / `for..of` 전부 동작하도록 만든다
  * (다른 모듈이 어떤 방식으로 조회하든 안전하게).
  */
-export function itemsById(list = state.items) {
-  const idx = {};
-  for (const it of list || []) if (it && it.uid) idx[it.uid] = it;
-  const vals = () => Object.values(idx);
-  const def = (name, value) => Object.defineProperty(idx, name, { value, enumerable: false });
-  def('get', (u) => idx[u] || null);
-  def('has', (u) => !!idx[u]);
-  def('find', (fn) => vals().find(fn) || null);
-  def('filter', (fn) => vals().filter(fn));
-  def('map', (fn) => vals().map(fn));
-  def('forEach', (fn) => vals().forEach(fn));
-  def('values', () => vals());
-  def(Symbol.iterator, function* () { yield* vals(); });
-  Object.defineProperty(idx, 'size', { get: () => vals().length, enumerable: false });
-  return idx;
-}
 
 export function getMerc(uidToFind) {
   return state.roster.find((m) => m.uid === uidToFind) || null;
@@ -1430,10 +1417,26 @@ export function rollLoot(opts = {}) {
     try {
       const it = fn(args);
       if (it && it.uid) return it;
+      /* ★ null 이나 uid 없는 값이 오면 **그것도 이상한 일이다.** 조용히 다른 생성기로
+       *   넘어가지 말고 남긴다 — 그래야 다음 사람이 원인을 본다. */
+      console.warn('[state] gear 롤러가 쓸 수 없는 값을 줬다 — 폴백으로 간다', it);
     } catch (e) {
       console.warn('[state] gear 롤러 실패 — 내장 롤러로 대체합니다.', e);
     }
   }
+  /* ★★ **여기까지 오면 안 된다.** `builtinRoll` 은 아이템 생성기의 **두 번째 사본**이고,
+   *   사본이 둘이면 반드시 갈라진다 (§94·§98·§107).
+   *
+   *   실측: `gear.rollItem` 을 3,000번 굴려 **던진 것 0 · null 0 · uid 없음 0** 이다.
+   *   즉 이 갈래는 **한 번도 안 탄다.** 그런데 «안 탄다» 와 «타면 안전하다» 는 다르다 —
+   *   타는 순간 서버와 클라가 **다른 아이템**을 만들고, §113 이 못 박은 「아이템은 소급
+   *   검증이 불가능하다」 때문에 그 차이를 나중에 되짚을 수도 없다.
+   *
+   *   ⇒ 지우지는 않는다 (옛 세이브를 여는 길이 막히면 안 된다). 대신 **눈에 띄게** 남긴다.
+   *   ★ 이 줄이 로그에 찍히면 그날 원인을 찾아라. 「가끔 그러네」 로 넘기지 마라. */
+  console.error('[state] ★★ 두 번째 아이템 생성기(builtinRoll)를 탔다 — 서버와 갈라진다', {
+    ilvl: args.ilvl, slot: args.slot, weaponType: args.weaponType,
+  });
   return builtinRoll(args);
 }
 
@@ -1513,15 +1516,7 @@ function builtinRoll({ ilvl, rarityBonus = 0, slot, weaponType, rng: r }) {
 
 /* ------------------------------------------------------------------ 날짜 진행 */
 
-function maxHpOf(merc, idx) {
-  try {
-    const st = Merc.mercStats(merc, { items: idx });
-    if (st && st.hp > 0) return Math.round(st.hp);
-  } catch (e) {
-    console.warn('[state] mercStats 실패', e);
-  }
-  return Math.max(1, Math.round(merc.maxHp || merc.hp || 1));
-}
+/* ★ maxHpOf 는 game/day.js 로 옮겼다 (거기서만 쓴다) */
 
 /**
  * 부대에 배치되지 않은 단원(대기 인원)의 임금 배율.
@@ -1534,128 +1529,10 @@ function maxHpOf(merc, idx) {
  * 0.25 는 실측으로 고른 값이다 (탑 비용 1/2 · 의뢰 보상 +20% 와 함께):
  *   정원 35 +2,092G/일 · 50 +1,372G/일 · 70 +692G/일 — 전 구간 흑자.
  */
-export const BENCH_UPKEEP_MULT = 0.25;
+/* ★ BENCH_UPKEEP_MULT 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 
-/**
- * 하루 총임금. **이 함수가 유일한 출처다** — 실제 차감(advanceDays)과 화면 표시가
- * 서로 다른 식을 쓰면 "표시는 1만인데 2만이 빠지는" 버그가 된다.
- * 합산 지점이 6곳이나 흩어져 있었으므로 전부 여기를 부르게 했다.
- */
-export function dailyUpkeep(st = state) {
-  const assigned = new Set();
-  for (const sq of st.squads || []) {
-    for (const u of sq.memberUids || []) if (u) assigned.add(u);
-  }
-  let total = 0;
-  for (const m of st.roster || []) {
-    if (!m) continue;
-    const base = m.upkeep || 0;
-    total += assigned.has(m.uid) ? base : base * BENCH_UPKEEP_MULT;
-  }
-  return Math.round(total);
-}
 
-/** 한 단원이 실제로 내는 하루 임금 (대기면 할인 적용). 개별 표시용. */
-export function upkeepOfMerc(m, st = state) {
-  if (!m) return 0;
-  const base = m.upkeep || 0;
-  for (const sq of st.squads || []) {
-    if ((sq.memberUids || []).includes(m.uid)) return base;
-  }
-  return Math.round(base * BENCH_UPKEEP_MULT);
-}
 
-/**
- * n일 진행. 매일 임금 지출 / 부상 회복 / **원정 부대 복귀** / 도시 목록 만료를 처리한다.
- *
- * ※ 의뢰를 끝냈다고 여기가 자동으로 불리지는 않는다. 날짜는 플레이어가 직접 넘긴다
- *   (도시 화면의 "하루 넘기기" 등). 의뢰는 부대를 `away` 로 잠글 뿐이다.
- *
- * @returns {{days:number, upkeep:number, unpaid:number, recovered:string[], returned:string[]}}
- *  - `returned` 이번 진행에서 원정을 마치고 복귀한 부대 이름들
- */
-export function advanceDays(n = 1) {
-  const days = Math.max(1, Math.round(n || 1));
-  const out = { days: 0, upkeep: 0, unpaid: 0, recovered: [], returned: [] };
-
-  for (let d = 0; d < days; d++) {
-    state.day++;
-    out.days++;
-
-    // 원정 복귀 — 임금/회복보다 먼저 처리해 복귀 당일부터 다시 출정할 수 있게 한다.
-    for (const sq of state.squads) {
-      if (!sq || sq.status !== 'away') continue;
-      if (state.day < (sq.returnDay || 0)) continue;
-      sq.status = 'idle';
-      sq.returnDay = 0;
-      out.returned.push(sq.name);
-      addLog(`${sq.name}이(가) 원정에서 복귀했다.`);
-    }
-
-    /* 평판 감쇠 — 하루 1씩, 바닥(REP_DECAY_FLOOR)까지.
-     * ★ 도시가 16곳이라 전부 만점으로 유지하는 건 불가능하다 — 그게 목적이다.
-     *   «어느 도시를 거점으로 삼을까» 라는 선택이 생긴다.
-     *
-     * ★★ 옛 주석은 「**지금 있는 도시만** 빼고」 였다 — **거짓이다.**
-     *   이 코드는 `state.cityId` 를 **안 본다.** 봐주는 기준은 `repTouch`,
-     *   즉 «최근에 그 도시 **일을 했나**» 다 (아래 `REP_DECAY_GRACE`).
-     *   서 있기만 해서는 안 봐준다. 주석을 따라 옮기면 잘못 구현한다. */
-    if (REP_DECAY_PER_DAY > 0 && state.reputation) {
-      const touch = state.repTouch && typeof state.repTouch === 'object' ? state.repTouch : {};
-      for (const cid of Object.keys(state.reputation)) {
-        const v = Number(state.reputation[cid]);
-        if (!Number.isFinite(v) || v <= REP_DECAY_FLOOR) continue;
-        // 최근에 그 도시 일을 했으면 봐준다 — «서 있는 것» 이 아니라 «일한 것» 이 기준이다
-        const last = Number(touch[cid]) || 0;
-        if (last > 0 && state.day - last < REP_DECAY_GRACE) continue;
-        state.reputation[cid] = Math.max(REP_DECAY_FLOOR, v - REP_DECAY_PER_DAY);
-      }
-    }
-
-    // 임금
-    const due = dailyUpkeep(state);
-    if (due > 0) {
-      if (state.gold >= due) {
-        state.gold -= due;
-        out.upkeep += due;
-      } else {
-        const short = due - state.gold;
-        out.upkeep += state.gold;
-        out.unpaid += short;
-        state.gold = 0;
-        const loss = Math.max(1, Math.ceil(short / 60));
-        state.renown = Math.max(0, state.renown - loss);
-        addLog(`임금 ${num(short)}G가 밀렸다. 단원들의 불만이 커진다. (명성 -${loss})`);
-      }
-    }
-
-    // 부상 회복 / 자연 회복
-    const idx = itemsById();
-    for (const m of state.roster) {
-      const maxHp = maxHpOf(m, idx);
-      m.maxHp = maxHp;
-      if (m.status === 'wounded') {
-        if (state.day >= (m.woundUntil || 0)) {
-          m.status = 'ready';
-          m.woundUntil = 0;
-          m.hp = maxHp;
-          out.recovered.push(m.name);
-          addLog(`${m.name}이(가) 부상에서 회복했다.`);
-        } else {
-          m.hp = clamp(Math.round((m.hp || 1) + maxHp * RECOVER_WOUNDED), 1, maxHp);
-        }
-      } else {
-        m.hp = clamp(Math.round((m.hp || maxHp) + maxHp * RECOVER_READY), 1, maxHp);
-      }
-    }
-
-    expireCityLists();
-  }
-
-  if (out.upkeep > 0) addLog(`${out.days}일이 지났다. 임금으로 ${num(out.upkeep)}G를 지출했다.`);
-  touch();
-  return out;
-}
 
 /* ------------------------------------------------------------------ 원정 조회 */
 
@@ -1833,3 +1710,27 @@ export function refreshCity(cityId = state.cityId, force = false) {
     shop: state.shop[cityId].list,
   };
 }
+
+/* ── game/day.js 재수출 ──────────────────────────────────────────────────────
+ * ★★ 부르는 쪽(UI 44곳)이 한 줄도 안 바뀌게 한다. 옮긴 것은 «어디서 계산하나» 지
+ *   «누가 부르나» 가 아니다.
+ *
+ * ★ `advanceDays`·`dailyUpkeep`·`upkeepOfMerc` 는 이제 **상태를 인자로 받는다.**
+ *   여기서 전역 `state` 를 채워 준다 — 그래야 옛 호출부(`advanceDays(3)`)가 그대로 돈다. */
+export const {
+  RECOVER_READY, RECOVER_WOUNDED, BENCH_UPKEEP_MULT,
+  REP_DECAY_PER_DAY, REP_DECAY_FLOOR, REP_DECAY_GRACE,
+} = Day;
+
+/** 하루 총임금. **유일한 출처는 `game/day.js` 다.** */
+export function dailyUpkeep(st = state) { return Day.dailyUpkeep(st); }
+/** 한 단원이 실제로 내는 하루 임금 (대기면 할인). */
+export function upkeepOfMerc(m, st = state) { return Day.upkeepOfMerc(m, st); }
+/** 하루를 n번 넘긴다. */
+export function advanceDays(n = 1) { return Day.advanceDays(state, n); }
+/** 아이템 목록 → uid 색인. **유일한 출처는 `game/day.js` 다.** */
+export function itemsById(list = state.items) { return Day.itemsById(list); }
+
+/* ★★ 부수효과를 묶는다 — 안 묶으면 `advanceDays` 가 **던진다.**
+ *   하루가 지나가는데 로그가 안 남고 저장이 안 되면 조용한 실패 중에서도 최악이다. */
+Day.bindDay({ addLog, touch, expireCityLists });

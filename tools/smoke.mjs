@@ -7478,6 +7478,93 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('하루 계산이 state.js 를 되묻지 않는가 (game/day.js)');
+{
+  /* ★★ §104 3단계에서 **서버가 날짜를 소유**하려면 이 계산이 «전역 state 를 되묻지 않고»
+   *   돌아야 한다. `state.js` 는 quest·world·enemies 까지 게임 전체를 물어서 서버 묶음에
+   *   못 들어간다 — §108 이 gear·merc·squad 에서 끊어 낸 그 되물기와 같은 문제다.
+   *
+   * ★ 실측: `day.js` 닫힘 **12개 287KB**, `state.js` 를 **안 문다**.
+   *   `_power` 에 넣으면 26 → 27개, 새로 오는 것은 `day.js` 자신뿐이다. */
+  const dayClosure = closureOf('src/game/day.js', []);
+  ok(!dayClosure.includes('src/game/state.js'), 'day.js 가 state.js 를 안 문다',
+    `${dayClosure.length}개: ${dayClosure.join(', ')}`);
+  okAll(['src/game/quest.js', 'src/data/world.js', 'src/data/enemies.js']
+    .filter((h) => dayClosure.includes(h)).map((h) => `${h} 가 끌려온다`),
+    'day.js 가 게임 전체를 안 끌고 온다', 3);
+
+  /* ★ `core/util.js` 에 헬퍼를 더하면 안 된다 — **ENGINE_HASH 의 재료**다. */
+  const daySrc = readFileSync(srcDir('game/day.js'), 'utf8');
+  ok(/from '\.\.\/core\/util\.js'/.test(daySrc), 'util 은 import 만 한다 (안 고친다)',
+    'util.js 를 고치면 ENGINE_HASH 가 바뀌어 전원 PvP 등록이 무효가 된다');
+
+  /* ★★ **안 묶이면 던져야 한다.** §108 의 ambient 는 조용히 null 이 됐는데,
+   *   하루가 지나가는데 로그가 안 남고 저장이 안 되는 건 조용한 실패 중 최악이다. */
+  ok(/day\.js 가 안 묶였다/.test(daySrc), '안 묶이면 던진다 (조용히 넘어가지 않는다)',
+    '조용하면 하루가 지나가는데 로그도 저장도 없다');
+  const stSrc14 = readFileSync(srcDir('game/state.js'), 'utf8');
+  ok(/Day\.bindDay\(\{/.test(stSrc14), 'state.js 가 bindDay 를 실제로 부른다',
+    '안 부르면 advanceDays 가 던진다');
+
+  /* ★ 재수출 — 부르는 쪽이 안 바뀌었나. 굴려서 본다. */
+  try {
+    const ST14 = await import('../src/game/state.js');
+    for (const k of ['advanceDays', 'dailyUpkeep', 'upkeepOfMerc', 'itemsById',
+      'RECOVER_READY', 'RECOVER_WOUNDED', 'BENCH_UPKEEP_MULT',
+      'REP_DECAY_PER_DAY', 'REP_DECAY_FLOOR', 'REP_DECAY_GRACE']) {
+      ok(ST14[k] !== undefined, `state.js 가 ${k} 를 그대로 내놓는다`,
+        'UI 가 이 이름으로 읽는다 — 사라지면 화면이 조용히 빈다');
+    }
+    /* ★★ 그리고 **실제로 하루가 지나가나** — 글자 검사만으로는 못 잡는다 */
+    ST14.newGame(1414, '하루검사');
+    const d0 = ST14.state.day;
+    const g0 = ST14.state.gold;
+    const r = ST14.advanceDays(5);
+    ok(ST14.state.day === d0 + 5, '하루가 실제로 넘어간다', `${d0} → ${ST14.state.day}`);
+    ok(r && r.days === 5, 'advanceDays 가 결과를 돌려준다', JSON.stringify(r && { days: r.days, upkeep: r.upkeep }));
+    ok(ST14.state.gold <= g0, '임금이 실제로 빠진다 (또는 0이다)', `${g0} → ${ST14.state.gold}`);
+    ok((ST14.state.log || []).length > 0, '하루가 지나며 로그가 남는다',
+      '로그가 없으면 bindDay 가 안 묶인 것이다');
+  } catch (e) {
+    ok(false, '하루 넘기기를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('아이템 생성기가 한 벌인가 (두 번째 생성기가 조용히 타지 않는가)');
+{
+  /* ★★ `state.js` 안에 `builtinRoll` 이라는 **두 번째 아이템 생성기**가 산다.
+   *   `rollLoot` 이 `gear.rollItem` 실패 시 조용히 그리로 떨어졌다.
+   *
+   *   실측: `gear.rollItem` 3,000번 — 던진 것 0 · null 0 · uid 없음 0.
+   *   **한 번도 안 탄다.** 그런데 «안 탄다» 와 «타면 안전하다» 는 다르다 —
+   *   타는 순간 서버와 클라가 다른 아이템을 만들고, §113 때문에 소급 검증도 못 한다.
+   *
+   * ★ 그래서 지우지 않고 **소리나게** 했다. 이 절은 그 «소리» 가 남아 있는지 본다. */
+  try {
+    const GE13 = await import('../src/game/gear.js');
+    const RN13 = await import('../src/core/rng.js');
+    const rng13 = new RN13.RNG(4242);
+    let bad = 0;
+    const N = 1500;
+    for (let i = 0; i < N; i++) {
+      let it = null;
+      try { it = GE13.rollItem({ ilvl: 1 + (i % 80), rng: rng13 }); } catch { bad++; continue; }
+      if (!it || !it.uid) bad++;
+    }
+    ok(bad === 0, 'gear.rollItem 이 늘 쓸 수 있는 아이템을 준다 (폴백이 안 탄다)',
+      `${N}번 중 ${bad}번 실패 — 폴백이 타면 서버와 갈라진다`);
+
+    const stSrc = readFileSync(srcDir('game/state.js'), 'utf8');
+    ok(/두 번째 아이템 생성기\(builtinRoll\)를 탔다/.test(stSrc),
+      '폴백을 타면 console.error 로 크게 남긴다',
+      '조용히 떨어지면 서버와 다른 아이템을 만들고도 아무도 모른다');
+    ok(/console\.error\(/.test(stSrc.slice(stSrc.indexOf('export function rollLoot'), stSrc.indexOf('function rollRarity'))),
+      'rollLoot 안에서 error 수준으로 남긴다', 'warn 이면 로그에 묻힌다');
+  } catch (e) {
+    ok(false, '생성기 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('판매·착용 RPC — 판정부를 손으로 다시 쓰지 않는가');
 {
   /* ★★ 이 저장소가 이번에 가장 비싸게 배운 것: **규칙을 손으로 다시 쓰면 틀린다.**
