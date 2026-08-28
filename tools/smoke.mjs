@@ -7478,6 +7478,56 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('순위 축을 서버 값으로 바꿀 수 있나 (18단계 준비)');
+{
+  /* ★★ 18단계의 함정: **명부에서 나오는 칸을 «하나만» 서버 것으로 바꾸면 짝이 깨진다.**
+   *   `rules.js` 의 `checkStatic` 이 `sMercs > rosterN` 을 보고, 걸리면
+   *   `verdict:'reject', tier:'A'` — **표시가 아니라 거절**이다.
+   *   `rosterN`·`hiredN`·`sHiredDays`·`topLevel`·`sMercs` 가 전부 같은 명부에서 나오므로
+   *   한 칸만 갈아 끼우면 그 관계가 무너진다.
+   *
+   * ★ 그래서 이 절은 «서버가 스스로 뽑은 값들끼리 짝이 맞나» 를 묻는다.
+   *   실계정 실측: 서버·클라가 rosterN 42 · sMercs 38 · topLevel 80 · topPower 166,274 로
+   *   **전부 일치**했고, 서버 값만으로 판정해도 `ok` 였다. */
+  try {
+    const RR18 = await import('../src/game/runrows.js');
+    const SQ18 = await import('../src/game/squad.js');
+    const R18 = await import('../src/game/rules.js');
+    const ST18 = await import('../src/game/state.js');
+
+    /* 판을 실하게 세운다 — 명부·부대·아이템이 있어야 이 관계가 뜻을 갖는다 */
+    ST18.newGame(1818, '축검사');
+    ST18.advanceDays(120);
+    const rows18 = RR18.toRows(ST18.state);
+    const back = RR18.fromRows(rows18);
+    SQ18.stampSquadPower(back);
+    const srv = R18.extractScore({ ...back, dataVersion: 9, stats: ST18.state.stats || {} });
+
+    ok((srv.rosterN || 0) > 0, '판이 실하다 (명부가 있다)',
+      '명부가 0이면 아래 짝 검사가 아무것도 증명 못 한다');
+
+    const pairs = [];
+    if (srv.sMercs > srv.rosterN) pairs.push(`sMercs ${srv.sMercs} > rosterN ${srv.rosterN}`);
+    if ((srv.sHiredDays || []).length !== srv.sMercs) {
+      pairs.push(`sHiredDays ${(srv.sHiredDays || []).length} != sMercs ${srv.sMercs}`);
+    }
+    if (srv.hiredN > srv.rosterN) pairs.push(`hiredN ${srv.hiredN} > rosterN ${srv.rosterN}`);
+    okAll(pairs, '서버가 뽑은 명부 축들끼리 짝이 맞는다', 3);
+
+    /* ★★ 그리고 **서버 값만으로 판정해도 통과해야 한다.** 여기가 18단계의 관문이다. */
+    const v18 = R18.judge(null, { ...srv, seenPower: srv.topPower });
+    ok(v18.verdict === 'ok', '서버가 뽑은 값만으로 판정해도 정상 계정이 통과한다',
+      `${JSON.stringify(v18)} — 여기서 걸리면 18단계가 정상 플레이어를 거절한다`);
+
+    /* ★ 한 칸만 갈아 끼우면 깨진다 — 그 성질을 직접 보인다 (18단계를 «전부 아니면 전무» 로 못 박는 근거) */
+    const mixed = R18.judge(null, { ...srv, sMercs: srv.rosterN + 1, seenPower: srv.topPower });
+    ok(mixed.verdict === 'reject', '한 칸만 어긋나면 A등급 거절이 된다 (전부 아니면 전무)',
+      `${JSON.stringify(mixed)} — 거절이 아니면 이 경고가 과장이다`);
+  } catch (e) {
+    ok(false, '순위 축 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
 {
   /* ★★ 고용은 이 전환에서 **정상 플레이어를 거절할 수 있는 유일한 행동**이다.
