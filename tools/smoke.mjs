@@ -7436,6 +7436,62 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력을 센다)');
+{
+  /* ★★ 서버가 `_power` 를 처음 부른다. 그런데 **판정에는 한 칸도 안 쓴다.**
+   *   그 계약이 깨지면 새 거절이 생기고, 이 저장소의 최악 사고가 된다.
+   *
+   * ★ 서버 코드는 여기서 굴릴 수 없다 (Deno·인증·DB). 그래서 **글자로** 본다 —
+   *   다만 «있나» 가 아니라 **깨지면 위험한 성질**만 고른다. */
+  const iSrc = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
+  const sIdx = iSrc.indexOf('그림자 모드 — 서버가');
+  ok(sIdx > 0, '그림자 블록이 있다', '없으면 서버는 여전히 전력을 안 센다');
+  const shadow = sIdx > 0 ? iSrc.slice(sIdx) : '';
+
+  /* ① 판정보다 **뒤**여야 한다 — 앞이면 judge 가 그 값을 볼 여지가 생긴다 */
+  ok(sIdx > iSrc.indexOf('const verdict') && sIdx > iSrc.indexOf("upsert(row"),
+    '그림자 블록이 판정과 upsert 보다 뒤에 있다',
+    '앞에 있으면 판정 경로에 새어 들어갈 여지가 생긴다');
+
+  /* ② ★★ `rejections` 에 절대 안 적는다 — A등급 12건/24h 이면 status=held 가 된다.
+   *   그림자 행을 넣으면 **그림자 모드가 스스로 정상 플레이어를 순위표에서 뺀다.** */
+  /* ★★ **주석을 먼저 지운다.** 안 지우면 「rejections 에 안 적는다」 고 적어 둔 이 블록의
+   *   주석 자신이 걸린다 — 실제로 걸렸다. 검사가 자기 문서를 무는 꼴이다.
+   *
+   * ★ 그런데 `decomment(shadow)` 는 안 된다 — `shadow` 는 `/* … *\/` **한복판**에서
+   *   잘린 조각이라 여는 표시가 없어서 지울 수가 없다. 이것도 실제로 걸렸다.
+   *   ⇒ **파일 전체**를 지운 뒤 «코드» 기준점(run_state 읽기)에서 자른다. */
+  const allCode = decomment(iSrc);
+  const cIdx = allCode.indexOf("from('run_state')");
+  ok(cIdx > 0, '그림자 블록의 코드를 찾는다', "run_state 를 읽는 줄이 없다");
+  const shadowCode = cIdx > 0 ? allCode.slice(cIdx) : '';
+  ok(!/rejections/.test(shadowCode), '그림자 블록이 rejections 에 안 적는다',
+    'A등급으로 세어져 24시간 12건이면 정상 계정이 held 로 묶인다');
+
+  /* ③ 쓰기가 하나도 없어야 한다 — 읽기(select)만 */
+  const writes = (shadowCode.match(/\.(insert|upsert|update|delete)\(/g) || []);
+  okAll(writes.map((w) => `그림자 블록에 쓰기가 있다: ${w}`),
+    '그림자 블록은 읽기만 한다', Math.max(1, writes.length));
+
+  /* ④ ★ 동적 import 여야 한다 — 정적이면 묶음이 깨졌을 때 **모듈 적재에서** 죽어
+   *   함수 전체가 500 이 되고, 클라가 매 저장마다 재시도한다. */
+  /* ★ `Promise.all([...])` 안이라 `await` 이 바로 앞에 없다 — 그것까지 받는다. */
+  ok(/(^|[^.w])import\s*\(\s*['"]\.\/_power\//m.test(shadowCode), '묶음을 동적으로 import 한다',
+    '정적 import 면 한 파일만 깨져도 함수가 통째로 죽는다');
+  ok(!/^import .*_power/m.test(iSrc), '파일 맨 위에 _power 정적 import 가 없다',
+    '정적 import 가 있으면 ④의 방어가 무의미하다');
+
+  /* ⑤ try/catch 로 감싸야 한다 — 죽어도 오늘 경로가 그대로여야 한다 */
+  ok(/try \{/.test(shadow) && /\} catch/.test(shadow), '그림자 블록이 try/catch 안에 있다',
+    '안 감싸면 읽기 실패 한 번이 제출을 통째로 500 으로 만든다');
+
+  /* ⑥ ★ 응답에 안 실린다 — 사유를 클라에 안 준다는 §55 의 결정과 같은 선이다 */
+  const retIdx = iSrc.indexOf('return json({ ok: true, abyssBest');
+  const tail = retIdx > 0 ? iSrc.slice(retIdx, retIdx + 200) : '';
+  ok(!/서버|srvPower|srvS|그림자/.test(tail), '그림자 결과가 응답에 안 실린다',
+    '실으면 조작자가 「서버가 무엇을 아는지」 를 그대로 읽는다 (§55)');
+}
+
 section('알리바이 바닥값이 순위 축과 분리돼 있나 (scores.seen_power)');
 {
   /* ★★ §111 의 알리바이 바닥값이 `scores.top_power` 를 읽고 있었다.

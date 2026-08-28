@@ -422,6 +422,74 @@ function sanitizeSquad(raw: unknown) {
     accepted_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
 
+  /* ══════════════════════════════════════════════════════════════════════
+   * 그림자 모드 — 서버가 **처음으로 전력을 직접 센다.** 판정에는 한 칸도 안 쓴다.
+   * ══════════════════════════════════════════════════════════════════════
+   *
+   * ★★ 여기까지 서버는 «클라가 신고한 30칸» 을 판정하기만 했다. `_power` 묶음 18개는
+   *   복사돼 배포까지 돼 있었지만 **아무도 안 불렀다** (§104 1단계가 절반만 끝나 있었다).
+   *   §110 의 「서버가 센 전력 == 클라가 센 전력」 도 Deno 벤치였지 **라이브 경로가 아니었다.**
+   *
+   * ★ 이 블록이 하는 일: `run_*` 을 읽어 `fromRows → stampSquadPower` 로 전력을 세고,
+   *   클라가 신고한 값과 **견주어 로그로만 남긴다.**
+   *
+   * ★★ **지켜야 하는 것 셋**
+   *   ① `judge` · `row` · `ledger` 에 한 칸도 안 쓴다 — 새 거절이 구조적으로 불가능해야 한다.
+   *   ② **`rejections` 에 절대 안 적는다.** 그 표는 `tier='A'` 로 세어져 `probePolicy` 가
+   *      24시간 12건에서 `status='held'` 로 바꾼다. 그림자 행을 넣으면
+   *      **그림자 모드가 스스로 정상 플레이어를 순위표에서 뺀다.**
+   *   ③ 전체를 try/catch 로 감싸고 **동적 import** 를 쓴다. 정적 import 로 두면
+   *      묶음이 한 파일이라도 깨졌을 때 함수가 **모듈 적재 단계에서** 죽어 500 이 되고,
+   *      클라는 `SUBMITTED_KEY` 를 안 적어 매 저장마다 재시도한다 (4단계의 백오프가
+   *      그 위험을 줄여 두긴 했다).
+   *
+   * ★ 오늘은 비교할 것이 없다 — 이관 실적이 0건이라 `run_*` 이 비어 있다.
+   *   그래도 이 단계의 값이 있다: **읽는 길과 import 가 라이브에서 실제로 도는지**를
+   *   8단계(되돌릴 수 없는 이관) **전에** 확인한다. Deno 실측 import 16.9ms · 계산 0.83ms. */
+  try {
+    const [{ data: rs }, { data: rm }, { data: ri }, { data: rp }, { data: rq }] = await Promise.all([
+      admin.from('run_state').select('*').eq('user_id', userId).maybeSingle(),
+      admin.from('run_mercs').select('*').eq('user_id', userId),
+      admin.from('run_items').select('*').eq('user_id', userId),
+      admin.from('run_pets').select('*').eq('user_id', userId),
+      admin.from('run_squads').select('*').eq('user_id', userId),
+    ]);
+
+    /* ★★ import 를 **먼저** 한다 — `run_*` 이 비어도 부른다.
+     *
+     *   처음엔 행이 있을 때만 import 했는데, 이관 실적이 0건이라 **한 번도 안 돌았다.**
+     *   그러면 이 단계의 목적(8단계 전에 라이브 경로를 확인한다)이 통째로 사라진다.
+     *   ⇒ 매 제출마다 부른다. Deno 실측 콜드 16.9ms · 따뜻하면 사실상 0 이고,
+     *     이 블록은 응답 직전이라 판정을 늦추지도 않는다. */
+    const [{ fromRows }, { stampSquadPower }] = await Promise.all([
+      import('./_power/runrows.js'),
+      import('./_power/squad.js'),
+    ]);
+
+    if (!rs) {
+      console.error('[그림자] 묶음은 살아 있다. run_* 은 비었다 — 아직 이관 전이다',
+        { userId, fromRows: typeof fromRows, stampSquadPower: typeof stampSquadPower });
+    } else {
+      const st = fromRows({
+        state: rs, mercs: rm || [], items: ri || [], pets: rp || [], squads: rq || [], quests: [],
+      });
+      stampSquadPower(st);
+      const srvPower = Math.max(0, ...(st.squads || []).map((q: { power?: number }) => Number(q?.power) || 0), 0);
+      const srvS = (st.roster || []).filter((m: { grade?: string }) => m?.grade === 'S').length;
+      const cliPower = Math.max(0, Math.round(Number(score.topPower) || 0));
+      const cliS = Math.max(0, Math.round(Number(score.sMercs) || 0));
+      console.error('[그림자] 서버가 센 값 vs 클라가 신고한 값', {
+        userId,
+        power: { 서버: srvPower, 클라: cliPower, 차: srvPower - cliPower },
+        sMercs: { 서버: srvS, 클라: cliS, 차: srvS - cliS },
+        명부: (st.roster || []).length,
+      });
+    }
+  } catch (e) {
+    /* ★ 여기서 죽어도 오늘 경로에는 아무 영향이 없어야 한다 — 이게 그림자 모드의 계약이다. */
+    console.error('[그림자] 실패 — 판정과 응답에는 영향이 없다', String((e as Error)?.message || e));
+  }
+
   /* ★ flagged 여도 클라이언트에는 ok 로 답한다 (5번 주석 참고). */
   return json({ ok: true, abyssBest: row.abyss_best, towerBest: row.tower_best });
 });
