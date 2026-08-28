@@ -7436,6 +7436,88 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('전직 RPC — 서버가 진행도를 «쓰는» 첫 함수 (run-op)');
+{
+  /* ★★ 여기서부터 서버가 `run_*` 을 **쓴다.** 지켜야 할 것이 늘어난다.
+   *
+   * ★ 규칙 표를 SQL 로 베끼지 않았다 — `promoteOptions` 는 `src/data/classes.js` 에 있고
+   *   `_rules` 묶음(2개 61KB)이 그것을 그대로 나른다. SQL 로 옮겼으면 **넷째 사본**이었다.
+   *   (상한 상수가 그 병을 앓았다. §94·§98·§107.)
+   *
+   * ★ 서버 코드는 굴릴 수 없다 (Deno·인증·DB). 대신 ⑴ **규칙부는 실제로 굴리고**
+   *   ⑵ 배선은 깨지면 위험한 성질만 글자로 본다. */
+  try {
+    const CLS = await import('../src/data/classes.js');
+    const tierOf = (id) => Math.max(1, Math.round(Number(CLS.getClass(id)?.tier) || 1));
+
+    /* ⑴ 규칙부 — 서버가 쓰는 그 함수로 «막아야 할 것» 을 실제로 굴린다 */
+    const bad = [];
+    let pairs = 0;
+    for (const c of Object.values(CLS.CLASSES)) {
+      const allowed = CLS.promoteOptions(c.id).map((x) => x.id);
+      /* 자기 자신은 절대 안 된다 */
+      if (allowed.includes(c.id)) bad.push(`${c.id} 가 자기 자신으로 전직 가능하다`);
+      for (const a of allowed) {
+        pairs++;
+        /* 차수가 반드시 올라가야 한다 — 서버가 이걸 따로 한 번 더 본다 */
+        if (tierOf(a) <= tierOf(c.id)) bad.push(`${c.id}(${tierOf(c.id)}차) → ${a}(${tierOf(a)}차) 가 차수를 안 올린다`);
+      }
+    }
+    okAll(bad, '전직 표가 자기 자신·같은 차수를 안 내놓는다', Math.max(1, pairs));
+    ok(pairs > 50, '전직 경로가 실하다 (표가 비면 이 검사는 아무것도 안 증명한다)', `${pairs}개`);
+    ok(CLS.promoteOptions('nonexistent_class').length === 0, '없는 클래스는 빈 목록을 준다',
+      '없는 클래스가 뭔가를 내놓으면 서버가 그걸 허용한다');
+
+    /* ⑵ 배선 — 깨지면 위험한 것만 */
+    const oSrc = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+    const oCode = decomment(oSrc);
+
+    ok(/from '\.\/_rules\/classes\.js'/.test(oCode), '규칙을 _rules 묶음에서 가져온다',
+      'SQL 이나 손목록으로 베끼면 넷째 사본이 된다');
+    ok(/promoteOptions\(/.test(oCode), '표가 곧 규칙이다 (promoteOptions 를 실제로 부른다)',
+      '안 부르면 서버가 아무 전직이나 받는다');
+
+    /* ★★ 클라가 보낸 «현재 클래스» 를 믿으면 안 된다 — 서버가 읽어야 한다 */
+    ok(/from\('run_mercs'\)[\s\S]{0,120}\.select\(/.test(oCode),
+      '지금 클래스를 서버가 run_mercs 에서 읽는다',
+      '클라가 보낸 from 을 믿으면 아무 전직이나 통과한다');
+    ok(!/body\?\.(from|fromClass|currentClass)/.test(oCode),
+      '클라가 보낸 «현재 클래스» 를 안 받는다', '받으면 그걸 속여서 아무 데로나 간다');
+
+    /* ★★ 멱등성 — 같은 op_id 면 다시 안 한다.
+     *   ★ 처음엔 `from('run_ops') … eq('op_id')` 로 봤는데 **안 물었다** —
+     *     롤백의 `.delete().eq('op_id', …)` 가 그 정규식에 걸렸기 때문이다.
+     *     ⇒ «조회가 있나» 가 아니라 «**재생해서 돌려주나**» 를 직접 묻는다. */
+    ok(/replayed:\s*true/.test(oCode), '같은 op_id 면 지난 결과를 그대로 돌려준다',
+      '재생 경로가 없으면 네트워크 재시도가 두 번 적용한다');
+    ok(/select\('result'\)/.test(oCode), '재생할 때 지난 result 를 읽는다',
+      '안 읽으면 재시도가 빈 답을 받아 사람이 또 누른다');
+
+    /* ★ 원장을 **먼저** 남긴다 — 쓰고 나서 원장이 실패하면 재시도가 두 번 한다.
+     *   글자 위치로 «먼저» 를 본다: run_ops 에 insert 하는 자리가 run_mercs 를
+     *   update 하는 자리보다 앞이어야 한다. */
+    const insIdx = oCode.indexOf('insert({ user_id: userId, op_id: opId');
+    const updIdx = oCode.indexOf("update({ class_id: toClass })");
+    ok(insIdx > 0 && updIdx > 0 && insIdx < updIdx,
+      '원장을 쓰기보다 먼저 남긴다',
+      `원장 ${insIdx} · 쓰기 ${updIdx} — 나중에 남기면 원장 실패가 이중 적용을 만든다`);
+
+    /* ★ user_id 를 클라가 못 정한다 */
+    ok(!/body\?\.(userId|user_id)/.test(oCode), 'user_id 를 클라가 못 보낸다',
+      '받으면 남의 계정을 고칠 수 있다');
+    ok(/auth\.getUser\(\)/.test(oCode), '신원을 JWT 에서 얻는다', 'JWT 로 안 얻으면 사칭이 된다');
+
+    /* ⑶ 정리 정책이 같은 커밋에 있나 — 없으면 run_ops 가 무한히 자란다 */
+    const sweep = readFileSync(join(rootDir, 'db/020_run_ops_cleanup.sql'), 'utf8');
+    ok(/create or replace function public\.run_ops_sweep/.test(sweep), 'run_ops 청소 함수가 있다',
+      '없으면 인구 7명에 하루 ~3,000 op 이 쌓여 무료 500MB 를 몇 달에 먹는다');
+    ok(/revoke execute on function public\.run_ops_sweep/.test(sweep),
+      '청소 함수를 플레이어가 못 부른다', '열어 두면 남의 멱등성 키를 지울 수 있다');
+  } catch (e) {
+    ok(false, '전직 RPC 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('서버 스냅샷을 받아올 때 판이 안 지워지나 (run.js pull)');
 {
   /* ★★★ `run_snapshot` 은 이관 전이면 `{ok:false, reason:'none'}` 을 준다 —

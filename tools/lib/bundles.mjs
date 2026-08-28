@@ -88,6 +88,27 @@ export const BUNDLES = [
     walk: true,
     next: 'supabase functions deploy submit-score',
   },
+  {
+    /* ════════════════════════════════════════════════════════════════════
+     * 규칙 표 — 서버가 «이 전직이 합법인가» 를 물으려면 필요하다 (§104 1단계 3번)
+     *
+     * ★★ **SQL 로 베끼지 않는다.** `promoteOptions` 는 `src/data/classes.js` 에 있고,
+     *   그 표를 plpgsql 로 옮기면 저장소에 **넷째 사본**이 생긴다 (상한 상수가 그랬듯이).
+     *   사본이 둘이면 반드시 갈라진다 (§94·§98·§107).
+     *
+     * ★ 닫힘이 **2개 61KB** 뿐이다 — `classes.js` → `classes_t4.js`. 그래서 `_power`
+     *   18개를 통째로 세 번째 복사하는 대신 이 작은 묶음을 따로 둔다.
+     *   (`statbound` 때 「18개를 또 복사하는 거래는 손해」 라고 판단한 것과 같은 잣대다.)
+     *
+     * ★★ 이 둘은 **ENGINE_HASH 의 재료**다. 그런데 지문은 «파일의 내용» 이라
+     *   묶음을 늘려도 해시는 안 바뀐다 — 확인했다. **내용을 고치는 것만** 위험하다.
+     * ════════════════════════════════════════════════════════════════════ */
+    name: '규칙 표',
+    dest: 'supabase/functions/run-op/_rules',
+    entry: ['src/data/classes.js'],
+    walk: true,
+    next: 'supabase functions deploy run-op',
+  },
 ];
 
 /** 진입점에서 import 를 따라 걷는다.
