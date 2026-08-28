@@ -7478,6 +7478,59 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('의뢰 정산 신고 — 순서와 무해함 (17단계 1번 조각)');
+{
+  /* ★★★ 이 조각의 값어치는 **부르는 자리** 하나다.
+   *   `autoSellLoot()` 가 `applyQuestResult` 뒤·`save()` 앞에서 도는데,
+   *   신고를 그 **뒤**에서 만들면 자동판매 수익이 골드에 섞인다.
+   *   그 항은 아이템 스탯이 정하므로 **§113 때문에 원리적으로 못 뺀다**
+   *   ⇒ 뒤에서 부르면 어떤 밴드도 정상 플레이어를 거절하게 된다. */
+  const bSrc = readFileSync(srcDir('ui/battle.js'), 'utf8');
+  const bCode = decomment(bSrc);
+  const iReport = bCode.indexOf('reportSettle(');
+  const iAuto = bCode.indexOf('autoSellLoot()');
+  const iSave = bCode.indexOf('save();', iAuto > 0 ? iAuto : 0);
+
+  ok(iReport > 0, '정산 신고를 부른다', '안 부르면 서버가 정산을 영영 못 본다');
+  ok(iReport > 0 && iAuto > 0 && iReport < iAuto,
+    '★ 신고가 autoSellLoot() 보다 **앞**이다',
+    '뒤면 자동판매 수익이 골드에 섞이고 §113 때문에 못 뺀다');
+  ok(iAuto > 0 && iSave > iAuto, '자동판매가 save() 보다 앞이다 (전제 확인)',
+    '이 순서가 바뀌면 위 검사의 근거가 사라진다');
+
+  /* ★★ 게임 흐름을 막으면 안 된다 */
+  const sSrc = readFileSync(srcDir('net/settle.js'), 'utf8');
+  const sCode = decomment(sSrc);
+  ok(!/await\s+authed\(/.test(sCode), '신고를 기다리지 않는다 (fire-and-forget)',
+    '기다리면 네트워크가 느릴 때 결과 화면이 멈춘다');
+  ok(/catch/.test(sCode), '신고 전체가 try/catch 안이다',
+    '던지면 save() 가 안 돌아 진행이 날아간다');
+  ok(/\.catch\(/.test(sCode), '요청 실패를 삼킨다',
+    '안 삼키면 unhandled rejection 이 뜬다');
+  /* 부르는 쪽도 감싸야 한다 — 이 모듈이 사라져도 게임이 돌아야 한다 */
+  const around = bCode.slice(Math.max(0, iReport - 200), iReport + 200);
+  ok(/try\s*\{/.test(around), '부르는 쪽도 try 로 감쌌다',
+    'settle.js 가 던지면 save() 가 안 돈다');
+
+  /* ★★★ 서버는 아무것도 안 쓴다 — 특히 run_ops 에 안 적는다 */
+  const oSrc17 = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+  const allCode17 = decomment(oSrc17);
+  const qIdx = allCode17.indexOf("op === 'questSettle'");
+  ok(qIdx > 0, '서버에 questSettle 분기가 있다', '없으면 신고가 400 으로 떨어진다');
+  const qEnd = allCode17.indexOf('return json({ ok: true, shadow: true });', qIdx);
+  const qBlock = qIdx > 0 && qEnd > qIdx ? allCode17.slice(qIdx, qEnd) : '';
+  ok(!!qBlock, 'questSettle 블록을 찾는다', '');
+  const writes17 = (qBlock.match(/\.(insert|upsert|update|delete)\(/g) || []);
+  okAll(writes17.map((w) => `questSettle 블록에 쓰기가 있다: ${w}`),
+    '정산 신고는 아무것도 안 쓴다', Math.max(1, writes17.length));
+  ok(!/run_ops/.test(qBlock), '★ run_ops 에 안 적는다',
+    '적으면 「했다」 가 되어 나중에 진짜 정산이 재생으로 막힌다 (15단계와 같은 계약)');
+
+  /* ★ 밴드를 **정수**로 재나 — 실수 밴드는 정상 지급을 거절한다 (실측 0.21~4.6%) */
+  ok(/Math\.round\(Number\(x\) \|\| 0\)/.test(qBlock) || /R2\(/.test(qBlock),
+    '밴드를 정수로 잰다', '실수 밴드는 정상 지급을 거절한다');
+}
+
 section('RNG 의 죽는 상태 — 알고 두는 것이지 고칠 것이 아니다');
 {
   /* ★★★ `src/core/rng.js:10` 이 `x ^= x >> 17` 이다 — `>>>` 가 아니라 **부호 있는** 시프트다.

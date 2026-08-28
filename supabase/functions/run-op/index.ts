@@ -328,6 +328,72 @@ Deno.serve(async (req) => {
     return json({ ok: true, shadow: true, result });
   }
 
+  /* ═══════════════════════ 의뢰 정산 신고 (그림자) ═══════════════════════
+   * ★★ **서버가 의뢰 정산을 한 번도 본 적이 없다.** 그래서 첫 조각의 일은 판정이
+   *   아니라 **채널을 파는 것**이다. 여기서는 `select` 만 하고 로그만 남긴다.
+   *
+   * ★★★ **`run_ops` 에 안 적는다.** 적으면 「했다」 가 되어 나중에 진짜 정산이
+   *   재생으로 막힌다 — 15단계 하루 넘기기와 같은 계약이다.
+   *
+   * ★ 여기서 «G 가 정직한가» 는 아직 못 묻는다. `quest.reward` 는 `run_state.data`
+   *   jsonb — **클라가 쓴 것을 db/016:95 가 무검증으로 넣는 통** — 에 있기 때문이다.
+   *   그건 2번 조각(`genQuests` 재현)이 할 일이다. 지금은 **다음 조각을 결정할 축**만 모은다.
+   *
+   * ★ 밴드는 **정수**로 잰다. 실수 밴드(`G*0.94 ≤ g`)는 정상 지급을 거절한다 —
+   *   실측 0.21~4.6%. 정수 밴드는 40만 굴림에서 위반 0 이다.
+   *   ★★ 그리고 SQL `numeric` 으로 재지 마라 (정확 십진 vs IEEE754 — G 233개가 갈린다).
+   *     여기는 Deno 라 double 이다. */
+  if (op === 'questSettle') {
+    const { data: rs4 } = await admin.from('run_state')
+      .select('day, city_id, seed, data').eq('user_id', userId).maybeSingle();
+
+    const q = body || {};
+    const rw = (q.reward && typeof q.reward === 'object') ? q.reward : null;
+    const rep = (q as { 신고?: Record<string, number> }).신고 || {};
+    const G = Math.round(Number(rw?.gold) || 0);
+    const E = Math.round(Number(rw?.exp) || 0);
+    const R = Math.round(Number(rw?.renown) || 0);
+    const gold = Math.round(Number(rep.gold) || 0);
+    const exp = Math.round(Number(rep.exp) || 0);
+    const renown = Math.round(Number(rep.renown) || 0);
+
+    /* 저장본에 그 의뢰가 있나 — id 로 멤버십만 본다 (목록은 언제나 부분집합이다) */
+    const book = ((rs4?.data || {}).quests || {})[String(q.cityId || '')];
+    const saved = book && Array.isArray(book.list)
+      ? book.list.find((x: { id?: string }) => x && x.id === q.questId) : null;
+
+    const R2 = (x: unknown) => Math.round(Number(x) || 0);
+    console.error('[그림자] 의뢰 정산 신고', {
+      userId,
+      questId: q.questId, cityId: q.cityId,
+      날짜: { 목록: q.listDay, 오늘: q.day, 서버: rs4?.day ?? null,
+        차: Number.isFinite(Number(q.day)) && rs4 ? Number(q.day) - Number(rs4.day) : null },
+      도시일치: rs4 ? String(q.cityId) === String(rs4.city_id) : null,
+      저장본에있나: !!saved,
+      저장본reward: saved ? (saved as { reward?: unknown }).reward : null,
+      클라reward: rw,
+      /* ★ 정수 밴드 — 승리일 때만 뜻이 있다 */
+      밴드: q.win ? {
+        골드: { G, 지급: gold, 아래: R2(G * 0.94), 위: R2(G * 1.14),
+          안: gold >= R2(G * 0.94) && gold <= R2(G * 1.14) },
+        경험: { E, 지급: exp, 아래: R2(E * 0.96), 위: R2(E * 1.08),
+          안: exp >= R2(E * 0.96) && exp <= R2(E * 1.08) },
+        명성: { R, 지급: renown, 같나: renown === R },
+        전리품: { 굴림: Array.isArray(rw?.itemRolls) ? rw.itemRolls.length : null, 받음: rep.itemsN },
+      } : { 패배: true, exp, progress: q.progress },
+      웨이브: { 신고: q.waveN, 의뢰: q.questWaveN,
+        중도끝: Number(q.waveN) < Number(q.questWaveN),
+        /* ★ 마지막 웨이브에 margin 이 없으면 **후퇴**다 (finish() 를 안 지났다) */
+        후퇴: Array.isArray(q.waves) && q.waves.length
+          ? !q.waves[q.waves.length - 1].margin : null },
+      자동판매: q.autoSellRarity,
+      목록도시수: Object.keys((rs4?.data || {}).quests || {}).length,
+    });
+
+    /* ★★ 아무것도 안 쓴다. `run_ops` 도 안 적는다. */
+    return json({ ok: true, shadow: true });
+  }
+
   if (op !== 'promote') return json({ error: '모르는 op 이다' }, 400);
 
   const mercUid = String(body?.mercUid || '');

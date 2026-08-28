@@ -9,6 +9,8 @@ import { getSkill } from '../data/skills.js';
 import { getClass } from '../data/classes.js';
 import { createBattle, setSkillResolver } from '../battle/engine.js';
 import { state, addGold, addLog, save, getMerc, itemsById } from '../game/state.js';
+/* ★ 정산을 서버에 «신고만» 한다 — 판정도 안 하고 응답도 안 본다 (§104 17단계) */
+import { reportSettle } from '../net/settle.js';
 import { questBattleDefs, applyWaveCarry, readWaveCarry, WAVE_HEAL, applyQuestResult } from '../game/quest.js';
 import { canPromote, gainExp, mercStats, mercPower, promoteOptionsFor } from '../game/merc.js';
 import { autoEquipAll, SLOT_NAME, isSellable, sellItem } from '../game/gear.js';
@@ -1023,6 +1025,17 @@ function finishAll(win) {
     } catch (e) {
       console.error('[battle] 호출부 정산 훅 실패', e);
     }
+  }
+
+  /* ★★★ **정산 신고는 `autoSellLoot()` 앞에서** 만든다 (§104 17단계 1번 조각).
+   *   자동판매가 골드에 섞이면 서버가 보는 델타가 오염되고, 그 항은 아이템 스탯이
+   *   정하므로 §113 때문에 **원리적으로 못 뺀다** — 뒤에서 부르면 어떤 밴드도
+   *   정상 플레이어를 거절하게 된다.
+   *   ★ 기다리지 않는다. 던져도 아래 `save()` 가 돈다. */
+  if (S.mode === 'quest' && S.quest && S.applied) {
+    try {
+      reportSettle({ state, quest: S.quest, applied: S.applied, results: S.results, squadId: S.squadId });
+    } catch (e) { console.warn('[battle] 정산 신고 실패 (게임에는 영향 없다)', e); }
   }
 
   autoSellLoot();
