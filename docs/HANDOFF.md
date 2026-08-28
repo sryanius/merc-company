@@ -8566,12 +8566,16 @@ importRun/snapshot → HTTP 401 '로그인되어 있지 않다'   (네트워크�
 ```
 
 ★★ **인증된 호출은 아직 못 해봤다.** 구글 로그인이 필요한데 그건 제작자만 할 수 있다.
-  제작자가 로그인한 상태에서 브라우저 콘솔에 이 한 줄이면 끝까지 돈다:
 
-```js
-(async () => { const S = await import('/src/game/state.js'); const R = await import('/src/net/run.js');
-  console.log(R.preview(S.state)); console.log(await R.importRun(S.state)); })()
-```
+★★★ **아래에 예전에 적어 뒀던 「한 줄」 은 지웠다 — 함정이었다 (§122.4).**
+  그 줄은 `importRun(S.state)` 을 불렀다. 그건 **계정당 한 번뿐이고 되돌릴 수 없다**
+  (`db/016_run_import.sql:109` 의 자물쇠는 `where imported_at is null`, 지울 경로 없음).
+  「경로만 고쳐서 붙여넣자」 로 실행하면 그 순간 **시험 데이터로 이관 칸이 영구히 잠긴다.**
+  그리고 그 절대경로(`/src/...`)는 배포본(`/merc-company/` 하위)에서 404 다.
+
+  ⇒ 먼저 부를 것은 `importRun` 이 아니라 **읽기 전용 `run_snapshot`** 이다.
+    `db/016_run_import.sql:199` 이 `language plpgsql **stable**` 이라 PostgreSQL 이
+    쓰기를 보장으로 막는다. 안전한 줄은 §122.4 에 있다.
 
 ### ★ 사람이 누를 자리는 **아직 안 만들었다**
 
@@ -9099,3 +9103,90 @@ battlesWon · rosterCap · itemsN · petsN · hires · hiredN   → ×100000 까
 · ★★ 3단계에서 **성질이 바뀐다**: 지금은 프로젝트가 잠들어도 게임은 localStorage 로 돈다.
   서버 소유가 되면 전원이 못 논다. keep-alive 가 GitHub Actions schedule 이라
   저장소 60일 비활성이면 조용히 꺼진다 ⇒ 외부 크론 이중화가 «권장» 에서 «필수» 가 된다.
+
+
+## 122.4 「로컬은 구글 연동을 안 했는데 상관 없나」 — 상관 있다. 그리고 **로컬에서 로그인하지 마라**
+
+제작자의 질문이 1단계의 전제를 정확히 겨눴다. 재 봤다.
+
+### (가) `snapshot()` — 로그인이 **반드시** 필요하다. 로컬로는 아무것도 못 배운다
+
+`src/net/rest.js:87-89` 의 첫 두 줄이 `const token = auth.accessToken(); if (!token) return fail(401, …)` 다.
+⇒ **fetch 가 아예 안 나간다.** 서버는 요청을 본 적조차 없다.
+그리고 `localhost:5174` 와 `sryanius.github.io` 는 출처가 달라 localStorage 가 완전히 별개다 —
+배포 사이트의 세션은 로컬에서 **원리적으로** 안 보인다.
+
+★ 두 결과는 확실히 구별된다 (층이 다르다):
+· 로그인 X        → `{ok:false, status:401, error:'로그인되어 있지 않다'}`  ← 바깥 ok
+· 로그인 O·이관 없음 → `{ok:true, status:200, data:{ok:false, reason:'none'}}` ← 안쪽 ok
+  **눈으로는 헷갈린다** (둘 다 어딘가에 `ok:false` 가 찍힌다). `status`·`ok`·`data` 를 따로 찍어라.
+
+★ `snapshot()` 응답에 **누구로 물었는지가 없다** (db/016:214-231 에 email·userId 가 없다).
+  `reason:'none'` 은 「내 계정에 실적이 없다」 와 「엉뚱한 세션으로 물었다」 를 구별 못 한다.
+  ⇒ 부르기 **전에** `signedIn()/email()/userId()` 로 신원을 따로 찍어라 (순수 로컬 읽기).
+
+### (나) ★★ `localhost:5174` 는 **Supabase 허용목록에 없다** — 로그인 자체가 안 된다
+
+쓰기 없이 잴 수 있었다. GoTrue 는 `/auth/v1/verify` 의 **실패 경로**에서도 허용목록을 통과한
+주소로만 되돌린다 ⇒ 엉터리 토큰으로 GET 해 `Location` 헤더를 보면 답이 나온다 (2026-08-28 실측).
+`localhost:5174` 는 통과하지 못했다.
+
+★★ 그리고 **된다 해도 하면 안 된다.** 옛 로컬 세이브가 서버의 진짜 기록을 덮는 길이 둘 있고
+  그중 하나는 **아무것도 안 눌러도 자동으로** 돈다:
+  · `saves`: 로그인 직후 `finishLogin` → `queuePush({now:true})` (cloud.js:127-139).
+    관문(cloud.js:284-296)은 **seed 만** 본다 — seed 가 같으면 그대로 덮는다.
+  · `scores`: **seed 가 «다를» 때가 위험하다.** `sameRun` 이 거짓이면 `keepMax` 가 안 걸리고
+    (index.ts:334·350-377) `scores_monotonic` 트리거도 `when (old.seed = new.seed)` 라 안 돈다
+    (db/001_init.sql:203) ⇒ 순위표 행이 통째로 낮은 값으로 교체된다. **자동 백업이 없다.**
+  ⇒ 두 관문이 **반대 방향**이라 「seed 만 확인하면 된다」 가 성립하지 않는다.
+  ⇒ 「세이브를 비우고 로그인해라」 는 `saves` 는 막지만 새 게임이 새 seed 를 만들어
+    `scores` 쪽 최악을 **확정**시킨다. 안전 절차가 다른 구멍을 연다.
+
+### (다) `preview()` — 로그인과 무관하다. 그러나 **옛 세이브로 재면 뜻이 없다**
+
+`preview` 는 동기 순수 계산이고 `runrows.js` 는 import 0개다 (fetch 0회 실측).
+그런데 행 크기는 **거의 전부 아이템 개수**에 비례한다 (아이템 1행 505~684B · 용병 1행 ≈293B 상수).
+§116 에 남은 실측 `{day:1, mercs:4, items:11, kb:13}` 은 **딱 새 게임**이라 실측 최대 세이브의
+행(약 1,150KB)과 **70~77배** 어긋난다.
+
+★★ 그리고 `preview().kb` 는 **바이트가 아니다** — `run.js:80` 의 `String.length` 는 UTF-16
+  코드유닛 수다 (한글이라 실바이트보다 ≈9.5% 적게 잰다). 서버 상한은 또 다른 양이다:
+  `db/016:57` 의 `pg_column_size(p_rows)` 는 **jsonb 이진 크기**(텍스트의 약 1.45배).
+  ⇒ **`preview().kb` × 약 1.6 ≈ 서버가 보는 값.** 4MB 에 닿는 `kb` 는 4,096 이 아니라
+    **약 2,550** 이고, 1,046KB 세이브 기준 실제 여유는 **약 2.4배**다 (아이템 4,400~5,000개).
+    `db/016:57` 주석의 「1MB 남짓이니 넉넉하다」 감각보다 **훨씬 빠듯하다.**
+
+★ 상한이 **둘**이다. `run_state.data` 에 256KB CHECK 가 따로 있고(db/015:83-85), 이건 얌전히
+  `{ok:false}` 를 주지 않고 **HTTP 500** 으로 터진다. 도시 목록이 여러 개 살아 있으면
+  data 가 19.5KB → 3도시 60KB → 16도시 305KB 로 **넘는다.** (자물쇠 앞이라 재시도는 된다.)
+
+★ 좋은 소식: `too_big`·`shape`·`auth` 로 튕긴 계정은 **자물쇠가 안 걸린다** (크기 검사가
+  자물쇠보다 앞이다, db/016:57-60 → 68). 되돌릴 수 없어지는 것은 **성공한 이관뿐**이다.
+
+### ⇒ 지금 할 것: **푸시 없이, 배포 사이트에서, 읽기 전용으로**
+
+배포본에 `config.js`·`auth.js` 는 **이미 있다** (`run.js` 만 없다). 그 둘로 `run_snapshot` 을
+직접 POST 하면 1단계의 목적 ①을 **오늘 그대로** 얻는다. `run_snapshot` 은
+`language plpgsql **stable**` (db/016:199) 이라 PostgreSQL 이 쓰기를 보장으로 막는다.
+
+```js
+// https://sryanius.github.io/merc-company/ 콘솔. 읽기만 한다 — 세이브를 안 건드린다.
+(async () => {
+  const C = await import('/merc-company/src/net/config.js');
+  const A = await import('/merc-company/src/net/auth.js');
+  console.log('계정 =', A.signedIn(), A.email(), A.userId());   // ← 진짜 계정인지 먼저 확인
+  await A.ensureFresh();                                        // 토큰만 갱신 (게임 표와 무관)
+  const r = await fetch(C.EP.rpc('run_snapshot'), { method: 'POST',
+    headers: { apikey: C.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + A.accessToken(),
+               'Content-Type': 'application/json' }, body: '{}' });
+  console.log('status =', r.status, '| body =', await r.json());
+  // 200 + {ok:false,reason:'none'} 이 정상 · 403 이면 grant · 404/PGRST202 면 스키마 캐시
+  const raw = localStorage.getItem('merc_company_save_v1') || '';
+  const B = new Blob([raw]).size;
+  console.log('세이브 실바이트', B, '| 서버가 볼 크기 추정',
+              Math.round(B * 1.10 * 1.45 / 1024) + 'KB / 4096KB');
+})()
+```
+
+★ 「푸시하고 배포본에서 `run.js` 를 부른다」 도 된다 — 그러면 항목별 내역까지 얻는다.
+  다만 1단계는 **「배포 0줄」** 로 못 박아 둔 단계라, 푸시는 푸시대로 따로 판정한다 (§122.5).
