@@ -7436,6 +7436,84 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('서버 스냅샷을 받아올 때 판이 안 지워지나 (run.js pull)');
+{
+  /* ★★★ `run_snapshot` 은 이관 전이면 `{ok:false, reason:'none'}` 을 준다 —
+   *   그리고 **오늘 모든 계정이 정확히 그 응답을 받는다** (이관 실적 0건).
+   *
+   *   그런데 `fromRows` 는 그걸 받고 **던지지 않는다.** 빈 값으로 채운 15칸짜리
+   *   객체를 주고, `importState` 는 그걸 받아 **`true` 를 돌려준다.**
+   *   실측: 120일차 판이 `{roster:0, companyName:''}` 가 되고 `day`·`gold` 는 undefined.
+   *   ⇒ 가드가 없으면 **오늘 이걸 누른 사람은 전부 판이 지워진다.**
+   *
+   * ★ 그래서 이 절은 «글자» 가 아니라 **실제로 굴려서** 묻는다 — `pull()` 에
+   *   가짜 응답을 물려서 `applyState` 가 **불렸는지 안 불렸는지**를 본다. */
+  try {
+    const RUN = await import('../src/net/run.js');
+    const ST7 = await import('../src/game/state.js');
+    const RR7 = await import('../src/game/runrows.js');
+
+    /* ① 먼저 «가드가 없으면 정말 지워지나» 를 확인한다 — 이게 참이어야 이 절에 값이 있다 */
+    ST7.newGame(4242, '지워지나');
+    ST7.advanceDays(120);
+    const beforeDay = ST7.state.day;
+    const wiped = RR7.fromRows({ ok: false, reason: 'none' });
+    const ret = ST7.importState(wiped);
+    ok(ret === true && !(Number(ST7.state.day) > 0),
+      '가드가 없으면 판이 지워진다 (그래서 이 검사가 있다)',
+      `importState 반환 ${ret} · day ${beforeDay} → ${ST7.state.day}`);
+
+    /* ② 이제 pull() 이 그걸 막는지 — `applyState` 가 아예 안 불려야 한다 */
+    ST7.newGame(4242, '지켜지나');
+    ST7.advanceDays(120);
+    const keepDay = ST7.state.day;
+
+    const cases = [
+      ['이관 전 (오늘 전원이 받는 응답)', { ok: true, status: 200, data: { ok: false, reason: 'none' }, error: '' }, 'none'],
+      ['이미 이관함', { ok: true, status: 200, data: { ok: false, reason: 'already' }, error: '' }, 'already'],
+      ['네트워크 실패', { ok: false, status: 0, data: null, error: '시간 초과' }, 'net'],
+      ['로그인 안 됨', { ok: false, status: 401, data: null, error: '로그인되어 있지 않다' }, 'net'],
+      ['data 가 통째로 없다', { ok: true, status: 200, data: null, error: '' }, 'none'],
+      ['ok:true 인데 알맹이가 없다', { ok: true, status: 200, data: { ok: true }, error: '' }, 'empty'],
+    ];
+    const fails = [];
+    for (const [name, fake, wantReason] of cases) {
+      let called = 0;
+      const r = await pullWith(RUN, fake, () => { called++; return true; });
+      if (called > 0) fails.push(`${name}: applyState 가 불렸다 (판이 지워진다)`);
+      if (r.applied) fails.push(`${name}: applied=true 로 돌아왔다`);
+      if (r.reason !== wantReason) fails.push(`${name}: reason 이 ${r.reason} (기대 ${wantReason})`);
+    }
+    okAll(fails, '서버에 데이터가 없으면 applyState 를 아예 안 부른다', cases.length * 3);
+    ok(Number(ST7.state.day) === keepDay, '검사를 도는 동안 판이 그대로다',
+      `${keepDay} → ${ST7.state.day}`);
+
+    /* ③ ★ 과잉수정 감시 — **진짜 데이터가 오면 적용해야 한다.** 안 그러면 8단계가 죽는다 */
+    ST7.newGame(999, '원본');
+    ST7.advanceDays(30);
+    const realRows = RR7.toRows(ST7.state);
+    let applied = 0;
+    const good = await pullWith(RUN, { ok: true, status: 200, error: '',
+      data: { ok: true, ...realRows } }, (st) => { applied++; return Array.isArray(st.roster) && st.roster.length > 0; });
+    ok(applied === 1 && good.applied === true, '진짜 데이터가 오면 적용한다',
+      `applyState 호출 ${applied}회 · applied=${good.applied}`);
+
+    /* ④ 적용 전에 원본을 남기나 */
+    let backed = '';
+    await pullWith(RUN, { ok: true, status: 200, error: '', data: { ok: true, ...realRows } },
+      () => true, () => 'RAW-원본', (raw) => { backed = raw; });
+    ok(backed === 'RAW-원본', '적용 전에 로컬 원본을 남긴다',
+      '안 남기면 잘못 받았을 때 되돌릴 길이 없다');
+  } catch (e) {
+    ok(false, 'pull 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+/** 응답을 손에 쥐고 `pull()` 을 부른다 — 이 함수의 값어치가 «응답을 어떻게 거르나» 라서. */
+async function pullWith(RUN, fakeRes, applyState, readRaw, backup) {
+  return RUN.pull({ applyState, readRaw, backup, fetchSnapshot: async () => fakeRes });
+}
+
 section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력을 센다)');
 {
   /* ★★ 서버가 `_power` 를 처음 부른다. 그런데 **판정에는 한 칸도 안 쓴다.**

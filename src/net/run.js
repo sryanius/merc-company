@@ -22,7 +22,7 @@
 import { EP } from './config.js';
 import { authed } from './rest.js';
 import * as Auth from './auth.js';
-import { toRows } from '../game/runrows.js';
+import { toRows, fromRows } from '../game/runrows.js';
 
 /**
  * 세이브를 서버로 옮긴다. **계정당 한 번.**
@@ -76,10 +76,94 @@ export function preview(state) {
       pets: (r.pets || []).length,
       abyss: s.abyss_best || 0,
       tower: s.tower_best || 0,
-      /* 대략적인 크기 — 1MB 를 넘는 세이브가 실재한다 (실측 최대 1,046KB) */
+      /* ★★ **이건 바이트가 아니다.** `String.length` 는 UTF-16 코드유닛 수이고,
+       *   게임 데이터가 한글이라 실바이트보다 **약 9.5% 적게** 잰다.
+       *   게다가 서버 상한은 또 다른 양이다 — `db/016:57` 의 `pg_column_size` 는
+       *   **jsonb 이진 크기**(텍스트의 약 1.45배)지 JSON 텍스트 길이가 아니다.
+       *
+       *   ⇒ **`kb` × 약 1.6 ≈ 서버가 보는 크기.** 4MB(4,096KB)에 닿는 `kb` 는
+       *     4,096 이 아니라 **약 2,550** 이다. 그렇게 읽어라 (§122.4). */
       kb: Math.round(JSON.stringify(r).length / 1024),
+      /* ★ 그래서 서버가 볼 크기의 어림값을 같이 준다 — 사람이 곱셈을 안 하게. */
+      serverKb: Math.round((JSON.stringify(r).length * 1.10 * 1.45) / 1024),
+      serverCapKb: 4096,
     };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
   }
+}
+
+/**
+ * 서버가 가진 진행도를 받아 **이 기기에 적용한다.**
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ **이 함수의 존재 이유는 첫 세 줄이다.**
+ *
+ *   `run_snapshot` 은 이관 전이면 `{ok:false, reason:'none'}` 을 준다 — 그리고
+ *   **오늘 모든 계정이 정확히 그 응답을 받는다** (이관 실적 0건).
+ *   그런데 `fromRows({ok:false, reason:'none'})` 는 **던지지 않는다.**
+ *   `state`·`mercs` 가 없으니 빈 값으로 채운 **15칸짜리 객체**를 돌려주고,
+ *   `importState()` 는 그걸 받아 **`true` 를 돌려준다.**
+ *
+ *   실측 (120일차 판에 그대로 태워 봤다):
+ *     적용 전 `{day:121, roster:4, companyName:'진행중인판'}`
+ *     적용 후 `{roster:0, companyName:''}` — `day`·`gold` 는 **undefined**
+ *     그리고 `importState` 의 반환값은 **`true`** 였다. 성공으로 보인다.
+ *
+ *   ⇒ 가드가 없으면 **오늘 이 버튼을 누른 사람은 전부 판이 지워진다.**
+ *     그래서 «데이터가 왔나» 를 `data.ok === true` 로 **명시적으로** 묻는다.
+ *     `res.ok`(HTTP 200)만 보면 안 된다 — 저 응답도 HTTP 200 이다.
+ *
+ * ★ 적용 전에 로컬 원본을 `cloud.js` 의 롤백 자리와 **같은 칸**에 남긴다.
+ *   두 벌로 만들면 갈라진다 — 그래서 키를 여기서 새로 만들지 않고 주입받는다.
+ *
+ * @param {object} opts
+ * @param {(state:object)=>boolean} opts.applyState 적용 함수 (`State.importState`)
+ * @param {()=>Promise<object>} [opts.fetchSnapshot] 스냅샷을 가져오는 함수.
+ *   기본값은 이 모듈의 `snapshot` 이다. ★ 시험용 뒷문이 아니라 **나머지 셋과 같은
+ *   모양의 의존성 주입**이다 — 이 함수의 값어치가 「응답을 어떻게 거르나」 에 있으므로
+ *   그 거름망을 굴려 보려면 응답을 손에 쥘 수 있어야 한다.
+ * @param {()=>string|null} [opts.readRaw] 지금 로컬 세이브 원문 (백업용)
+ * @param {(raw:string)=>void} [opts.backup] 원본을 남기는 곳 (`cloud.js` 의 롤백 칸)
+ * @returns {Promise<{ok:boolean, reason:string, applied:boolean, error:string}>}
+ */
+export async function pull(opts) {
+  const o = opts || {};
+  const res = await (typeof o.fetchSnapshot === 'function' ? o.fetchSnapshot() : snapshot());
+
+  /* ★★★ 여기가 이 함수의 전부다. 순서를 바꾸지 마라. */
+  if (!res.ok) return { ok: false, reason: 'net', applied: false, error: res.error || '' };
+  if (!res.data || res.data.ok !== true) {
+    return { ok: false, reason: String(res.data?.reason || 'none'), applied: false, error: '' };
+  }
+
+  /* ★ 여기서부터만 «서버에 진짜 데이터가 있다» 가 참이다. */
+  let st = null;
+  try {
+    st = fromRows(res.data);
+  } catch (e) {
+    return { ok: false, reason: 'shape', applied: false, error: String((e && e.message) || e) };
+  }
+  /* ★ 그래도 한 번 더 본다 — 사상이 바뀌어도 판이 안 지워지게. */
+  if (!st || !Array.isArray(st.roster) || !st.roster.length || !(Number(st.day) > 0)) {
+    return { ok: false, reason: 'empty', applied: false, error: '' };
+  }
+
+  /* ★★ 적용 **전에** 원본을 남긴다. 실패하면 적용하지 않는다. */
+  try {
+    if (typeof o.readRaw === 'function' && typeof o.backup === 'function') {
+      const raw = o.readRaw();
+      if (raw) o.backup(raw);
+    }
+  } catch (e) {
+    return { ok: false, reason: 'backup', applied: false, error: String((e && e.message) || e) };
+  }
+
+  let applied = false;
+  try {
+    applied = o.applyState(st) === true;
+  } catch (e) {
+    return { ok: false, reason: 'apply', applied: false, error: String((e && e.message) || e) };
+  }
+  return { ok: applied, reason: applied ? '' : 'apply', applied, error: '' };
 }
