@@ -7480,6 +7480,59 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('★ 모든 모듈이 구문이 맞고 실제로 적재되나');
+{
+  /* ★★★ **오늘 이걸로 게임이 안 떴다.**
+   *   `cloud.js` 의 import 목록을 고치다 `RETRY_MS,, CLIENT_REV` 를 만들었고
+   *   브라우저가 `Uncaught SyntaxError: Unexpected token ','` 로 죽었다.
+   *   **검사 806건이 하나도 안 물었다.**
+   *
+   *   왜 못 잡았나 — 스모크는 필요한 모듈만 골라 `import` 한다. `cloud.js` 는
+   *   아무 절도 안 불렀다. 「글자 검사」 는 소스를 **문자열로** 읽어서 구문을 안 본다.
+   *   ⇒ **깨진 파일이 아무 검사에도 안 걸리는 구멍**이 있었다.
+   *
+   * ★ 그래서 `src/**` 의 **모든** `.js` 를 실제로 `import` 한다. 느리지만
+   *   (실측 83개 몇 초) 「게임이 아예 안 뜬다」 보다 싼 값이다. */
+  const walkJs = (d, out = []) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = `${d}/${e.name}`;
+      if (e.isDirectory()) walkJs(p, out);
+      else if (e.name.endsWith('.js')) out.push(p);
+    }
+    return out;
+  };
+  const all = walkJs(srcDir('.').replace(/[\/]+$/, ''));
+  ok(all.length > 60, '모듈을 다 찾았다', `${all.length}개 — 적으면 경로가 틀렸다`);
+
+  /* ★ `main.js` 는 브라우저 전용이라 node 에서 `window` 가 없어 못 뜬다.
+   *   그건 «깨진 것» 이 아니다 — 대신 **구문만** 본다. */
+  const BROWSER_ONLY = ['main.js'];
+  const failed = [];
+  for (const f of all) {
+    const base = f.split('/').pop();
+    if (BROWSER_ONLY.includes(base)) continue;
+    try { await import('file:///' + f.split(String.fromCharCode(92)).join('/')); }
+    catch (e) { failed.push(`${f.split('/src/')[1]} — ${String((e && e.message) || e).slice(0, 80)}`); }
+  }
+  okAll(failed, 'src 의 모든 모듈이 실제로 적재된다', all.length);
+
+  /* ★ 브라우저 전용도 **구문은** 봐야 한다 — 오늘 깨진 것이 바로 그 종류다 */
+  for (const base of BROWSER_ONLY) {
+    const f = all.find((x) => x.endsWith(`/${base}`));
+    if (!f) { ok(false, `${base} 를 찾는다`, ''); continue; }
+    let syntaxOk = true;
+    let why = '';
+    try {
+      /* `new Function` 은 모듈 문법을 못 읽는다 ⇒ import 문을 지우고 본다.
+       *   완벽하진 않지만 「쉼표가 둘」 같은 오늘의 사고는 잡는다. */
+      const src = readFileSync(f, 'utf8').replace(/^\s*(import|export)\s[^;]*;?$/gm, '');
+      // eslint-disable-next-line no-new-func
+      new Function(src);
+    } catch (e) { syntaxOk = false; why = String((e && e.message) || e).slice(0, 80); }
+    ok(syntaxOk, `${base} 의 구문이 맞다`, why);
+  }
+}
+
 section('클라 판번호가 sw.js 와 짝이 맞나 (관측용)');
 {
   /* ★★ 서비스워커 때문에 「배포했으니 다 넘어갔다」 가 **참이 아니다** (§41).

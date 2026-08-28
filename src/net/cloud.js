@@ -28,7 +28,7 @@
  */
 
 import {
-  ENABLED, EP, OUTBOX_KEY, PUSH_DEBOUNCE_MS, PUSH_MAX_WAIT_MS, RETRY_MS,, CLIENT_REV
+  ENABLED, EP, OUTBOX_KEY, PUSH_DEBOUNCE_MS, PUSH_MAX_WAIT_MS, RETRY_MS, CLIENT_REV,
 } from './config.js';
 import * as Auth from './auth.js';
 import { authed, call } from './rest.js';
