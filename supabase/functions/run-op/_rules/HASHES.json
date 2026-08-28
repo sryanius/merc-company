@@ -11,5 +11,6 @@
   "src/game/day.js": "49194cbf",
   "src/game/gear.js": "aa8440bc",
   "src/game/merc.js": "69b74820",
-  "src/game/runrows.js": "880d355d"
+  "src/game/runrows.js": "880d355d",
+  "src/game/tavern.js": "c8ed8f66"
 }

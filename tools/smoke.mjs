@@ -7478,6 +7478,104 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
+{
+  /* ★★ 고용은 이 전환에서 **정상 플레이어를 거절할 수 있는 유일한 행동**이다.
+   *   그리고 등급 추첨은 지금 **전역 rng** 라 서버가 굴려야 한다 — 클라가 굴리면
+   *   «S 가 나올 때까지 다시 누르기» 가 된다.
+   *
+   * ★ 그래서 시드를 `op_id` 에서 뽑는다. **재시도가 같은 등급**을 내야 한다.
+   *   (`run_ops` 재생과 겹치는 방어지만, 둘 다 있어야 경쟁 조건에서도 안전하다.) */
+  const oSrc16 = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+  const oCode16 = decomment(oSrc16);
+
+  ok(/opId\.charCodeAt/.test(oCode16), '등급 시드를 op_id 에서 뽑는다',
+    '시드가 랜덤이면 재시도로 S 가 나올 때까지 돌릴 수 있다');
+  ok(!/Math\.random/.test(oCode16), '서버가 Math.random 을 안 쓴다',
+    '쓰면 재시도가 다른 답을 낸다');
+  ok(/gradeRoll\(/.test(oCode16), '등급을 gradeRoll 로 굴린다 (표가 곧 규칙)',
+    '손으로 확률을 쓰면 사본이 된다');
+
+  /* ★★ 목록을 **재생성해서 대조하지 않는다** — 그러면 공식이 바뀐 뒤 옛 날짜를 못 만든다 */
+  ok(/data \|\| \{\}\)\.tavern/.test(oCode16), '저장된 주점 목록에 대고 묻는다',
+    '재생성을 요구하면 hireCost 가 바뀐 뒤 정상 고용이 거절된다 (§113 과 같은 병)');
+  ok(!/genTavern\(/.test(oCode16), '고용 검증이 목록을 다시 만들지 않는다',
+    '재생성 == 저장본을 요구하면 소급 불가에 걸린다');
+
+  /* ★ 결정론을 **굴려서** 확인한다 — 글자 검사만으로는 못 잡는다 */
+  try {
+    const ME16 = await import('../supabase/functions/run-op/_rules/merc.js');
+    const seedFrom = (opId) => {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < opId.length; i++) { h ^= opId.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+      let x = (h >>> 0) || 1;
+      const next = () => { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+      return { next, weighted: (es) => { const t0 = es.reduce((a, e) => a + e.w, 0); let t = next() * t0;
+        for (const e of es) { t -= e.w; if (t <= 0) return e; } return es[es.length - 1]; } };
+    };
+    const bad = [];
+    for (const id of ['op-a', 'op-b', 'op-c', 'op-d', 'op-e', 'op-f']) {
+      const g = [];
+      for (let k = 0; k < 5; k++) g.push(ME16.gradeRoll(3, seedFrom(id), { rep: 100, specialty: false }));
+      if (!g.every((x) => x === g[0])) bad.push(`${id}: ${g.join(' ')}`);
+    }
+    okAll(bad, '같은 op_id 는 늘 같은 등급을 낸다', 6);
+
+    /* ★★ 그리고 **S 는 특화에서만** 나와야 한다 — §118 방어의 전제다 */
+    const roll = (opts, n) => { const c = {}; for (let i = 0; i < n; i++) {
+      const g = ME16.gradeRoll(3, seedFrom('x' + i), opts); c[g] = (c[g] || 0) + 1; } return c; };
+    const plain = roll({ rep: 300, specialty: false }, 20000);
+    const spec = roll({ rep: 300, specialty: true }, 20000);
+    ok(!plain.S, '일반 슬롯에서는 S 가 안 나온다 (§118 의 전제)',
+      `S 가 ${plain.S}번 나왔다 — 그러면 「S 는 명물에서만」 이 거짓이 된다`);
+    ok((spec.S || 0) > 0, '특화 슬롯에서는 S 가 나온다 (판이 실하다)',
+      'S 가 0이면 이 검사가 아무것도 안 증명한다');
+
+    /* ★ 시드가 다르면 등급도 갈려야 한다 — 다 같으면 결정론이 아니라 고장이다 */
+    const variety = new Set(Object.keys(plain)).size;
+    ok(variety >= 4, '등급이 실제로 갈린다 (한 값에 몰리지 않는다)', `${variety}종`);
+  } catch (e) {
+    ok(false, '고용 추첨을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('UI 의 폴백 상수가 진짜 값과 같은가 (주점)');
+{
+  /* ★★ `ui/tavern.js` 는 `state.js` 상수를 «방어적으로» 읽는다 — `knob(name, fallback)`.
+   *   그런데 그 **폴백이 진짜 값과 달랐다**:
+   *     `REP_TAVERN_MIN` 폴백 **10** vs 실제 **5**  → 상수가 사라지는 날 평판 5~9 인
+   *       도시의 주점이 **잠긴다** (정상 플레이어를 막는 쪽으로 틀린다)
+   *     `repOf` 가 평판을 **100** 으로 잘랐다 vs `REP_MAX` **300**
+   *       → 실계정에 평판 300 인 도시가 있다 (랴니 · lastlamp)
+   *
+   * ★ 둘 다 «오늘의 버그» 는 아니었다 — 폴백이 안 타고, `canUseTavern` 이 참값을 준다.
+   *   그런데 그게 바로 이런 것이 **조용히 썩는** 이유다. 폴백은 안 타니까 아무도 안 본다.
+   *
+   * ⇒ 이 검사는 «폴백이 진짜 값과 같나» 를 묻는다. 상수를 바꾸면 여기서 물린다. */
+  try {
+    const ST16 = await import('../src/game/state.js');
+    const tvSrc = readFileSync(srcDir('ui/tavern.js'), 'utf8');
+    const tvCode = decomment(tvSrc);
+
+    const m = tvCode.match(/knob\('REP_TAVERN_MIN',\s*(\d+)\)/);
+    ok(!!m, "tavern.js 가 REP_TAVERN_MIN 폴백을 갖는다", '못 찾았다');
+    if (m) {
+      ok(Number(m[1]) === ST16.REP_TAVERN_MIN,
+        'REP_TAVERN_MIN 폴백이 진짜 값과 같다',
+        `폴백 ${m[1]} vs 실제 ${ST16.REP_TAVERN_MIN} — 크면 정상 플레이어의 주점이 잠긴다`);
+    }
+
+    /* ★ 평판 상한을 **손으로 적지 않는가** */
+    ok(!/clamp\(Math\.round\(v\),\s*0,\s*100\)/.test(tvCode),
+      '평판 상한을 100 으로 손으로 적지 않는다',
+      `REP_MAX 는 ${ST16.REP_MAX} 다 — 실계정에 평판 300 인 도시가 있다`);
+    ok(/knob\('REP_MAX'/.test(tvCode), '평판 상한을 REP_MAX 에서 읽는다',
+      '손으로 적으면 상수가 바뀔 때 조용히 갈라진다');
+  } catch (e) {
+    ok(false, '주점 상수 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('하루 넘기기 — 서버 사본과 클라 원본이 같은 답을 내나');
 {
   /* ★★ `run-op` 이 `_rules/day.js` 를 부른다. 그 사본이 원본과 갈라지면

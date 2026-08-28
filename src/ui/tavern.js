@@ -2,7 +2,9 @@
 // 도박성이 이 화면의 핵심이므로 등급 추첨 연출에 힘을 준다.
 //
 // ★ 이 화면은 도시 평판(0~REP_MAX, 지금 300)에 묶여 있다.
-//   - 평판 REP_TAVERN_MIN(10) 미만이면 고용 자체가 잠긴다 → 낯선 도시에서는 의뢰부터 받아야 한다.
+//   - 평판 REP_TAVERN_MIN 미만이면 고용 자체가 잠긴다 → 낯선 도시에서는 의뢰부터 받아야 한다.
+//     ★ 여기 «(10)» 이라고 적혀 있었는데 **실제 값은 5 다** (state.js). 숫자를 주석에 적지 마라 —
+//       아래 `repNeed()` 의 폴백 10 도 같은 이유로 위험하다 (상수가 사라지는 날 주점이 잠긴다).
 //   - 평판이 오르면 등급 확률표가 실제로 좋아진다 (merc.gradeOdds 의 opts.rep).
 //   - 도시마다 특화 클래스가 있고, 그 클래스는 S·A 확률이 크게 뛴다 (opts.specialty).
 //     저티어 도시를 순회할 이유가 여기서 나온다.
@@ -76,18 +78,30 @@ function knob(name, fallback) {
 }
 
 /** 주점이 열리는 최소 평판 */
-const repNeed = () => knob('REP_TAVERN_MIN', 10);
+/* ★ 폴백을 **5** 로 맞춘다 — `state.js` 의 실제 값이다. 10 이면 상수가 사라지는 날
+ *   평판 5~9 인 도시의 주점이 **잠긴다** (정상 플레이어를 막는 쪽으로 틀린다). */
+const repNeed = () => knob('REP_TAVERN_MIN', 5);
 
-/** 이 도시의 평판 (0~REP_MAX). 기록이 없으면 0 */
+/** 이 도시의 평판 (0~REP_MAX). 기록이 없으면 0
+ *
+ * ★★ 예전엔 `clamp(v, 0, **100**)` 이었다 — **`REP_MAX` 는 300 이다.**
+ *   실계정에 평판 **300** 인 도시가 있다 (랴니 · lastlamp). 그대로 뒀으면 그 도시가
+ *   화면에서 100 으로 보였다.
+ *
+ * ★ 지금 이 함수는 **안 탄다** — `tavernGate` 가 `GameState.canUseTavern()` 의 참값을
+ *   먼저 쓰기 때문이다 (아래 :101). 그래서 «오늘의 버그» 는 아니었다.
+ *   그런데 그건 **폴백이 안 탔을 뿐**이고, `canUseTavern` 이 던지거나 사라지는 날
+ *   평판이 조용히 100 으로 잘린다. 상한을 손으로 적지 않고 `REP_MAX` 를 읽는다. */
 function repOf(cityId) {
+  const cap = knob('REP_MAX', 300);
   if (typeof GameState.getRep === 'function') {
     try {
       const v = Number(GameState.getRep(cityId));
-      if (Number.isFinite(v)) return clamp(Math.round(v), 0, 100);
+      if (Number.isFinite(v)) return clamp(Math.round(v), 0, cap);
     } catch (e) { console.warn('[tavern] getRep 실패', e); }
   }
   const v = Number(state.reputation?.[cityId]);
-  return Number.isFinite(v) ? clamp(Math.round(v), 0, 100) : 0;
+  return Number.isFinite(v) ? clamp(Math.round(v), 0, cap) : 0;
 }
 
 /** 이 도시 주점을 쓸 수 있는가 */

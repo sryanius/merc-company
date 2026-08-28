@@ -127,7 +127,12 @@ export const BUNDLES = [
       'src/game/gear.js',
       /* ★ 하루 넘기기 (§104 3단계). `day.js` 는 `state.js` 를 안 물어서
        *   `merc.js`·`runrows.js` 와 함께 와도 닫힘이 8 → 13개다. */
-      'src/game/day.js', 'src/game/runrows.js'],
+      'src/game/day.js', 'src/game/runrows.js',
+      /* ★ 고용 (§104 1단계 3번). `tavern.js` 는 city 를 인자로 받아서 닫힘이 **자기 하나만** 는다
+       *   (§120 이 그렇게 떼어 놨다). `enemygen.js` 는 **안 넣는다** — `hashStr` 하나 때문에
+       *   `enemies`·`formations`·`skills` 까지 5개가 딸려 와 13 → 18개가 된다.
+       *   목록은 **재생성이 아니라 저장본**으로 검증하므로 그 해시가 필요 없다. */
+      'src/game/tavern.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },

@@ -27,6 +27,7 @@ import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
  *   그 모듈은 `state.js` 를 안 물고 상태를 인자로 받는다 (§104 14단계). */
 import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
+import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
 
 /* ★ 서버에서는 로그·저장을 클라가 소유한다 — 빈 함수로 묶는다.
  *   ★ 안 묶으면 `advanceDays` 가 **던진다** (day.js 의 계약). 그래서 여기서 한 번 묶는다. */
@@ -246,6 +247,84 @@ Deno.serve(async (req) => {
 
     /* ★★ **아직 안 쓴다.** 원장도 안 남긴다 — 남기면 «했다» 가 되어
      *   다음 진짜 호출이 재생으로 막힌다. */
+    return json({ ok: true, shadow: true, result });
+  }
+
+  /* ═══════════════════════ 고용 ═══════════════════════════════════════════
+   * ★★ 이 계획에서 **정상 플레이어를 거절할 수 있는 유일한 행동**으로 표시된 자리다.
+   *
+   * ★ 그래서 목록을 «재생성해서 대조» 하지 **않는다.** 저장된 목록(`run_state.data.tavern`)에
+   *   대고 묻는다. 재생성을 요구하면 `hireCost` 공식이나 `BASE_CLASSES` 가 바뀐 뒤
+   *   **옛 날짜를 다시 못 만들어** 정상 고용이 거절된다 (§113 이 아이템에서 겪은 병).
+   *   ★ 재현 자체는 된다 — 실측으로 저장 4개 == 재현 4개 (랴니 · lastlamp · 2129일).
+   *     그래도 «믿는 근거» 로 쓰지 않는다. 그 목록은 이미 서버에 있다.
+   *
+   * ★★ **등급은 서버가 굴린다.** 클라가 굴리면 «S 가 나올 때까지 다시 누르기» 가 된다.
+   *   그리고 시드를 `op_id` 에서 뽑아 **재시도가 같은 등급**을 내게 한다 —
+   *   `run_ops` 재생과 겹치는 방어지만, 둘 다 있어야 경쟁 조건에서도 안전하다.
+   *
+   * ★ 여기 쓰는 해시는 «게임 규칙» 이 아니라 **멱등성의 구현 세부**다. 그래서
+   *   `enemygen.hashStr` 을 끌어오지 않는다 (그거 하나 때문에 묶음이 13 → 18개가 된다). */
+  if (op === 'hire') {
+    const cityId = String(body?.cityId || '');
+    const idx = Math.round(Number(body?.offerIndex));
+    if (!cityId || !Number.isFinite(idx) || idx < 0) {
+      return json({ error: 'cityId 와 offerIndex 가 필요하다' }, 400);
+    }
+
+    const { data: rs3 } = await admin.from('run_state').select('*').eq('user_id', userId).maybeSingle();
+    if (!rs3) return json({ error: '아직 이관 전이다' }, 404);
+    const book = ((rs3.data || {}).tavern || {})[cityId];
+    const list = book && Array.isArray(book.list) ? book.list : null;
+    if (!list) return json({ error: '그 도시의 주점 목록이 서버에 없다', cityId }, 409);
+    if (Number(book.day) !== Number(rs3.day)) {
+      /* ★ 목록이 오늘 것이 아니다 — 거절이 아니라 «다시 받아라» 다. */
+      return json({ error: '주점 목록이 오늘 것이 아니다', 목록일: book.day, 오늘: rs3.day }, 409);
+    }
+    const offer = list[idx];
+    if (!offer) return json({ error: '그 자리가 없다', 칸수: list.length }, 409);
+    if (offer.hired) return json({ error: '이미 계약이 끝난 자리다' }, 409);
+
+    const cost = Math.max(0, Math.round(Number(offer.cost) || 0));
+    if (Number(rs3.gold) < cost) {
+      return json({ error: '골드가 모자란다', 필요: cost, 보유: rs3.gold }, 409);
+    }
+
+    const { count: rosterN } = await admin.from('run_mercs')
+      .select('uid', { count: 'exact', head: true }).eq('user_id', userId);
+    if ((rosterN || 0) >= Number(rs3.roster_cap || 20)) {
+      return json({ error: '단원 정원이 가득 찼다', 정원: rs3.roster_cap, 지금: rosterN }, 409);
+    }
+
+    /* ★ `op_id` → 시드. FNV-1a 32bit — 저장소의 다른 해시와 **같은 식**이지만
+     *   여기서는 게임 규칙이 아니라 «재시도가 같은 답을 내게» 하는 장치다. */
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < opId.length; i++) { h ^= opId.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    const seeded = { next: (() => { let x = (h >>> 0) || 1;
+      return () => { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; })() };
+    seeded.weighted = (entries: { g: string; w: number }[]) => {
+      const total = entries.reduce((a, e) => a + e.w, 0);
+      let t = seeded.next() * total;
+      for (const e of entries) { t -= e.w; if (t <= 0) return e; }
+      return entries[entries.length - 1];
+    };
+
+    const rep = Math.max(0, Math.round(Number(((rs3.data || {}).reputation || {})[cityId]) || 0));
+    const tier = Math.max(1, Math.round(Number(body?.cityTier) || 1));
+    const isSpec = !!body?.specialty;
+    let grade = 'F';
+    try { grade = gradeRoll(tier, seeded, { rep, specialty: isSpec }); }
+    catch (e) { console.error('[run-op] gradeRoll 실패', e); return json({ error: '추첨하지 못했다' }, 500); }
+
+    const result = { op: 'hire', cityId, offerIndex: idx, classId: offer.classId, cost, grade };
+    const { error: opErr3 } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'hire', result });
+    if (opErr3) { console.error('[run-op] run_ops insert 실패', opErr3); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+
+    /* ★★ **아직 안 쓴다** — 그림자다. `run_mercs` 도 `run_state` 도 안 고친다.
+     *   클라가 이 경로를 안 쓰기 때문이고(호출부 0줄), 등급 연출이 서버를 기다리게 하는
+     *   UI 변경이 따로 필요하다. 숫자가 맞는 것을 본 뒤에 소유를 넘긴다. */
+    console.error('[그림자] 고용 — 계산만 하고 안 쓴다', { userId, result, rep, tier, isSpec });
     return json({ ok: true, shadow: true, result });
   }
 
