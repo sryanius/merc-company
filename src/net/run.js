@@ -87,6 +87,15 @@ export function preview(state) {
       /* ★ 그래서 서버가 볼 크기의 어림값을 같이 준다 — 사람이 곱셈을 안 하게. */
       serverKb: Math.round((JSON.stringify(r).length * 1.10 * 1.45) / 1024),
       serverCapKb: 4096,
+      /* ★★ **상한이 둘이다.** `run_state.data` 에 256KB CHECK 가 따로 있고
+       *   (`db/015_run_state_gaps.sql`), 이건 얌전히 `{ok:false}` 를 주지 않고
+       *   **HTTP 500 으로 터진다** — `db/016` 이 `data` 를 자르지도 검사하지도 않고
+       *   그대로 넣기 때문이다. 4MB 만 보고 「넉넉하다」 고 하면 이 쪽에서 걸린다.
+       *
+       *   실측 참고: 도시 목록이 1곳 살아 있으면 ≈26KB · 3곳 ≈60KB · 16곳 ≈305KB(넘는다).
+       *   목록은 `REFRESH_DAYS`(3) 가 지나야 만료되므로 여러 도시 것이 동시에 살 수 있다. */
+      dataKb: Math.round((JSON.stringify((r.state || {}).data || {}).length * 1.10 * 1.45) / 1024),
+      dataCapKb: 256,
     };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
