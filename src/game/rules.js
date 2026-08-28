@@ -102,10 +102,27 @@ export function normalizeScore(raw) {
     ? raw.sHiredDays.slice(0, S_DAYS_MAX).map((n) => Math.max(0, Math.round(Number(n) || 0)))
     : [];
 
+  /* ★★ **개수가 `sMercs` 와 같아야 한다.** 이게 없으면 §118(소급 S 상한)이 스스로 꺼진다 —
+   *   빈 배열로 보내면 그 루프가 아예 안 돌기 때문이다.
+   *
+   *   실측: 900일차·S 8명을 «전부 초기에 몰아 받은» 판에서
+   *     sHiredDays 실음 → flag(「10일차까지 S 6명 · 그 시점 상한 5」)
+   *     sHiredDays 뺌   → **ok** ← 소급 검사가 유일한 방어였던 자리다.
+   *
+   * ★ 판정이 아니라 **모양 오류**로 막는다 (`null` → 서버가 400). 「없다」 는 치트의 증거가
+   *   아니라 «못 읽었다» 이고, 표식을 붙이면 정상 계정을 물 여지가 생긴다.
+   *   정상 클라는 `extractScore` 가 둘을 **같은 명부에서** 뽑으므로 언제나 같다 (12판 12/12).
+   *   ⇒ 이 거절은 손으로 지은 본문만 맞는다. */
+  if (out.sMercs > 0 && out.sHiredDays.length !== out.sMercs) return null;
+
   /* ★ 표시용 둘은 여기서 안 만진다 — `submit-score/index.ts` 의 화이트리스트가
    *   이미 «아는 필드만» 남긴다 (§58). 두 벌이 되면 갈라진다. */
   out.squad = raw.squad && typeof raw.squad === 'object' && !Array.isArray(raw.squad) ? raw.squad : null;
-  out.squadsFull = Array.isArray(raw.squadsFull) ? raw.squadsFull : [];
+  /* ★ `[]` 가 아니라 `null` 로 떨어뜨린다 — `allSquadsOf` 는 부대가 없으면 **`null`** 을
+   *   내기 때문이다(rules.js:227). `[]` 로 바꾸면 항등식이 그 판에서 깨진다.
+   *   (`sanitizeSquadsFull` 은 둘 다 null 로 접으므로 DB 행은 어차피 같다 — 그래도
+   *    항등식은 항등식이다. 깨진 채 두면 다음 사람이 「원래 그런가 보다」 로 지나간다.) */
+  out.squadsFull = Array.isArray(raw.squadsFull) ? raw.squadsFull : null;
 
   return out;
 }
@@ -733,6 +750,19 @@ function absoluteOddities(s) {
    *   치트 계정 둘만 +2 로 걸렸다. 가장 빠듯한 정상 계정도 −5 다.
    *
    * ★ 표시(C)다, 거절이 아니다 — 옛 세이브의 `hiredDay` 가 이상할 여지를 남긴다. */
+  /* ★★ **이 검사는 스스로 꺼질 수 있었다.** 예전엔 서버가 `sHiredDays` 를 명부에서 직접
+   *   뽑았지만, 지금은 클라가 «점수만» 보내는 갈래가 있다 — 그러면 이 칸도 클라가 신고한다.
+   *   빈 배열로 보내면 아래 루프가 아예 안 돌아 **소급 검사가 통째로 꺼진다.**
+   *
+   *   실측: 900일차·S 8명을 «전부 초기에 몰아 받은» 판에서
+   *     sHiredDays 실음 → flag(「10일차까지 S 6명 · 그 시점 상한 5」)
+   *     sHiredDays 뺌   → **ok** ← 소급 검사가 유일한 방어였던 자리다.
+   *
+   * ★★ 막는 자리는 **여기가 아니다.** 「없다」 는 «치트» 가 아니라 «모양이 틀렸다» 이고,
+   *   여기서 표식을 붙이면 손으로 지은 판정 픽스처가 전부 걸린다 (실측: 8개 픽스처).
+   *   ⇒ `normalizeScore` 가 **개수 불일치를 모양 오류로 거절한다** (서버는 400).
+   *     정상 클라는 둘을 **같은 명부에서** 뽑으므로 언제나 일치한다 (12판 실측 12/12).
+   *     옛 갈래 `{state}` 로 오면 서버가 직접 뽑으므로 이 경로 자체를 안 탄다. */
   const sDays = Array.isArray(s.sHiredDays) ? s.sHiredDays : null;
   if (sDays && sDays.length) {
     for (let i = 0; i < sDays.length; i++) {

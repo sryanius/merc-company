@@ -704,26 +704,39 @@ function migrateDataVersion(st) {
   }
 
   st.dataVersion = DATA_VERSION;
-  if (itemsRenormed && Array.isArray(st.log)) {
-    st.log.push({ day: st.day,
-      text: `대장간이 장비 ${itemsRenormed}점을 다시 살펴봤다. 표기가 지금 기준에 맞게 고쳐졌다.` });
-  }
-  /* ★ 가방으로 내려간 것은 **반드시 알려 준다.** 조용히 빠지면 «왜 약해졌지» 가 된다. */
-  if (slotsUnequipped && Array.isArray(st.log)) {
-    st.log.push({ day: st.day,
-      text: `장비 ${slotsUnequipped}점이 낄 수 없는 자리에 있어 가방으로 옮겨졌다. 반지는 반지 칸에만 낀다.` });
-  } else if (slotsFixed && Array.isArray(st.log)) {
-    st.log.push({ day: st.day, text: `장비 ${slotsFixed}점의 착용 부위 표기를 바로잡았다.` });
-  }
-  if (repReset && Array.isArray(st.log)) {
-    st.log.push({ day: st.day, text: '이름값의 셈법이 달라졌다. 도시마다 처음부터 다시 눈도장을 찍어야 한다.' });
-  }
-  if (rankReset && Array.isArray(st.log)) {
-    st.log.push({ day: st.day, text: '전장의 규칙이 달라졌다. 탑과 나락의 기록은 처음부터 다시 센다.' });
-  }
-  if (had && Array.isArray(st.log)) {
-    st.log.push({ day: st.day, text: '세상이 달라졌다. 의뢰·주점·상점 목록이 새로 채워진다.' });
-    if (st.log.length > LOG_MAX) st.log.splice(0, st.log.length - LOG_MAX);
+
+  /* ★★ 일지는 **최신이 앞**이다 (`addLog` 가 `unshift` 한다, :1118).
+   *
+   *   여기서 `push` 를 쓰고 있었다 — 알림이 배열 **끝**, 즉 «가장 오래된» 자리로 갔다.
+   *   화면은 `state.log.slice(0, 8)` 만 그리므로(ui/city.js) 200칸이 찬 일지에서
+   *   알림은 **index 199** 에 놓여 **아무도 못 봤다.** 실측으로 확인했다.
+   *
+   * ★★ 그리고 잘라내는 쪽도 거꾸로였다: `splice(0, len - LOG_MAX)` 는 **앞**,
+   *   즉 «가장 최신» 을 지운다 — 알림을 넣은 만큼 플레이어의 **최신 소식이 사라졌다**
+   *   (실측: 「평범한 소식 #259」 가 지워졌다).
+   *
+   *   ⇒ `unshift` 로 앞에 넣고, `addLog` 와 **같은 방식**(`length = LOG_MAX`)으로 자른다.
+   *     바로 위 주석이 「가방으로 내려간 것은 반드시 알려 준다」 라고 못 박아 뒀는데
+   *     그 약속이 지켜지지 않고 있었다. */
+  if (Array.isArray(st.log)) {
+    const notices = [];
+    if (itemsRenormed) {
+      notices.push(`대장간이 장비 ${itemsRenormed}점을 다시 살펴봤다. 표기가 지금 기준에 맞게 고쳐졌다.`);
+    }
+    /* ★ 가방으로 내려간 것은 **반드시 알려 준다.** 조용히 빠지면 «왜 약해졌지» 가 된다. */
+    if (slotsUnequipped) {
+      notices.push(`장비 ${slotsUnequipped}점이 낄 수 없는 자리에 있어 가방으로 옮겨졌다. 반지는 반지 칸에만 낀다.`);
+    } else if (slotsFixed) {
+      notices.push(`장비 ${slotsFixed}점의 착용 부위 표기를 바로잡았다.`);
+    }
+    if (repReset) notices.push('이름값의 셈법이 달라졌다. 도시마다 처음부터 다시 눈도장을 찍어야 한다.');
+    if (rankReset) notices.push('전장의 규칙이 달라졌다. 탑과 나락의 기록은 처음부터 다시 센다.');
+    if (had) notices.push('세상이 달라졌다. 의뢰·주점·상점 목록이 새로 채워진다.');
+
+    if (notices.length) {
+      st.log.unshift(...notices.map((text) => ({ day: st.day, text })));
+      if (st.log.length > LOG_MAX) st.log.length = LOG_MAX;   // ← 오래된 쪽을 자른다
+    }
   }
 }
 

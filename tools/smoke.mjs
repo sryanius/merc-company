@@ -4725,6 +4725,40 @@ section('점수만 보내기 — 두 갈래가 같은 판정을 받나');
     okAll(junk.map((r, i) => (r === null ? '' : `${i}번째 쓰레기가 null 이 아니다`)).filter(Boolean),
       '점수가 아닌 것은 null 로 떨어진다', junk.length);
 
+    /* ★★★ **§118 이 스스로 꺼질 수 있었다.** 옛 갈래에서는 서버가 `sHiredDays` 를
+     *   명부에서 직접 뽑았지만, 새 갈래에서는 클라가 신고한다 — 빈 배열로 보내면
+     *   소급 S 상한 루프가 아예 안 돌아 **통째로 꺼진다.**
+     *
+     *   실측: 900일차·S 8명을 «전부 초기에 몰아 받은» 판에서
+     *     sHiredDays 실음 → flag · sHiredDays 뺌 → **ok** (소급 검사가 유일한 방어였다).
+     *
+     * ★ 막는 자리가 중요하다 — **판정(judge)이 아니라 모양(normalizeScore)** 이다.
+     *   「없다」 는 치트의 증거가 아니라 «못 읽었다» 이고, 판정에 넣었더니 손으로 지은
+     *   픽스처 8개가 전부 걸렸다 (정상 플레이어 판 포함). 그건 신호였다. */
+    const CHEAT_EARLY = {
+      seed: 5, dataVersion: 9, companyName: 'x', day: 900,
+      abyssBest: 30, abyssBestDay: 890, abyssLastRunDay: 890,
+      towerBest: 90, towerBestDay: 880, towerLastRunDay: 880,
+      questsDone: 1350, battlesWon: 2700, battlesLost: 20, gold: 500000, renown: 2000,
+      cityId: 'greenhold', rosterN: 30, rosterCap: 40, topLevel: 80,
+      squadsN: 3, petsN: 4, itemsN: 200, sMercs: 8, hires: 25, specHires: 4,
+      hiredN: 30, topPower: 40000, squad: null, squadsFull: [],
+      sHiredDays: [5, 6, 7, 8, 9, 10, 11, 12],
+    };
+    const caught = R.judge(null, R.normalizeScore(CHEAT_EARLY));
+    ok(caught.verdict !== 'ok', '초기에 S 를 몰아 받은 판이 소급 검사에 걸린다',
+      JSON.stringify(caught));
+    ok(R.normalizeScore({ ...CHEAT_EARLY, sHiredDays: [] }) === null,
+      'sHiredDays 를 빼면 모양 오류로 떨어진다 (§118 을 끌 수 없다)',
+      '통과했다 — 빈 배열로 보내면 소급 검사가 꺼진다');
+    ok(R.normalizeScore({ ...CHEAT_EARLY, sHiredDays: [5, 6] }) === null,
+      'sHiredDays 개수가 sMercs 와 다르면 떨어진다',
+      '개수가 달라도 통과한다');
+
+    /* ★ 그리고 **S 가 없는 계정은 영향이 없어야 한다** — 과잉수정 감시 */
+    ok(R.normalizeScore({ ...CHEAT_EARLY, sMercs: 0, sHiredDays: [] }) !== null,
+      'S 용병이 없으면 빈 배열이 정상이다', 'S 0명인데 떨어뜨렸다 — 새 계정을 막는다');
+
     /* ★★ 자원 방어 — sHiredDays 를 무한정 받으면 안 된다.
      *   ★ 자르되 «거절» 하지 않는다. 거절은 오탐이고, 자르면 sMercs 와 어긋나
      *     §118 이 판정한다 — 판정은 판정하는 곳에서 한다. */
@@ -7439,6 +7473,11 @@ section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
       day: 2129, rosterCap: 60, rosterN: 40, topLevel: 80, sMercs: 38, hiredN: 60,
       questsDone: 811, battlesWon: 1300, abyssBest: 92, towerBest: 500,
       abyssBestDay: 2100, abyssLastRunDay: 2100, towerBestDay: 2000, towerLastRunDay: 2000,
+      /* ★ `sHiredDays` 를 빼 두면 안 된다 — 실제 계정은 이 칸을 **반드시** 보낸다
+       *   (`extractScore` 가 명부에서 뽑으므로 길이가 `sMercs` 와 언제나 같다).
+       *   빼 두면 「S 38명인데 얻은 날짜가 0개」 라는 **다른 검사**가 먼저 물어서
+       *   이 절이 재려던 «전력 알리바이» 를 못 재게 된다. 2129일에 고르게 얻은 모양. */
+      sHiredDays: Array.from({ length: 38 }, (_, i) => 60 + i * 54),
     };
 
     /* 기록이 없는 판 (새 계정이 정상적으로 시작한 모습) */
@@ -7752,6 +7791,53 @@ section('아이템 위조 검사 — 지금 만든 아이템은 정확히 되짚
     ok(threw, '가짜 rng 를 넘기면 만들 때 거부한다 (조용한 전수 오탐을 막는다)');
   } catch (e) {
     ok(false, '아이템 검사기를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('마이그레이션 알림이 사람 눈에 닿나 (그리고 무엇도 안 지우나)');
+{
+  /* ★★ 코드가 스스로 「가방으로 내려간 것은 **반드시 알려 준다.** 조용히 빠지면
+   *   «왜 약해졌지» 가 된다」 고 적어 뒀는데(state.js), **그 약속이 깨져 있었다.**
+   *
+   *   일지는 최신이 **앞**이다 (`addLog` 가 `unshift`). 그런데 마이그레이션은 `push` 로
+   *   **끝**(= 가장 오래된 자리)에 넣고 있었다. 화면은 `slice(0, 8)` 만 그리므로
+   *   200칸이 찬 일지에서 알림은 **index 199** 에 놓여 아무도 못 봤다.
+   *   게다가 잘라내는 쪽도 거꾸로여서(`splice(0, …)` = 앞 = 최신) 알림을 넣은 만큼
+   *   플레이어의 **최신 소식이 지워졌다.**
+   *
+   * ★ 그래서 이 검사는 «알림 문구가 있나» 를 묻지 않는다 — **어디 놓였나**와
+   *   **무엇이 사라졌나**를 묻는다. 그게 실제로 깨져 있던 것이다. */
+  try {
+    const ST = await import('../src/game/state.js');
+    const LOG_SHOWN = 8;               // ui/city.js 가 그리는 줄 수
+
+    ST.newGame(2026, '일지검사');
+    const st = ST.state;
+    for (let i = 0; i < 260; i++) ST.addLog(`평범한 소식 #${i}`);
+    ok(st.log.length === 200, '일지가 상한까지 찼다', `${st.log.length}칸`);
+    const beforeTop = st.log.slice(0, LOG_SHOWN).map((l) => l.text);
+
+    st.dataVersion = 8;                // ← 옛 세이브로 만든다
+    ST.importState(JSON.parse(JSON.stringify(st)));
+    const after = ST.state;
+
+    const isNotice = (t) => /대장간|가방으로 옮겨졌다|바로잡았다|이름값의 셈법|전장의 규칙|세상이 달라졌다/.test(t);
+    const noticeIdx = after.log.map((l, i) => [i, l.text]).filter(([, t]) => isNotice(t));
+
+    ok(noticeIdx.length > 0, '마이그레이션이 알림을 남긴다', '한 줄도 안 남겼다');
+    okAll(noticeIdx.filter(([i]) => i >= LOG_SHOWN)
+      .map(([i, t]) => `index ${i} 라 화면(slice(0,${LOG_SHOWN})) 밖이다: ${t.slice(0, 34)}`),
+      '알림이 «최근 소식» 안에 놓인다', Math.max(1, noticeIdx.length));
+
+    /* ★★ 그리고 **아무것도 안 지워야 한다** — 이 줄이 이 검사의 값어치다.
+     *   잘라내는 방향이 거꾸로면 플레이어의 최신 소식이 알림 개수만큼 사라진다. */
+    const lost = beforeTop.filter((t) => !after.log.some((l) => l.text === t));
+    okAll(lost.map((t) => `플레이어의 최신 소식이 사라졌다: ${t}`),
+      '원래 있던 최신 소식이 하나도 안 사라진다', LOG_SHOWN);
+
+    ok(after.log.length <= 200, '일지가 상한을 안 넘는다', `${after.log.length}칸`);
+  } catch (e) {
+    ok(false, '일지 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }
 }
 
