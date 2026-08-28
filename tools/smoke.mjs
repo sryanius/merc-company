@@ -3,6 +3,7 @@
 // 밸런스는 tools/balance.mjs 담당. 여기서는 "크래시 / 데이터 정합성"만 본다.
 
 import { importsOf, importBindings, decomment as libDecomment } from './lib/imports.mjs';
+import { BUNDLES, closureOf } from './lib/bundles.mjs';
 import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -89,23 +90,10 @@ const decomment = libDecomment;
  *    사본이 둘이면 반드시 갈라진다 (§94). */
 const specsOf = importsOf;
 
-/** 진입점에서 import 를 따라 걸은 닫힘 (저장소 상대 경로) */
-function closureOf(startRel) {
-  const seen = new Set();
-  const stack = [startRel];
-  while (stack.length) {
-    const rel = stack.pop();
-    if (seen.has(rel)) continue;
-    const abs = join(rootDir, rel);
-    if (!existsSync(abs)) continue;
-    seen.add(rel);
-    for (const spec of specsOf(readFileSync(abs, 'utf8'))) {
-      if (!spec.startsWith('.')) continue;
-      stack.push(relative(rootDir, resolve(dirname(abs), spec)).split(sep).join('/'));
-    }
-  }
-  return [...seen].sort();
-}
+/* ★★ `closureOf` 도 `BUNDLES` 도 `tools/lib/bundles.mjs` **한 벌**이다 —
+ *   `syncshared.mjs` 와 **같은 것**을 쓴다.
+ *   예전엔 여기 자기 사본이 있었고, 그 사본이 재는 것(15개)과 실제로 복사되는 것(18개)이
+ *   달랐다. 사본이 둘이면 반드시 갈라진다 (§94·§98·§107). */
 
 /** 여러 개를 모아 한 줄로 보고 (첫 8개만 상세) */
 function okAll(bad, label, total) {
@@ -1641,9 +1629,11 @@ section('주점 고용가가 의뢰 보상과 같은 기울기인가');
 
   /* ★ 그리고 그 파일이 **서버 묶음에 실제로 들어가 있어야** 한다 —
    *   안 들어가면 서버는 목록을 못 만들고, 고용 검증이 통째로 불가능해진다. */
-  const syncSrc = decomment(readFileSync(join(rootDir, 'tools/syncshared.mjs'), 'utf8'));
-  ok(/src\/game\/tavern\.js/.test(syncSrc), '주점 생성기가 서버 묶음(_power)에 들어 있다',
-    '없으면 서버가 「이 후보가 그 주점에 있었나」 를 못 묻는다');
+  /* ★ 글자로 묻지 않는다 — **실제로 걸어서** 묶음 안에 있는지 본다.
+   *   (예전엔 syncshared.mjs 소스를 grep 했다. 정의가 옮겨 가자 조용히 깨졌다.) */
+  const powerFiles = closureOf(BUNDLES.find((b) => b.name === '전력 계산').entry, []);
+  ok(powerFiles.includes('src/game/tavern.js'), '주점 생성기가 서버 묶음(_power)에 들어 있다',
+    `${powerFiles.length}개를 걸었는데 없다 — 서버가 「이 후보가 그 주점에 있었나」 를 못 묻는다`);
 
   /* ★ 무는 시늉만 하는 검사를 이 저장소에서 여러 번 만들었다 — 옛 식을 심어 확인한다 */
   const planted = strip('function genTavern(city, r) { /* 1 + 0.2 * (tier - 1) 였다 */ '
@@ -7039,6 +7029,10 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
    *     전력 계산의 닫힘:  23개 · 774KB   →  15개 · 462KB
    *     (참고: 이미 배포 중인 전투 엔진 묶음이 9개 · 212KB)
    *
+   *   ★ 위는 §108 당시의 기록이다. **오늘 값은 아래에서 매번 다시 잰다** —
+   *     itembound·runrows·tavern 이 더해져 전력 묶음은 18개다 (셋 다 import 0개).
+   *     손으로 적은 숫자를 믿지 마라.
+   *
    *   ⇒ 편의 기본값 하나 때문에 게임 전체가 끌려오고 있었다. `game/ambient.js` 로 끊었다.
    *
    * ★ 이 절이 막는 것은 **조용한 되돌림**이다. 누가 편하다고 `state.js` 를 다시 물면
@@ -7057,20 +7051,106 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
   okAll(back, '전력 모듈 셋이 state.js 를 되물지 않는다', LIGHT.length);
 
   /* ② 닫힘을 **수로** 본다. 무엇이 들어오면 안 되는지도 이름으로 못 박는다 —
-   *   개수만 보면 «가벼운 파일 하나로 바꿔치기» 를 못 잡는다. */
-  const POWER_CLOSURE = closureOf('src/game/squad.js')
-    .concat(closureOf('src/game/merc.js'))
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .sort();
+   *   개수만 보면 «가벼운 파일 하나로 바꿔치기» 를 못 잡는다.
+   *
+   * ★★ 예전엔 이 자리가 `squad.js` + `merc.js` **둘만** 접어 15개를 보고 있었다.
+   *   그런데 서버로 실제로 가는 묶음은 **18개**였다 — `itembound`·`runrows`·`tavern`
+   *   이 이 검사의 시야 밖이었다. 「+N 파일」 계약을 아무도 안 지키고 있었던 것이다.
+   *   ⇒ 이제 **syncshared 가 쓰는 그 entry 를 그대로 읽어** 진짜 묶음을 잰다. */
+  const POWER_BUNDLE = BUNDLES.find((b) => b.name === '전력 계산');
+  const POWER_CLOSURE = closureOf(POWER_BUNDLE.entry, []);
   const HEAVY = ['src/game/state.js', 'src/game/quest.js', 'src/data/world.js',
     'src/data/enemies.js', 'src/data/abyss.js', 'src/data/tower.js', 'src/game/enemygen.js'];
   const dragged = HEAVY.filter((h) => POWER_CLOSURE.includes(h));
   okAll(dragged.map((h) => `${h} 가 끌려온다`), '무거운 것들이 전력 닫힘에 안 들어온다', HEAVY.length);
 
-  /* ★ 20개는 «지금 15개» 에 여유를 둔 선이다. 늘리기 전에 무엇이 늘었는지 봐라 —
-   *   서버 묶음으로 갈 목록이다. */
+  /* ★ 20개는 «지금 18개» 에 둔 선이다. 늘리기 전에 무엇이 늘었는지 봐라 —
+   *   서버 묶음으로 실제로 가는 목록이다. 천장을 올릴 땐 이 숫자와 근거를 같이 고쳐라. */
   ok(POWER_CLOSURE.length <= 20, '전력 닫힘이 가벼운 채로 남아 있다',
     `${POWER_CLOSURE.length}개: ${POWER_CLOSURE.join(', ')}`);
+
+  /* ★★ 세 묶음을 **전부** 잰다 — syncshared 와 같은 걷기, 같은 정의.
+   *   여기서 보는 것은 ⑴ basename 충돌(평탄화가 조용히 덮어쓴다) ⑵ 파일 수와 바이트다. */
+  {
+    const seen = [];
+    for (const b of BUNDLES) {
+      const miss = [];
+      /* ★ `extra` 를 빼먹으면 안 된다 — «복사만 하고 걷지 않는» 칸이다.
+       *   처음에 빼먹었더니 전투 엔진을 9개로 셌다 (실제로 복사되는 것은 11개). */
+      const files = (b.walk ? closureOf(b.entry, miss) : b.entry.slice())
+        .concat(b.extra || []).filter((v, i, a) => a.indexOf(v) === i).sort();
+      okAll(miss, `[${b.name}] 묶음의 파일이 전부 있다`, Math.max(1, b.entry.length));
+
+      const byBase = new Map();
+      const clash = [];
+      for (const rel of files) {
+        const base = rel.split('/').pop();
+        if (byBase.has(base)) clash.push(`${byBase.get(base)} 와 ${rel} 이 겹친다 — 평탄화가 덮어쓴다`);
+        byBase.set(base, rel);
+      }
+      okAll(clash, `[${b.name}] 한 폴더로 평탄화해도 이름이 안 겹친다`, files.length);
+
+      const bytes = files.reduce((n, rel) => {
+        try { return n + readFileSync(join(rootDir, rel), 'utf8').split(String.fromCharCode(13)).join('').length; }
+        catch { return n; }
+      }, 0);
+      seen.push(`${b.name} ${files.length}개 ${(bytes / 1024).toFixed(0)}KB`);
+
+      /* ★★ 그리고 **디스크에 실제로 놓인 것과 맞대 본다.** 위까지는 전부 «걷기» 이야기라
+       *   복사가 실제로 그 목록대로 됐는지는 아무도 안 물었다. 남은 옛 사본이 여기서 걸린다.
+       *   (`HASHES.json` 은 매니페스트라 뺀다.) */
+      let onDisk = [];
+      try { onDisk = readdirSync(join(rootDir, b.dest)).filter((f) => f !== 'HASHES.json'); } catch { /* 없으면 아래가 문다 */ }
+      /* ★ `.json` 은 그대로 안 놓인다 — Edge Function 이 JS 모듈만 번들해서
+       *   `export default …` 로 감싸 **`.js` 로 이름을 바꿔** 놓는다 (syncshared.mjs:126-130).
+       *   그 규칙을 여기서도 알아야 «없는 파일» 로 오인하지 않는다. */
+      const destNameOf = (f) => f.split('/').pop().replace(/[.]json$/, '.js');
+      const want = new Set(files.map(destNameOf));
+      const stray = onDisk.filter((f) => !want.has(f));
+      const absent = [...want].filter((f) => !onDisk.includes(f));
+      okAll(stray.map((f) => `${b.dest}/${f} 가 목록에 없는데 놓여 있다 (옛 사본)`)
+        .concat(absent.map((f) => `${f} 가 목록에 있는데 안 놓였다 — syncshared 를 안 돌렸다`)),
+        `[${b.name}] 디스크에 놓인 것이 목록과 정확히 같다`, files.length);
+    }
+    ok(true, `묶음 셋을 실제로 걸었다 — ${seen.join(' · ')}`, '');
+  }
+
+  /* ★★★ **ENGINE_HASH 를 계산하는 워커가 저장소의 다른 워커와 같은 답을 내나.**
+   *
+   *   `tools/goldenbattle.mjs` 는 **자기 import 파서를 따로 갖고 있다**(:49-55) —
+   *   저장소에서 네 번째 사본이고, `tools/lib/imports.mjs` 보다 무르다
+   *   (부수효과 import 를 문장 경계 없이 잡는 그 옛 모양이다 — §107 이 고친 병).
+   *
+   *   ★ 그 워커는 **고치면 안 된다.** 걷는 결과가 한 파일이라도 달라지면 ENGINE_HASH 가
+   *     바뀌고 **모든 사람의 PvP 등록이 한꺼번에 무효가 된다.**
+   *   ⇒ 그래서 «고친다» 가 아니라 «**둘이 같은 답을 내는지 묻는다**» 로 지킨다.
+   *     지금은 같다. 누가 엔진에 부수효과 import 를 더하면 그날 갈라지고, 여기가 문다.
+   *
+   *   유일하게 의도된 차이는 `src/data/enginever.js` 다 — syncshared 는 그 상수 파일을
+   *   서버로 같이 복사하지만, 해시의 «재료» 는 아니다 (자기 자신을 못 담는다). */
+  {
+    const ENGINE_BUNDLE = BUNDLES.find((b) => b.name === '전투 엔진');
+    const mine = new Set(closureOf(ENGINE_BUNDLE.entry, []));
+    const gbSrc = readFileSync(join(rootDir, 'tools/goldenbattle.mjs'), 'utf8');
+    const em = gbSrc.match(/const ENTRY = (\[[\s\S]*?\]);/);
+    ok(!!em, 'goldenbattle.mjs 에서 ENTRY 를 읽는다', 'ENTRY 를 못 찾았다');
+    if (em) {
+      /* goldenbattle 자신의 ENTRY 를 **표준 워커로** 걷는다 —
+       *   그 자신의 파서를 여기서 흉내 내면 사본이 다섯 벌이 된다. */
+      const gbEntry = JSON.parse(em[1].replace(/'/g, '"').replace(/,(\s*\])/, '$1'));
+      const theirs = new Set(closureOf(gbEntry, []));
+      const INTENDED = 'src/data/enginever.js';
+      const onlyMine = [...mine].filter((f) => !theirs.has(f) && f !== INTENDED);
+      const onlyTheirs = [...theirs].filter((f) => !mine.has(f));
+      okAll(onlyMine.map((f) => `${f} 가 서버 묶음엔 있는데 ENGINE_HASH 재료엔 없다`)
+        .concat(onlyTheirs.map((f) => `${f} 가 ENGINE_HASH 재료인데 서버 묶음엔 없다`)),
+        'ENGINE_HASH 재료와 전투 엔진 묶음이 (enginever.js 말고는) 같다',
+        `${theirs.size}개 vs ${mine.size}개`);
+      ok(mine.has(INTENDED) && !theirs.has(INTENDED),
+        `의도된 차이는 ${INTENDED} 하나뿐이다`,
+        `묶음에 있나 ${mine.has(INTENDED)} · 해시 재료에 있나 ${theirs.has(INTENDED)}`);
+    }
+  }
 
   /* ③ **묶는 쪽이 실제로 묶나.** 안 묶으면 `gs()` 가 조용히 null 이 되고
    *   화면이 «말없이 빈다» — 오류도 안 난다. 가장 무서운 실패다. */
