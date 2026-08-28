@@ -478,6 +478,17 @@ function sanitizeSquad(raw: unknown) {
       const srvS = (st.roster || []).filter((m: { grade?: string }) => m?.grade === 'S').length;
       const cliPower = Math.max(0, Math.round(Number(score.topPower) || 0));
       const cliS = Math.max(0, Math.round(Number(score.sMercs) || 0));
+      /* ★ 표에도 적는다 (db/022) — 이 CLI 에는 `functions logs` 가 없어서
+       *   로그만으로는 「며칠 돌려야 하나」 에 수치로 답할 수 없다.
+       *   ★ 실패해도 넘어간다. 관측이 판정 경로를 막으면 안 된다. */
+      try {
+        await admin.from('shadow_obs').insert({
+          user_id: userId, kind: 'power',
+          obs: { srvPower, cliPower, powerDiff: srvPower - cliPower,
+            srvS, cliS, sDiff: srvS - cliS, rosterN: (st.roster || []).length },
+        });
+      } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
+
       console.error('[그림자] 서버가 센 값 vs 클라가 신고한 값', {
         userId,
         power: { 서버: srvPower, 클라: cliPower, 차: srvPower - cliPower },
@@ -526,6 +537,18 @@ function sanitizeSquad(raw: unknown) {
             if ((w?.reached || 0) > bestTower) bestTower = w.reached;
           } catch (e) { console.error('[그림자] verifyTower 실패', q.id, String((e as Error)?.message || e)); }
         }
+        try {
+          await admin.from('shadow_obs').insert({
+            user_id: userId, kind: 'runs',
+            obs: { abyssBound: bestAbyss, abyssCli: Number(score.abyssBest) || 0,
+              abyssOver: (Number(score.abyssBest) || 0) > bestAbyss,
+              towerBound: bestTower, towerCli: Number(score.towerBest) || 0,
+              towerOver: (Number(score.towerBest) || 0) > bestTower,
+              towerAtCap: bestTower >= 500 && (Number(score.towerBest) || 0) >= 500,
+              squadsRan: ran, squadsAll: (st.squads || []).length, ms: Date.now() - t0 },
+          });
+        } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
+
         console.error('[그림자] 나락·탑 상한 vs 클라 신고', {
           userId,
           나락: { 상한: bestAbyss, 클라: score.abyssBest, 넘었나: Number(score.abyssBest) > bestAbyss },

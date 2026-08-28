@@ -33,6 +33,24 @@ import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
  *   ★ 안 묶으면 `advanceDays` 가 **던진다** (day.js 의 계약). 그래서 여기서 한 번 묶는다. */
 bindDay({ addLog: () => {}, touch: () => {}, expireCityLists: () => {} });
 
+/**
+ * 그림자 관측을 **표에 적는다** (db/022).
+ *
+ * ★★ 이 CLI 에는 `supabase functions logs` 가 없다 — `console.error` 만으로는
+ *   사람이 대시보드를 열어 눈으로 옮겨 적어야 하고, 그러면 「며칠 돌려야 하나」 에
+ *   아무도 수치로 답할 수 없다.
+ *
+ * ★ 실패해도 **아무 일도 안 한다.** 관측이 그림자를 막으면 안 된다.
+ * ★ 숫자와 참거짓만 적는다 — 이름·용병단명 같은 문자열을 넣지 마라.
+ */
+async function obs(admin: { from: (t: string) => { insert: (v: unknown) => Promise<{ error?: unknown }> } },
+                   userId: string, kind: string, o: unknown) {
+  try {
+    const { error } = await admin.from('shadow_obs').insert({ user_id: userId, kind, obs: o });
+    if (error) console.error('[그림자] 관측 기록 실패 — 넘어간다', error);
+  } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -244,6 +262,12 @@ Deno.serve(async (req) => {
       하루임금: before.upkeep,
     };
     console.error('[그림자] 하루 넘기기 — 계산만 하고 안 쓴다', { userId, result });
+    await obs(admin, userId, 'advanceDays', {
+      n, dayFrom: before.day, dayTo: st2.day,
+      goldFrom: before.gold, goldTo: st2.gold,
+      upkeepDay: before.upkeep, upkeepTotal: out.upkeep, unpaid: out.unpaid,
+      recovered: (out.recovered || []).length, returned: (out.returned || []).length,
+    });
 
     /* ★★ **아직 안 쓴다.** 원장도 안 남긴다 — 남기면 «했다» 가 되어
      *   다음 진짜 호출이 재생으로 막힌다. */
@@ -325,6 +349,10 @@ Deno.serve(async (req) => {
      *   클라가 이 경로를 안 쓰기 때문이고(호출부 0줄), 등급 연출이 서버를 기다리게 하는
      *   UI 변경이 따로 필요하다. 숫자가 맞는 것을 본 뒤에 소유를 넘긴다. */
     console.error('[그림자] 고용 — 계산만 하고 안 쓴다', { userId, result, rep, tier, isSpec });
+    await obs(admin, userId, 'hire', {
+      cityId, offerIndex: idx, classId: offer.classId, cost, grade, rep, tier, isSpec,
+      gold: Number(rs3.gold), rosterN: rosterN || 0, rosterCap: Number(rs3.roster_cap || 20),
+    });
     return json({ ok: true, shadow: true, result });
   }
 
@@ -390,7 +418,27 @@ Deno.serve(async (req) => {
       목록도시수: Object.keys((rs4?.data || {}).quests || {}).length,
     });
 
-    /* ★★ 아무것도 안 쓴다. `run_ops` 도 안 적는다. */
+    /* ★★ `run_ops` 에는 **안 적는다** (적으면 진짜 정산이 재생으로 막힌다).
+     *   대신 **관측 표**에 적는다 — 판정에 안 쓰이고 운영자만 읽는다 (db/022). */
+    await obs(admin, userId, 'questSettle', {
+      questId: q.questId, cityId: q.cityId, win: !!q.win,
+      dayDiff: rs4 ? R2(q.day) - R2(rs4.day) : null,
+      listDayDiff: R2(q.day) - R2(q.listDay),
+      cityMatch: rs4 ? String(q.cityId) === String(rs4.city_id) : null,
+      inSaved: !!saved,
+      rewardMatch: saved ? JSON.stringify((saved as { reward?: unknown }).reward) === JSON.stringify(rw) : null,
+      G, E, R, gold, exp, renown,
+      goldIn: q.win ? (gold >= R2(G * 0.94) && gold <= R2(G * 1.14)) : null,
+      expIn: q.win ? (exp >= R2(E * 0.96) && exp <= R2(E * 1.08)) : null,
+      renownEq: q.win ? renown === R : null,
+      itemRolls: Array.isArray(rw?.itemRolls) ? rw.itemRolls.length : null,
+      itemsN: R2(rep.itemsN),
+      waveN: R2(q.waveN), questWaveN: R2(q.questWaveN),
+      retreat: Array.isArray(q.waves) && q.waves.length ? !q.waves[q.waves.length - 1].margin : null,
+      autoSell: R2(q.autoSellRarity),
+      cityBooks: Object.keys((rs4?.data || {}).quests || {}).length,
+    });
+
     return json({ ok: true, shadow: true });
   }
 

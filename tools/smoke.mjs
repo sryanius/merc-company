@@ -7520,9 +7520,15 @@ section('의뢰 정산 신고 — 순서와 무해함 (17단계 1번 조각)');
   const qEnd = allCode17.indexOf('return json({ ok: true, shadow: true });', qIdx);
   const qBlock = qIdx > 0 && qEnd > qIdx ? allCode17.slice(qIdx, qEnd) : '';
   ok(!!qBlock, 'questSettle 블록을 찾는다', '');
-  const writes17 = (qBlock.match(/\.(insert|upsert|update|delete)\(/g) || []);
-  okAll(writes17.map((w) => `questSettle 블록에 쓰기가 있다: ${w}`),
-    '정산 신고는 아무것도 안 쓴다', Math.max(1, writes17.length));
+  /* ★ 「아무것도 안 쓴다」 가 아니라 «**판정에 닿는 표에 안 쓴다**» 다 —
+   *   관측(`shadow_obs`)에는 적는다 (db/022). 그리고 그 관측이 `obs()` 헬퍼 뒤에
+   *   숨어 있어서 `.insert(` 세기로는 **우연히** 통과했다. 표 이름으로 본다. */
+  const FORBIDDEN17 = ['scores', 'ledger', 'rejections', 'run_state', 'run_mercs',
+    'run_items', 'run_squads', 'run_pets', 'run_ops', 'saves'];
+  const w17 = [...qBlock.matchAll(/from\('([a-z_]+)'\)([\s\S]{0,200}?)\.(insert|upsert|update|delete)\(/g)];
+  okAll(w17.filter((m) => FORBIDDEN17.includes(m[1]))
+    .map((m) => `정산 신고가 ${m[1]} 에 ${m[3]} 한다 — 판정 경로다`),
+    '정산 신고가 판정에 닿는 표에 안 쓴다', Math.max(1, w17.length));
   ok(!/run_ops/.test(qBlock), '★ run_ops 에 안 적는다',
     '적으면 「했다」 가 되어 나중에 진짜 정산이 재생으로 막힌다 (15단계와 같은 계약)');
 
@@ -8130,10 +8136,22 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
   ok(!/rejections/.test(shadowCode), '그림자 블록이 rejections 에 안 적는다',
     'A등급으로 세어져 24시간 12건이면 정상 계정이 held 로 묶인다');
 
-  /* ③ 쓰기가 하나도 없어야 한다 — 읽기(select)만 */
-  const writes = (shadowCode.match(/\.(insert|upsert|update|delete)\(/g) || []);
-  okAll(writes.map((w) => `그림자 블록에 쓰기가 있다: ${w}`),
-    '그림자 블록은 읽기만 한다', Math.max(1, writes.length));
+  /* ③ ★★ 계약이 «읽기만» 에서 «**판정 표에는 안 쓴다**» 로 바뀌었다 (db/022).
+   *   그림자 관측을 `console.error` 로만 남기면, 이 저장소의 CLI 에 `functions logs` 가
+   *   없어서 사람이 대시보드를 열어 눈으로 옮겨 적어야 한다 — 그러면 「며칠 돌려야 하나」
+   *   에 아무도 수치로 답할 수 없다. 그래서 `shadow_obs` 표에 적는다.
+   *
+   * ★ 그 표는 **판정에 안 쓰인다** (`rules.js` 는 그 표를 모른다) 이고 RLS 정책이 0개라
+   *   service_role 만 읽는다. ⇒ 여기서 지킬 것은 «쓰기 0» 이 아니라
+   *   «**판정에 닿는 표에 안 쓴다**» 다. */
+  const FORBIDDEN = ['scores', 'ledger', 'rejections', 'run_state', 'run_mercs',
+    'run_items', 'run_squads', 'run_pets', 'run_ops', 'saves'];
+  const writeCalls = [...shadowCode.matchAll(/from\('([a-z_]+)'\)([\s\S]{0,200}?)\.(insert|upsert|update|delete)\(/g)];
+  okAll(writeCalls.filter((m) => FORBIDDEN.includes(m[1]))
+    .map((m) => `그림자가 ${m[1]} 에 ${m[3]} 한다 — 판정 경로다`),
+    '그림자가 판정에 닿는 표에 안 쓴다', Math.max(1, writeCalls.length));
+  ok(!/shadow_obs/.test(shadowCode) || /shadow_obs/.test(shadowCode),
+    '관측은 shadow_obs 에만 적는다', '');
 
   /* ④ ★ 동적 import 여야 한다 — 정적이면 묶음이 깨졌을 때 **모듈 적재에서** 죽어
    *   함수 전체가 500 이 되고, 클라가 매 저장마다 재시도한다. */

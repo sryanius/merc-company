@@ -23,6 +23,8 @@ export const GAME_TABLES = [
   'run_state', 'run_mercs', 'run_items', 'run_squads', 'run_pets',
   /* 015 — 비멱등 RPC 의 멱등성 키 */
   'run_ops',
+  /* 022 — 그림자 관측 (판정에 안 쓰인다, 운영자만 읽는다) */
+  'shadow_obs',
 ];
 
 /** 남의 것이지만 **알고 있는** 테이블 (접두어 → 주인) */
