@@ -123,8 +123,20 @@ Deno.serve(async (req) => {
   let prevSeed: number | null = null;
   try {
     const { data: seenRow } = await admin
-      .from('scores').select('top_power, status, seed').eq('user_id', userId).maybeSingle();
-    seenPower = Math.max(0, Math.round(Number(seenRow?.top_power) || 0));
+      .from('scores').select('top_power, seen_power, status, seed').eq('user_id', userId).maybeSingle();
+    /* ★★ 알리바이 바닥값은 이제 **자기 칸**을 갖는다 (db/018).
+     *   `top_power` 는 순위 축이라 매 제출마다 **조건 없이 덮인다** (아래 upsert 참고) —
+     *   장비를 팔거나 부대를 해산하면 내려간다. 그건 순위로선 맞지만 알리바이로선 틀렸다.
+     *   한 칸이 반대 요구 둘을 지고 있었다.
+     *
+     * ★ 그래도 `top_power` 를 같이 본다 — db/018 을 적용하기 전에 쌓인 행이나
+     *   backfill 이 못 닿은 행이 있어도 바닥값이 **안 내려가게** 하려는 것이다.
+     *   (바닥값은 판정을 느슨하게만 만든다 — 높게 잡는 쪽이 늘 안전하다.) */
+    seenPower = Math.max(
+      0,
+      Math.round(Number(seenRow?.seen_power) || 0),
+      Math.round(Number(seenRow?.top_power) || 0),
+    );
     prevStatus = String(seenRow?.status || '');
     prevSeed = seenRow?.seed == null ? null : Number(seenRow.seed);
   } catch (e) {
@@ -365,6 +377,15 @@ function sanitizeSquad(raw: unknown) {
      *     상한으로 잘리는 편이 낫다. 값이 이상하면 어차피 status 가 flagged 다. */
     s_mercs: Math.max(0, Math.min(200, Math.round(Number(score.sMercs) || 0))),
     top_power: Math.max(0, Math.min(POWER_CAP, Math.round(Number(score.topPower) || 0))),
+    /* ★★ 알리바이 바닥값은 **단조 증가만** 한다 — 여기서만 그렇다.
+     *   `same`(같은 판) 조건을 **안 건다**: 판을 새로 시작해도 «이 계정이 전에 그만한
+     *   전력을 보였다» 는 사실은 그대로다. §117 이 「시드를 갈아타면 표식이 씻긴다」 를
+     *   막은 것과 같은 이유다 — 시드를 조건에 걸면 갈아타기로 바닥값을 씻을 수 있다. */
+    seen_power: Math.max(
+      0,
+      Math.min(POWER_CAP, Math.round(Number(score.topPower) || 0)),
+      seenPower,
+    ),
     /* 순위표에 보여 줄 대표 부대 스냅샷 (rules.js topSquadOf).
      * ★ 클라이언트가 스스로 신고하는 값이다 — 점수와 마찬가지로 «검증된 편성» 이 아니다.
      *   여기서는 **모양만** 거른다: 배열이고, 7명 이하고, 필드가 예상한 것뿐인가.

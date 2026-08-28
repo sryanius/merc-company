@@ -7436,6 +7436,93 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('알리바이 바닥값이 순위 축과 분리돼 있나 (scores.seen_power)');
+{
+  /* ★★ §111 의 알리바이 바닥값이 `scores.top_power` 를 읽고 있었다.
+   *   그런데 `top_power` 는 **순위 축**이라 매 제출마다 조건 없이 덮인다 —
+   *   `abyss_best`·`tower_best` 는 `keepMax` 를 쓰는데 **전력만 안 썼다.**
+   *   한 칸이 반대 요구 둘을 지고 있었던 것이다:
+   *     · 순위 축  → «지금» 값이어야 한다 (장비를 팔면 내려가는 게 맞다)
+   *     · 알리바이 → «여태 최대» 여야 한다 (내려가면 방어가 풀린다)
+   *
+   *   ⇒ db/018 이 `seen_power` 를 따로 팠다. 이 절은 그 계약을 글자로 지킨다 —
+   *     서버 코드는 스모크에서 굴릴 수가 없다 (Deno·인증·DB 가 걸려 있다).
+   *
+   * ★ 이 검사가 «글자 검사» 인 것을 숨기지 않는다. 대신 **깨지면 위험한 성질**만
+   *   골라서 본다: ⑴ 읽을 때 두 칸의 최대를 쓰나 ⑵ 쓸 때 안 내려가나
+   *   ⑶ 시드를 조건에 걸지 않았나 (걸면 §117 처럼 갈아타기로 씻을 수 있다). */
+  const iSrc = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
+
+  ok(/select\('top_power, seen_power/.test(iSrc), '서버가 seen_power 를 읽는다',
+    '안 읽으면 db/018 이 판 칸이 그냥 놀고, 알리바이는 여전히 순위 축을 탄다');
+
+  /* ⑴ 읽기: 두 칸의 최대여야 한다 — 옛 행이나 backfill 이 못 닿은 행에서도 안 내려가게 */
+  const rIdx = iSrc.indexOf('seenPower = Math.max(');
+  const readBlock = rIdx > 0 ? iSrc.slice(rIdx, rIdx + 320) : '';
+  ok(/seenRow\?\.seen_power/.test(readBlock) && /seenRow\?\.top_power/.test(readBlock),
+    '바닥값을 읽을 때 seen_power 와 top_power 의 최대를 쓴다',
+    '한쪽만 보면 옛 행에서 바닥값이 내려간다');
+
+  /* ⑵ 쓰기: **단조 증가만** — 이 줄이 이 절의 값어치다 */
+  const wIdx = iSrc.indexOf('seen_power: Math.max(');
+  ok(wIdx > 0, '서버가 seen_power 를 쓴다', '안 쓰면 바닥값이 영영 안 자란다');
+  const writeBlock = wIdx > 0 ? iSrc.slice(wIdx, wIdx + 320) : '';
+  ok(/seenPower/.test(writeBlock), 'seen_power 를 쓸 때 이전 값을 최대에 포함한다',
+    '이전 값을 안 보면 전력이 내려간 제출 한 번으로 알리바이가 영구히 무너진다');
+
+  /* ⑶ ★★ 시드를 조건에 걸면 안 된다 — §117 이 막은 그 구멍이 여기서 다시 열린다 */
+  ok(!/same\s*\?[^,]*seen_power|seen_power[^,]*same/.test(iSrc)
+     && !/same/.test(writeBlock),
+    'seen_power 가 «같은 판(same)» 조건에 안 걸려 있다',
+    '걸면 판을 새로 시작하는 것만으로 바닥값을 씻을 수 있다 (§117 과 같은 병)');
+
+  /* ★ 마이그레이션이 두 번 돌아도 안전해야 한다 (§109: db query 가 오류 뒤 재시도한다) */
+  const mSrc = readFileSync(join(rootDir, 'db/018_seen_power.sql'), 'utf8');
+  ok(/add column if not exists seen_power/.test(mSrc), '컬럼 추가가 두 번 돌아도 안전하다',
+    'if not exists 가 없으면 재시도에서 터진다');
+  ok(/greatest\(/.test(mSrc), 'backfill 이 두 번 돌아도 값이 안 내려간다',
+    'greatest 가 없으면 재시도가 값을 덮어쓸 수 있다');
+
+  /* ★★ 그리고 **판정 쪽 성질** — 바닥값은 판정을 «느슨하게만» 만들어야 한다.
+   *   이건 글자가 아니라 실제로 굴려서 본다. 조이는 방향으로 쓰이면 정상 플레이어를 문다. */
+  try {
+    const R = await import('../src/game/rules.js');
+    const S0 = {
+      seed: 7, dataVersion: 9, companyName: 'x', day: 500,
+      abyssBest: 40, abyssBestDay: 480, abyssLastRunDay: 480,
+      towerBest: 200, towerBestDay: 470, towerLastRunDay: 470,
+      questsDone: 700, battlesWon: 1500, battlesLost: 30, gold: 90000, renown: 900,
+      cityId: 'greenhold', rosterN: 20, rosterCap: 40, topLevel: 70,
+      squadsN: 2, petsN: 2, itemsN: 80, sMercs: 0, hires: 15, specHires: 2,
+      hiredN: 20, topPower: 0, squad: null, squadsFull: [], sHiredDays: [],
+    };
+    const noAlibi = R.judge(null, { ...S0, seenPower: 0 });
+    const withAlibi = R.judge(null, { ...S0, seenPower: 50000 });
+    ok(noAlibi.verdict !== 'ok', '알리바이가 없으면 «기록은 있는데 전력이 없다» 가 걸린다',
+      JSON.stringify(noAlibi));
+    ok(withAlibi.verdict === 'ok', '알리바이가 있으면 통과한다 (바닥값은 느슨하게만 만든다)',
+      JSON.stringify(withAlibi));
+
+    /* ★★ 단조성 — 바닥값이 커질수록 판정이 **더 무거워지면 안 된다.**
+     *
+     * ★ 처음엔 «이유 개수» 로 쟀는데 0→1 에서 1→2 로 늘어 걸렸다. 재 보니 판정은
+     *   `flag/C` 로 **내내 같았다** — 전력 0 규칙 하나가 축별 규칙 둘로 갈린 것뿐이다.
+     *   개수는 이 성질의 대리 지표로 틀렸다. **심각도**를 재야 한다.
+     *   (§111 이 이 0→1 경계를 이미 겪었다. 같은 자리를 또 밟았다.) */
+    const RANK = { ok: 0, flag: 1, reject: 2 };
+    const steps = [0, 1, 2, 100, 1000, 50000, 999999];
+    const sev = steps.map((p) => RANK[R.judge(null, { ...S0, seenPower: p }).verdict] ?? 9);
+    okAll(sev.slice(1).map((n, i) => (n > sev[i]
+      ? `바닥값 ${steps[i]}→${steps[i + 1]} 에서 판정이 무거워졌다 (${sev[i]}→${n})` : '')).filter(Boolean),
+      '바닥값이 커질수록 판정이 무거워지지 않는다', sev.length);
+    ok(sev[0] > 0 && sev[sev.length - 1] === 0,
+      '바닥값이 0 이면 걸리고 충분히 크면 통과한다 (양 끝이 실제로 다르다)',
+      `${sev.join(' → ')} — 양 끝이 같으면 이 검사는 아무것도 안 증명한다`);
+  } catch (e) {
+    ok(false, '바닥값 판정을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('전력 0 으로 기록↔전력 교차 검증을 못 끈다');
 {
   /* ★★ 왜 이 절이 있나 — **0 이 마법의 탈출값이었다** (§111).
