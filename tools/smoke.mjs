@@ -4674,6 +4674,100 @@ section('세이브 관문');
 
 /* ───────────────── 서버 공유 규칙 드리프트 ───────────────── */
 
+section('점수만 보내기 — 두 갈래가 같은 판정을 받나');
+{
+  /* ★★ 클라가 «세이브 통째» 대신 «접힌 점수» 를 보내게 바꿨다 (낭비 97.4% → 0).
+   *   서버는 두 갈래를 다 받는다 — 캐시된 옛 클라가 실제로 돈다 (§41).
+   *
+   *   ⇒ 이 절이 지키는 것은 딱 하나: **두 갈래가 같은 30칸을 만드나.**
+   *     항등식으로 묻는다 — `normalizeScore(extractScore(x))` 가 `extractScore(x)` 와 같은가.
+   *     칸이 새로 생기면 `normalizeScore` 가 못 따라오고 그날 물린다. */
+  try {
+    const R = await import('../src/game/rules.js');
+    const ST = await import('../src/game/state.js');
+
+    const diffs = [];
+    let plays = 0;
+    for (const seed of [1, 20260828, 777, 424242]) {
+      ST.newGame(seed, '항등검사' + seed);
+      for (const d of [0, 5, 40]) {
+        if (d) ST.advanceDays(d);
+        const a = R.extractScore(ST.state);
+        const b = R.normalizeScore(a);
+        plays++;
+        const ka = Object.keys(a).sort();
+        const kb = Object.keys(b).sort();
+        for (const k of ka) if (!kb.includes(k)) diffs.push(`${k} 칸이 normalizeScore 에서 사라진다`);
+        for (const k of kb) if (!ka.includes(k)) diffs.push(`${k} 칸이 normalizeScore 에만 있다`);
+        for (const k of ka) {
+          if (!kb.includes(k)) continue;
+          if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) {
+            diffs.push(`${k}: ${JSON.stringify(a[k])} → ${JSON.stringify(b[k])}`);
+          }
+        }
+      }
+    }
+    okAll(diffs.filter((v, i, a) => a.indexOf(v) === i),
+      'normalizeScore(extractScore(x)) 가 extractScore(x) 와 똑같다', plays * 30);
+
+    /* ★ 그리고 «판정이 같은가» 를 직접 묻는다 — 항등식이 성립해도 judge 가
+     *   다른 답을 내면 아무 소용이 없다. */
+    ST.newGame(31337, '판정비교');
+    ST.advanceDays(30);
+    const sc = R.extractScore(ST.state);
+    const v1 = R.judge(null, sc);
+    const v2 = R.judge(null, R.normalizeScore(sc));
+    ok(JSON.stringify(v1) === JSON.stringify(v2), '두 갈래가 같은 판정을 받는다',
+      `${JSON.stringify(v1)} vs ${JSON.stringify(v2)}`);
+
+    /* ★ 쓰레기를 넣으면 null 이어야 한다 — 서버가 400 을 돌려주는 근거다 */
+    const junk = [null, undefined, 'abc', 42, []].map((x) => R.normalizeScore(x));
+    okAll(junk.map((r, i) => (r === null ? '' : `${i}번째 쓰레기가 null 이 아니다`)).filter(Boolean),
+      '점수가 아닌 것은 null 로 떨어진다', junk.length);
+
+    /* ★★ 자원 방어 — sHiredDays 를 무한정 받으면 안 된다.
+     *   ★ 자르되 «거절» 하지 않는다. 거절은 오탐이고, 자르면 sMercs 와 어긋나
+     *     §118 이 판정한다 — 판정은 판정하는 곳에서 한다. */
+    const huge = R.normalizeScore({ ...sc, sHiredDays: new Array(9000).fill(1) });
+    ok(huge.sHiredDays.length <= 500, 'sHiredDays 가 상한에서 잘린다',
+      `${huge.sHiredDays.length}칸`);
+  } catch (e) {
+    ok(false, '두 갈래 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('제출 실패에 백오프가 있나 (정상 플레이어를 문 자리)');
+{
+  /* ★★ HANDOFF: 「한 시간에 거절 120건」 을 낸 계정은 치트가 아니라 **2129일차 정상
+   *   플레이어**였다. `!res.ok` 면 `SUBMITTED_KEY` 를 안 적고 그냥 돌아가서,
+   *   저장할 때마다 똑같이 다시 보냈다. saves 경로에는 `RETRY_MS` 백오프가 있는데
+   *   제출 경로에만 없었다.
+   *
+   * ★ 글자로 본다 — 이 경로는 네트워크·인증이 걸려 있어 스모크에서 굴릴 수가 없다.
+   *   그래서 «있나» 를 묻고, 「force 는 통과한다」 는 성질을 같이 못 박는다. */
+  const cSrc = decomment(readFileSync(srcDir('net/cloud.js'), 'utf8'));
+
+  ok(/submitAllowedNow\s*\(/.test(cSrc), '제출 경로에 백오프 문지기가 있다',
+    '없으면 실패할 때마다 매 저장에서 다시 보낸다');
+  ok(/RETRY_MS\[Math\.min\(submitFails/.test(cSrc), '백오프가 saves 와 같은 표를 쓴다',
+    '따로 만들면 두 벌이 되고 갈라진다');
+  ok(/!opt\.force\s*&&\s*!submitAllowedNow\(\)/.test(cSrc),
+    '「지금 올리기」(force) 는 백오프를 통과한다',
+    '사람이 누른 것을 막으면 오탐을 알아챌 유일한 채널이 막힌다 (§55·§96)');
+  ok(/submitFails\s*=\s*0/.test(cSrc), '성공하면 실패 계수가 풀린다',
+    '안 풀면 한 번 실패한 계정이 영영 느려진다');
+
+  /* ★ 그리고 **점수만 보내는지** — 세이브 통째로 돌아가면 낭비 97.4% 가 되돌아온다 */
+  ok(/body:\s*\{\s*score\s*\}/.test(cSrc), '제출은 점수만 보낸다',
+    '세이브 통째를 보내면 쓰는 것의 40배를 올린다');
+
+  /* ★★ 서버는 **두 갈래를 다 받아야 한다** — 캐시된 옛 클라가 실제로 돈다 (§41) */
+  const iSrc = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
+  ok(/body\.score/.test(iSrc) && /body\.state/.test(iSrc),
+    '서버가 새 갈래와 옛 갈래를 둘 다 받는다',
+    '옛 갈래를 지우면 캐시된 클라의 기록이 그날부터 통째로 사라진다');
+}
+
 section('서버 공유 규칙');
 {
   /* ★ 검증 규칙은 Edge Function 쪽에 **복사본**으로 산다 (supabase/functions/_shared/).

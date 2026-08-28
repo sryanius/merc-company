@@ -20,7 +20,7 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { extractScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H } from '../_shared/rules.js';
+import { extractScore, normalizeScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H } from '../_shared/rules.js';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -52,17 +52,34 @@ Deno.serve(async (req) => {
   if (whoErr || !who?.user) return json({ error: '토큰이 유효하지 않다' }, 401);
   const userId = who.user.id;
 
-  // ── 2) 세이브를 받는다
-  let payload: Record<string, unknown> | null = null;
+  // ── 2) 점수를 받는다 (새 클라는 점수만, 옛 클라는 세이브 전체)
+  //
+  // ★★ **옛 클라 동시 지원이 필수다.** 서비스워커에 캐시된 옛 클라이언트가 그대로
+  //   도는 일이 실제로 있었다 (§41 — 리셋을 되돌렸다). 그래서 두 갈래를 다 받는다.
+  //
+  // ★ 새 갈래가 신뢰를 낮추지 않는다: `extractScore` 는 세이브의 순수 투영이고
+  //   조작자는 어차피 세이브를 위조한다. 판정은 어느 쪽이든 **같은 30칸**에 대고 한다.
+  //   그 «같음» 은 스모크의 항등식이 지킨다
+  //   (normalizeScore(extractScore(x)) === extractScore(x)).
+  let score: Record<string, unknown> | null = null;
+  let via = 'state';
   try {
     const body = await req.json();
-    payload = body && typeof body === 'object' ? (body.state ?? body) : null;
+    if (body && typeof body === 'object' && body.score && typeof body.score === 'object') {
+      score = normalizeScore(body.score);
+      via = 'score';
+    } else {
+      score = extractScore(body && typeof body === 'object' ? (body.state ?? body) : null);
+    }
   } catch {
     return json({ error: '본문을 읽지 못했다' }, 400);
   }
 
-  const score = extractScore(payload);
-  if (!score) return json({ error: '세이브를 읽지 못했다' }, 400);
+  if (!score) return json({ error: '기록을 읽지 못했다' }, 400);
+
+  /* ★ 어느 갈래로 왔는지 한 줄 남긴다 — 옛 클라가 언제 사라지는지 보려면 이것뿐이다
+   *   (서비스워커 캐시 때문에 「배포했으니 다 넘어갔다」 는 참이 아니다, §41). */
+  if (via === 'state') console.error('[submit-score] 옛 갈래(세이브 통째)로 왔다');
 
   const admin = createClient(url, service, { auth: { persistSession: false } });
 

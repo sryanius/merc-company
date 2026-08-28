@@ -177,6 +177,19 @@ const writeSynced = (v) => writeLS(SYNCED_KEY, v ? JSON.stringify(v) : null);
  * ★ 예약은 **여기서만** 한다. 흩어 놓으면 `nextAt: 0` 같은 구멍이 생기고
  *   (실제로 seed 확인 실패 경로에 그런 구멍을 냈다) 백오프가 통째로 무력해진다.
  */
+/* ★★ 제출 실패의 백오프. saves 의 `scheduleRetry` 와 **같은 표**(RETRY_MS)를 쓴다.
+ *   타이머를 안 거는 것이 차이다 — 제출은 «다음 저장 때» 자연히 다시 온다.
+ *   그때 이 문지기가 아직 이르면 되돌린다. */
+let submitFails = 0;
+let submitFailAt = 0;
+
+/** 지금 제출을 시도해도 되나 (실패 뒤 백오프가 지났나) */
+function submitAllowedNow() {
+  if (!submitFails) return true;
+  const wait = RETRY_MS[Math.min(submitFails - 1, RETRY_MS.length - 1)];
+  return Date.now() - submitFailAt >= wait;
+}
+
 function scheduleRetry(prevTries, rev, error) {
   const tries = (prevTries || 0) + 1;
   const wait = RETRY_MS[Math.min(tries - 1, RETRY_MS.length - 1)];
@@ -463,12 +476,29 @@ export async function submitScore(opt = {}) {
   if (!score) return { ok: false, error: '점수를 읽지 못했다' };
   if (!opt.force && !worthSubmitting(score)) return { ok: true, skipped: true, error: '' };
 
+  /* ★ 앞선 제출이 «네트워크·5xx·404» 로 실패했으면 잠시 쉰다.
+   *   ★★ `force` 는 이 문을 **통과한다** — 사람이 「지금 올리기」 를 눌렀을 때는
+   *     기다리게 하지 않는다 (그 버튼이 오탐을 알아채는 유일한 채널이다, §55·§96). */
+  if (!opt.force && !submitAllowedNow()) {
+    return { ok: true, skipped: true, error: '' };
+  }
+
   const run = (async () => {
-    const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { state } }, Auth);
+    /* ★★ **점수만 보낸다.** 예전엔 세이브 전체를 올렸는데 서버가 쓰는 것은 접힌 30칸뿐이라
+     *   실측 낭비율이 97.4% 였다 (107.7KB 보내고 2.8KB 사용). 1MB 세이브에선 99.7%.
+     *   서버는 옛 갈래(`{state}`)도 계속 받는다 — 캐시된 옛 클라가 실제로 돈다 (§41). */
+    const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { score } }, Auth);
     if (!res.ok) {
-      // 함수가 아직 배포 안 됐으면 404 다. 조용히 넘어간다 — 다음 기록 때 다시 시도한다.
+      /* ★★ 여기서 **그냥 돌아가면 안 된다.** `SUBMITTED_KEY` 를 안 적으므로 다음 저장마다
+       *   똑같이 다시 보낸다 — HANDOFF 의 「한 시간에 거절 120건」 이 정확히 이 루프였고,
+       *   그 계정은 치트가 아니라 2129일차 **정상 플레이어**였다.
+       *   saves 경로에는 백오프가 있는데(RETRY_MS) 이 경로에만 없었다. 같은 모양으로 건다. */
+      submitFailAt = Date.now();
+      submitFails = Math.min(submitFails + 1, RETRY_MS.length);
       return { ok: false, error: res.error };
     }
+    submitFails = 0;
+    submitFailAt = 0;
     if (res.data && res.data.ok === false) {
       /* 서버가 거절했다(A등급). 되풀이해 봐야 같은 답이라 **다시 안 보낸다** —
        * 지금 값을 제출한 것으로 기록해 둔다. 게임은 아무 영향 없이 계속된다. */

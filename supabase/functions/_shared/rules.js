@@ -45,6 +45,71 @@ import { TOWER_FLOORS } from './tower.js';
 import { MAX_LEVEL, DAYS_PER_WEEK, DAYS_PER_MONTH, MAX_SQUADS, ROSTER_CAP_MAX } from './limits.js';
 
 /** 랭킹에 올라가는 값만 뽑아낸다. 세이브 전체를 서버에 판단시키지 않는다. */
+/**
+ * 클라가 **점수만** 보냈을 때 그 모양을 못 박는다.
+ * ────────────────────────────────────────────────────────────────
+ *
+ * ★ 왜 필요한가. 예전엔 클라가 **세이브 전체**를 올렸고 서버가 `extractScore` 로 접었다.
+ *   그런데 서버가 실제로 쓰는 것은 접힌 30칸뿐이고 나머지는 통째로 버려졌다 —
+ *   실측 낭비율 **97.4%** (보내는 107.7KB / 쓰는 2.8KB), 1MB 세이브에선 99.7%.
+ *
+ * ★★ 신뢰 경계는 안 바뀐다. `extractScore` 는 세이브의 **순수 투영**이고, 조작자는
+ *   어차피 세이브를 위조한다 — 접기 전에 위조하나 접은 뒤에 위조하나 같다.
+ *   판정은 지금도 앞으로도 **이 30칸에 대고** 한다.
+ *
+ * ★ 잃는 것 하나는 적어 둔다: 「나중에 원본 세이브로 검사를 더한다」 는 문이 닫힌다.
+ *   §113 이 이미 그 문의 값을 쟀다 — 아이템은 소급 검증이 **불가능**하다. 그리고
+ *   전환 계획대로 명부가 `run_*` 로 올라오면 서버는 원본보다 나은 것을 갖게 된다.
+ *
+ * ★★ 이 함수가 옳다는 증거는 **항등식 하나**다:
+ *     `normalizeScore(extractScore(save))` 가 `extractScore(save)` 와 **똑같아야 한다.**
+ *   스모크가 실제 세이브 여러 벌로 그걸 굴린다. 칸이 새로 생기면 그날 물린다.
+ */
+
+/* 음이 아닌 정수 칸. ★ 목록을 손으로 적었지만, 위 항등식이 빠진 칸을 잡는다. */
+const SCORE_INTS = [
+  'day', 'abyssBest', 'abyssBestDay', 'abyssLastRunDay',
+  'towerBest', 'towerBestDay', 'towerLastRunDay',
+  'questsDone', 'battlesWon', 'battlesLost', 'gold', 'renown',
+  'rosterN', 'rosterCap', 'topLevel', 'squadsN', 'petsN', 'itemsN',
+  'sMercs', 'hires', 'specHires', 'hiredN', 'topPower',
+];
+
+/* ★ 배열 길이 상한 — 정상 명부는 100을 안 넘는다(rosterCap 상한).
+ *   이건 판정이 아니라 **자원 방어**다. 넘치는 것을 «거절» 하지 않고 자른다:
+ *   자르면 sMercs 와 어긋나 §118 이 판정하고, 거절하면 오탐이 된다. */
+const S_DAYS_MAX = 500;
+
+export function normalizeScore(raw) {
+  /* ★ 배열도 `typeof === 'object'` 다 — 안 걸러 내면 `[]` 가 «점수» 로 통과한다.
+   *   (스모크의 쓰레기 판이 실제로 이걸 잡았다.) */
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+
+  /* seed·dataVersion 은 «0 이상» 을 걸지 않는다 — extractScore 와 정확히 같은 식을 쓴다.
+   *   (clamp 를 더하면 항등식이 깨지고, seed 가 어긋나면 sameRun 이 통째로 무너진다.) */
+  out.seed = Number(raw.seed) || 0;
+  out.dataVersion = Number(raw.dataVersion) || 0;
+
+  for (const k of SCORE_INTS) out[k] = Math.max(0, Math.round(Number(raw[k]) || 0));
+
+  /* ★ `extractScore` 와 **글자 그대로 같은 식**이어야 한다 — 코드포인트 단위로 자른다
+   *   (이모지가 24번째에 걸리면 UTF-16 slice 는 반쪽을 남긴다). */
+  out.companyName = Array.from(String(raw.companyName || '용병단')).slice(0, 24).join('');
+  out.cityId = typeof raw.cityId === 'string' ? raw.cityId : null;
+
+  out.sHiredDays = Array.isArray(raw.sHiredDays)
+    ? raw.sHiredDays.slice(0, S_DAYS_MAX).map((n) => Math.max(0, Math.round(Number(n) || 0)))
+    : [];
+
+  /* ★ 표시용 둘은 여기서 안 만진다 — `submit-score/index.ts` 의 화이트리스트가
+   *   이미 «아는 필드만» 남긴다 (§58). 두 벌이 되면 갈라진다. */
+  out.squad = raw.squad && typeof raw.squad === 'object' && !Array.isArray(raw.squad) ? raw.squad : null;
+  out.squadsFull = Array.isArray(raw.squadsFull) ? raw.squadsFull : [];
+
+  return out;
+}
+
 export function extractScore(st) {
   if (!st || typeof st !== 'object') return null;
   const roster = Array.isArray(st.roster) ? st.roster : [];
