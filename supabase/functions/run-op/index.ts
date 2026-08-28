@@ -51,6 +51,33 @@ async function obs(admin: { from: (t: string) => { insert: (v: unknown) => Promi
   } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
 }
 
+/**
+ * `run_*` 를 **끝까지** 읽는다.
+ *
+ * ★★★ PostgREST 는 기본 행 상한이 **1000** 이다. 그냥 `select('*')` 하면
+ *   그 위는 **조용히 잘린다** — 오류도 경고도 없다.
+ *
+ *   실제로 물렸다: 실계정 아이템이 **1372개**인데 1000개만 와서 착용이 346 → 156 이 되고
+ *   서버가 센 전력이 **166,274 → 105,411 (−36.6%)** 이 됐다.
+ *   그림자가 아니라 판정이었으면 그 계정을 그 자리에서 거절했다.
+ *
+ * ★ 그림자 모드가 값을 한 이 첫 번째 사고다 — 로그가 아니라 **관측 표**(db/022)가 잡았다.
+ */
+async function allRows(admin, table, userId, cols = '*') {
+  const PAGE = 1000;
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from(table).select(cols)
+      .eq('user_id', userId).range(from, from + PAGE - 1);
+    if (error) { console.error('[run_*] 읽기 실패', table, error); return out; }
+    const got = data || [];
+    out.push(...got);
+    if (got.length < PAGE) return out;
+    /* ★ 안전망 — 표가 이상하게 크면 멈춘다 (아이템 상한이 코드에 없다) */
+    if (out.length >= 20000) { console.error('[run_*] 너무 많다 — 자른다', table, out.length); return out; }
+  }
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -240,10 +267,12 @@ Deno.serve(async (req) => {
 
     const [{ data: rs2 }, { data: rm2 }, { data: ri2 }, { data: rp2 }, { data: rq2 }] = await Promise.all([
       admin.from('run_state').select('*').eq('user_id', userId).maybeSingle(),
-      admin.from('run_mercs').select('*').eq('user_id', userId),
-      admin.from('run_items').select('*').eq('user_id', userId),
-      admin.from('run_pets').select('*').eq('user_id', userId),
-      admin.from('run_squads').select('*').eq('user_id', userId),
+      /* ★★ `select('*')` 만 쓰면 **1000행에서 조용히 잘린다** — 아이템 1372개짜리
+       *   실계정에서 전력이 166,274 → 105,411 이 됐다. `allRows` 가 끝까지 읽는다. */
+      { data: await allRows(admin, 'run_mercs', userId) },
+      { data: await allRows(admin, 'run_items', userId) },
+      { data: await allRows(admin, 'run_pets', userId) },
+      { data: await allRows(admin, 'run_squads', userId) },
     ]);
     if (!rs2) return json({ error: '아직 이관 전이다' }, 404);
 
@@ -421,6 +450,7 @@ Deno.serve(async (req) => {
     /* ★★ `run_ops` 에는 **안 적는다** (적으면 진짜 정산이 재생으로 막힌다).
      *   대신 **관측 표**에 적는다 — 판정에 안 쓰이고 운영자만 읽는다 (db/022). */
     await obs(admin, userId, 'questSettle', {
+      rev: Math.max(0, Math.round(Number(q.rev) || 0)),
       questId: q.questId, cityId: q.cityId, win: !!q.win,
       dayDiff: rs4 ? R2(q.day) - R2(rs4.day) : null,
       listDayDiff: R2(q.day) - R2(q.listDay),

@@ -28,7 +28,7 @@
  */
 
 import {
-  ENABLED, EP, OUTBOX_KEY, PUSH_DEBOUNCE_MS, PUSH_MAX_WAIT_MS, RETRY_MS,
+  ENABLED, EP, OUTBOX_KEY, PUSH_DEBOUNCE_MS, PUSH_MAX_WAIT_MS, RETRY_MS,, CLIENT_REV
 } from './config.js';
 import * as Auth from './auth.js';
 import { authed, call } from './rest.js';
@@ -487,7 +487,10 @@ export async function submitScore(opt = {}) {
     /* ★★ **점수만 보낸다.** 예전엔 세이브 전체를 올렸는데 서버가 쓰는 것은 접힌 30칸뿐이라
      *   실측 낭비율이 97.4% 였다 (107.7KB 보내고 2.8KB 사용). 1MB 세이브에선 99.7%.
      *   서버는 옛 갈래(`{state}`)도 계속 받는다 — 캐시된 옛 클라가 실제로 돈다 (§41). */
-    const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { score } }, Auth);
+    /* ★ `rev` 는 **관측용**이다 — 판정에 안 쓴다. 서비스워커 때문에 「배포했으니 다
+     *   넘어갔다」 가 참이 아니라(§41), 관측에 클라 판번호가 없으면 「고장인가 옛 셸인가」
+     *   를 구별할 수 없다. 실제로 그 구별을 못 해서 헤맸다. */
+    const res = await authed(EP.fn('submit-score'), { method: 'POST', body: { score, rev: CLIENT_REV } }, Auth);
     if (!res.ok) {
       /* ★★ 여기서 **그냥 돌아가면 안 된다.** `SUBMITTED_KEY` 를 안 적으므로 다음 저장마다
        *   똑같이 다시 보낸다 — HANDOFF 의 「한 시간에 거절 120건」 이 정확히 이 루프였고,

@@ -55,6 +55,19 @@ export const RETRY_MS = [30_000, 300_000, 1_800_000, 21_600_000];
 export const TIMEOUT_MS = 15_000;
 
 /** REST 엔드포인트 (supabase-js 를 쓰지 않으므로 직접 조립한다) */
+/**
+ * 클라이언트 판번호 — **관측용**이다. 판정에 안 쓴다.
+ *
+ * ★★ 왜 필요한가. 그림자 관측에 「서버가 센 값 vs 클라가 신고한 값」 이 들어오는데,
+ *   **그 클라가 몇 판인지 알 길이 없었다.** 실제로 물렸다: 정산 신고가 0건이라
+ *   「신고 코드가 고장났나 / 브라우저가 옛 셸인가」 를 구별할 수 없었다.
+ *   서비스워커 때문에 「배포했으니 다 넘어갔다」 가 참이 아니다 (§41).
+ *
+ * ★ `sw.js` 의 `CACHE` 와 **따로** 둔다. 그건 워커 안에 있어서 페이지가 못 읽는다.
+ * ★ 클라 코드를 의미 있게 고치면 여기를 올려라. 스모크가 `sw.js` 와 짝이 맞는지 본다.
+ */
+export const CLIENT_REV = 162;
+
 export const EP = {
   signupAnon: `${SUPABASE_URL}/auth/v1/signup`,
   refresh: `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,

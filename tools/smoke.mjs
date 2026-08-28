@@ -4792,8 +4792,10 @@ section('제출 실패에 백오프가 있나 (정상 플레이어를 문 자리
     '안 풀면 한 번 실패한 계정이 영영 느려진다');
 
   /* ★ 그리고 **점수만 보내는지** — 세이브 통째로 돌아가면 낭비 97.4% 가 되돌아온다 */
-  ok(/body:\s*\{\s*score\s*\}/.test(cSrc), '제출은 점수만 보낸다',
+  /* ★ `rev`(관측용 클라 판번호)를 같이 싣는다 — 세이브는 여전히 안 보낸다 */
+  ok(/body:\s*\{\s*score,\s*rev:/.test(cSrc), '제출은 점수만 보낸다 (+ 관측용 rev)',
     '세이브 통째를 보내면 쓰는 것의 40배를 올린다');
+  ok(!/body:\s*\{\s*state\s*\}/.test(cSrc), '세이브 통째를 안 보낸다', '');
 
   /* ★★ 서버는 **두 갈래를 다 받아야 한다** — 캐시된 옛 클라가 실제로 돈다 (§41) */
   const iSrc = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
@@ -7475,6 +7477,100 @@ section('서버가 센 전력 == 클라가 센 전력');
     ok(m && Number(m[2]) >= 8, '판마다 전력이 실제로 다르다 (0 대 0 비교가 아니다)', summary);
     if (/런타임 deno/.test(summary)) pass('서버 런타임(deno)으로 굴렸다');
     else pass('서버 사본을 굴렸다', 'deno 없음 — 런타임 확인만 못 했다');
+  }
+}
+
+section('클라 판번호가 sw.js 와 짝이 맞나 (관측용)');
+{
+  /* ★★ 서비스워커 때문에 「배포했으니 다 넘어갔다」 가 **참이 아니다** (§41).
+   *   관측에 클라 판번호가 없으면 「신고 코드가 고장인가 / 브라우저가 옛 셸인가」 를
+   *   **구별할 수 없다.** 실제로 그 구별을 못 해서 헤맸다 (정산 신고 0건).
+   *
+   * ★ `CLIENT_REV` 는 판정에 안 쓴다 — 관측 전용이다.
+   *   `sw.js` 의 `CACHE` 와 짝이 맞아야 「그 셸이 그 코드를 담았나」 를 말할 수 있다. */
+  const cfg = readFileSync(srcDir('net/config.js'), 'utf8');
+  const swSrc = readFileSync(join(rootDir, 'sw.js'), 'utf8');
+  const mRev = decomment(cfg).match(/CLIENT_REV\s*=\s*(\d+)/);
+  const mCache = swSrc.match(/const CACHE = 'merc-v(\d+)'/);
+  ok(!!mRev, 'config.js 에 CLIENT_REV 가 있다', '없으면 관측에서 클라 판을 못 읽는다');
+  ok(!!mCache, 'sw.js 에 CACHE 가 있다', '');
+  if (mRev && mCache) {
+    ok(Number(mRev[1]) === Number(mCache[1]),
+      'CLIENT_REV 가 sw.js 의 CACHE 와 같다',
+      `CLIENT_REV ${mRev[1]} vs CACHE merc-v${mCache[1]} — 어긋나면 관측이 거짓말을 한다`);
+  }
+}
+
+section('run_* 를 끝까지 읽나 (PostgREST 1000행 상한)');
+{
+  /* ★★★ **그림자 모드가 값을 한 첫 사고다.**
+   *
+   *   PostgREST 는 기본 행 상한이 **1000** 이다. `select('*')` 만 쓰면 그 위는
+   *   **조용히 잘린다** — 오류도 경고도 없다.
+   *
+   *   실제로 물렸다 (관측 표 db/022 가 잡았다): 실계정 아이템이 **1372개**인데
+   *   1000개만 와서 착용이 **346 → 156**, 서버가 센 전력이
+   *   **166,274 → 105,411 (−36.6%)** 이 됐다. 재현으로 정확히 105,411 을 다시 냈다.
+   *   그리고 같은 원인으로 나락 상한이 95 → 67 로 내려가 `abyssOver: true` 가 됐다.
+   *
+   *   ★ 그림자가 아니라 판정이었으면 **그 계정을 그 자리에서 거절했다.**
+   *
+   * ⇒ 이 검사는 «묶음 읽기가 `allRows` 를 쓰나» 를 묻는다. */
+  for (const f of ['supabase/functions/submit-score/index.ts', 'supabase/functions/run-op/index.ts']) {
+    const src = readFileSync(join(rootDir, f), 'utf8');
+    const code = decomment(src);
+    const name = f.split('/').slice(-2, -1)[0];
+
+    ok(/async function allRows\(/.test(code), `[${name}] allRows 헬퍼가 있다`,
+      '없으면 1000행에서 조용히 잘린다');
+    ok(/\.range\(/.test(code), `[${name}] range 로 쪽을 넘긴다`,
+      'range 가 없으면 한 번만 읽고 만다');
+
+    /* ★★ 묶음 표를 `select` 로 통째 읽는 자리가 남아 있으면 안 된다.
+     *   단건(`maybeSingle`)·상한 걸린 것(`in(`)·개수만(`head`)은 괜찮다. */
+    /* ★ «묶인 읽기» 는 괜찮다 — 단건(maybeSingle) · 키로 좁힌 것(eq('uid'·'equipped_by')) ·
+     *   상한 걸린 것(in) · 개수만(head) · 쪽넘김(range).
+     *   ★ 창을 짧게 잡았다가 안전한 읽기 둘을 오탐했다 — 문장 끝(`;`)까지 본다. */
+    const bulk = [...code.matchAll(/from\('(run_(?:items|mercs|pets|squads))'\)([\s\S]{0,400}?);/g)]
+      .filter((m) => /\.select\(/.test(m[2]))
+      .filter((m) => !/maybeSingle|\.in\(|head:\s*true|\.range\(|\.eq\('uid'|\.eq\('equipped_by'/.test(m[2]));
+    okAll(bulk.map((m) => `${m[1]} 를 상한 없이 읽는다 — 1000행에서 잘린다`),
+      `[${name}] 묶음 표를 상한 없이 안 읽는다`, Math.max(1, bulk.length));
+  }
+
+  /* ★ 그리고 **자르면 전력이 실제로 떨어지는지** 굴려서 보인다 —
+   *   그래야 이 검사가 무엇을 막는지가 숫자로 남는다. */
+  try {
+    const RR19 = await import('../src/game/runrows.js');
+    const SQ19 = await import('../src/game/squad.js');
+    const ST19 = await import('../src/game/state.js');
+    const GE19 = await import('../src/game/gear.js');
+    const RN19 = await import('../src/core/rng.js');
+    ST19.newGame(1919, '상한검사');
+    ST19.advanceDays(30);
+    const rng19 = new RN19.RNG(19);
+    /* 아이템을 넉넉히 만들고 끼운다 — 잘렸을 때 실제로 벗겨져야 한다 */
+    for (let i = 0; i < 60; i++) {
+      try { const it = GE19.rollItem({ ilvl: 20 + (i % 40), rng: rng19 }); if (it) ST19.state.items.push(it); } catch {}
+    }
+    for (const m of ST19.state.roster) {
+      for (const it of ST19.state.items) {
+        if (!it || it.equippedBy) continue;
+        try { if (GE19.equipItem(m, it, ST19.state)) break; } catch {}
+      }
+    }
+    const rows19 = RR19.toRows(ST19.state);
+    const full = RR19.fromRows(rows19); SQ19.stampSquadPower(full);
+    const cut = RR19.fromRows({ ...rows19, items: (rows19.items || []).slice(0, 5) });
+    SQ19.stampSquadPower(cut);
+    const pf = Math.max(0, ...(full.squads || []).map((q) => q.power || 0));
+    const pc = Math.max(0, ...(cut.squads || []).map((q) => q.power || 0));
+    ok((rows19.items || []).length > 5, '판이 실하다 (자를 아이템이 있다)',
+      `${(rows19.items || []).length}개 — 5개 이하면 아래가 0 대 0 이다`);
+    ok(pc < pf, '아이템이 잘리면 전력이 실제로 떨어진다 (이 검사가 막는 것)',
+      `전체 ${pf} vs 자름 ${pc} — 같으면 이 검사가 아무것도 안 증명한다`);
+  } catch (e) {
+    ok(false, '상한 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }
 }
 
