@@ -25,6 +25,8 @@ import * as Quest from '../game/quest.js';
 import {
   inventory, sellItem, sellPrice, itemStats, itemValue, rollItem,
   ownerOf, weaponTypeName, josa, SLOT_NAME,
+  /* ★ 판매 가능 판정의 유일한 출처 — 손으로 다시 쓰지 않는다 */
+  isSellable,
 } from '../game/gear.js';
 import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
@@ -1835,7 +1837,13 @@ function openSmith(city) {
 
   const paint = () => {
     const list = state.items.slice().sort((a, b) => (b.rarity - a.rarity) || (b.ilvl - a.ilvl));
-    const junk = inventory(state).filter((it) => (it.rarity || 0) === 0);
+    /* ★★ **`isSellable` 이 유일한 출처다** (gear.js). 예전엔 여기서 `rarity === 0` 만 봤는데
+     *   `inventory()` 는 «착용 중» 만 거르고 **잠금·noSell·세트를 안 본다** (gear.js:inventory).
+     *   ⇒ 플레이어가 **잠가 둔** 일반 등급이 이 목록에 담겨 팔렸다. 실측으로 재현했다.
+     *   gear.js 가 잠금에 대해 「자동 착용이 뺏어가지 못하고, 벗기지도 못하고,
+     *   **팔리지도 않는다**」 고 못 박은 그 계약이 이 경로에서만 깨져 있었다.
+     *   같은 일을 하는 `ui/inventory.js` 는 처음부터 `isSellable` 을 썼다 — 두 벌이 갈렸던 것이다. */
+    const junk = inventory(state).filter((it) => (it.rarity || 0) === 0 && isSellable(it, state));
     const junkGold = junk.reduce((a, it) => a + sellPrice(it), 0);
 
     body.innerHTML = '';

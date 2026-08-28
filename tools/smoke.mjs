@@ -4963,12 +4963,40 @@ section('서버 공유 규칙');
       '진 판에서도 살아남는 단원이 있다 (부분 패)', `${loserSurvived}/${losses}`);
   }
 
-  // 아직 아무도 안 읽는다 — 읽기 시작하면 DATA_VERSION·인계·보상을 같이 봐야 한다
+  /* ★★★ **이 검사는 죽어 있었다.** 커밋된 정규식이 `/[.]margin/` 였다 —
+   *   `margin` 뒤에 보이지 않는 **백스페이스(0x08)** 를 요구해서 아무것도 안 물었다.
+   *   그 사이 `src/game/quest.js:1174` 가 `res.margin` 을 **읽기 시작했다**
+   *   (패배 경험치의 진행도 계산). §25 의 「읽는 곳이 하나도 없다」 는 이제 거짓이다.
+   *
+   * ★ 그게 «사고» 는 아니다 — 패배 경험치를 연속량으로 만든 그 변경이 의도한 것이다.
+   *   ⇒ 계약을 **지금 사실에 맞게** 다시 쓴다:
+   *     ① `quest.js` **말고** 새 독자가 생기면 문다 (§25 가 걱정한 인계·보상 쪽)
+   *     ② `margin` 이 **세이브에 안 들어간다** — 이건 여전히 참이다 (실측 확인)
+   *
+   * ★ 실측할 때 판이 스스로를 오염시켰다: 용병단 이름을 `'margin검사'` 로 지어서
+   *   세이브에 그 문자열이 들어갔고 「샌다」 로 읽혔다. 중립적인 이름으로 다시 재니 안 샌다. */
   const fsm2 = await import('node:fs');
-  const readers = ['src/game/quest.js', 'src/game/dungeon.js', 'src/game/tower.js', 'src/game/abyss.js', 'src/ui/battle.js']
-    .filter((f) => /\.margin/.test(fsm2.readFileSync(f, 'utf8')));
-  okAll(readers.map((f) => `${f} 가 margin 을 읽기 시작했다 — HANDOFF §25 를 읽어라`),
-    'margin 은 아직 기록 전용이다 (읽는 곳 없음)', 5);
+  const MARGIN_ALLOWED = ['src/game/quest.js'];      // ← 늘리려면 §25 를 읽고 근거를 적어라
+  const marginReaders = ['src/game/quest.js', 'src/game/dungeon.js', 'src/game/tower.js',
+    'src/game/abyss.js', 'src/ui/battle.js', 'src/game/runverify.js', 'src/game/forecast.js']
+    .filter((f) => { try { return /[.]margin/.test(fsm2.readFileSync(f, 'utf8')); } catch { return false; } });
+  okAll(marginReaders.filter((f) => !MARGIN_ALLOWED.includes(f))
+    .map((f) => `${f} 가 margin 을 읽기 시작했다 — HANDOFF §25 를 읽어라`),
+    'margin 을 읽는 곳이 허용 목록 안이다', 7);
+  ok(marginReaders.includes('src/game/quest.js'),
+    'quest.js 는 실제로 margin 을 읽는다 (허용 목록이 죽은 글자가 아니다)',
+    '안 읽으면 허용 목록을 지워라 — 안 그러면 이 검사가 또 조용히 죽는다');
+
+  /* ★★ 세이브에 안 들어간다 — §25 의 남은 계약. 글자가 아니라 **굴려서** 본다. */
+  {
+    const STm = await import('../src/game/state.js');
+    STm.newGame(5150, '조사단');                       // ★ 이름에 margin 을 넣지 마라 (판이 오염된다)
+    STm.advanceDays(40);
+    const rawSave = JSON.stringify(STm.state);
+    ok(!rawSave.includes('margin') && !rawSave.includes('allyAlive'),
+      'margin 이 세이브에 안 들어간다',
+      '들어가면 세이브가 커지고 DATA_VERSION 을 봐야 한다');
+  }
 }
 
 /* ─────────────────────── 난이도 예보 (game/forecast.js) ─────────────────────── */
@@ -7436,6 +7464,56 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('판매·착용 RPC — 판정부를 손으로 다시 쓰지 않는가');
+{
+  /* ★★ 이 저장소가 이번에 가장 비싸게 배운 것: **규칙을 손으로 다시 쓰면 틀린다.**
+   *   「전직이 무기 타입을 좁히는가」 를 손으로 재려다 필드 이름을 세 번 잘못 짚었고
+   *   (`weapons` → `equip.weapons` → `equip` 배열), 맞게 짚은 뒤에도 답이 틀렸다 —
+   *   `equipIssue` 는 클래스 무기 타입을 **손 슬롯에만** 적용하는데 방어구·장신구까지 셌다.
+   *   판정부를 부르니 한 번에 맞았다 (실계정 346점 전수, 불법 0점).
+   *   ⇒ 그래서 이 절은 «규칙이 맞나» 가 아니라 «**판정부를 부르나**» 를 묻는다. */
+  const oSrc = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+  const oCode = decomment(oSrc);
+
+  ok(/from '\.\/_rules\/gear\.js'/.test(oCode), '판정부를 _rules/gear.js 에서 가져온다',
+    '손으로 옮기면 반드시 갈라진다');
+  ok(/isSellable\(/.test(oCode), '판매 판정에 isSellable 을 쓴다',
+    'rarity 만 보면 잠근 것·세트·noSell 이 팔린다');
+  ok(/equipIssue\(/.test(oCode), '착용 판정에 equipIssue 를 쓴다',
+    '손으로 쓰면 관문 여섯 중 몇 개를 빠뜨린다');
+
+  /* ★★ 판매는 **거절하지 않는다** — 부분 성공이어야 정상 플레이어가 안 막힌다 */
+  ok(/skipped/.test(oCode), '판매는 못 파는 것을 건너뛰고 판 것만 정산한다',
+    '통째로 거절하면 「클라는 팔았다고 그렸는데 서버가 거절」 이 정상 플레이에서 난다');
+
+  /* ★ 착용은 아이템이 신고한 weaponType 을 안 믿는다 — null 이면 관문이 꺼진다 */
+  ok(/weaponType:\s*base\?\.weaponType/.test(oCode),
+    '착용 판정이 weaponType 을 베이스 표에서 다시 읽는다',
+    '아이템이 신고한 null 을 믿으면 무기 타입 관문이 통째로 꺼진다');
+
+  /* ★ 소급 검사를 안 켠다 — 켜면 전직자와 옛 아이템이 막힌다 */
+  ok(!/equipIssue[\s\S]{0,400}for\s*\(/.test(oCode) || !/전수|모든 착용/.test(oSrc),
+    '이미 낀 것을 전수 재검사하지 않는다',
+    '소급 검사를 켜면 전직자와 §113 의 옛 아이템이 막힌다');
+
+  /* ⑵ SQL 만이 지킬 수 있는 것 — db/021 */
+  const cSrc = readFileSync(join(rootDir, 'db/021_equip_constraints.sql'), 'utf8');
+  ok(/run_items_slot_name/.test(cSrc) && /'ring2'/.test(cSrc), '칸 이름을 10칸으로 가둔다',
+    '지어낸 칸 이름으로 20점을 껴도 유니크 인덱스는 안 걸린다 (실측 atk 14.8배)');
+  ok(/run_items_worn_pair/.test(cSrc), '반쪽 착용을 막는다',
+    'equipped_slot 이 null 이면 NULL 끼리 달라 부분 유니크가 안 걸린다');
+  ok(/run_items_owner_fk/.test(cSrc), '없는 용병에게 못 끼운다', 'FK 가 없었다');
+  ok(/not valid/.test(cSrc) && /validate constraint/.test(cSrc),
+    '기존 행을 깨지 않고 붙인 뒤 따로 검증한다',
+    '이관된 실계정이 이미 있다 (착용 346점)');
+
+  /* ★★ 판정 «규칙» 은 SQL 에 없어야 한다 — 있으면 또 사본이다 */
+  okAll(['weaponType', 'twoHanded', 'minLv', 'setId']
+    .filter((k) => new RegExp(k, 'i').test(cSrc))
+    .map((k) => `db/021 에 판정 규칙(${k})이 적혀 있다 — gear.js 와 사본이 된다`),
+    '판정 규칙을 SQL 로 안 베꼈다', 4);
+}
+
 section('전직 RPC — 서버가 진행도를 «쓰는» 첫 함수 (run-op)');
 {
   /* ★★ 여기서부터 서버가 `run_*` 을 **쓴다.** 지켜야 할 것이 늘어난다.
@@ -7687,8 +7765,8 @@ section('알리바이 바닥값이 순위 축과 분리돼 있나 (scores.seen_p
     '이전 값을 안 보면 전력이 내려간 제출 한 번으로 알리바이가 영구히 무너진다');
 
   /* ⑶ ★★ 시드를 조건에 걸면 안 된다 — §117 이 막은 그 구멍이 여기서 다시 열린다 */
-  ok(!/same\s*\?[^,]*seen_power|seen_power[^,]*same/.test(iSrc)
-     && !/same/.test(writeBlock),
+  ok(!/same\s*\?[^,]*seen_power|seen_power[^,]*same/.test(iSrc)
+     && !/same/.test(writeBlock),
     'seen_power 가 «같은 판(same)» 조건에 안 걸려 있다',
     '걸면 판을 새로 시작하는 것만으로 바닥값을 씻을 수 있다 (§117 과 같은 병)');
 

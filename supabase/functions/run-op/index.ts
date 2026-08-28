@@ -20,6 +20,9 @@
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { CLASSES, getClass, promoteOptions } from './_rules/classes.js';
+/* ★★ 판정부를 손으로 다시 쓰지 않는다 — 게임이 쓰는 그 함수를 그대로 부른다.
+ *   손으로 옮겼다가 세 번 틀린 적이 있다 (§124). */
+import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -56,6 +59,142 @@ Deno.serve(async (req) => {
     const { data: prev } = await admin.from('run_ops')
       .select('result').eq('user_id', userId).eq('op_id', opId).maybeSingle();
     if (prev) return json({ ok: true, replayed: true, result: prev.result });
+  }
+
+  /* ═══════════════════════ 판매 ═══════════════════════════════════════════
+   * ★★ **거절하지 않는다.** 못 파는 것은 조용히 건너뛰고 판 것만 정산한다.
+   *   일괄 매각은 클라가 목록을 만들어 보내는데, 그 사이 하나가 착용되거나 잠기면
+   *   «클라는 팔았다고 그렸는데 서버가 통째로 거절» 이 정상 플레이에서 난다.
+   *   ⇒ 부분 성공을 답으로 준다. 이 저장소의 규칙: 정상 플레이어를 막는 쪽이 더 나쁘다.
+   *
+   * ★ 아이템 «스탯» 은 검증하지 않는다 — §113 이 소급 불가를 못 박았다 (옛 공식 3.6%).
+   *   여기서 묻는 것은 «팔 수 있는 물건인가» 뿐이다. */
+  if (op === 'sell') {
+    const uids = Array.isArray(body?.uids) ? body.uids.map(String).slice(0, 500) : [];
+    if (!uids.length) return json({ error: 'uids 가 필요하다' }, 400);
+
+    const { data: rows, error: readErr } = await admin.from('run_items')
+      .select('uid, base_id, rarity, ilvl, set_id, locked, equipped_by, data')
+      .eq('user_id', userId).in('uid', uids);
+    if (readErr) { console.error('[run-op] run_items 읽기 실패', readErr); return json({ error: '읽지 못했다' }, 500); }
+
+    const sold: string[] = [];
+    const skipped: { uid: string; why: string }[] = [];
+    let gold = 0;
+    for (const uid of uids) {
+      const r = (rows || []).find((x: { uid: string }) => x.uid === uid);
+      if (!r) { skipped.push({ uid, why: '없다' }); continue; }
+      if (r.equipped_by) { skipped.push({ uid, why: '착용 중' }); continue; }
+      /* ★ 행 → 아이템 모양. `data` 를 먼저 펴고 컬럼이 이긴다 (§122 의 그 계약). */
+      const item = { ...(r.data || {}), uid: r.uid, baseId: r.base_id, rarity: r.rarity,
+        ilvl: r.ilvl, setId: r.set_id, ...(r.locked ? { locked: true } : {}) };
+      if (!isSellable(item)) { skipped.push({ uid, why: '팔 수 없다' }); continue; }
+      let g = 0;
+      try { g = Math.max(0, Math.round(Number(sellPrice(item)) || 0)); } catch { g = 0; }
+      gold += g;
+      sold.push(uid);
+    }
+
+    const result = { op: 'sell', sold: sold.length, skipped: skipped.length, gold };
+    const { error: opErr } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'sell', result });
+    if (opErr) { console.error('[run-op] run_ops insert 실패', opErr); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+
+    if (sold.length) {
+      const { error: delErr } = await admin.from('run_items')
+        .delete().eq('user_id', userId).in('uid', sold);
+      if (delErr) {
+        console.error('[run-op] run_items 삭제 실패 — 원장을 되돌린다', delErr);
+        const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+        if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
+        return json({ error: '적용하지 못했다' }, 500);
+      }
+    }
+    return json({ ok: true, replayed: false, result, skipped });
+  }
+
+  /* ═══════════════════════ 착용 / 해제 ═══════════════════════════════════
+   * ★★ 판정은 `equipIssue`(gear.js) **하나**가 한다. SQL 로도, 여기서도 다시 안 쓴다.
+   *   손으로 옮겼다가 세 번 틀린 적이 있다 — 그리고 맞게 짚은 뒤에도 답이 틀렸다
+   *   (`equipIssue` 는 클래스 무기 타입을 **손 슬롯에만** 적용한다).
+   *
+   * ★★ **새 착용만 검사한다. 이미 낀 것은 소급하지 않는다.**
+   *   전직 경로 98개 중 46개가 착용 타입을 좁히는데(실측) `promote` 는 아무것도 안 벗긴다.
+   *   소급 검사를 켜면 그런 단원이 통째로 막힌다. 그리고 §113 의 옛 아이템 3.6% 도 있다.
+   *   ★ 실계정에서는 지금 불법이 **0점**이다(`equipIssue` 로 346점 전수) — 소급 검사를
+   *     켤 이유가 없고, 켜면 위험만 진다.
+   *
+   * ★ `weaponType`·`twoHanded` 를 **아이템이 신고한 값으로 안 읽는다.** null 로 두면
+   *   관문이 통째로 꺼지기 때문이다. 베이스 표(`getBase`)에서 다시 읽는다. */
+  if (op === 'equip') {
+    const mercUid2 = String(body?.mercUid || '');
+    const itemUid = String(body?.itemUid || '');
+    const slot = body?.slot == null ? null : String(body.slot);
+    if (!mercUid2 || !itemUid) return json({ error: 'mercUid 와 itemUid 가 필요하다' }, 400);
+
+    const [{ data: m2 }, { data: it2 }] = await Promise.all([
+      admin.from('run_mercs').select('uid, class_id, level, grade')
+        .eq('user_id', userId).eq('uid', mercUid2).maybeSingle(),
+      admin.from('run_items').select('uid, base_id, rarity, ilvl, set_id, locked, equipped_by, equipped_slot, data')
+        .eq('user_id', userId).eq('uid', itemUid).maybeSingle(),
+    ]);
+    if (!m2) return json({ error: '그 단원이 서버에 없다' }, 404);
+    if (!it2) return json({ error: '그 장비가 서버에 없다' }, 404);
+    if (it2.equipped_by && it2.equipped_by !== mercUid2) {
+      return json({ error: '다른 단원이 이미 끼고 있다' }, 409);
+    }
+
+    /* ★ 행 → 게임 모양. `data` 를 먼저 펴고 컬럼이 이긴다 (§122).
+     *   그리고 `weaponType` 은 **베이스 표에서** 다시 읽는다 — 신고값을 안 믿는다. */
+    const base = getBase(it2.base_id);
+    const item2 = {
+      ...(it2.data || {}), uid: it2.uid, baseId: it2.base_id, rarity: it2.rarity,
+      ilvl: it2.ilvl, setId: it2.set_id, ...(it2.locked ? { locked: true } : {}),
+      weaponType: base?.weaponType ?? null,
+      minLv: base?.minLv ?? 1,
+    };
+    const merc2 = { uid: m2.uid, classId: m2.class_id, level: m2.level, grade: m2.grade, equipment: {} };
+
+    /* 지금 그 단원이 낀 것들 — `offhandLocked` 가 볼 수 있게 채운다 */
+    const { data: worn } = await admin.from('run_items')
+      .select('uid, base_id, equipped_slot, data')
+      .eq('user_id', userId).eq('equipped_by', mercUid2);
+    const wornById = new Map<string, Record<string, unknown>>();
+    for (const w of worn || []) {
+      const wb = getBase(w.base_id);
+      merc2.equipment[String(w.equipped_slot)] = w.uid;
+      wornById.set(w.uid, { ...(w.data || {}), uid: w.uid, baseId: w.base_id,
+        weaponType: wb?.weaponType ?? null });
+    }
+    const lookup = (uid: string) => wornById.get(uid) || null;
+
+    let issue: string | null = null;
+    try { issue = equipIssue(merc2, item2, slot, lookup); }
+    catch (e) { console.error('[run-op] equipIssue 실패', e); return json({ error: '판정하지 못했다' }, 500); }
+    if (issue) return json({ error: issue }, 409);
+
+    const target = slot || null;
+    const result = { op: 'equip', mercUid: mercUid2, itemUid, slot: target };
+    const { error: opErr2 } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'equip', result });
+    if (opErr2) { console.error('[run-op] run_ops insert 실패', opErr2); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+
+    /* ★ 그 칸에 있던 것을 먼저 벗긴다 — 유니크 인덱스가 아니라 «순서» 가 지킨다 */
+    if (target) {
+      await admin.from('run_items')
+        .update({ equipped_by: null, equipped_slot: null })
+        .eq('user_id', userId).eq('equipped_by', mercUid2).eq('equipped_slot', target);
+    }
+    const { error: eqErr } = await admin.from('run_items')
+      .update({ equipped_by: mercUid2, equipped_slot: target })
+      .eq('user_id', userId).eq('uid', itemUid);
+    if (eqErr) {
+      console.error('[run-op] 착용 실패 — 원장을 되돌린다', eqErr);
+      const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+      if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
+      return json({ error: '적용하지 못했다' }, 500);
+    }
+    return json({ ok: true, replayed: false, result });
   }
 
   if (op !== 'promote') return json({ error: '모르는 op 이다' }, 400);

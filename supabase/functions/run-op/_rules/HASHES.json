@@ -1,4 +1,10 @@
 {
+  "src/core/rng.js": "6a88c568",
+  "src/core/util.js": "863340d8",
   "src/data/classes.js": "dffacc8a",
-  "src/data/classes_t4.js": "5cb67a1d"
+  "src/data/classes_t4.js": "5cb67a1d",
+  "src/data/items.js": "23193f80",
+  "src/data/sets.js": "dcc97cc0",
+  "src/game/ambient.js": "7689dfc5",
+  "src/game/gear.js": "aa8440bc"
 }

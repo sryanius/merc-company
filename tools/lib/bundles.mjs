@@ -105,7 +105,14 @@ export const BUNDLES = [
      * ════════════════════════════════════════════════════════════════════ */
     name: '규칙 표',
     dest: 'supabase/functions/run-op/_rules',
-    entry: ['src/data/classes.js'],
+    entry: ['src/data/classes.js',
+      /* ★★ 판정부를 **손으로 다시 쓰지 않는다.** `isSellable`(판매)·`equipIssue`(착용)가
+       *   `gear.js` 에 있다. 손으로 옮기면 반드시 갈라진다 — 실제로 겪었다:
+       *   「전직이 무기 타입을 좁히는가」 를 손으로 재려다 필드 이름을 세 번 잘못 짚었고,
+       *   맞게 짚은 뒤에도 답이 틀렸다 (`equipIssue` 는 클래스 무기 타입을 **손 슬롯에만**
+       *   적용하는데 방어구·장신구까지 셌다). 판정부를 부르니 한 번에 맞았다.
+       *   ⇒ 닫힘이 2개 61KB → **8개 230KB** 로 는다. 그 값을 치를 만하다. */
+      'src/game/gear.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },
