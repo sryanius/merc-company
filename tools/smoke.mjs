@@ -9560,6 +9560,45 @@ section('진행도를 서버로 옮기는 길이 화면에 이어져 있나');
   ok(/reason\s*!==\s*'none'/.test(code), "서버가 «none» 이라고 말할 때만 옮긴다",
     '네트워크 실패를 «없다» 로 읽으면 이미 이관한 계정을 또 건드린다');
 
+
+  /* ══════════════════════════════════════════════════════════════════════
+   * 재동기화 — **켜는 것이 아니라 언제 잠글지가 계약이다**
+   *
+   * ★★★ `run_resync`(db/024)는 「클라가 서버 사본을 덮는다」 는 뜻이다.
+   *   지금은 안전하다 — `run_*` 로 **판정하는 코드가 한 줄도 없다** (전부 그림자).
+   *   권위를 서버로 넘기는 순간(각 op 을 서버가 결정) 이건 «되돌리기» 가 된다.
+   *   ⇒ 그 위험을 **글이 아니라 검사로** 붙들어 둔다: 판정이 `run_*` 를 읽기
+   *     시작하면 여기서 물어야 한다.
+   * ══════════════════════════════════════════════════════════════════════ */
+  ok(/Run\.resync\s*\(/.test(code), '뒤처지면 서버 사본을 다시 올린다',
+    '안 하면 사본이 낡아 18단계를 영영 못 켠다 (실측 사흘에 56일)');
+  ok(/myDay\s*>\s*srvDay/.test(code), '뒤처졌을 때만 올린다',
+    '매번 올리면 큰 세이브에서 부팅이 무거워진다');
+
+  /* ★★ 잠금 신호 — `run_resync` 가 열려 있는 동안 **판정이 run_* 를 읽으면 안 된다.**
+   *   판정부(`_shared/rules.js`)와 제출 경로가 그 표를 근거로 삼는 순간 위험해진다. */
+  {
+    const rules = readFileSync(join(rootDir, 'supabase/functions/_shared/rules.js'), 'utf8');
+    ok(!/run_(state|mercs|items|squads|pets)/.test(decomment(rules)),
+      '판정부가 아직 run_* 를 안 읽는다 (재동기화를 열어 둬도 되는 조건)',
+      '★ 읽기 시작하면 db/024 를 잠가야 한다 — 안 그러면 클라가 판정 근거를 덮는다');
+    /* 서버 함수 쪽도 — 그림자 블록 **밖에서** run_* 를 판정에 쓰는지 본다 */
+    const sub = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
+    const sIdx = sub.indexOf('그림자 모드 — 서버가');
+    const beforeShadow = decomment(sIdx > 0 ? sub.slice(0, sIdx) : sub);
+    ok(!/from\('run_/.test(beforeShadow),
+      '판정 경로가 그림자 밖에서 run_* 를 안 읽는다',
+      '★ 읽기 시작하면 db/024 를 잠가야 한다');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "const { data } = await admin.from('run_items').select('*');";
+    ok(/from\('run_/.test(BAD), '메타 — 판정이 run_* 를 읽는 모양을 실제로 잡는다');
+    const OK2 = "const { data } = await admin.from('scores').select('*');";
+    ok(!/from\('run_/.test(OK2), '메타 — 다른 표는 안 문다');
+  }
+
   /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 (판이 틀리면 검사도 거짓말한다) */
   {
     const GOOD = "maybeReconcile().then(() => maybeImport({ auto: true }))";
@@ -9682,6 +9721,59 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
     const BADKEY = "send('promote', `pr_${mercUid}`, {})";
     ok(!/pr_\$\{mercUid\}_\$\{toClass\}/.test(BADKEY), '메타 — 열쇠가 얕은 모양을 실제로 잡는다');
   }
+}
+
+section('화면 모듈을 미리 받아 두나 (첫 전환이 느린 것)');
+{
+  /* ★★★ `go()` 는 `await def.load()` 로 그 화면 모듈을 **그때** 받아온다.
+   *   그래서 각 화면의 **첫 방문**에만 값이 붙는다. 실측(같은 판, 명부 42·아이템 1372):
+   *
+   *       용병단 372ms → 83ms · 장비 276 → 100 · 주점 99 → 21 · 의뢰소 71 → 10
+   *
+   *   ★★ 그리고 **배포할 때마다 초기화된다** — 캐시 이름이 바뀌면 다시 받고 다시
+   *     해석해야 한다. 하루에 여러 번 올리면 그때마다 «화면 전환이 느리다» 가 된다.
+   *     (제작자가 그렇게 느꼈고, 실제로 그랬다.)
+   *
+   * ★ 고침은 «빠르게» 가 아니라 «**언제 내는가**» 다 — 첫 화면이 뜬 뒤 한가할 때 받는다. */
+  const appSrc = readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8');
+  const c = decomment(appSrc);
+
+  ok(/function prefetchScreens/.test(c), '미리받기 함수가 있다');
+  ok(/prefetchScreens\(\)/.test(c.replace(/function prefetchScreens/, '')), '부팅에서 실제로 부른다',
+    '정의만 있고 안 부르면 아무 값도 안 한다');
+  /* ★ 첫 화면을 **막으면 안 된다.**
+   *   ★★ 처음엔 «파일에서 go('city') 보다 뒤에 있나» 로 쟀는데, 그건 **헐거웠다** —
+   *     파일 어딘가의 첫 go('city') 를 잡아서, 부팅에서 앞으로 옮겨도 안 물었다
+   *     (심어 보고 알았다). 지키려는 성질은 «위치» 가 아니라 «**미뤄서 부른다**» 다.
+   *     ⇒ 부르는 자리가 setTimeout 안인지 본다. */
+  /* ★ 정의 자리(`function prefetchScreens()`)는 «부르는 곳» 이 아니다 — 빼고 센다.
+   *   (안 빼서 오탐이 났다.) */
+  /* ★★ **글자 거리로 재면 안 된다.** 처음엔 «앞 160자에 setTimeout 이 있나» 로 쟀는데,
+   *   바로 윗줄의 다른 setTimeout 이 걸려서 **안 미룬 판도 통과했다** (심어 보고 알았다).
+   *   ⇒ **같은 줄**에 있는지 본다. 이 저장소의 미루기는 전부 한 줄짜리다.
+   *   ★ 정의 자리(`function prefetchScreens()`)는 «부르는 곳» 이 아니다 — 빼고 센다. */
+  const callLines = c.split('\n')
+    .filter((ln) => /(^|[^a-zA-Z])prefetchScreens\(\)/.test(ln) && !/function\s+prefetchScreens/.test(ln));
+  const deferred = callLines.filter((ln) => /setTimeout\(|requestIdleCallback\(/.test(ln));
+  const calls = callLines;
+  ok(calls.length > 0 && deferred.length === calls.length,
+    '미리받기를 미뤄서 부른다 (첫 화면을 안 막는다)',
+    `부르는 자리 ${calls.length}곳 중 미룬 것 ${deferred.length}곳`);
+  /* ★ 한 번에 하나씩 — 한꺼번에 던지면 미리받기 자체가 렉이 된다 */
+  ok(/requestIdleCallback/.test(c), '한가할 때 받는다 (requestIdleCallback)');
+  ok(!/PREFETCH\.map\(|Promise\.all\(PREFETCH/.test(c), '한꺼번에 던지지 않는다',
+    '동시에 받으면 미리받기가 되레 렉이 된다');
+
+  /* ★★ 미리받는 목록이 **실제 화면 id** 여야 한다 — 오타면 조용히 아무것도 안 받는다 */
+  const ids = [...appSrc.matchAll(/\{\s*id:\s*'([a-z]+)'/g)].map((m) => m[1]);
+  const pre = (appSrc.match(/const PREFETCH = \[([^\]]*)\]/) || [])[1] || '';
+  const want = [...pre.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  ok(want.length >= 4, '미리받는 화면이 넉넉하다', `${want.length}개`);
+  okAll(want.filter((w) => !ids.includes(w)).map((w) => `'${w}' 라는 화면이 없다 — 오타면 조용히 안 받는다`),
+    '미리받기 목록이 실제 화면 id 다', want.length || 1);
+
+  /* ★ 메타 — 오타를 심으면 물어야 한다 */
+  ok(!ids.includes('inventoryy'), '메타 — 없는 id 를 실제로 가려낸다');
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

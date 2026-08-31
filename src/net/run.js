@@ -45,6 +45,29 @@ export async function importRun(state) {
 }
 
 /**
+ * 진행도를 서버에 **다시 올린다** (재동기화, db/024).
+ *
+ * ★★★ 왜 필요한가. 첫 이관은 계정당 한 번인데, 그 뒤 서버 사본을 따라오게 할 길이
+ *   없었다 — 의뢰·하루 넘기기·고용이 바꾸는 것은 op 이 아니다. 실측으로 사흘 만에
+ *   서버가 **56일** 뒤처졌고, 서버가 센 전력 차 −137 은 치트가 아니라 시차였다.
+ *
+ * ★★ **이건 「클라가 서버를 덮는다」 는 뜻이다.** 지금은 안전하다 — `run_*` 로
+ *   판정하는 코드가 한 줄도 없다 (전부 그림자). 권위를 서버로 넘길 때
+ *   **db/024 의 함수를 반드시 잠가야 한다.** 그 경고는 SQL 주석에도 있다.
+ *
+ * ★ 아직 이관 전이면 `{ok:false, reason:'none'}` 이다 — 그건 `importRun` 이 할 일이다.
+ */
+export async function resync(state) {
+  let rows = null;
+  try {
+    rows = toRows(state);
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: `세이브를 옮길 모양으로 못 바꿨다: ${(e && e.message) || e}` };
+  }
+  return authed(EP.rpc('run_resync'), { method: 'POST', body: { p_rows: rows } }, Auth);
+}
+
+/**
  * 「내 진행도가 서버 표에 있나」 — **싸게** 묻는다 (db/023).
  *
  * ★★ 접속할 때마다 물어야 하는데 `snapshot()` 은 명부·장비를 **통째로** 돌려준다.

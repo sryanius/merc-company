@@ -133,6 +133,55 @@ export async function go(id, params = {}) {
   }
 }
 
+/**
+ * 화면 모듈을 **한가할 때 미리 받아 둔다.**
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ 왜. `go()` 는 `await def.load()` 로 그 화면 모듈을 **그때** 받아온다.
+ *   그래서 **각 화면의 첫 방문**에만 150~200ms 가 더 든다. 실측(배포본, 서비스워커
+ *   켜진 상태, 명부 42·아이템 1372):
+ *
+ *       장비   첫 311ms → 두 번째 116ms
+ *       용병단 첫 193ms → 두 번째  42ms
+ *       주점   첫  88ms → 두 번째  19ms
+ *
+ *   ★★ 그리고 **배포할 때마다 초기화된다** — 캐시 이름이 바뀌면 모든 모듈을 다시
+ *     받고 다시 해석해야 한다. 하루에 여러 번 올리면 그때마다 «화면 전환이 느리다» 가
+ *     된다 (제작자가 그렇게 느꼈다).
+ *
+ * ★ 고침은 «더 빠르게 만들기» 가 아니라 «**언제 내는가**» 다. 첫 화면이 뜬 뒤
+ *   사람이 화면을 읽는 동안 조용히 받아 둔다. 그때는 아무도 안 기다린다.
+ *
+ * ★ 지키는 것:
+ *   · `requestIdleCallback` 이 있으면 그걸 쓴다 — 없으면 넉넉히 미룬 `setTimeout`
+ *   · **한 번에 하나씩** 받는다. 한꺼번에 던지면 그 자체가 렉이 된다
+ *   · 실패는 조용히 넘어간다 (오프라인이 정상 상태다). `go()` 가 다시 받는다
+ *   · `import()` 는 멱등이다 — 이미 받았으면 즉시 돌아온다
+ */
+const PREFETCH = ['quests', 'tavern', 'company', 'inventory', 'world'];
+let prefetched = false;
+
+export function prefetchScreens() {
+  if (prefetched) return;
+  prefetched = true;
+  const idle = (fn) => (typeof requestIdleCallback === 'function'
+    ? requestIdleCallback(fn, { timeout: 3000 })
+    : setTimeout(fn, 300));
+  let i = 0;
+  const step = () => {
+    if (i >= PREFETCH.length) return;
+    const def = SCREENS.find((s) => s.id === PREFETCH[i]);
+    i++;
+    if (!def) { idle(step); return; }
+    /* ★ 하나 끝나면 다음 것 — 겹쳐 던지면 미리 받는 것이 되레 렉이 된다 */
+    Promise.resolve()
+      .then(() => def.load())
+      .catch(() => null)
+      .then(() => idle(step));
+  };
+  idle(step);
+}
+
 /** 현재 화면 다시 그리기 */
 export function refresh() {
   if (!current) return;
@@ -833,7 +882,24 @@ export async function maybeImport({ auto = false } = {}) {
     return;
   }
   if (!info.ok) { importChecked = false; return; }        // 네트워크·인증 — 다음 기회에
-  if (info.data && info.data.ok === true) return;          // 이미 서버에 있다 — 조용히 넘어간다
+  if (info.data && info.data.ok === true) {
+    /* ★★★ 이미 있다 — 그런데 **낡았을 수 있다.** 서버 사본은 첫 이관 뒤로
+     *   아무도 갱신하지 않는다 (의뢰·하루 넘기기·고용은 op 이 아니다).
+     *   실측: 사흘 만에 56일 뒤처졌고, 그 시차가 «전력 위조» 처럼 보였다.
+     *   ⇒ 뒤처졌으면 조용히 다시 올린다. 묻지 않는다 (제작자 결정 2026-09-01).
+     *
+     * ★ 화면에도 세이브에도 아무 영향이 없다. 실패해도 그냥 넘어간다.
+     * ★★ 권위를 서버로 넘길 때는 **이 블록과 db/024 를 같이 잠가라** —
+     *   그때부터는 클라가 덮는 것이 곧 «되돌리기» 가 된다. */
+    const srvDay = Math.round(Number(info.data.day) || 0);
+    const myDay = Math.round(Number(state.day) || 0);
+    if (myDay > srvDay) {
+      const r = await Run.resync(state);
+      if (!r.ok) console.warn('[app] 재동기화 실패 (게임에는 영향 없다)', r.error);
+      else console.info('[app] 서버 사본을 새로 맞췄다', `${srvDay}일 → ${myDay}일`);
+    }
+    return;
+  }
   if (!info.data || info.data.reason !== 'none') return;   // 모르는 답이면 건드리지 않는다
 
   /* ★ 기다리는 사이에 화면이 바뀌었을 수 있다 (maybeReconcile 이 겪은 그 문제다) */
@@ -1234,6 +1300,9 @@ export function boot() {
     setTimeout(() => { try { maybeShowChangelog(); } catch (e) { console.warn('[app] 업데이트 내역 실패', e); } }, 600);
     /* ★ boot() 는 동기로 둔다. 복원 확인은 화면이 뜬 **뒤에** 비동기로 붙인다 —
      *   여기서 await 하면 네트워크가 느린 기기에서 첫 화면이 그만큼 늦게 뜬다. */
+    /* ★ 화면 모듈 미리 받기. 첫 화면이 뜬 **뒤**, 사람이 읽는 동안 조용히 받는다.
+     *   실측: 각 화면 첫 방문이 150~200ms 더 걸렸고 배포마다 초기화됐다. */
+    setTimeout(() => { try { prefetchScreens(); } catch (e) { console.warn('[app] 미리받기 실패', e); } }, 900);
     setTimeout(() => {
       maybeReconcile()
         /* ★★ **반드시 복원 뒤다.** 먼저 돌면 이 기기의 낡은 세이브가 올라가고,
