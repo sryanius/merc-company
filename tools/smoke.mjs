@@ -7785,7 +7785,15 @@ section('의뢰 정산 신고 — 순서와 무해함 (17단계 1번 조각)');
   /* ★ 「아무것도 안 쓴다」 가 아니라 «**판정에 닿는 표에 안 쓴다**» 다 —
    *   관측(`shadow_obs`)에는 적는다 (db/022). 그리고 그 관측이 `obs()` 헬퍼 뒤에
    *   숨어 있어서 `.insert(` 세기로는 **우연히** 통과했다. 표 이름으로 본다. */
-  const FORBIDDEN17 = ['scores', 'ledger', 'rejections', 'run_state', 'run_mercs',
+  /* ★★★ **계약이 바뀌었다** (17단계 4번 조각). 예전엔 «판정에 닿는 표에 아무것도
+   *   안 쓴다» 였다. 이제 판정을 켰으므로 rejections 에 **원장을 적는다** — 다만 거기까지다.
+   *   새 계약은 세 줄이고 아래에서 하나씩 문다:
+   *     (1) scores 를 **안 건드린다** — 순위표에서 안 숨긴다 (오탐이 나도 무해)
+   *     (2) rejections 는 **tier 'C'** 만 — 'A' 는 probePolicy 가 세어 held 를 만든다
+   *     (3) run_ops·run_* 는 여전히 금지 — 적으면 진짜 정산이 재생으로 막힌다
+   *   ★ 느슨해진 게 아니라 **정확해졌다.** «아무 표에도 안 쓴다» 는 판정을 켤 수 없다는
+   *     뜻이고, 그러면 17단계가 영영 안 끝난다. */
+  const FORBIDDEN17 = ['scores', 'ledger', 'run_state', 'run_mercs',
     'run_items', 'run_squads', 'run_pets', 'run_ops', 'saves'];
   const w17 = [...qBlock.matchAll(/from\('([a-z_]+)'\)([\s\S]{0,200}?)\.(insert|upsert|update|delete)\(/g)];
   okAll(w17.filter((m) => FORBIDDEN17.includes(m[1]))
@@ -7793,6 +7801,33 @@ section('의뢰 정산 신고 — 순서와 무해함 (17단계 1번 조각)');
     '정산 신고가 판정에 닿는 표에 안 쓴다', Math.max(1, w17.length));
   ok(!/run_ops/.test(qBlock), '★ run_ops 에 안 적는다',
     '적으면 「했다」 가 되어 나중에 진짜 정산이 재생으로 막힌다 (15단계와 같은 계약)');
+
+  /* ── 판정을 켠 뒤의 계약 ────────────────────────────────────────────────── */
+  const rejIns = qBlock.includes("from('rejections')");
+  ok(rejIns, '판정이 원장에 적는다 (17단계 4번 조각이 켜졌다)',
+    '안 적으면 판정을 켠 것이 아니다 — 관측만 하는 것이다');
+  if (rejIns) {
+    /* ★★ tier 'A' 를 새로 만들면 probePolicy 가 세어 정상 계정을 held 로 묶는다 */
+    ok(/tier:\s*'C'/.test(qBlock), "정산 원장은 tier 'C' 다",
+      "'A' 는 probePolicy 가 세어 held 를 만든다 — 17단계는 «거절 위험 최대» 다");
+    ok(!/tier:\s*'A'/.test(qBlock), '정산이 A등급을 만들지 않는다');
+    /* ★★★ 순위표에서 숨기지 않는다 — 오탐이 나도 아무 일이 안 일어나야 한다 */
+    ok(!/from\('scores'\)/.test(qBlock), '정산 판정이 scores 를 안 건드린다',
+      '건드리면 오탐 한 건이 곧 «순위표에서 사라짐» 이 된다');
+    /* ★ «못 잰다» 로는 절대 안 적는다 — 이관 전 계정이 원장에 쌓이면 안 된다 */
+    ok(/!verdict\.cantJudge/.test(qBlock), '«못 잰다» 일 때는 원장에 안 적는다',
+      '이관 전 계정이 원장에 쌓인다 (실측: 시드 0 탓에 82G vs 2,288G)');
+    /* ★ 사유를 응답에 흘리지 않는다 (§55) */
+    ok(!/return json\([^)]*reasons/.test(qBlock), '판정 사유가 응답에 안 실린다 (§55)');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD_A = "await admin.from('rejections').insert({ tier: 'A', x: 1 });";
+    ok(/tier:\s*'A'/.test(BAD_A), "메타 — tier 'A' 를 실제로 잡는다");
+    const BAD_S = "await admin.from('scores').update({ status: 'flagged' });";
+    ok(/from\('scores'\)/.test(BAD_S), '메타 — scores 를 건드리는 모양을 실제로 잡는다');
+  }
 
   /* ★ 밴드를 **정수**로 재나 — 실수 밴드는 정상 지급을 거절한다 (실측 0.21~4.6%) */
   ok(/Math\.round\(Number\(x\) \|\| 0\)/.test(qBlock) || /R2\(/.test(qBlock),

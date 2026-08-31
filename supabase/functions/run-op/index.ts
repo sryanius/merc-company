@@ -633,6 +633,40 @@ Deno.serve(async (req) => {
       judge: { v: verdict.verdict || null, cant: !!verdict.cantJudge, why: (verdict.reasons || []).slice(0, 6) },
     });
 
+    /* ═══════════ 판정을 **켠다** — 다만 «표시» 까지다 (17단계 4번 조각) ═══════════
+     *
+     * ★★★ 근거를 쌓고 켠다:
+     *   · 오프라인 324판(승리 149 · 패배 67 · **후퇴 108** · 자동판매 162) — 오탐 **0**
+     *     그리고 심은 조작 1892건을 **하나도 안 놓쳤다** (`tools/settleband.mjs`)
+     *   · 라이브 재현 4건 — 그중 **후퇴 2건**이 `ok` 로 지나갔다 (rev 173)
+     *
+     * ★★ **여기서 하는 일은 원장에 적는 것뿐이다.**
+     *   · `scores.status` 를 **안 건드린다** — 순위표에서 안 숨긴다
+     *   · 응답도 안 바뀐다 (`{ok:true}` 그대로). 사유를 흘리지 않는다 (§55)
+     *   · 게임 흐름은 그대로다 — 신고는 애초에 fire-and-forget 이다
+     *   ⇒ 오탐이 나도 **아무에게도 아무 일이 안 일어난다.** 사람이 표를 보고 판단한다.
+     *
+     * ★ tier 는 **'C'** 다. `probePolicy` 는 `tier='A'` 만 세므로(submit-score:214)
+     *   여기 쌓여도 누군가 `held` 로 묶이는 일이 없다. **A 를 새로 만들지 않는다** —
+     *   §104 가 17단계를 «거절 위험 최대» 로 못 박았다.
+     *
+     * ★ 라이브 표시가 한동안 0 인 것을 본 뒤에 `scores.status` 로 넘어간다. */
+    if (verdict.verdict === 'flag' && !verdict.cantJudge) {
+      try {
+        await admin.from('rejections').insert({
+          user_id: userId, tier: 'C',
+          reasons: ['정산', ...(verdict.reasons || []).slice(0, 8)],
+          /* ★ 원본을 남긴다 — 제보가 들어와도 판단할 재료가 없으면 되돌릴 수가 없다.
+           *   ★★ 이름·용병단명 같은 문자열은 애초에 신고에 없다 (숫자와 id 뿐). */
+          payload: JSON.stringify({ questId: q.questId, cityId: q.cityId, win: q.win, rev: q.rev,
+            신고: q['신고'], reward: q.reward, waveN: q.waveN, questWaveN: q.questWaveN }),
+        });
+      } catch (e) {
+        /* ★ 원장에 못 적어도 신고 처리는 그대로 간다 — 게임을 막지 않는다 */
+        console.error('[정산] 원장 기록 실패 — 넘어간다', String((e as Error)?.message || e));
+      }
+    }
+
     return json({ ok: true, shadow: true });
   }
 
