@@ -31,6 +31,16 @@
 /** @type {Entry[]} */
 export const CHANGELOG = [
   {
+    id: '2026-09-01-tidy',
+    date: '2026-09-01',
+    rev: 173,
+    title: '자잘한 버그 패치',
+    items: [
+      '화면에 보이는 변화는 없다. 안에서 도는 것들을 정리했다.',
+    ],
+    note: '판 번호가 올라간 것만 확인하면 된다.',
+  },
+  {
     id: '2026-09-01-faster-screens',
     date: '2026-09-01',
     rev: 172,

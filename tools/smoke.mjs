@@ -9776,6 +9776,75 @@ section('화면 모듈을 미리 받아 두나 (첫 전환이 느린 것)');
   ok(!ids.includes('inventoryy'), '메타 — 없는 id 를 실제로 가려낸다');
 }
 
+section('의뢰 정산 판정 — 정직한 판이 걸리나 (17단계 4번 조각)');
+{
+  /* ★★★ 17단계는 전환 계획이 «거절 위험 최대» 라고 못 박은 조각이다.
+   *   그리고 이 저장소는 이미 겪었다 — 이관 안 한 계정의 정직한 의뢰가 시드 0 탓에
+   *   «보상 불일치» 로 찍혔다 (재생성 82G vs 실제 2,288G).
+   *
+   * ★★ **라이브 표본을 기다리지 않는다.** 관측 9건 중 후퇴·패배가 **0건**이다.
+   *   기다리면 영영 0 일 수 있고, 그 사이 판정을 켜면 첫 후퇴가 곧 첫 오탐이 된다.
+   *   ⇒ `tools/settleband.mjs` 가 승리·패배·**후퇴**·자동판매 판을 직접 만들어 굴린다.
+   *
+   * ★ 여기서는 **굴리기만** 한다. 판단은 그 도구가 한다 (powerparity·questparity 와 같은 짜임새). */
+  let out = '';
+  let died = null;
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, 'tools/settleband.mjs'), '--n=6'],
+      { encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) { died = String((e && (e.stdout || e.message)) || e); }
+  const text = died || out;
+  const bad = text.split(/\r?\n/).filter((l) => l.trim().startsWith('✗')).map((l) => l.replace(/^\s*✗\s*/, ''));
+  okAll(bad, '정직한 정산이 판정에 안 걸린다',
+    text.split(/\r?\n/).filter((l) => l.trim().startsWith('✓')).length);
+
+  /* ★★ «통과» 만 보고 끝내지 않는다 — **판이 실했는지**도 본다.
+   *   후퇴 0건짜리 판으로 «오탐 0» 이라고 하면 라이브의 문제를 그대로 되풀이하는 것이다. */
+  const n = (re) => { const m = text.match(re); return m ? Number(m[1]) : -1; };
+  ok(n(/후퇴 (\d+)/) >= 20, '★ 후퇴 판을 실제로 만들었다', `후퇴 ${n(/후퇴 (\d+)/)}건`);
+  ok(n(/패배 (\d+)/) >= 10, '패배 판도 있다', `패배 ${n(/패배 (\d+)/)}건`);
+  ok(n(/돌린 판 (\d+)/) >= 100, '충분히 굴렸다', `${n(/돌린 판 (\d+)/)}판`);
+  /* ★★★ 조작이 물려야 «오탐 0» 이 뜻을 갖는다 — 안 그러면 «아무것도 안 문다» 와 같다 */
+  ok(/심은 조작 (\d+)건 — 놓친 것 0건/.test(text), '심은 조작을 하나도 안 놓친다',
+    (text.match(/심은 조작 \d+건 — 놓친 것 \d+건/) || ['(못 읽었다)'])[0]);
+  ok(/재현이 없으면 «못 잰다»/.test(text), '재현이 없으면 판정하지 않는다 (이관 전 계정)');
+}
+
+section('정산 판정의 밴드가 게임의 실제 지급과 같나');
+{
+  const SJ = await import('../src/game/settlejudge.js').catch(() => null);
+  const Q = need('game/quest.js');
+  /* ★★★ 밴드 상수가 **두 곳**에 있다: 지급하는 쪽(`quest.js questRewards`)과
+   *   판정하는 쪽(`settlejudge.js`). 사본이 둘이면 반드시 갈라진다 —
+   *   그리고 갈라지는 순간 **정상 지급이 거절된다.** 그래서 둘을 직접 맞춰 본다. */
+  const qsrc = readFileSync(join(rootDir, 'src/game/quest.js'), 'utf8');
+  const pay = decomment(qsrc);
+  const gold = pay.match(/gold\s*=\s*Math\.round\(\(base\.gold \|\| 0\) \* r\.float\(([\d.]+), ([\d.]+)\)\)/);
+  const exp = pay.match(/exp\s*=\s*Math\.round\(\(base\.exp \|\| 0\) \* r\.float\(([\d.]+), ([\d.]+)\)\)/);
+  ok(!!gold, '지급하는 쪽의 골드 폭을 읽어 냈다', gold ? `${gold[1]}~${gold[2]}` : '(못 읽었다)');
+  ok(!!exp, '지급하는 쪽의 경험 폭을 읽어 냈다', exp ? `${exp[1]}~${exp[2]}` : '(못 읽었다)');
+  if (gold && exp && SJ) {
+    ok(Number(gold[1]) === SJ.GOLD_LO && Number(gold[2]) === SJ.GOLD_HI,
+      '판정의 골드 밴드가 지급 폭과 같다', `지급 ${gold[1]}~${gold[2]} vs 판정 ${SJ.GOLD_LO}~${SJ.GOLD_HI}`);
+    ok(Number(exp[1]) === SJ.EXP_LO && Number(exp[2]) === SJ.EXP_HI,
+      '판정의 경험 밴드가 지급 폭과 같다', `지급 ${exp[1]}~${exp[2]} vs 판정 ${SJ.EXP_LO}~${SJ.EXP_HI}`);
+  }
+  /* 패배 경험치 상수도 같은 이유로 맞춘다 */
+  if (SJ && Q) {
+    ok(Q.LOSS_EXP_FLOOR === SJ.LOSS_EXP_FLOOR && Q.LOSS_EXP_SPAN === SJ.LOSS_EXP_SPAN,
+      '패배 경험치 상수가 양쪽에서 같다',
+      `quest ${Q.LOSS_EXP_FLOOR}/${Q.LOSS_EXP_SPAN} vs judge ${SJ.LOSS_EXP_FLOOR}/${SJ.LOSS_EXP_SPAN}`);
+  }
+  /* ★★ 판정이 **거절을 만들지 않는다** — 17단계의 계약이다 */
+  const jsrc = decomment(readFileSync(join(rootDir, 'src/game/settlejudge.js'), 'utf8'));
+  ok(!/'reject'|"reject"/.test(jsrc), '정산 판정은 거절을 만들지 않는다 (최대가 flag)',
+    'A등급을 새로 만들면 정상 플레이어가 통째로 막힌다');
+  /* ★ 서버가 그 함수를 실제로 부르나 — 인라인으로 되돌아가면 문다 */
+  const rop = decomment(readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8'));
+  ok(/judgeSettle\s*\(/.test(rop), '서버가 그 판정부를 부른다 (사본을 안 만든다)');
+  ok(!/return json\([^)]*judge/.test(rop), '판정 결과가 응답에 안 실린다 (§55)');
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

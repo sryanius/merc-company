@@ -141,7 +141,12 @@ export const BUNDLES = [
        *   ★ `enemygen.js` 를 여기서 처음 물게 된다 — 규칙 표 주석이 「안 넣는다」 고
        *     적어 둔 그 파일이다. 그때는 «목록을 저장본으로만 검증한다» 였고,
        *     지금은 **재생성으로** 검증하므로 이유가 뒤집혔다. */
-      'src/game/questgen.js'],
+      'src/game/questgen.js',
+      /* ★★ 정산 판정 (§104 17단계 4번 조각). import 0개라 **닫힘이 자기 하나만** 는다.
+       *   서버와 `tools/settleband.mjs` 가 **같은 함수**를 부른다 — 밴드 계산을
+       *   `index.ts` 안에 인라인으로 두면 오프라인으로 굴려 볼 수가 없고,
+       *   도구가 재려면 사본을 만들게 된다 (§94·§98·§107·§124). */
+      'src/game/settlejudge.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },

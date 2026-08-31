@@ -33,6 +33,11 @@ import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
  *   부르는 **바로 그 함수**다. 손으로 다시 쓰지 않는다 (§124 에서 세 번 틀렸다). */
 import { genQuests, resolveSquadCount } from './_rules/questgen.js';
 import { hashStr } from './_rules/enemygen.js';
+/* ★★ 정산 판정은 **손으로 다시 쓰지 않는다.** 밴드 계산이 여기 인라인으로 있었는데,
+ *   그러면 오프라인으로 굴려 볼 수가 없어서 「정직한 판이 걸리나」 를 못 물었다.
+ *   `tools/settleband.mjs` 가 **같은 함수**로 324판(후퇴 108·패배 67)을 굴려
+ *   오탐 0 · 심은 조작 1892건 전부 적발을 확인했다. */
+import { judgeSettle } from './_rules/settlejudge.js';
 import { RNG } from './_rules/rng.js';
 
 /* ★ 서버에서는 로그·저장을 클라가 소유한다 — 빈 함수로 묶는다.
@@ -479,6 +484,9 @@ Deno.serve(async (req) => {
      *
      * ★ 판정하지 않는다. 계산해서 **표에 적기만** 한다. */
     let gen: Record<string, unknown> = { ran: false };
+/* ★ 재생성해서 **찾아낸 의뢰 자체**. `gen` 은 관측용으로 접은 값이라 판정부가 못 쓴다.
+ *   판정부는 «그 의뢰» 를 통째로 봐야 보상표·웨이브·전리품 굴림을 다 물을 수 있다. */
+    let genHit: Record<string, unknown> | null = null;
     try {
       const qid = String(q.questId || '');
       /* id 는 `q_<도시>_<날>_<번호>` 다. 도시 id 에 `_` 가 있을 수 있어 뒤에서 자른다. */
@@ -519,6 +527,7 @@ Deno.serve(async (req) => {
           hits.push(sq);
           if (!match) match = hit as Record<string, unknown>;
         }
+        genHit = match;
         const rw2 = match ? (match.reward as Record<string, unknown> | null) : null;
         gen = {
           ran: true, genDay, genIdx, bookDay, dayEq: genDay === bookDay,
@@ -581,6 +590,22 @@ Deno.serve(async (req) => {
       목록도시수: Object.keys((rs4?.data || {}).quests || {}).length,
     });
 
+    /* ═══════════ 판정을 **굴려 보기만** 한다 (17단계 4번 조각) ═══════════
+     * ★★★ **아직 아무것도 막지 않는다.** `judgeSettle` 은 최대가 `flag` 이고,
+     *   그 결과를 여기서 **관측 표에만** 적는다. 응답도 안 바뀐다.
+     *   먼저 라이브에서 «정직한 판이 안 걸린다» 를 확인한 뒤에 켠다 —
+     *   오프라인 324판은 오탐 0 이었지만, 라이브는 아직 후퇴 표본이 0건이다.
+     *
+     * ★ 재현이 없으면(`gen.ran === false`) 판정부가 스스로 «못 잰다» 로 남긴다.
+     *   이관 전 계정이 걸리면 안 된다 — 실제로 그럴 뻔했다 (시드 0 → 82G vs 2,288G). */
+    let verdict: { verdict?: string; cantJudge?: boolean; reasons?: string[] } = {};
+    try {
+      verdict = judgeSettle({ report: q, gen: genHit });
+    } catch (e) {
+      verdict = { verdict: 'ok', cantJudge: true, reasons: ['판정실패'] };
+      console.error('[그림자] 정산 판정 실패 — 넘어간다', String((e as Error)?.message || e));
+    }
+
     /* ★★ `run_ops` 에는 **안 적는다** (적으면 진짜 정산이 재생으로 막힌다).
      *   대신 **관측 표**에 적는다 — 판정에 안 쓰이고 운영자만 읽는다 (db/022). */
     await obs(admin, userId, 'questSettle', {
@@ -603,6 +628,9 @@ Deno.serve(async (req) => {
       cityBooks: Object.keys((rs4?.data || {}).quests || {}).length,
       /* ★ 재현 결과 — 판정에 안 쓴다. 4번 조각(판정 켜기)이 이 값을 보고 결정한다. */
       gen,
+      /* ★ 판정을 굴려 본 결과. **아무것도 막지 않는다** — 라이브에서 오탐 0 을
+       *   확인한 뒤에 켠다. 그때까지는 이 칸이 «켜면 어떻게 됐을까» 를 알려 준다. */
+      judge: { v: verdict.verdict || null, cant: !!verdict.cantJudge, why: (verdict.reasons || []).slice(0, 6) },
     });
 
     return json({ ok: true, shadow: true });

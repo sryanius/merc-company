@@ -18,5 +18,6 @@
   "src/game/merc.js": "69b74820",
   "src/game/questgen.js": "67e67035",
   "src/game/runrows.js": "880d355d",
+  "src/game/settlejudge.js": "e9e64066",
   "src/game/tavern.js": "c8ed8f66"
 }
