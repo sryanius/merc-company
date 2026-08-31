@@ -49,8 +49,11 @@ bindDay({ addLog: () => {}, touch: () => {}, expireCityLists: () => {} });
  * ★ 실패해도 **아무 일도 안 한다.** 관측이 그림자를 막으면 안 된다.
  * ★ 숫자와 참거짓만 적는다 — 이름·용병단명 같은 문자열을 넣지 마라.
  */
-async function obs(admin: { from: (t: string) => { insert: (v: unknown) => Promise<{ error?: unknown }> } },
-                   userId: string, kind: string, o: unknown) {
+/* ★ 인자 타입을 좁게 적었더니 `deno check` 가 부르는 자리마다 물었다 (4곳).
+ *   여기서 필요한 것은 «insert 할 수 있는가» 뿐이라 넓게 받는다 — 검사 잡음을 줄이면
+ *   진짜 오류가 그 안에 안 묻힌다. */
+// deno-lint-ignore no-explicit-any
+async function obs(admin: any, userId: string, kind: string, o: unknown) {
   try {
     const { error } = await admin.from('shadow_obs').insert({ user_id: userId, kind, obs: o });
     if (error) console.error('[그림자] 관측 기록 실패 — 넘어간다', error);
@@ -113,6 +116,15 @@ Deno.serve(async (req) => {
   if (!opId) return json({ error: 'opId 가 필요하다' }, 400);
 
   const admin = createClient(url, service, { auth: { persistSession: false } });
+
+  /* ★★★ **요청이 닿기는 하나** 를 먼저 남긴다.
+   *   `questSettle` 관측이 며칠째 0건인데 원인을 못 갈랐다 —
+   *   「클라가 안 보내나 · 여기까지 못 오나 · 분기에서 새나 · 적기가 실패하나」 를
+   *   구별할 값이 하나도 없었다. 도착을 세면 그 넷 중 앞의 둘이 바로 갈린다.
+   *
+   * ★ 판정에 안 쓴다. 실패해도 넘어간다 (obs 의 계약).
+   * ★ 지금 이 함수를 부르는 것은 정산 신고뿐이라 의뢰 한 건에 한 줄이다. */
+  await obs(admin, userId, 'op', { op: op.slice(0, 24), rev: Math.max(0, Math.round(Number(body?.rev) || 0)) });
 
   /* ── 멱등성: 같은 op_id 면 지난 결과를 그대로 돌려준다 ─────────────────── */
   {

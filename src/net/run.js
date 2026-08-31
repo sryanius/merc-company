@@ -45,6 +45,21 @@ export async function importRun(state) {
 }
 
 /**
+ * 「내 진행도가 서버 표에 있나」 — **싸게** 묻는다 (db/023).
+ *
+ * ★★ 접속할 때마다 물어야 하는데 `snapshot()` 은 명부·장비를 **통째로** 돌려준다.
+ *   실계정은 아이템이 1372개다 — 예/아니오 하나 물자고 그걸 매번 내려받으면
+ *   느린 기기에서 첫 화면이 늦는다.
+ *
+ * @returns {Promise<{ok:boolean, status:number, data:*, error:string}>}
+ *   `data` 는 `{ok:true, day, importedAt, updatedAt}` 또는 `{ok:false, reason:'none'|'auth'}`.
+ *   ★ `reason` 은 `snapshot()` 과 **같은 말**을 쓴다 — 부르는 쪽이 둘을 같은 식으로 읽는다.
+ */
+export async function stateInfo() {
+  return authed(EP.rpc('run_state_info'), { method: 'POST', body: {} }, Auth);
+}
+
+/**
  * 서버가 가진 진행도를 통째로 받아 온다.
  *
  * ★ 아직 이관 안 했으면 `data` 가 `{ok:false, reason:'none'}` 이다 (오류가 아니다).

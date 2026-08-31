@@ -9500,6 +9500,43 @@ section('진행도를 서버로 옮기는 길이 화면에 이어져 있나');
   ok(/setTimeout\(openImport/.test(code), '이관 창을 닫힌 뒤에 연다',
     '바로 열면 modal() 의 close 가 그 창을 지운다');
 
+
+  /* ══════════════════════════════════════════════════════════════════════
+   * 저절로 옮기는 길 — **순서가 전부다**
+   *
+   * ★★★ 이관은 계정당 한 번이고 (`imported_at`), 푸는 법은 db/019 에 «손으로» 라고
+   *   적혀 있다. 그래서 «무엇을 올리나» 가 정해지기 **전에** 부르면 그 실수가 굳는다.
+   *   반드시 `maybeReconcile()`(클라우드 세이브 맞추기) **뒤**여야 한다 —
+   *   먼저 돌면 서버에 있는 진짜 세이브 대신 이 기기의 낡은 것을 올린다.
+   * ══════════════════════════════════════════════════════════════════════ */
+  ok(/maybeImport/.test(code), '접속할 때 저절로 확인한다',
+    '버튼만 있으면 아무도 안 누른다 — 실측 7계정 중 1개만 이관했다');
+
+  /* 부팅 경로 · 로그인 경로 **둘 다** 복원 뒤여야 한다 */
+  const chains = [...code.matchAll(/maybeReconcile\([^)]*\)\s*\n?\s*(?:\.[a-zA-Z]+\([^\n]*\)\s*\n?\s*)*?\.then\(\s*\(\)\s*=>\s*maybeImport/g)];
+  ok(chains.length >= 2, '복원 → 이관 순서가 두 경로 모두에 있다',
+    `찾은 사슬 ${chains.length}개 (부팅·로그인 둘 다여야 한다)`);
+  /* ★ 거꾸로 된 모양이 있으면 문다 */
+  ok(!/maybeImport\([^)]*\)\s*\.then\(\s*\(\)\s*=>\s*maybeReconcile/.test(code),
+    '이관이 복원보다 먼저 오지 않는다', '먼저 오면 낡은 세이브가 자물쇠로 굳는다');
+
+  /* 빈 세이브를 올리지 않는다 — 0일차를 올리면 그게 그 계정의 «진행도» 로 굳는다 */
+  ok(/Number\(state\.day\)\s*>\s*0/.test(code), '0일차 세이브는 안 올린다');
+  ok(/state\.roster\s*\|\|\s*\[\]\)\.length/.test(code), '빈 명부는 안 올린다');
+  /* 서버가 «없다» 라고 분명히 말할 때만 — 네트워크 실패를 «없다» 로 읽으면 안 된다 */
+  ok(/reason\s*!==\s*'none'/.test(code), "서버가 «none» 이라고 말할 때만 옮긴다",
+    '네트워크 실패를 «없다» 로 읽으면 이미 이관한 계정을 또 건드린다');
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 (판이 틀리면 검사도 거짓말한다) */
+  {
+    const GOOD = "maybeReconcile().then(() => maybeImport({ auto: true }))";
+    const BAD = "maybeImport().then(() => maybeReconcile())";
+    ok(/maybeReconcile\([^)]*\)\s*\n?\s*(?:\.[a-zA-Z]+\([^\n]*\)\s*\n?\s*)*?\.then\(\s*\(\)\s*=>\s*maybeImport/.test(GOOD),
+      '메타 — 바른 순서를 바르다고 본다');
+    ok(/maybeImport\([^)]*\)\s*\.then\(\s*\(\)\s*=>\s*maybeReconcile/.test(BAD),
+      '메타 — 뒤집힌 순서를 실제로 잡는다');
+  }
+
   /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
   {
     const BAD = "act: () => { openImport(); return true; }";

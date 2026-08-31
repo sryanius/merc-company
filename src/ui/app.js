@@ -658,7 +658,15 @@ function doCloud() {
               msg.textContent = r.error || '연결에 실패했습니다.';
               return false;
             }
-            if (Auth.signedIn()) { toast('클라우드를 켰습니다.', 'good'); renderHud(); return true; }
+            if (Auth.signedIn()) {
+              toast('클라우드를 켰습니다.', 'good');
+              renderHud();
+              /* ★ 로그인 직후에는 **묻지 않고** 옮긴다 (제작자 결정).
+               *   복원을 먼저 돌려 «올릴 것» 을 하나로 정한 다음이다. */
+              maybeReconcile().then(() => maybeImport({ auto: true }))
+                .catch((e) => console.warn('[app] 로그인 뒤 이관 실패', e));
+              return true;
+            }
             return false;             // 리다이렉트 중 — 창을 닫지 않는다
           },
         },
@@ -752,6 +760,69 @@ function openImport() {
       },
     ],
   });
+}
+
+/**
+ * 「아직 서버에 없으면 옮긴다」 — 접속할 때 **저절로** 확인한다.
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ 왜 저절로여야 하나. 이 길이 «세이브·클라우드 창을 열어 버튼을 누른다» 뿐이면
+ *   아무도 안 한다 — 실측이 그랬다. 7계정 중 서버에 표가 있는 것은 **1개**였고,
+ *   그 하나도 제작자가 콘솔에서 손으로 부른 것이다. 하루 24번 제출한 계정이
+ *   그동안 내내 «스냅숏 없음» 이었다. 서버는 그 사람에 대해 아무것도 못 잰다.
+ *
+ * ★★ **순서가 전부다.** 반드시 `maybeReconcile()`(클라우드 세이브 맞추기) **뒤**에 돈다.
+ *   먼저 돌면 «서버에 있는 진짜 세이브» 대신 이 기기의 낡은 세이브를 올려 버리고,
+ *   이관은 계정당 한 번이라 그게 **자물쇠로 굳는다** (푸는 법은 db/019 — 손으로).
+ *
+ * ★ 지키는 것:
+ *   · 로그인·도시 화면일 때만 (모달이 전투 위에 뜨면 판이 날아간다 — maybeReconcile 과 같은 이유)
+ *   · 세이브가 **실할 때만** (0일차·빈 명부를 올려 자물쇠를 채우면 되돌리기 어렵다)
+ *   · 서버가 «없다(none)» 라고 **분명히** 말할 때만. 네트워크 실패면 아무것도 안 하고
+ *     다음 기회에 다시 본다 (`checked` 를 되돌린다)
+ *   · 세션당 한 번. 닫으면 이번 세션엔 다시 안 뜬다
+ *
+ * @param {object} o
+ * @param {boolean} [o.auto] true 면 묻지 않고 바로 옮긴다 (로그인 직후 경로)
+ */
+let importChecked = false;
+
+export async function maybeImport({ auto = false } = {}) {
+  if (importChecked) return;
+  if (!Cloud.ready() || !Auth.signedIn()) return;
+  if (currentScreen() !== 'city') return;
+  /* ★ 빈 세이브를 올리면 안 된다 — 이관은 한 번이라 그게 굳는다 */
+  if (!(Number(state.day) > 0) || !(state.roster || []).length) return;
+
+  importChecked = true;
+  let info = null;
+  try {
+    info = await Run.stateInfo();
+  } catch (e) {
+    console.warn('[app] 서버 진행도 확인 실패', e);
+    importChecked = false;
+    return;
+  }
+  if (!info.ok) { importChecked = false; return; }        // 네트워크·인증 — 다음 기회에
+  if (info.data && info.data.ok === true) return;          // 이미 서버에 있다 — 조용히 넘어간다
+  if (!info.data || info.data.reason !== 'none') return;   // 모르는 답이면 건드리지 않는다
+
+  /* ★ 기다리는 사이에 화면이 바뀌었을 수 있다 (maybeReconcile 이 겪은 그 문제다) */
+  if (currentScreen() !== 'city') { importChecked = false; return; }
+
+  if (!auto) { openImport(); return; }
+
+  /* ── 로그인 직후: 묻지 않고 옮긴다 ──────────────────────────────────────
+   * ★ 여기서 안 묻는 것이 안전한 이유는 **바로 위에서 세이브를 맞췄기 때문**이다.
+   *   서버에 세이브가 있었으면 그것을 받은 뒤고, 없었으면 이 기기 것이 유일하다.
+   *   어느 쪽이든 «올릴 것» 이 하나로 정해져 있다. */
+  const r = await Run.importRun(state);
+  if (!r.ok) { console.warn('[app] 자동 이관 실패 (게임에는 영향 없다)', r.error); return; }
+  if (r.data && r.data.ok === false) {
+    if (r.data.reason !== 'already') console.warn('[app] 자동 이관을 서버가 안 받았다', r.data.reason);
+    return;
+  }
+  toast('진행도를 서버에도 옮겼습니다.', 'good');
 }
 
 /* ---------------- 클라우드 복원 ---------------- */
@@ -1134,7 +1205,13 @@ export function boot() {
     setTimeout(() => { try { maybeShowChangelog(); } catch (e) { console.warn('[app] 업데이트 내역 실패', e); } }, 600);
     /* ★ boot() 는 동기로 둔다. 복원 확인은 화면이 뜬 **뒤에** 비동기로 붙인다 —
      *   여기서 await 하면 네트워크가 느린 기기에서 첫 화면이 그만큼 늦게 뜬다. */
-    setTimeout(() => { maybeReconcile().catch((e) => console.warn('[app] 복원 확인 실패', e)); }, 1200);
+    setTimeout(() => {
+      maybeReconcile()
+        /* ★★ **반드시 복원 뒤다.** 먼저 돌면 이 기기의 낡은 세이브가 올라가고,
+         *   이관은 계정당 한 번이라 그게 자물쇠로 굳는다 (§138.6). */
+        .then(() => maybeImport())
+        .catch((e) => console.warn('[app] 복원·이관 확인 실패', e));
+    }, 1200);
     return;
   }
 
