@@ -9622,6 +9622,68 @@ section('Edge Function 이 브라우저에서 불릴 수 있나 (CORS)');
   }
 }
 
+section('서버 사본을 따라오게 하는 채널 (거울)');
+{
+  /* ★★ §104 9·10·11단계는 전직·판매·착용 RPC 를 만들어 놓고 **화면에 안 이었다** —
+   *   실측 `run_ops` 0건. 그런데 이었어도 안 됐다: `run-op` 에 CORS 가 없었다 (§139).
+   *   이제 통로가 열렸으니 **가장 드문 것 하나**(전직)로 채널을 실제로 굴려 본다.
+   *
+   * ★★★ 판매·착용은 **일부러 안 잇는다.** 전리품 자동판매가 한 번에 수백 점을 파는데
+   *   (`autoSellLoot`), 거기에 op 을 걸면 의뢰 한 건에 요청이 수백 개 나간다.
+   *   이 검사는 그 결정을 **글로 남겨** 다음 사람이 무심코 잇지 않게 한다. */
+  const mir = readFileSync(join(rootDir, 'src/net/mirror.js'), 'utf8');
+  const mirCode = decomment(mir);
+
+  /* ① 게임 흐름을 절대 막지 않는다 — settle.js 와 같은 계약 */
+  /* ★ `await authed` 만 보면 좁다 — `await Promise.resolve(authed(…))` 를 놓친다
+   *   (심어 보고 알았다: 검사가 안 물었다). 이 모듈에는 정당한 `await` 이 **하나도 없다**.
+   *   ⇒ 주석을 뺀 본문에 `await` 이 보이면 그 자체로 실패다. */
+  ok(!/\bawait\b/.test(mirCode), '거울이 await 하지 않는다',
+    'await 하면 서버가 느릴 때 게임이 멈춘다 — 이 모듈에는 정당한 await 이 없다');
+  ok(/\.catch\(/.test(mirCode), '실패를 삼킨다');
+  ok(/try\s*\{/.test(mirCode) && /catch/.test(mirCode), '전체가 try/catch 안에 있다');
+  ok(/accessToken\(\)/.test(mirCode), '로그인 안 했으면 아무것도 안 보낸다');
+
+  /* ② op_id 가 **그 행동 하나**를 가리켜야 한다 — 겹치면 두 번째가 재생으로 막힌다.
+   *   ★ 전직은 같은 단원이 2차→3차→4차로 간다. uid 만 쓰면 두 번째가 막힌다. */
+  ok(/pr_\$\{mercUid\}_\$\{toClass\}/.test(mir), '전직 열쇠에 목표 클래스가 들어간다',
+    'uid 만 쓰면 같은 단원의 두 번째 전직이 재생으로 막힌다');
+
+  /* ③ 아직 이관 전(404)은 사고가 아니다 — 경고로 띄우면 6계정이 매번 빨개진다 */
+  ok(/status === 404/.test(mirCode), '아직 이관 전은 조용히 넘어간다',
+    '7계정 중 6이 그 상태다 — 경고로 띄우면 진짜 오류가 묻힌다');
+
+  /* ④ 부르는 자리 — 전직 한 곳만. 늘리려면 위 주석을 먼저 읽어라. */
+  const callers = [];
+  for (const f of ['company', 'inventory', 'city', 'battle', 'quests', 'tavern', 'pets']) {
+    const p = join(rootDir, 'src/ui', `${f}.js`);
+    if (!existsSync(p)) continue;
+    const src = decomment(readFileSync(p, 'utf8'));
+    for (const m of src.matchAll(/mirror([A-Z][a-zA-Z]*)\s*\(/g)) callers.push(`${f}:${m[1]}`);
+  }
+  okAll(callers.filter((c) => c !== 'company:Promote')
+    .map((c) => `${c} — 거울을 새로 이었다. 자동판매 같은 대량 경로가 아닌지 확인해라`),
+    '거울은 전직 한 곳에만 이어져 있다', callers.length || 1);
+  ok(callers.includes('company:Promote'), '전직이 실제로 이어져 있다', callers.join(' '));
+
+  /* ⑤ 대량 경로에 붙지 않았나 — `autoSellLoot` 근처에 거울이 있으면 문다 */
+  {
+    const b = decomment(readFileSync(join(rootDir, 'src/ui/battle.js'), 'utf8'));
+    const i = b.indexOf('autoSellLoot');
+    const near = i < 0 ? '' : b.slice(Math.max(0, i - 600), i + 600);
+    ok(!/mirror[A-Z]/.test(near), '자동판매 근처에 거울이 없다',
+      '의뢰 한 건에 요청 수백 개가 나간다');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "const r = await authed(EP.fn('run-op'), x, Auth);";
+    ok(/\bawait\s+authed/.test(BAD), '메타 — await 하는 모양을 실제로 잡는다');
+    const BADKEY = "send('promote', `pr_${mercUid}`, {})";
+    ok(!/pr_\$\{mercUid\}_\$\{toClass\}/.test(BADKEY), '메타 — 열쇠가 얕은 모양을 실제로 잡는다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

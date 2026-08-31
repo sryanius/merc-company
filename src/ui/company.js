@@ -40,6 +40,8 @@ import * as SetsAPI from '../data/sets.js';
 // 임금은 대기 인원 할인이 걸리므로 state.js 의 dailyUpkeep/upkeepOfMerc 를 쓴다 (유일한 출처)
 import * as GameState from '../game/state.js';
 import * as Pet from '../game/pet.js';
+/* ★ 서버 사본을 따라오게 하는 채널 — 게임 흐름을 막지 않는다 (net/mirror.js) */
+import { mirrorPromote } from '../net/mirror.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -3037,6 +3039,9 @@ function openPromote(m) {
           const r = promote(m, picked2);
           toast(r.reason, r.ok ? 'good' : 'bad');
           if (!r.ok) return false;
+          /* ★ 서버 사본도 따라오게 한다 (§104 9단계 · 거울).
+           *   기다리지 않는다 — 실패해도 아래가 그대로 돈다. */
+          try { mirrorPromote(m.uid, picked2); } catch (e) { console.warn('[company] 전직 거울 실패', e); }
           addLog(`${m.name}${josa(m.name, '이/가')} ${getClass(picked2)?.name || picked2}${josa(getClass(picked2)?.name || picked2, '으로/로')} 전직했다.`);
           stopAll();
           save();
