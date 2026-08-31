@@ -9466,6 +9466,49 @@ section('서버 사본에 상대 경로가 안 남아 있다');
     'syncshared 가 실제로 동적 import 를 평탄화한다', `${lines.length}줄 중`);
 }
 
+section('진행도를 서버로 옮기는 길이 화면에 이어져 있나');
+{
+  /* ★★★ **§104 의 서버 표(`run_*`)를 채우는 길이 콘솔뿐이었다.**
+   *   `src/net/run.js` 는 8단계에 만들어졌는데 **그것을 부르는 화면 코드가 0줄**이었다.
+   *   그래서 실측 7계정 중 서버에 표가 있는 것은 **1개**뿐이고, 나머지 6계정은
+   *   서버가 전력도 의뢰도 아무것도 못 잰다 — 그림자든 판정이든 소용이 없다.
+   *
+   * ★ 이 검사는 「예쁘게 됐나」 가 아니라 «**길이 끊기지 않았나**» 를 본다.
+   *   누가 버튼을 지우면 서버 전환이 조용히 멈춘다. */
+  const appSrc = readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8');
+  const code = decomment(appSrc);
+
+  ok(/from\s*['"]\.\.\/net\/run\.js['"]/.test(code), '화면이 net/run.js 를 부른다',
+    '이 import 가 없으면 이관은 콘솔로만 가능하다');
+  ok(/Run\.importRun\s*\(/.test(code), '이관 버튼이 importRun 을 부른다');
+  ok(/Run\.preview\s*\(/.test(code), '누르기 전에 preview 로 무엇이 올라가는지 보여 준다',
+    '§104 8단계의 계약이다 — 되돌리기 어려운 일을 말없이 하지 않는다');
+
+  /* ★ 이관은 계정당 한 번이라 «이미 했다» 를 사람에게 그대로 알려야 한다.
+   *   HTTP 200 인데 `{ok:false, reason:'already'}` 인 모양이라 놓치기 쉽다. */
+  ok(/already/.test(code), '이미 옮긴 경우를 따로 알린다',
+    "reason:'already' 는 HTTP 200 이라 안 다루면 «성공» 으로 보인다");
+
+  /* ★★ 로그인 안 한 사람에게 보이면 안 된다 — 누르면 아무 일도 안 일어난다 */
+  ok(/st\.on\s*\?\s*\[\{[^\n]*서버로 옮기기/.test(appSrc), '로그인했을 때만 버튼이 보인다',
+    '로그인 전에는 서버에 쓸 수가 없다');
+
+  /* ★★★ 모달을 이어 여는 자리 — `modal()` 은 층을 통째로 갈아 끼우고,
+   *   액션이 true 를 돌려주면 그 **뒤에** 층을 비운다.
+   *   그래서 액션 안에서 **바로** 새 모달을 열면 그 자리에서 지워진다.
+   *   (실제로 그랬다 — 브라우저로 눌러 보고 알았다. 검사로는 안 잡혔다.) */
+  ok(/setTimeout\(openImport/.test(code), '이관 창을 닫힌 뒤에 연다',
+    '바로 열면 modal() 의 close 가 그 창을 지운다');
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "act: () => { openImport(); return true; }";
+    ok(!/setTimeout\(openImport/.test(BAD), '메타 — 바로 여는 모양은 실제로 물린다');
+    const NOIMPORT = "const x = 1;";
+    ok(!/Run\.importRun\s*\(/.test(NOIMPORT), '메타 — 버튼이 사라지면 실제로 물린다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

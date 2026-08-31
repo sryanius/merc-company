@@ -11,6 +11,9 @@ import { state, save, load, hasSave, newGame, bus } from '../game/state.js';
 import * as GameState from '../game/state.js';
 import * as Cloud from '../net/cloud.js';
 import * as Auth from '../net/auth.js';
+/* ★ 진행도 이관 (§104 8단계). 지금까지 이 모듈을 부르는 화면이 **하나도 없었다** —
+ *   제작자가 콘솔에서 손으로 한 번 불렀을 뿐이다. 그래서 7계정 중 1개만 서버에 있다. */
+import * as Run from '../net/run.js';
 import { getCity } from '../data/world.js';
 import { companyName } from '../data/names.js';
 import { CHANGELOG, LATEST_ID } from '../data/changelog.js';
@@ -615,6 +618,15 @@ function doCloud() {
     body,
     actions: [
       { label: '닫기', kind: 'ghost' },
+      /* ★★ 진행도 이관 — 로그인했을 때만 보인다.
+       *   서버가 «세이브 한 덩어리» 가 아니라 **표**로 진행도를 갖게 하는 첫 걸음이다.
+       *   ★ 되돌리기 어려우므로 **무엇이 올라가는지 먼저 보여 주고** 확인을 받는다
+       *     (§104 8단계가 못 박은 계약). */
+      /* ★ `modal()` 은 모달 층을 통째로 갈아 끼우는데, 이 액션이 true 를 돌려주면
+       *   그 **뒤에** `layer.innerHTML = ''` 가 돈다 — 여기서 바로 열면
+       *   **새 창이 그 자리에서 지워진다.** (실제로 그랬다. 브라우저로 눌러 보고 알았다.)
+       *   ⇒ 닫힌 다음에 연다. `maybeShowChangelog` 도 같은 이유로 setTimeout 을 쓴다. */
+      ...(st.on ? [{ label: '서버로 옮기기', kind: 'ghost', act: () => { setTimeout(openImport, 0); return true; } }] : []),
       st.on
         ? {
           /* ★ '끄기' 대신 **계정 전환**이다. 끄는 스위치는 없앴다 —
@@ -650,6 +662,94 @@ function doCloud() {
             return false;             // 리다이렉트 중 — 창을 닫지 않는다
           },
         },
+    ],
+  });
+}
+
+/**
+ * 「이 세이브를 서버 표로 옮긴다」 — 누르기 전에 무엇이 올라가는지 보여 준다.
+ *
+ * ★★ 왜 필요한가. §104 는 진행도를 `run_*` 표로 옮겨 두고 서버가 그 표로 직접
+ *   계산·검증하게 만드는 계획이다. 그런데 **옮기는 길이 콘솔뿐이었다** —
+ *   실측 7계정 중 서버에 표가 있는 것은 1개다. 나머지는 서버가 아무것도 못 잰다.
+ *
+ * ★ 이관은 계정당 한 번이다 (`imported_at` 자물쇠). 두 번째는 조용히
+ *   `{ok:false, reason:'already'}` 로 돌아온다 — 그것도 사람에게 그대로 알린다.
+ *
+ * ★ 게임에는 영향이 없다. 화면·세이브·판정 중 어느 것도 이 버튼으로 안 바뀐다.
+ */
+function openImport() {
+  const p = Run.preview(state);
+  const msg = el('div', { class: 'tiny', style: 'margin-top:8px;min-height:1.2em' });
+  if (!p.ok) {
+    modal({
+      title: '서버로 옮기기',
+      body: el('div', {}, el('div', { class: 'tiny', style: 'color:var(--bad)' },
+        `이 세이브를 옮길 모양으로 못 바꿨습니다: ${p.error || '알 수 없는 이유'}`)),
+      actions: [{ label: '닫기', kind: 'ghost' }],
+    });
+    return;
+  }
+
+  const row = (k, v) => el('div', { class: 'tiny' }, el('b', { text: k }), ' ', String(v));
+  const body = el('div', {},
+    /* ★ 이 자리는 마크다운을 안 그린다 (`**` 가 글자로 나온다 — 눌러 보고 알았다).
+     *   강조는 노드로 짓는다. */
+    el('div', { class: 'tiny muted' },
+      '지금 세이브를 서버에 ', el('b', { text: '표 형태로' }), ' 올립니다. ',
+      '화면도 세이브도 달라지지 않습니다 — 서버가 내 진행도를 스스로 읽을 수 있게 되는 것뿐입니다.'),
+    el('div', { class: 'sep' }),
+    row('용병단', p.companyName),
+    row('날짜', `${num(p.day)}일차`),
+    row('골드', `${num(p.gold)} G`),
+    row('단원', `${p.mercs}명 (S ${p.sMercs}명)`),
+    row('장비', `${p.items}점 (착용 ${p.worn})`),
+    row('부대 · 펫', `${p.squads}개 · ${p.pets}마리`),
+    row('나락 · 탑', `${p.abyss} · ${p.tower}`),
+    el('div', { class: 'sep' }),
+    /* ★ 상한이 둘이다 — 어느 쪽에 걸리는지 사람이 보게 한다 (§122.4) */
+    el('div', { class: 'faint tiny' },
+      `올라가는 크기 약 ${num(p.serverKb)}KB / ${num(p.serverCapKb)}KB · `
+      + `도시 목록 약 ${num(p.dataKb)}KB / ${num(p.dataCapKb)}KB`),
+    el('div', { class: 'faint tiny' }, '★ 계정당 한 번입니다. 이미 옮겼다면 그렇게 알려 줍니다.'),
+    msg);
+
+  const tooBig = p.serverKb > p.serverCapKb || p.dataKb > p.dataCapKb;
+  if (tooBig) {
+    msg.style.color = 'var(--bad)';
+    msg.textContent = '지금은 크기가 상한을 넘습니다 — 도시를 몇 곳 돌아 목록이 만료되면 줄어듭니다.';
+  }
+
+  modal({
+    title: '서버로 옮기기',
+    body,
+    actions: [
+      { label: '닫기', kind: 'ghost' },
+      {
+        label: '옮긴다',
+        kind: 'primary',
+        act: async () => {
+          if (tooBig) return false;
+          msg.style.color = 'var(--ink-faint)';
+          msg.textContent = '올리는 중…';
+          const r = await Run.importRun(state);
+          if (!r.ok) {
+            msg.style.color = 'var(--bad)';
+            msg.textContent = r.error || '서버가 받지 않았습니다.';
+            return false;
+          }
+          /* ★ HTTP 200 인데 `{ok:false}` 인 경우가 있다 — 이미 옮겼을 때다 */
+          if (r.data && r.data.ok === false) {
+            msg.style.color = 'var(--ink-faint)';
+            msg.textContent = r.data.reason === 'already'
+              ? '이미 옮겨져 있습니다. 다시 옮길 필요는 없습니다.'
+              : `서버가 받지 않았습니다 (${r.data.reason || '이유 없음'}).`;
+            return false;
+          }
+          toast('서버로 옮겼습니다.', 'good');
+          return true;
+        },
+      },
     ],
   });
 }
