@@ -66,7 +66,7 @@ export const TIMEOUT_MS = 15_000;
  * ★ `sw.js` 의 `CACHE` 와 **따로** 둔다. 그건 워커 안에 있어서 페이지가 못 읽는다.
  * ★ 클라 코드를 의미 있게 고치면 여기를 올려라. 스모크가 `sw.js` 와 짝이 맞는지 본다.
  */
-export const CLIENT_REV = 165;
+export const CLIENT_REV = 166;
 
 export const EP = {
   signupAnon: `${SUPABASE_URL}/auth/v1/signup`,

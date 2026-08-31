@@ -500,6 +500,18 @@ function sanitizeSquad(raw: unknown) {
     if (!rs) {
       console.error('[그림자] 묶음은 살아 있다. run_* 은 비었다 — 아직 이관 전이다',
         { userId, fromRows: typeof fromRows, stampSquadPower: typeof stampSquadPower });
+      /* ★★★ **이것도 표에 적는다.** 실측 7계정 중 이관한 것은 **1개**뿐인데,
+       *   지금까지 그 사실이 로그에만 남아 아무도 세지 못했다. 18단계(순위 축 전환)를
+       *   이 상태로 켜면 **6계정이 스냅숏 없이 판정을 받는다.**
+       *   ⇒ 「스냅숏이 없다」 는 «수상하다» 가 아니라 «**못 잰다**» 다. 세어 둔다. */
+      try {
+        await admin.from('shadow_obs').insert({
+          user_id: userId, kind: 'power',
+          obs: { noSnapshot: true, cliPower: Math.max(0, Math.round(Number(score.topPower) || 0)),
+            cliS: Math.max(0, Math.round(Number(score.sMercs) || 0)),
+            cliDay: Math.max(0, Math.round(Number(score.day) || 0)), rev: clientRev, via },
+        });
+      } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
     } else {
       const st = fromRows({
         state: rs, mercs: rm || [], items: ri || [], pets: rp || [], squads: rq || [], quests: [],
@@ -509,6 +521,11 @@ function sanitizeSquad(raw: unknown) {
       const srvS = (st.roster || []).filter((m: { grade?: string }) => m?.grade === 'S').length;
       const cliPower = Math.max(0, Math.round(Number(score.topPower) || 0));
       const cliS = Math.max(0, Math.round(Number(score.sMercs) || 0));
+      /* 스냅숏이 얼마나 뒤처졌나 — 게임 안의 날(day)과 실제 시각(시간) 둘 다 본다 */
+      const srvDay = Math.max(0, Math.round(Number(rs.day) || 0));
+      const cliDay = Math.max(0, Math.round(Number(score.day) || 0));
+      const snapAgeH = rs.updated_at
+        ? Math.round((Date.now() - new Date(rs.updated_at as string).getTime()) / 36e5) : null;
       /* ★ 표에도 적는다 (db/022) — 이 CLI 에는 `functions logs` 가 없어서
        *   로그만으로는 「며칠 돌려야 하나」 에 수치로 답할 수 없다.
        *   ★ 실패해도 넘어간다. 관측이 판정 경로를 막으면 안 된다. */
@@ -517,7 +534,16 @@ function sanitizeSquad(raw: unknown) {
           user_id: userId, kind: 'power',
           obs: { srvPower, cliPower, powerDiff: srvPower - cliPower,
             srvS, cliS, sDiff: srvS - cliS, rosterN: (st.roster || []).length,
-            itemsRead: (st.items || []).length, rev: clientRev, via },
+            itemsRead: (st.items || []).length, rev: clientRev, via,
+            /* ★★★ **낡은 스냅숏은 치트와 똑같이 보인다.** 실측으로 겪었다:
+             *   차이 −60,863 은 1000행 상한(진짜 버그)이었는데, 그 뒤 남은 −137 은
+             *   **버그가 아니라 시차**였다 — 이관 스냅숏이 그날 05:30 것이고 제작자는
+             *   그 뒤로 계속 놀았다. 쓰기 RPC 가 아직 전부 그림자라 서버가 안 따라간다.
+             *
+             *   ⇒ 날짜 차이를 **같이 적지 않으면** 18단계에서 그 시차가 «전력 위조» 로
+             *     찍힌다. 판정을 켤 때는 **「dayLag > 0 이면 판정하지 않는다」**가 계약이다.
+             *     (실측: run_state 최종 갱신 8/28 05:30, run_ops 0건 — 스냅숏은 안 늘어난다.) */
+            srvDay, cliDay, dayLag: cliDay - srvDay, snapAgeH },
         });
       } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
 
@@ -526,6 +552,8 @@ function sanitizeSquad(raw: unknown) {
         power: { 서버: srvPower, 클라: cliPower, 차: srvPower - cliPower },
         sMercs: { 서버: srvS, 클라: cliS, 차: srvS - cliS },
         명부: (st.roster || []).length,
+        /* ★ 차이를 볼 때 **반드시 같이** 본다 — 시차면 «위조» 가 아니다 */
+        스냅숏: { 서버일차: srvDay, 클라일차: cliDay, 뒤처짐: cliDay - srvDay, 몇시간전: snapAgeH },
       });
 
       /* ═══════════ 나락·탑을 **다시 돌린다** (§104 2단계) ═══════════════════

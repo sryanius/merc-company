@@ -5272,12 +5272,57 @@ section('업데이트 내역 — 날짜와 밀림');
       `새 항목은 id 가 날짜로 시작한다 (${GRANDFATHER} 이후)`, list.length || 1);
 
     /* ⑤ **내역이 밀리지 않았는가** — 제작자가 짚은 진짜 문제.
-     *   일하고 나서 적기를 잊으면 여기서 걸린다. 도구·리팩터링만 한 날을 위해 이틀 봐준다. */
+     *   일하고 나서 적기를 잊으면 여기서 걸린다.
+     *
+     * ★★ 유예가 **이틀이었는데 그게 틀렸다.** §104 서버 전환처럼 **몇 주 내내
+     *   플레이어가 겪는 변화가 0인** 작업이 있다. 이 파일의 머리말이 그렇게 못 박고 있다:
+     *   「내부 리팩터링·도구·측정은 여기가 아니라 docs/HANDOFF.md 다」.
+     *   그런데 검사는 사흘째에 「적어라」 고 요구했고, 그 요구에 따르면
+     *   **적을 것이 없는 날에 가짜 항목을 쓰게 된다** — 그건 이 파일을 망친다.
+     *
+     * ★ 그래서 «며칠» 이 아니라 «**무엇을 고쳤나**» 로 잰다. 화면·규칙·데이터를
+     *   건드린 커밋만 센다. 도구·검사·서버 함수·문서만 고친 날은 안 조른다.
+     *   ⇒ UI 를 고치고 안 적으면 **여전히 다음날 물린다.** 느슨해진 게 아니라 정확해졌다. */
     if (head && isDate(list[0] && list[0].date)) {
       const dayOf = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 86400000;
-      const behind = dayOf(head) - dayOf(list[0].date);
-      ok(behind <= 2, '업데이트 내역이 밀리지 않았다',
-        `최신 커밋 ${head} 인데 최신 내역은 ${list[0].date} (${behind}일 밀렸다) — src/data/changelog.js 에 항목을 더해라`);
+      /* 「플레이어가 겪는 변화」 가 담기는 자리 — 이 목록이 곧 판정이다 */
+      const FACING = (f) => /^src\/(ui|game|data|battle|core)\//.test(f)
+        && !/^src\/data\/changelog\.js$/.test(f);
+      let facingDate = null;
+      let facingFiles = 0;
+      try {
+        /* 최근 40커밋만 본다 — 그 밖은 이미 굳었다 */
+        const log = execFileSync('git', ['log', '-40', '--date=short', '--format=%H %ad', '--name-only'],
+          { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        let cur = null;
+        for (const line of log.split(/\r?\n/)) {
+          const h = line.match(/^[0-9a-f]{40} (\d{4}-\d{2}-\d{2})$/);
+          if (h) { cur = h[1]; continue; }
+          if (!line.trim() || !cur) continue;
+          if (!FACING(line.trim())) continue;
+          facingFiles++;
+          if (!facingDate || cur > facingDate) facingDate = cur;
+        }
+      } catch { facingDate = null; }
+
+      if (!facingDate) {
+        ok(true, '최근 커밋에 플레이어가 겪는 변화가 없다 — 내역을 안 조른다', `${facingFiles}개 파일`);
+      } else {
+        /* ★ 유예는 여전히 이틀이다 — 늘리지 않았다. 세는 대상만 좁혔다. */
+        const behind = dayOf(facingDate) - dayOf(list[0].date);
+        ok(behind <= 2, '업데이트 내역이 밀리지 않았다',
+          `화면·규칙을 마지막으로 고친 날 ${facingDate} 인데 최신 내역은 ${list[0].date} `
+          + `(${behind}일 밀렸다) — src/data/changelog.js 에 항목을 더해라`);
+      }
+
+      /* ★★ 메타 — 「좁혔다」 가 「꺼졌다」 가 되면 안 된다. 판정부를 직접 굴린다. */
+      const YES = ['src/ui/city.js', 'src/game/quest.js', 'src/data/items.js', 'src/battle/engine.js'];
+      const NO = ['tools/smoke.mjs', 'docs/HANDOFF.md', 'supabase/functions/run-op/index.ts',
+        'sw.js', 'db/022_shadow_log.sql', 'src/data/changelog.js'];
+      okAll(YES.filter((f) => !FACING(f)).map((f) => `${f} 를 «안 보이는 것» 으로 본다`),
+        '화면·규칙 파일은 여전히 내역을 조른다', YES.length);
+      okAll(NO.filter((f) => FACING(f)).map((f) => `${f} 를 «보이는 것» 으로 본다`),
+        '도구·서버·문서만 고친 날은 안 조른다', NO.length);
     }
   }
 }
@@ -8336,6 +8381,29 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
     '그림자가 판정에 닿는 표에 안 쓴다', Math.max(1, writeCalls.length));
   ok(!/shadow_obs/.test(shadowCode) || /shadow_obs/.test(shadowCode),
     '관측은 shadow_obs 에만 적는다', '');
+
+  /* ⑤ ★★★ **낡은 스냅숏은 치트와 똑같이 보인다.**
+   *   실측으로 겪었다 — 차이 −60,863 은 1000행 상한(진짜 버그)이었지만, 그 뒤 남은
+   *   −137 은 **버그가 아니라 시차**였다. 쓰기 RPC 가 전부 그림자라 서버 스냅숏이
+   *   클라를 안 따라간다 (실측 run_ops 0건 · run_state 최종 갱신이 사흘째 그대로).
+   *
+   *   ⇒ 18단계(순위 축 전환)를 켤 때 **시차를 구별할 값이 관측에 없으면**
+   *     그 시차가 «전력 위조» 로 찍힌다. 그래서 지금 미리 싣는다.
+   *
+   * ★ 그리고 **스냅숏이 아예 없는 계정**도 세어야 한다 — 실측 7계정 중 이관은 1개다.
+   *   「없다」 는 «수상하다» 가 아니라 «못 잰다» 이고, 그 수를 모르면 전환을 못 켠다. */
+  for (const k of ['srvDay', 'cliDay', 'dayLag']) {
+    ok(new RegExp(k).test(shadowCode), `전력 관측이 ${k} 를 같이 싣는다`,
+      '시차와 위조를 구별할 값이 없으면 18단계가 정상 플레이어를 문다');
+  }
+  ok(/noSnapshot/.test(shadowCode), '이관 전 계정도 관측 표에 센다',
+    '로그로만 남기면 「몇 계정이 스냅숏 없이 판정받나」 를 아무도 못 센다');
+  /* ★ 심어 넣은 판으로 확인 — 세 값이 다 빠진 관측은 물려야 한다 */
+  {
+    const FAKE = "obs: { srvPower, cliPower, powerDiff: srvPower - cliPower, srvS, cliS }";
+    const missing = ['srvDay', 'cliDay', 'dayLag', 'noSnapshot'].filter((k) => !new RegExp(k).test(FAKE));
+    ok(missing.length === 4, '메타 — 시차 값이 빠진 관측은 실제로 물린다', `${missing.length}/4`);
+  }
 
   /* ④ ★ 동적 import 여야 한다 — 정적이면 묶음이 깨졌을 때 **모듈 적재에서** 죽어
    *   함수 전체가 500 이 되고, 클라가 매 저장마다 재시도한다. */
