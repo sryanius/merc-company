@@ -493,7 +493,19 @@ Deno.serve(async (req) => {
       const { count: squadN } = await admin.from('run_squads')
         .select('idx', { count: 'exact', head: true }).eq('user_id', userId);
 
-      if (mm && cityId && genDay > 0) {
+      /* ★★★ **시드를 모르면 재현하지 않는다.**
+       *   `rs4` 가 없으면(아직 이관 전) 위에서 seed 가 **0** 이 된다. 그러면 전혀 다른
+       *   목록이 나오는데, 의뢰 id 는 `q_<도시>_<날>_<번호>` 라 **내용이 아니라 자리**만
+       *   가리킨다 — 길이만 넉넉하면 «찾았다» 가 되고, 보상은 당연히 다르다.
+       *
+       *   실측으로 그랬다: 이관 안 한 계정의 정직한 의뢰가 `gEq:false` 로 찍혔다
+       *   (재생성 82G vs 실제 2,288G). **판정이었으면 그 자리에서 거절했다.**
+       *   같은 시각 이관한 계정은 `57,605 == 57,605` 로 정확히 맞았다.
+       *
+       * ★ 그래서 «못 잰다» 와 «틀렸다» 를 절대 섞지 않는다 — 18단계의 계약과 같다. */
+      if (!rs4) {
+        gen = { ran: false, why: 'no-seed', genDay, genIdx };
+      } else if (mm && cityId && genDay > 0) {
         /* `state.js refreshCity` 의 seedFor('qs') 와 **같은 식**이어야 한다 */
         const rngFor = () => new RNG((hashStr(`qs#${cityId}#${genDay}`) ^ seed) >>> 0);
         const hits: number[] = [];
@@ -512,6 +524,8 @@ Deno.serve(async (req) => {
           ran: true, genDay, genIdx, bookDay, dayEq: genDay === bookDay,
           squadN: R2(squadN), listLen,
           /* 어느 부대 수로 굴려야 그 의뢰가 나오나 — 비면 «재현 불가» 다 */
+          /* ★ 이 축은 **약하다.** id 가 자리만 가리켜서 길이만 넉넉하면 «찾았다» 가 된다
+           *   (실측 hitsN 8/8). 진짜 신호는 아래 `gEq`·`eEq`·`rEq` 다. */
           hitsN: hits.length, hitLo: hits.length ? hits[0] : null,
           hitHi: hits.length ? hits[hits.length - 1] : null,
           hitCur: hits.includes(Math.max(1, R2(squadN))),

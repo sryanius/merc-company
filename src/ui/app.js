@@ -422,7 +422,16 @@ export function openChangelog(opt = {}) {
     const box = el('div', { class: 'cl-entry' },
       el('div', { class: 'row spread center', style: { gap: '8px' } },
         el('b', { text: e.title }),
-        el('span', { class: 'faint tiny', text: e.date })));
+        /* ★★ 판번호를 **항목마다** 붙인다. 맨 아래에 한 줄 적었더니 「스크롤을 많이
+         *   내려야 돼서 안 보인다」 고 했다 — 맨 위 항목에 붙으면 창을 여는 순간 보인다.
+         *   ★ 지금 내 화면의 판은 강조한다 (`cl-rev-now`). 「내가 그 판인가」 가
+         *     이 숫자를 보는 유일한 이유다. */
+        el('span', { class: 'row center', style: { gap: '6px' } },
+          e.rev ? el('span', {
+            class: Number(e.rev) === CLIENT_REV ? 'tiny cl-rev-now' : 'faint tiny',
+            title: Number(e.rev) === CLIENT_REV ? '지금 이 화면의 판이다' : `이 소식은 판 ${e.rev} 것이다`,
+          }, `판 ${e.rev}`) : null,
+          el('span', { class: 'faint tiny', text: e.date }))));
     const ul = el('ul', { class: 'cl-list' });
     for (const line of e.items || []) {
       /* **굵게** 만 지원한다 — 내역에 강조가 필요한 건 «무엇이 달라졌나» 한 군데뿐이다. */
@@ -437,13 +446,11 @@ export function openChangelog(opt = {}) {
     body.appendChild(box);
   }
 
-  /* ★ 판번호를 맨 아래에 적는다 — 「내가 최신인가」 를 여기서 가장 자주 본다.
-   *   서비스워커 때문에 «배포했다» 와 «내 화면이 그것이다» 는 다른 말이다 (§41). */
-  body.appendChild(el('div', { class: 'faint tiny', style: { marginTop: '10px', textAlign: 'right' } },
-    `이 화면의 판: ${CLIENT_REV}`));
-
   modal({
-    title: '업데이트 내역',
+    /* ★ 제목은 노드도 받는다. 「지금 내 화면의 판」 을 여기 두면 **절대 안 가린다.** */
+    title: el('span', { class: 'row center', style: { gap: '8px' } },
+      el('span', { text: '업데이트 내역' }),
+      el('span', { class: 'tiny cl-rev-now', title: '지금 이 화면의 판' }, `판 ${CLIENT_REV}`)),
     body,
     wide: true,
     actions: [{ label: '확인', kind: 'primary' }],

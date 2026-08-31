@@ -5226,6 +5226,10 @@ section('업데이트 내역 — 날짜와 밀림');
     const list = Array.isArray(CL.CHANGELOG) ? CL.CHANGELOG : [];
     ok(list.length > 0, '내역 항목을 읽어 냈다', `${list.length}개`);
 
+    /* 지금 저장소가 내보내는 판번호 — 내역의 rev 와 대조한다 */
+    const CLIENT_REV_NOW = Number((readFileSync(join(rootDir, 'src/net/config.js'), 'utf8')
+      .match(/CLIENT_REV\s*=\s*(\d+)/) || [])[1] || 0);
+
     let head = '';
     try {
       head = execFileSync('git', ['log', '-1', '--date=short', '--pretty=%ad'],
@@ -5235,6 +5239,19 @@ section('업데이트 내역 — 날짜와 밀림');
     const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
     okAll(list.filter((e) => !isDate(e.date)).map((e) => `${e.id}: date '${e.date}' 가 YYYY-MM-DD 가 아니다`),
       '모든 항목이 날짜 모양을 갖췄다', list.length || 1);
+
+    /* ★★ **오늘은 미래가 아니다.** 기준을 «최신 커밋 날짜» 로만 잡으면, 날이 바뀐 뒤
+     *   첫 커밋을 하기 전에 오늘 날짜로 항목을 쓰는 순간 «미래» 로 찍힌다.
+     *   자정을 넘겨 작업하면 매번 그렇다. 둘 중 **늦은 쪽**을 기준으로 쓴다. */
+    {
+      /* ★★ **UTC 로 재면 안 된다.** `toISOString()` 은 UTC 라 한국 시간으로 자정을
+       *   막 넘긴 순간에는 «어제» 를 준다 — 그러면 오늘 쓴 항목이 그대로 «미래» 로 찍힌다.
+       *   실측: 로컬 2026-09-01 00:08 인데 `toISOString()` 은 2026-08-31.
+       *   `git log --date=short` 도 로컬 날짜를 주므로 여기도 로컬로 맞춘다. */
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!head || today > head) head = today;
+    }
 
     /* ① 미래 날짜 금지 — 이번에 걸린 바로 그것 */
     if (head) {
@@ -5270,6 +5287,22 @@ section('업데이트 내역 — 날짜와 밀림');
     okAll(list.filter((e) => isDate(e.date) && e.date >= GRANDFATHER && !String(e.id).startsWith(e.date))
       .map((e) => `${e.id}: id 가 제 날짜(${e.date})로 시작하지 않는다`),
       `새 항목은 id 가 날짜로 시작한다 (${GRANDFATHER} 이후)`, list.length || 1);
+
+    /* ★★ 새 항목은 **판번호**를 단다 (제작자 결정 2026-09-01).
+     *   화면이 「지금 내 화면의 판」 과 대조해 금색으로 강조하는데, rev 가 없으면
+     *   그 대조가 조용히 사라진다 — 「고쳤다는데 내가 그 판인가」 를 못 보게 된다.
+     *   ★ 옛 항목은 봐준다 (나간 뒤에 붙일 수가 없다). 2026-08-31 이후만 본다. */
+    {
+      const REV_FROM = '2026-08-31';
+      const noRev = list.filter((e) => isDate(e.date) && e.date >= REV_FROM
+        && !(Number(e.rev) > 0)).map((e) => `${e.id}: rev 가 없다`);
+      okAll(noRev, `새 항목은 판번호(rev)를 단다 (${REV_FROM} 이후)`, list.length || 1);
+      /* ★ 맨 위 항목의 rev 가 지금 판보다 앞서면 안 된다 — 그러면 아무에게도 금색이 안 뜬다 */
+      const top = list[0];
+      ok(!top || !(Number(top.rev) > 0) || Number(top.rev) <= CLIENT_REV_NOW,
+        '맨 위 항목의 판번호가 지금 판보다 앞서지 않는다',
+        `내역 ${top && top.rev} vs config ${CLIENT_REV_NOW}`);
+    }
 
     /* ⑤ **내역이 밀리지 않았는가** — 제작자가 짚은 진짜 문제.
      *   일하고 나서 적기를 잊으면 여기서 걸린다.
