@@ -9546,6 +9546,49 @@ section('진행도를 서버로 옮기는 길이 화면에 이어져 있나');
   }
 }
 
+section('Edge Function 이 브라우저에서 불릴 수 있나 (CORS)');
+{
+  /* ★★★ **`run-op` 에 CORS 가 통째로 빠져 있었다.** 그래서 브라우저는 그 함수를
+   *   **한 번도 못 불렀다** — `Authorization`·`content-type` 이 붙으면 브라우저가
+   *   먼저 `OPTIONS`(프리플라이트)를 던지는데, 405 에 헤더 0개가 오면 **POST 는
+   *   아예 나가지도 않는다.** 실패가 응답으로 오지 않으니 클라의 `.catch` 도 안 탄다.
+   *
+   *   그것이 며칠간 `questSettle` 관측이 0건이던 진짜 이유고, `run_ops` 가 0건인
+   *   이유이기도 하다 — 전직·판매·착용을 화면에 이었어도 **똑같이 전부 실패**했다.
+   *
+   * ★★ **왜 여태 몰랐나.** 확인을 node/curl 로만 했다. 그쪽은 프리플라이트를 안 한다.
+   *   `GET → 405` 를 보고 「핸들러까지 닿는다」 고 판단했는데 그 판정은 브라우저에
+   *   대해 아무것도 증명하지 못했다. ⇒ **셋을 나란히 비교한다.** 하나만 다르면 문다. */
+  const FNS = ['submit-score', 'pvp-battle', 'run-op'];
+  const need = ['Access-Control-Allow-Origin', 'Access-Control-Allow-Headers', 'Access-Control-Allow-Methods'];
+  const miss = [];
+  for (const f of FNS) {
+    const p = join(rootDir, 'supabase/functions', f, 'index.ts');
+    if (!existsSync(p)) { miss.push(`${f}/index.ts 가 없다`); continue; }
+    const src = readFileSync(p, 'utf8');
+    for (const h of need) if (!src.includes(h)) miss.push(`${f}: ${h} 가 없다`);
+    /* 프리플라이트를 **받아** 주는가 — 헤더만 있고 OPTIONS 분기가 없으면 여전히 막힌다 */
+    if (!/req\.method\s*===\s*'OPTIONS'/.test(src)) miss.push(`${f}: OPTIONS 분기가 없다`);
+    /* 그 분기가 «POST 만 받는다» 보다 **먼저** 와야 한다 */
+    const iOpt = src.indexOf("req.method === 'OPTIONS'");
+    const iPost = src.indexOf("req.method !== 'POST'");
+    if (iOpt >= 0 && iPost >= 0 && iOpt > iPost) miss.push(`${f}: OPTIONS 분기가 405 보다 뒤에 있다`);
+    /* 오류 응답에도 CORS 가 실려야 한다 — 안 그러면 브라우저가 사유를 못 읽는다 */
+    if (!/headers:\s*\{\s*\.\.\.cors/.test(src)) miss.push(`${f}: 응답 헤더에 cors 를 안 편다`);
+  }
+  okAll(miss, '세 함수 모두 브라우저에서 부를 수 있다', FNS.length * (need.length + 2));
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "Deno.serve(async (req) => { if (req.method !== 'POST') return json({}, 405); });";
+    ok(!/Access-Control-Allow-Origin/.test(BAD) && !/req\.method\s*===\s*'OPTIONS'/.test(BAD),
+      '메타 — CORS 가 없는 함수를 실제로 잡는다');
+    const LATE = "if (req.method !== 'POST') return x; if (req.method === 'OPTIONS') return y;";
+    ok(LATE.indexOf("req.method === 'OPTIONS'") > LATE.indexOf("req.method !== 'POST'"),
+      '메타 — OPTIONS 가 뒤에 있는 모양을 실제로 잡는다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

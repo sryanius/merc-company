@@ -11,6 +11,9 @@ import { state, save, load, hasSave, newGame, bus } from '../game/state.js';
 import * as GameState from '../game/state.js';
 import * as Cloud from '../net/cloud.js';
 import * as Auth from '../net/auth.js';
+/* ★ 판번호를 **화면에 보여 준다.** 제작자가 짚었다: 「넌 버전을 말하는데 난 몰라」.
+ *   셸이 갈아탔는지 사람이 눈으로 확인할 길이 없으면 «고쳤다» 를 확인할 수가 없다. */
+import { CLIENT_REV } from '../net/config.js';
 /* ★ 진행도 이관 (§104 8단계). 지금까지 이 모듈을 부르는 화면이 **하나도 없었다** —
  *   제작자가 콘솔에서 손으로 한 번 불렀을 뿐이다. 그래서 7계정 중 1개만 서버에 있다. */
 import * as Run from '../net/run.js';
@@ -434,6 +437,11 @@ export function openChangelog(opt = {}) {
     body.appendChild(box);
   }
 
+  /* ★ 판번호를 맨 아래에 적는다 — 「내가 최신인가」 를 여기서 가장 자주 본다.
+   *   서비스워커 때문에 «배포했다» 와 «내 화면이 그것이다» 는 다른 말이다 (§41). */
+  body.appendChild(el('div', { class: 'faint tiny', style: { marginTop: '10px', textAlign: 'right' } },
+    `이 화면의 판: ${CLIENT_REV}`));
+
   modal({
     title: '업데이트 내역',
     body,
@@ -604,6 +612,20 @@ function doCloud() {
      *   아래 문구가 «잃으면 끝» 이라는 뜻이 된다. index.html 의 첫 실행 안내도 같이 고쳤다.
      *   되살릴 때는 ui/savefile.js 가 그대로 있으니 버튼만 다시 달면 된다. */
     el('div', { class: 'faint tiny', text: '게임은 행동마다 자동 저장된다 — 따로 저장 버튼은 없다.' }),
+    /* ★★ 판번호. 「지금 내 브라우저가 몇 판인가」 를 사람이 볼 수 있어야 한다 —
+     *   서비스워커 때문에 «배포했다» 와 «내 화면이 그것이다» 가 다르다 (§41).
+     *   ★ 눌러서 복사한다. 제보할 때 이 숫자 하나면 어느 셸인지 바로 안다. */
+    el('div', { class: 'faint tiny', style: { marginTop: '6px', cursor: 'pointer' },
+      title: '누르면 복사한다',
+      onClick: (ev) => {
+        const t = `판 ${CLIENT_REV}`;
+        try {
+          navigator.clipboard.writeText(t);
+          toast('판번호를 복사했습니다.', 'good');
+        } catch (e) { toast(t); }
+        ev.stopPropagation();
+      } },
+      `판 ${CLIENT_REV}`),
     el('div', { class: 'sep' }),
     st.on
       ? el('div', { class: 'faint tiny' },

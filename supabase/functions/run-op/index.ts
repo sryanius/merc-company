@@ -87,13 +87,34 @@ async function allRows(admin, table, userId, cols = '*') {
   }
 }
 
+/* ★★★ **CORS 가 통째로 빠져 있었다.** 이 함수만 그랬다 —
+ *   `submit-score`·`pvp-battle` 은 처음부터 갖고 있었다.
+ *
+ *   그래서 브라우저가 이 함수를 **한 번도 못 불렀다.** `Authorization`·`content-type` 이
+ *   붙으면 브라우저는 먼저 `OPTIONS` 를 던지는데(프리플라이트), 여기서 405 에 헤더 0개가
+ *   돌아가니 **POST 는 아예 나가지도 않는다.** 실패가 네트워크 탭에만 남고 응답도 없다.
+ *
+ *   ⇒ 이것이 며칠간 `questSettle` 관측이 0건이던 진짜 이유다. 그리고 전직·판매·착용을
+ *     화면에 이었더라도 **똑같이 전부 실패했을 것**이다 (`run_ops` 가 0건인 것도 이 탓이다).
+ *
+ * ★ 왜 여태 몰랐나 — 확인을 **node/curl 로만** 했다. 그쪽은 프리플라이트를 안 한다.
+ *   `GET → 405` 를 보고 「핸들러까지 닿는다」 고 판단했는데, 그 판정이 브라우저에 대해서는
+ *   아무것도 증명하지 못했다. 이제 스모크가 세 함수의 CORS 를 나란히 비교한다. */
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
 /** 차수. `classes.js` 의 `tier` 를 그대로 믿는다 (표가 곧 규칙이다). */
 const tierOf = (id: string) => Math.max(1, Math.round(Number(getClass(id)?.tier) || 1));
 
 Deno.serve(async (req) => {
+  /* ★ 프리플라이트를 **먼저** 받는다. 이 줄이 없으면 브라우저는 POST 를 보내지도 않는다. */
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'POST 만 받는다' }, 405);
 
   const url = Deno.env.get('SUPABASE_URL') || '';
