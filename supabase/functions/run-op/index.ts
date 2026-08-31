@@ -28,6 +28,12 @@ import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
 import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
 import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
+/* ★★ 의뢰 목록을 **다시 만든다** (§104 17단계 2번 조각).
+ *   §138 이 `genQuests` 를 `state.js` 에서 떼어 냈다 — 여기서 부르는 것은 게임이
+ *   부르는 **바로 그 함수**다. 손으로 다시 쓰지 않는다 (§124 에서 세 번 틀렸다). */
+import { genQuests, resolveSquadCount } from './_rules/questgen.js';
+import { hashStr } from './_rules/enemygen.js';
+import { RNG } from './_rules/rng.js';
 
 /* ★ 서버에서는 로그·저장을 클라가 소유한다 — 빈 함수로 묶는다.
  *   ★ 안 묶으면 `advanceDays` 가 **던진다** (day.js 의 계약). 그래서 여기서 한 번 묶는다. */
@@ -317,7 +323,9 @@ Deno.serve(async (req) => {
    *   `run_ops` 재생과 겹치는 방어지만, 둘 다 있어야 경쟁 조건에서도 안전하다.
    *
    * ★ 여기 쓰는 해시는 «게임 규칙» 이 아니라 **멱등성의 구현 세부**다. 그래서
-   *   `enemygen.hashStr` 을 끌어오지 않는다 (그거 하나 때문에 묶음이 13 → 18개가 된다). */
+   *   `enemygen.hashStr` 로 **바꾸지 마라** — 지금은 그 모듈이 묶음에 들어와 있어서
+   *   부르는 것 자체는 되지만, 바꾸는 순간 **이미 나간 고용의 등급이 전부 달라진다.**
+   *   (예전 사유였던 「묶음이 13 → 18개가 된다」 는 §138 이후 더 이상 안 맞는다.) */
   if (op === 'hire') {
     const cityId = String(body?.cityId || '');
     const idx = Math.round(Number(body?.offerIndex));
@@ -392,9 +400,11 @@ Deno.serve(async (req) => {
    * ★★★ **`run_ops` 에 안 적는다.** 적으면 「했다」 가 되어 나중에 진짜 정산이
    *   재생으로 막힌다 — 15단계 하루 넘기기와 같은 계약이다.
    *
-   * ★ 여기서 «G 가 정직한가» 는 아직 못 묻는다. `quest.reward` 는 `run_state.data`
-   *   jsonb — **클라가 쓴 것을 db/016:95 가 무검증으로 넣는 통** — 에 있기 때문이다.
-   *   그건 2번 조각(`genQuests` 재현)이 할 일이다. 지금은 **다음 조각을 결정할 축**만 모은다.
+   * ★★ «G 가 정직한가» 를 **이제 묻는다** (2번 조각, §138). `quest.reward` 는
+   *   `run_state.data` jsonb — **클라가 쓴 것을 db/016:95 가 무검증으로 넣는 통** — 에
+   *   있어서 저장본과 대조해 봐야 「내가 쓴 값이 내가 쓴 값과 같다」 일 뿐이다.
+   *   그래서 아래에서 목록을 **(판·도시·날) 로 재생성**해 거기 적힌 G 와 비교한다.
+   *   ★ 그래도 여기서 **판정하지 않는다.** 관측만 하고, 켜는 것은 4번 조각이다.
    *
    * ★ 밴드는 **정수**로 잰다. 실수 밴드(`G*0.94 ≤ g`)는 정상 지급을 거절한다 —
    *   실측 0.21~4.6%. 정수 밴드는 40만 굴림에서 위반 0 이다.
@@ -420,7 +430,84 @@ Deno.serve(async (req) => {
       ? book.list.find((x: { id?: string }) => x && x.id === q.questId) : null;
 
     const R2 = (x: unknown) => Math.round(Number(x) || 0);
+
+    /* ═══════════════ 의뢰 목록을 **다시 만든다** (17단계 2번 조각) ═══════════════
+     * ★★ 여기까지 서버는 «저장본에 그 의뢰가 있나» 만 물을 수 있었다. 그런데 저장본의
+     *   `data` jsonb 는 **클라가 쓴 것을 그대로 넣는 통**이다 (db/016:95) — 거기 적힌
+     *   보상 G 를 근거로 삼으면 「내가 쓴 값이 내가 쓴 값과 같다」 를 확인하는 꼴이다.
+     *   목록을 (판·도시·날) 로 **재생성**해야 비로소 «G 가 정직한가» 를 물을 수 있다.
+     *
+     * ★★★ 부대 수를 **반드시 명시해서** 부른다. 생략하면 `resolveSquadCount` 가
+     *   전역 상태를 못 찾아 **1부대**로 보고 목록이 6~7건만 생긴다. 그러면 7번 이후
+     *   의뢰가 전부 «없는 의뢰» 가 되어 정상 플레이어가 통째로 걸린다.
+     *   ★ 그런데 «그 목록을 만들 때의 부대 수» 는 아무도 안 적어 놨다 (목록은 3일마다
+     *     다시 만들어지고, 그 사이에 부대가 늘 수 있다). 그래서 **1~8 을 전부 굴려**
+     *     어느 값이 맞는지 관측한다 — 8회에 13ms 다 (실측).
+     *
+     * ★ 판정하지 않는다. 계산해서 **표에 적기만** 한다. */
+    let gen: Record<string, unknown> = { ran: false };
+    try {
+      const qid = String(q.questId || '');
+      /* id 는 `q_<도시>_<날>_<번호>` 다. 도시 id 에 `_` 가 있을 수 있어 뒤에서 자른다. */
+      const mm = /^q_(.+)_(\d+)_(\d+)$/.exec(qid);
+      const genDay = mm ? Number(mm[2]) : 0;
+      const genIdx = mm ? Number(mm[3]) : -1;
+      const bookDay = book ? R2(book.day) : 0;
+      const seed = (Number(rs4?.seed) || 0) >>> 0;
+      const cityId = String(q.cityId || '');
+
+      /* 지금 살아 있는 부대 수 («그때» 의 값이 아니다 — 그래서 아래에서 훑는다) */
+      const { count: squadN } = await admin.from('run_squads')
+        .select('idx', { count: 'exact', head: true }).eq('user_id', userId);
+
+      if (mm && cityId && genDay > 0) {
+        /* `state.js refreshCity` 의 seedFor('qs') 와 **같은 식**이어야 한다 */
+        const rngFor = () => new RNG((hashStr(`qs#${cityId}#${genDay}`) ^ seed) >>> 0);
+        const hits: number[] = [];
+        let match: Record<string, unknown> | null = null;
+        let listLen = 0;
+        for (let sq = 1; sq <= 8; sq++) {
+          const list = genQuests(cityId, genDay, rngFor(), resolveSquadCount(sq));
+          if (sq === Math.max(1, R2(squadN))) listLen = list.length;
+          const hit = list.find((x: { id?: string }) => x && x.id === qid);
+          if (!hit) continue;
+          hits.push(sq);
+          if (!match) match = hit as Record<string, unknown>;
+        }
+        const rw2 = match ? (match.reward as Record<string, unknown> | null) : null;
+        gen = {
+          ran: true, genDay, genIdx, bookDay, dayEq: genDay === bookDay,
+          squadN: R2(squadN), listLen,
+          /* 어느 부대 수로 굴려야 그 의뢰가 나오나 — 비면 «재현 불가» 다 */
+          hitsN: hits.length, hitLo: hits.length ? hits[0] : null,
+          hitHi: hits.length ? hits[hits.length - 1] : null,
+          hitCur: hits.includes(Math.max(1, R2(squadN))),
+          /* ★★ 여기서 처음으로 «G 가 정직한가» 를 묻는다 — 저장본이 아니라 **재생성**과 비교한다 */
+          genG: rw2 ? R2(rw2.gold) : null,
+          genE: rw2 ? R2(rw2.exp) : null,
+          genR: rw2 ? R2(rw2.renown) : null,
+          gEq: rw2 ? R2(rw2.gold) === G : null,
+          eEq: rw2 ? R2(rw2.exp) === E : null,
+          rEq: rw2 ? R2(rw2.renown) === R : null,
+          genRolls: rw2 && Array.isArray(rw2.itemRolls) ? rw2.itemRolls.length : null,
+          genRank: match ? String(match.rankLabel || '') : null,
+          genLevel: match ? R2(match.level) : null,
+          genWaveN: match && Array.isArray(match.waves) ? match.waves.length : null,
+          /* 저장본 ↔ 재생성 대조 (저장본이 위조됐는지 본다) */
+          savedEqGen: saved && rw2
+            ? JSON.stringify((saved as { reward?: unknown }).reward) === JSON.stringify(rw2) : null,
+        };
+      } else {
+        gen = { ran: false, why: !mm ? 'id모양' : (!cityId ? '도시없음' : '날짜없음') };
+      }
+    } catch (e) {
+      /* ★ 재현이 터져도 신고 처리는 그대로 간다 — 그림자의 계약이다.
+       *   ★ 그리고 **실패도 표에 남긴다** — 「안 돌았나 실패했나」 를 못 갈라 헤맨 적이 있다. */
+      gen = { ran: false, failed: true, why: String((e as Error)?.message || e).slice(0, 120) };
+    }
+
     console.error('[그림자] 의뢰 정산 신고', {
+      재현: gen,
       userId,
       questId: q.questId, cityId: q.cityId,
       날짜: { 목록: q.listDay, 오늘: q.day, 서버: rs4?.day ?? null,
@@ -467,6 +554,8 @@ Deno.serve(async (req) => {
       retreat: Array.isArray(q.waves) && q.waves.length ? !q.waves[q.waves.length - 1].margin : null,
       autoSell: R2(q.autoSellRarity),
       cityBooks: Object.keys((rs4?.data || {}).quests || {}).length,
+      /* ★ 재현 결과 — 판정에 안 쓴다. 4번 조각(판정 켜기)이 이 값을 보고 결정한다. */
+      gen,
     });
 
     return json({ ok: true, shadow: true });

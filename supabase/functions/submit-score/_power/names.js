@@ -94,7 +94,7 @@ export const RACES = Object.keys(NAME_POOLS);
 
 /**
  * 판타지 인명 생성.
- * @param {import('../core/rng.js').RNG} rng
+ * @param {import('./rng.js').RNG} rng
  * @param {{race?:string}} opts  race: human|elf|dwarf|orc|halfling|beast|undead
  * @returns {string} "이름 성"
  */
@@ -133,7 +133,7 @@ function josaGwa(word) {
 
 /**
  * 용병단 이름 생성.
- * @param {import('../core/rng.js').RNG} rng
+ * @param {import('./rng.js').RNG} rng
  * @returns {string}
  */
 export function companyName(rng) {
@@ -177,7 +177,7 @@ const TITLE_TIERS = [
  * 용병 칭호. 등급과 전공(kills)에 따라 격이 올라간다.
  * 반환값은 접두 형태이므로 호출부에서 `${titleFor(m, rng)} ${m.name}` 처럼 붙여 쓴다.
  * @param {{grade?:string, kills?:number}} merc
- * @param {import('../core/rng.js').RNG} rng
+ * @param {import('./rng.js').RNG} rng
  * @returns {string}
  */
 export function titleFor(merc, rng) {

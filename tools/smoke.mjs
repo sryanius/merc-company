@@ -7480,6 +7480,41 @@ section('서버가 센 전력 == 클라가 센 전력');
   }
 }
 
+section('서버가 만든 의뢰 목록 == 게임이 만든 의뢰 목록');
+{
+  /* ★★ §104 17단계 2번 조각의 0번 관문이다. 서버가 `genQuests` 를 다시 돌려
+   *   「보상 G 가 정직한가」 를 묻게 되는데, 서버가 만든 목록이 게임 것과 **다르면**
+   *   정직한 보상이 전부 «없는 의뢰» 나 «G 가 다르다» 로 찍힌다.
+   *   그 상태로 판정을 켜면 정상 플레이어가 통째로 거절된다 (§94).
+   *
+   *   `tools/questparity.mjs` 가 세 경로를 잰다 — 셋이 **정확히** 같아야 한다:
+   *     Q1 `state.js refreshCity`(node) · Q2 `src/game/questgen.js`(node) ·
+   *     Q3 `run-op/_rules/questgen.js`(**deno**)
+   *
+   * ★ 여기서는 **굴리기만** 한다. 판단은 그 도구가 한다 (powerparity 와 같은 짜임새). */
+  let out = '';
+  let died = null;
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, 'tools/questparity.mjs')],
+      { encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) {
+    died = String((e && (e.stdout || e.message)) || e);
+  }
+  const text = died || out;
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const bad = lines.filter((l) => l.trim().startsWith('✗'));
+  okAll(bad.map((l) => l.replace(/^\s*✗\s*/, '')), '세 경로가 같은 의뢰 목록을 만든다',
+    lines.filter((l) => l.trim().startsWith('✓')).length);
+
+  /* ★★ «통과» 만 보고 끝내지 않는다 — **판이 실했는지**도 본다.
+   *   0 대 0 비교는 아무것도 증명 못 한다. */
+  const m = text.match(/의뢰 (\d+)건 \((\d+)~(\d+)건\/판\)/);
+  ok(m && Number(m[1]) >= 200, '충분히 많은 의뢰로 쟀다', m ? `${m[1]}건` : '(못 읽었다)');
+  ok(m && Number(m[3]) > Number(m[2]), '판마다 목록 길이가 실제로 다르다', m ? `${m[2]}~${m[3]}건` : '(못 읽었다)');
+  ok(/Deno 의 서버 사본이 같은 목록/.test(text), '서버 런타임(deno)으로 굴렸다');
+  ok(/«없는 의뢰» 가 된다/.test(text), '부대 수를 생략하면 실제로 목록이 짧아진다 (그 위험이 아직 산다)');
+}
+
 section('★ 모든 모듈이 구문이 맞고 실제로 적재되나');
 {
   /* ★★★ **오늘 이걸로 게임이 안 떴다.**
@@ -9246,6 +9281,121 @@ section('의뢰 상한이 실계정에 여유를 남기면서 조여져 있다')
       '명성 상한이 의뢰 상한을 따라 조여진다', `349일차 명성 40만 → ${tierOf(349, 588, { renown: 400000 })}`);
     ok(tierOf(349, 588, { renown: 2808 }) === 'ok', '실계정의 명성은 안 걸린다');
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 보이지 않는 글자 — **두 번째다**
+ *
+ * ★★★ 검사 하나가 통째로 죽어 있던 적이 있다. 정규식이 이랬다:
+ *
+ *     /[.]margin<BS>/          ← 「\b」 가 아니라 **백스페이스 문자**였다
+ *
+ *   화면에선 /[.]margin/ 으로 보인다. 그래서 아무도 못 봤고, 그 사이
+ *   quest.js 가 res.margin 을 읽기 시작했는데 검사는 계속 초록이었다.
+ *   저장소에서 백스페이스 8개를 걷어냈다.
+ *
+ * ★★ 원인은 도구다 — 파이썬 문자열에 「\b」(백스페이스) · 「\1」(SOH) 이 **조용히**
+ *   들어간다. 경고도 안 난다. 그래서 «다시는 안 그러겠다» 로는 못 막는다.
+ *   실제로 §138 에서 **또 그랬다**: syncshared.mjs 의 평탄화 정규식이
+ *   /<BS>import…/ 가 되어 아무것도 안 물었다.
+ *
+ * ⇒ 사람이 눈으로 못 보는 것은 **기계가 본다.**
+ * ══════════════════════════════════════════════════════════════════════════ */
+section('소스에 보이지 않는 제어문자가 없다');
+{
+  const TEXT = /[.](js|mjs|ts|json|sql|md|html|css)$/;
+  /* 탭(9)·개행(10)·복귀(13)만 허용한다. 나머지 C0 제어문자와 DEL 은 전부 사고다. */
+  const isBad = (c) => c === 127 || (c < 32 && c !== 9 && c !== 10 && c !== 13);
+  const hits = [];
+  let scanned = 0;
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'dist') continue;
+      const f = join(dir, e.name);
+      if (e.isDirectory()) { walk(f); continue; }
+      if (!TEXT.test(e.name)) continue;
+      scanned++;
+      const buf = readFileSync(f);
+      for (let i = 0; i < buf.length; i++) {
+        if (!isBad(buf[i])) continue;
+        const line = buf.slice(0, i).toString('utf8').split('\n').length;
+        hits.push(`${relative(rootDir, f).split(sep).join('/')}:${line} 0x${buf[i].toString(16)}`);
+        break;
+      }
+    }
+  };
+  walk(rootDir);
+  ok(scanned > 200, '훑을 파일이 실제로 있다 (판이 비면 아무것도 증명 못 한다)', `${scanned}개`);
+  okAll(hits, '소스에 보이지 않는 제어문자가 없다', scanned);
+
+  /* ★ 메타 — 심어 넣으면 물어야 한다. 파일을 안 만들고 **판정부만** 굴린다. */
+  const planted = [0x08, 0x01, 0x00, 0x1b, 0x7f].filter(isBad);
+  ok(planted.length === 5, '백스페이스·SOH·NUL·ESC·DEL 을 전부 사고로 본다', `${planted.length}/5`);
+  const kept = [9, 10, 13, 32, 65].filter((c) => !isBad(c));
+  ok(kept.length === 5, '탭·개행·복귀·공백·글자는 안 문다', `${kept.length}/5`);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 서버 사본의 import 경로가 **전부** 평평해졌나
+ *
+ * ★★ syncshared 는 묶음을 한 폴더로 평탄화한다. 그런데 평탄화 정규식이
+ *   importsOf 가 보는 **세 형태**(from · 부수효과 · 동적) 중 동적을 빼먹고 있었다.
+ *   그러면 이렇게 된다:
+ *     · 닫힘은 그 파일을 따라 걷고 (importsOf 는 동적을 본다)
+ *     · 묶음 밖 검사도 통과시키고
+ *     · **경로만 안 고쳐진 채 복사돼서** 서버가 그 줄에 닿는 순간 죽는다
+ *   지금은 동적 import 를 쓰는 파일이 없어서 조용했다 — 조용한 것은 증거가 아니다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+section('서버 사본에 상대 경로가 안 남아 있다');
+{
+  const flat1 = (spec) => spec.startsWith('./') && !spec.slice(2).includes('/');
+  const dests = [...new Set(BUNDLES.map((b) => b.dest))];
+  const bad = [];
+  let files = 0;
+  for (const d of dests) {
+    const dir = join(rootDir, d);
+    if (!existsSync(dir)) { bad.push(`${d} 이 없다`); continue; }
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith('.js')) continue;
+      files++;
+      const src = readFileSync(join(dir, name), 'utf8');
+      for (const spec of importsOf(src)) {
+        if (!spec.startsWith('.') || flat1(spec)) continue;
+        bad.push(`${d}/${name} → ${spec}`);
+      }
+      /* ★ 주석 안의 import('…') 도 본다 — deno check 가 JSDoc 의 그 경로를
+       *   **진짜로 찾으려 든다** (그래서 「모듈 없음」 오류가 났다). */
+      for (const m of src.matchAll(/import\s*\(\s*(['"])(\.\.?\/[^'"]+)\1\s*\)/g)) {
+        if (flat1(m[2])) continue;
+        bad.push(`${d}/${name} → import(${m[2]})  (JSDoc 포함)`);
+      }
+    }
+  }
+  ok(files > 40, '훑을 사본이 실제로 있다', `${files}개`);
+  okAll(bad, '서버 사본의 import 가 전부 같은 폴더를 가리킨다', files);
+
+  /* ★★ 메타 — 평탄화 판정부에 **네 형태를 심어** 실제로 고쳐지는지 본다.
+   *   (§138 의 그 버그를 그대로 재현한다: 동적 줄이 죽어 있으면 여기서 물린다.) */
+  const base = (p) => p.split('/').pop();
+  const flatten = (t) => t
+    .replace(/from\s*['"](\.\.?\/[^'"]+)['"]/g, (m0, p) => `from './${base(p)}'`)
+    .replace(/(^|[\s;])import\s*['"](\.\.?\/[^'"]+)['"]/gm, (m0, pre, p) => `${pre}import './${base(p)}'`)
+    .replace(/import\s*\(\s*(['"])(\.\.?\/[^'"]+)\1\s*\)/g, (m0, qu, p) => `import(${qu}./${base(p)}${qu})`);
+  const SAMPLE = [
+    ["import { a } from '../data/x.js';", "import { a } from './x.js';"],
+    ["import '../data/side.js';", "import './side.js';"],
+    ["const m = await import('../core/rng.js');", "const m = await import('./rng.js');"],
+    ['/** @param {import("../core/rng.js").RNG} r */', '/** @param {import("./rng.js").RNG} r */'],
+  ];
+  const missed = SAMPLE.filter(([inp, want]) => flatten(inp) !== want).map(([inp]) => `${inp} → ${flatten(inp)}`);
+  okAll(missed, '평탄화가 from·부수효과·동적·JSDoc 을 전부 고친다', SAMPLE.length);
+
+  /* ★ 그리고 **저장소의 것**이 그 셋을 다 갖고 있나 — 여기 사본만 맞으면 무의미하다.
+   *   치환 틀은 동적 줄에만 나오는 글자다. */
+  const sync = readFileSync(join(rootDir, 'tools/syncshared.mjs'), 'utf8');
+  const lines = decomment(sync).split('\n').filter((l) => l.includes('.replace('));
+  ok(lines.some((l) => l.includes('import(${qu}./')),
+    'syncshared 가 실제로 동적 import 를 평탄화한다', `${lines.length}줄 중`);
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

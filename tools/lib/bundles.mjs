@@ -129,10 +129,19 @@ export const BUNDLES = [
        *   `merc.js`·`runrows.js` 와 함께 와도 닫힘이 8 → 13개다. */
       'src/game/day.js', 'src/game/runrows.js',
       /* ★ 고용 (§104 1단계 3번). `tavern.js` 는 city 를 인자로 받아서 닫힘이 **자기 하나만** 는다
-       *   (§120 이 그렇게 떼어 놨다). `enemygen.js` 는 **안 넣는다** — `hashStr` 하나 때문에
-       *   `enemies`·`formations`·`skills` 까지 5개가 딸려 와 13 → 18개가 된다.
-       *   목록은 **재생성이 아니라 저장본**으로 검증하므로 그 해시가 필요 없다. */
-      'src/game/tavern.js'],
+       *   (§120 이 그렇게 떼어 놨다).
+       *   ★ 여기엔 원래 「`enemygen.js` 는 안 넣는다」 고 적혀 있었다 — 고용은 목록을
+       *     **저장본**으로만 검증해서 `hashStr` 하나 때문에 5개를 끌고 올 이유가 없었다.
+       *     아래 `questgen.js` 가 그 이유를 뒤집는다 (재생성으로 검증한다). */
+      'src/game/tavern.js',
+      /* ★★ 의뢰 목록 재생성 (§104 17단계 2번 조각). 서버가 「이 의뢰가 그 도시 목록에
+       *   실제로 있었나 · 보상 G 가 정직한가」 를 물으려면 `genQuests` 를 **다시 돌려야** 한다.
+       *   §138 이 그 절반을 `state.js` 에서 떼어 냈다. 닫힘이 14 → **20개**로 는다
+       *   (`world`·`enemies`·`enemygen`·`formations`·`skills` 가 따라온다).
+       *   ★ `enemygen.js` 를 여기서 처음 물게 된다 — 규칙 표 주석이 「안 넣는다」 고
+       *     적어 둔 그 파일이다. 그때는 «목록을 저장본으로만 검증한다» 였고,
+       *     지금은 **재생성으로** 검증하므로 이유가 뒤집혔다. */
+      'src/game/questgen.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },

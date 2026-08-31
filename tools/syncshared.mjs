@@ -92,9 +92,19 @@ for (const b of BUNDLES) {
     manifest[rel] = hash(src);
 
     if (!check) {
-      // 서로를 참조하는 경로를 평평하게 만든다 (묶음 하나를 한 폴더에 둔다)
+      /* 서로를 참조하는 경로를 평평하게 만든다 (묶음 하나를 한 폴더에 둔다).
+       *
+       * ★★ **`importsOf` 가 보는 세 형태를 전부 여기서도 다뤄야 한다.** 한동안
+       *   `import('…')`(동적)이 빠져 있었다 — 닫힘은 그 파일을 따라 걷고 묶음 검사도
+       *   통과시키는데 **경로만 안 고쳐진 채 복사**돼서, 서버가 그 줄에 닿는 순간
+       *   `Module not found` 로 죽는다. (지금은 동적 import 를 쓰는 파일이 없어서
+       *   조용했다 — 검사가 심어 넣은 버그로 확인한다.)
+       *
+       * ★ JSDoc 의 `{import('../core/rng.js').RNG}` 도 같은 정규식에 걸린다.
+       *   그건 오히려 이득이다 — `deno check` 가 그 경로를 진짜로 찾으려 든다. */
       const flat = src.replace(/from\s*['"](\.\.?\/[^'"]+)['"]/g, (m0, p) => `from './${path.basename(p)}'`)
-        .replace(/(^|[\s;])import\s*['"](\.\.?\/[^'"]+)['"]/gm, (m0, pre, p) => `${pre}import './${path.basename(p)}'`);
+        .replace(/(^|[\s;])import\s*['"](\.\.?\/[^'"]+)['"]/gm, (m0, pre, p) => `${pre}import './${path.basename(p)}'`)
+        .replace(/\bimport\s*\(\s*(['"])(\.\.?\/[^'"]+)\1\s*\)/g, (m0, qu, p) => `import(${qu}./${path.basename(p)}${qu})`);
       fs.mkdirSync(OUT, { recursive: true });
       const dest = path.join(OUT, path.basename(rel));
       fs.writeFileSync(dest, flat, 'utf8');
