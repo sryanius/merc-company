@@ -861,6 +861,38 @@ Deno.serve(async (req) => {
      *   §104 가 17단계를 «거절 위험 최대» 로 못 박았다.
      *
      * ★ 라이브 표시가 한동안 0 인 것을 본 뒤에 `scores.status` 로 넘어간다. */
+    /* ═══════════ 전투 판정을 **켠다** — 원장까지만 (§152 ④) ═══════════════
+     *
+     * ★★★ 근거는 오프라인에서 다 쟀다 (`tools/battleparity.mjs`, §156):
+     *   · 오탐 — 낡은 사본 27건 중 **0건** 뒤집힘
+     *   · 적발 — 진 판 14건을 「이겼다」 고 신고 → **14건 전부** 잡는다 (100%)
+     *   그리고 서버는 아군을 «가능한 가장 유리한 상태» 로 돌린다 — 그럼에도 졌다면
+     *   그건 «그 부대로는 그 의뢰를 못 이긴다» 는 강한 증거다.
+     *
+     * ★★ 여기서 하는 일은 **원장에 적는 것뿐이다** (정산 판정과 같은 계약, §143):
+     *   · `scores` 를 **안 건드린다** — 순위표에서 안 숨긴다
+     *   · 응답도 안 바뀐다 · 게임 흐름도 그대로 (신고는 fire-and-forget 이다)
+     *   · tier **'C'** — `probePolicy` 는 'A' 만 세므로 여기 쌓여도 `held` 가 안 된다
+     *   ⇒ **오탐이 나도 아무에게도 아무 일이 안 일어난다.** 사람이 표를 보고 판단한다.
+     *
+     * ★ `battle.ran` 이 거짓이면(패배·재현불가·엔진판 다름) **아무것도 안 한다.**
+     *   «못 잰다» 와 «틀렸다» 를 섞지 않는다 — 이 저장소가 반복해서 지킨 계약이다. */
+    if (battle.ran === true && battle.srvWin === false) {
+      try {
+        await admin.from('rejections').insert({
+          user_id: userId, tier: 'C',
+          reasons: ['전투', '그 부대로는 못 이기는 의뢰를 이겼다고 신고'],
+          payload: JSON.stringify({
+            questId: q.questId, cityId: q.cityId, rev: q.rev, squadId: q.squadId,
+            waves: battle.waves, ranWaves: battle.ranWaves, cliWaveN: battle.cliWaveN,
+            rosterN: battle.rosterN, squadN: battle.squadN,
+          }),
+        });
+      } catch (e) {
+        console.error('[전투] 원장 기록 실패 — 넘어간다', String((e as Error)?.message || e));
+      }
+    }
+
     if (verdict.verdict === 'flag' && !verdict.cantJudge) {
       try {
         await admin.from('rejections').insert({

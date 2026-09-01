@@ -10320,8 +10320,37 @@ section('서버가 전투를 다시 돌리는 자리의 계약 (§152 ②)');
   /* ★★★ 판정에 안 쓴다 — ②단계는 그림자다 */
   ok(/battle,/.test(oSrc), '재현 결과를 관측 표에 남긴다',
     '로그로만 남기면 몇 %가 맞는지 아무도 못 센다 (§145 의 실수)');
-  ok(!/battle\.(agree|srvWin)[\s\S]{0,120}?(reject|flag|status)/.test(blk),
-    '재현 결과로 아직 판정하지 않는다', '②단계는 그림자다 — 켜는 것은 ④단계다');
+  /* ★★★ **계약이 ④단계로 바뀌었다** (§157). ②단계는 «그림자» 였다 — 아무것도 안 했다.
+   *   이제 판정을 켰으므로 원장(rejections)에 적는다. 다만 거기까지다:
+   *     · scores 를 **안 건드린다** — 순위표에서 안 숨긴다 (오탐이 나도 무해)
+   *     · tier **C** 만 — A 는 probePolicy 가 세어 held 를 만든다
+   *     · battle.ran 이 참일 때만 — «못 잰다»(패배·재현불가·엔진판)로는 안 적는다 */
+  ok(/battle\.ran === true/.test(blk), '재현이 실제로 됐을 때만 판정한다',
+    '«못 잰다» 로 원장을 쌓으면 이관 전·옛 셸 계정이 전부 걸린다');
+  ok(/reasons: \['전투'/.test(blk), '전투 판정을 원장에 적는다 (④단계가 켜졌다)');
+  /* ★ 「blk 어딘가에 tier 'C' 가 있나」 로 보면 **정산 쪽 것**에 걸려 통과한다 —
+   *   A 로 바꿔도 안 물었다 (심어 보고 알았다. 이 계열로만 여덟 번째다).
+   *   ⇒ **«전투» 원장 바로 앞**을 본다. */
+  {
+    const bi = blk.indexOf("reasons: ['전투'");
+    const head = bi > 0 ? blk.slice(Math.max(0, bi - 160), bi) : '';
+    ok(bi > 0 && /tier: 'C'/.test(head), "전투 원장은 tier 'C' 다",
+      "'A' 는 probePolicy 가 세어 held 를 만든다");
+    ok(!/tier: 'A'/.test(head), '전투 판정이 A등급을 만들지 않는다');
+  }
+  {
+    const bIdx = blk.indexOf("reasons: ['전투'");
+    const near = bIdx > 0 ? blk.slice(Math.max(0, bIdx - 500), bIdx + 500) : '';
+    ok(!/from\('scores'\)/.test(near), '전투 판정이 scores 를 안 건드린다',
+      '건드리면 오탐 한 건이 곧 «순위표에서 사라짐» 이 된다');
+  }
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "if (battle.srvWin === false) { await admin.from('scores').update({}); }";
+    ok(/from\('scores'\)/.test(BAD), '메타 — scores 를 건드리는 모양을 실제로 잡는다');
+    const LOOSE = "if (battle.srvWin === false) { ledger(); }";
+    ok(!/battle\.ran === true/.test(LOOSE), '메타 — ran 확인 없이 판정하는 모양을 잡는다');
+  }
 
   /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
   {
