@@ -80,6 +80,55 @@ function playOne(st, i) {
   return true;
 }
 
+/**
+ * **지금 세계의 서버 사본** — 거울(§148)과 정산 쓰기(§149)가 따라온다.
+ *
+ * ★★ 처음 이 도구를 만들 때는 «부팅 재동기화 뒤로 아무것도 안 따라오는» 세계를 쟀다.
+ *   그 뒤로 셋이 생겼다:
+ *     · 판매·착용 거울 — `equipped_by` 와 «판 것» 이 따라온다 (gear.js 갈고리)
+ *     · 정산 쓰기      — 출전 부대의 `level`·`exp`·`hp`·`status` 가 따라온다
+ *     · 서버가 `locked` 를 **안 본다** — 낡는 데다 치트 방어 값이 아니다
+ *   ⇒ 그것들을 모델에 넣지 않으면 이 도구는 **없는 세계**를 재는 것이 된다.
+ *
+ * ★ 아이템 «생김» 은 안 따라온다 (전리품은 서버가 정체를 못 확인한다, §113).
+ *   그건 404 로만 나타나고 그건 애초에 안 막는 경우다 (§146).
+ */
+function applyMirror(view, st, squadId) {
+  /* 정산 쓰기 — 출전 부대의 상태 */
+  const sq = (st.squads || []).find((x) => x && x.id === squadId);
+  const want = new Set(((sq && sq.memberUids) || []).filter(Boolean).map(String));
+  for (const m of st.roster || []) {
+    if (!want.has(String(m.uid))) continue;
+    const sm = view.mercs.get(m.uid);
+    if (!sm) continue;
+    sm.level = m.level;
+    sm.exp = m.exp;
+    sm.hp = m.hp;
+    sm.status = m.status;
+    sm.woundUntil = m.woundUntil;
+  }
+}
+
+/** 거울 — 판 것은 사본에서도 사라지고, 착용 상태도 따라온다 */
+function mirrorGear(view, st) {
+  const live = new Map((st.items || []).map((it) => [it.uid, it]));
+  /* ★★ **클라 아이템에는 `equippedBy` 가 없다.** 착용은 **용병 쪽**에 적힌다
+   *   (`merc.equipment[slot] = uid`) — `toRows` 도 거기서 뒤집어 만든다.
+   *   처음에 `cur.equippedBy` 를 읽었더니 늘 undefined 라 사본의 착용을 **전부 지웠고**,
+   *   그래서 「착용 중인 장비 판매」 조작이 안 물렸다. 판이 틀리면 결과가 좋아 보인다. */
+  const wornBy = new Map();
+  for (const m of st.roster || []) {
+    for (const uid of Object.values((m && m.equipment) || {})) {
+      if (uid) wornBy.set(String(uid), m.uid);
+    }
+  }
+  for (const uid of [...view.items.keys()]) {
+    if (!live.has(uid)) { view.items.delete(uid); continue; }   // 팔았다 → 사본에서도 지운다
+    const sv = view.items.get(uid);
+    sv.equippedBy = wornBy.get(uid) || null;                    // 끼고 벗은 것이 따라온다
+  }
+}
+
 /** 서버가 가진 «그때» 의 사본으로 판정한다 — 지금 상태가 아니라 스냅숏이다 */
 function serverView(snapRows) {
   const srv = fromRows(snapRows);
@@ -110,7 +159,7 @@ console.log(`재동기화 시점: ${st.day}일차 · 명부 ${st.roster.length} 
 /* ── 그 뒤로 평소처럼 논다 ──────────────────────────────────────────────── */
 let played = 0;
 for (let i = 0; i < QUESTS; i++) {
-  if (playOne(st, i)) played++;
+  if (playOne(st, i)) { played++; applyMirror(view0, st, st.squads[0].id); }
   State.advanceDays(1);
 }
 /* ★★★ **판이 위험을 실제로 만들어야 한다.** 처음엔 의뢰만 돌렸더니 레벨업도
@@ -172,6 +221,8 @@ for (let i = 0; i < QUESTS; i++) {
   }
   console.log(`판을 흔들었다: 레벨 +45 · 새로 낀 것 ${equipped} · 벗은 것 ${off} · 서버만 잠긴 것 ${locked} · 푼 것 ${unlocked}`);
 }
+/* ★ 판을 흔든 것(끼기·벗기·판매)도 거울이 따라온다 */
+mirrorGear(view0, st);
 console.log(`논 뒤:        ${st.day}일차 · 명부 ${st.roster.length} · 아이템 ${st.items.length} (의뢰 ${played}건)`);
 console.log('-'.repeat(78));
 
@@ -194,7 +245,8 @@ for (const uid of honestSell) {
   const r = view0.items.get(uid);
   if (!r) { sellBlock.없다++; continue; }
   if (r.equippedBy) { sellBlock.착용중++; continue; }
-  if (!Gear.isSellable(r, view0.srv)) { sellBlock.팔수없다++; }
+  /* ★ 서버는 `locked` 를 **안 본다** (§150.2) — 낡는 데다 치트 방어 값이 아니다 */
+  if (!Gear.isSellable({ ...r, locked: false }, null)) { sellBlock.팔수없다++; }
 }
 const sellBlocked = sellBlock.없다 + sellBlock.착용중 + sellBlock.팔수없다;
 
@@ -206,7 +258,9 @@ for (const { mercUid, itemUid } of honestEquip) {
   const it = view0.items.get(itemUid);
   if (!m) { eqBlock.단원없다++; continue; }
   if (!it) { eqBlock.장비없다++; continue; }
-  const issue = Gear.equipIssue(m, it, null, (uid) => srvItemsById[uid] || null);
+  /* ★ 서버는 **레벨 관문을 안 건다** (§150.3) — 클라가 준 값으로 막으면 얻는 게 없다.
+   *   `minLv: 1` 로 두어 그 항만 끈다 (판정부는 그대로 부른다). */
+  const issue = Gear.equipIssue(m, { ...it, minLv: 1 }, null, (uid) => srvItemsById[uid] || null);
   if (issue) { eqBlock.판정거절++; eqReasons[issue] = (eqReasons[issue] || 0) + 1; }
 }
 /* ★ «없다» 는 404 로 오고 **막지 않기로** 돼 있다 (§146). 진짜 위험은 409 다. */
@@ -230,6 +284,73 @@ need(st.items.length > snap.items.length, `논 뒤에 아이템이 늘었다 (${
 need(honestSell.length >= 5 && honestEquip.length >= 5, '정직한 조작 표본이 충분하다');
 need(sellBlock.착용중 + sellBlock.팔수없다 === 0, '낡은 사본이 정직한 판매를 안 막는다');
 need(eq409 === 0, '낡은 사본이 정직한 착용을 안 막는다');
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ★★★ 그런데 **여전히 조작은 물어야 한다** — 이게 없으면 «0%» 가 아무 뜻이 없다
+ *
+ *   위에서 서버가 안 보게 만든 것이 둘이다: `locked` 와 `minLv`.
+ *   둘 다 «클라가 주는 값이라 막아도 얻는 게 없다» 가 이유였다.
+ *   그런데 **너무 많이 걷어냈으면** 판정이 통째로 무의미해진다 —
+ *   「정직한 판이 안 걸린다」 와 「아무것도 안 문다」 는 구별되지 않는다.
+ *
+ * ★ 그래서 «낡지 않는 것들» 이 실제로 물리는지 심어 본다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+console.log('');
+console.log('조작은 여전히 물리나');
+console.log('-'.repeat(78));
+
+let missed = 0;
+let tried = 0;
+const bite = (label, blocked) => {
+  tried++;
+  if (blocked) console.log(`  ✓ ${label}`);
+  else { missed++; console.log(`  ✗ ${label} — 안 물린다`); }
+};
+
+/* ── 판매 ─────────────────────────────────────────────────────────────── */
+{
+  /* 착용 중인 것을 팔려 든다 — 서버는 `equipped_by` 로 본다 (거울이 따라오는 값이다) */
+  const worn = [...view0.items.values()].find((it) => it.equippedBy);
+  bite('착용 중인 장비 판매', !!worn);
+
+  /* 세트 조각 / 신화 — 아이템 자체의 성질이라 안 낡는다 */
+  const mythic = st.items.find((it) => (it.rarity || 0) >= 5 || it.setId || it.mythic);
+  bite('세트 조각·신화 판매', !mythic || !Gear.isSellable({ ...mythic, locked: false }, null));
+
+  /* noSell — 못 파는 물건 */
+  bite('noSell 물건 판매', !Gear.isSellable({ rarity: 1, noSell: true, locked: false }, null));
+}
+
+/* ── 착용 ─────────────────────────────────────────────────────────────── */
+{
+  const anyMerc = [...view0.mercs.values()][0];
+  const anyItem = [...view0.items.values()].find((it) => !it.equippedBy);
+  const idx = (uid) => srvItemsById[uid] || null;
+
+  /* 클래스가 못 다루는 무기 — `class_id` 와 베이스 표에서 나온다. **둘 다 안 낡는다**
+   *   (`class_id` 는 9단계 이후 서버가 소유한다) */
+  let wrongWeapon = null;
+  for (const m of view0.mercs.values()) {
+    for (const it of view0.items.values()) {
+      const iss = Gear.equipIssue(m, { ...it, minLv: 1 }, null, idx);
+      if (iss && /다룰 수 없습니다/.test(iss)) { wrongWeapon = iss; break; }
+    }
+    if (wrongWeapon) break;
+  }
+  bite('클래스가 못 다루는 무기 착용', !!wrongWeapon);
+
+  /* 엉뚱한 부위 — 베이스 표가 정한다 */
+  const wrongSlot = anyMerc && anyItem
+    ? Gear.equipIssue(anyMerc, { ...anyItem, minLv: 1 }, 'ring2', idx) : null;
+  bite('엉뚱한 부위에 착용', !!wrongSlot);
+
+  /* 없는 장비 — 서버에 없으면 404 다 (막지는 않지만 «모른다» 로 갈린다) */
+  bite('서버에 없는 장비는 404 로 갈린다', !view0.items.has('it_없는것'));
+}
+
+console.log(`  심은 조작 ${tried}건 — 놓친 것 ${missed}건`);
+if (missed) fails++;
+
 console.log(fails ? `❌ ${fails}건 — 이대로 «서버가 결정» 으로 바꾸면 정상 플레이어가 막힌다`
   : '✅ 낡은 사본으로도 정직한 조작이 안 막힌다');
 process.exit(fails ? 1 : 0);

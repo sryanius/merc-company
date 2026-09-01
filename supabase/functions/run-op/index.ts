@@ -183,9 +183,16 @@ Deno.serve(async (req) => {
       const r = (rows || []).find((x: { uid: string }) => x.uid === uid);
       if (!r) { skipped.push({ uid, why: '없다' }); continue; }
       if (r.equipped_by) { skipped.push({ uid, why: '착용 중' }); continue; }
-      /* ★ 행 → 아이템 모양. `data` 를 먼저 펴고 컬럼이 이긴다 (§122 의 그 계약). */
+      /* ★ 행 → 아이템 모양. `data` 를 먼저 펴고 컬럼이 이긴다 (§122 의 그 계약).
+       *
+       * ★★★ **`locked` 는 일부러 안 싣는다.** 그건 «실수로 팔지 마라» 는 클라 편의 표시지
+       *   치트 방어가 아니다 — 조작자는 그냥 풀고 판다. 그런데 서버 사본의 잠금은
+       *   **낡는다** (플레이어가 껐다 켰다 하는데 서버는 모른다).
+       *   ⇒ 그것으로 거절하면 **오탐만 만들고 얻는 게 없다.** 실측 9.7% 가 그 탓이었다.
+       *   서버가 볼 것은 낡지 않는 것들뿐이다: `noSell`·희귀도·신화·세트 조각, 그리고
+       *   **착용 여부는 위에서 `equipped_by` 로 따로 본다** (그건 거울이 따라온다). */
       const item = { ...(r.data || {}), uid: r.uid, baseId: r.base_id, rarity: r.rarity,
-        ilvl: r.ilvl, setId: r.set_id, ...(r.locked ? { locked: true } : {}) };
+        ilvl: r.ilvl, setId: r.set_id, locked: false };
       if (!isSellable(item)) { skipped.push({ uid, why: '팔 수 없다' }); continue; }
       let g = 0;
       try { g = Math.max(0, Math.round(Number(sellPrice(item)) || 0)); } catch { g = 0; }
@@ -249,7 +256,19 @@ Deno.serve(async (req) => {
       ...(it2.data || {}), uid: it2.uid, baseId: it2.base_id, rarity: it2.rarity,
       ilvl: it2.ilvl, setId: it2.set_id, ...(it2.locked ? { locked: true } : {}),
       weaponType: base?.weaponType ?? null,
-      minLv: base?.minLv ?? 1,
+      /* ★★★ **레벨 관문을 일부러 안 건다** (`minLv: 1`).
+       *
+       *   서버가 아는 `merc.level` 은 결국 **클라가 준 값**이다 (정산 쓰기·재동기화로
+       *   올라온다). 그런 값으로 「레벨 N 이상」 을 막으면 **얻는 것이 0 이고
+       *   오탐만 남는다** — 조작자는 자기 레벨을 올려 보내면 그만이다.
+       *   게다가 탑·나락 레벨업은 신고 경로가 **아예 없어서** 서버가 영영 모른다.
+       *   실측: 그 관문 때문에 정직한 착용의 **16.1%** 가 막혔다 (`tools/opstale.mjs`).
+       *
+       * ★ 서버가 무는 것은 **낡지 않는 것들**뿐이다:
+       *   부위 적합 · 무기 타입 vs 클래스 · 세트 계열 — 전부 `base_id` 와
+       *   `class_id` 에서 나오고, `class_id` 는 **서버가 소유한다** (9단계).
+       *   `locked` 를 안 보는 것과 같은 잣대다 (§150.2). */
+      minLv: 1,
     };
     const merc2 = { uid: m2.uid, classId: m2.class_id, level: m2.level, grade: m2.grade, equipment: {} };
 
