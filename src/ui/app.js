@@ -897,10 +897,21 @@ export async function maybeImport({ auto = false } = {}) {
      *   그때부터는 클라가 덮는 것이 곧 «되돌리기» 가 된다. */
     const srvDay = Math.round(Number(info.data.day) || 0);
     const myDay = Math.round(Number(state.day) || 0);
-    if (myDay > srvDay) {
+    /* ★★★ **일차만 보면 안 된다.** 새 판을 시작하면 일차가 **작아지므로**
+     *   `myDay > srvDay` 가 영영 거짓이고 서버 사본이 **옛 판에 굳는다.**
+     *   실측으로 그랬다: 두 계정이 새 판(9일차)을 시작했는데 서버는 옛 판(274일차)을
+     *   들고 있었고, 시드가 달라서 정산도 판정도 하나도 못 했다 (쓴 건 0).
+     *   ⇒ **판이 바뀌었으면 일차와 무관하게** 다시 올린다. */
+    const srvSeed = Number(info.data.seed);
+    const mySeed = Number(state.seed);
+    const sameRunOnServer = Number.isFinite(srvSeed) && Number.isFinite(mySeed) && srvSeed === mySeed;
+    if (!sameRunOnServer || myDay > srvDay) {
       const r = await Run.resync(state);
       if (!r.ok) console.warn('[app] 재동기화 실패 (게임에는 영향 없다)', r.error);
-      else console.info('[app] 서버 사본을 새로 맞췄다', `${srvDay}일 → ${myDay}일`);
+      else {
+        console.info('[app] 서버 사본을 새로 맞췄다',
+          sameRunOnServer ? `${srvDay}일 → ${myDay}일` : '판이 바뀌었다 (새 판)');
+      }
     }
     return;
   }

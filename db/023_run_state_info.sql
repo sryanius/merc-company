@@ -36,6 +36,10 @@ begin
   return jsonb_build_object(
     'ok', true,
     'day', s.day,
+    -- ★★ 시드도 준다. 「새 판을 시작했나」 를 클라가 알아야 한다 —
+    --   일차만 보면 새 판(9일차)이 옛 사본(274일차)보다 작아서 **영영 안 맞춰진다.**
+    --   실측으로 그랬다: 두 계정이 새 판을 시작했는데 서버는 옛 판을 들고 굳었다.
+    'seed', s.seed,
     'importedAt', s.imported_at,
     'updatedAt', s.updated_at
   );
