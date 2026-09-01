@@ -96,7 +96,12 @@ export const BUNDLES = [
        *   그건 `syncshared` 의 HASHES.json 이 지킨다. */
       'src/game/runverify.js',
       /* ★ 하루 넘기기 (§104 3단계). `state.js` 를 안 물어서 닫힘이 **자기 하나만** 는다. */
-      'src/game/day.js'],
+      'src/game/day.js',
+      /* ★★ 의뢰 전투 정의 (§152 ①). 서버가 「이 부대로 그 의뢰를 이길 수 있나」 를
+       *   물으려면 아군·적 정의를 서버가 만들 수 있어야 한다.
+       *   ★ 닫힘이 **하나도 안 는다** (실측 27 → 28, 자기 하나뿐) — merc·squad·gear·
+       *     pet·enemygen 이 전부 이미 여기 있기 때문이다. */
+      'src/game/questbattle.js'],
     walk: true,
     next: 'supabase functions deploy submit-score',
   },

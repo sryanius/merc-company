@@ -6095,7 +6095,9 @@ section('계열 특성 — 7계열이 저마다 즉사를 막는다');
   }
 
   /* ⑥ 특성이 실제 편성 경로에 실리는가 — 여기가 끊기면 표만 있고 전투엔 안 나온다 */
-  const qsrc = decomment(readFileSync(srcDir('game/quest.js'), 'utf8'));
+  /* ★ 계열 특성을 싣는 자리는 §152 ① 에서 questbattle.js 로 옮겼다 (옮기기다, 다시
+   *   쓰기가 아니다 — 전후 출력이 1.9MB 바이트로 같은 것을 확인했다). */
+  const qsrc = decomment(readFileSync(srcDir('game/questbattle.js'), 'utf8'));
   ok(/traitOfChain\(classChain\(m\.classId\)\)/.test(qsrc),
     '아군 편성(allyUnitDefs)이 계열 특성을 실어 보낸다',
     'quest.js 가 특성을 안 붙인다 — 표만 있고 전투엔 안 나온다');
@@ -7313,10 +7315,13 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
     .map((w) => `${w} 가 없다 — 서버가 나락·탑을 다시 못 돌린다`),
     '나락·탑 재현에 필요한 것이 들어 있다', WANTED.length);
 
-  /* ★ 28개는 «지금 26개» 에 둔 선이다 (§104 2단계 전에는 18개·천장 20 이었다).
-   *   늘리기 전에 무엇이 늘었는지 봐라 — 서버 묶음으로 실제로 가는 목록이다.
-   *   천장을 올릴 땐 이 숫자와 **근거를 같이** 고쳐라. */
-  ok(POWER_CLOSURE.length <= 28, '전력 닫힘이 가벼운 채로 남아 있다',
+  /* ★ 천장을 올릴 땐 이 숫자와 **근거를 같이** 고쳐라 — 서버 묶음으로 실제로 가는 목록이다.
+   *   · 18개(§104 2단계 전) → 20 · 26개 → 28
+   *   · **29개** — §152 ① 이 questbattle.js 를 넣으며 **둘** 늘었다.
+   *     ★ 하나(자기 자신)만 늘 줄 알았는데 data/lineage.js 가 traitOfChain 을 따라
+   *       같이 왔다 (6KB · import 0개인 잎 노드라 거기서 멈춘다). 예측이 틀렸고
+   *       **그걸 이 검사가 잡았다** — 숫자를 손으로 적어 두는 이유가 이것이다. */
+  ok(POWER_CLOSURE.length <= 29, '전력 닫힘이 가벼운 채로 남아 있다',
     `${POWER_CLOSURE.length}개: ${POWER_CLOSURE.join(', ')}`);
 
   /* ★★ 세 묶음을 **전부** 잰다 — syncshared 와 같은 걷기, 같은 정의.
