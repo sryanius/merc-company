@@ -792,6 +792,37 @@ Deno.serve(async (req) => {
             }).eq('user_id', userId).eq('uid', uid);
             if (!error) n++;
           }
+          /* ★★★ **전리품을 사본에 넣는다** (§158). 재동기화를 잠그기 위한 마지막 칸이다.
+           *
+           * ★ 개수 상한은 **재생성한 굴림 수**다 — 판정(`전리품초과`)이 이미 보지만
+           *   여기서도 한 번 더 자른다. 판정과 쓰기가 따로 놀면 안 된다.
+           * ★ 열 제약(rarity 0~5 · ilvl 1~80)은 db/013 이 갖고 있다. 넘치면 **그 한 줄만**
+           *   실패하고 나머지는 들어간다 — 정산 전체가 500 이 되는 것보다 낫다.
+           * ★ `upsert` 다 — 같은 신고가 두 번 와도 두 배가 되지 않는다 (원장이 이미
+           *   막지만, 그 원장이 실패하는 경우까지 생각한다). */
+          const rolls = genHit && (genHit.reward as { itemRolls?: unknown[] } | null)
+            ? ((genHit.reward as { itemRolls?: unknown[] }).itemRolls || []).length : 0;
+          const loot = Array.isArray((q as { lootRows?: unknown[] }).lootRows)
+            ? (q as { lootRows: Record<string, unknown>[] }).lootRows.slice(0, Math.max(0, Math.min(24, rolls))) : [];
+          let lootN = 0;
+          if (loot.length) {
+            const rows2 = loot
+              .filter((it) => String(it.uid || '') && String(it.base_id || ''))
+              .map((it) => ({
+                user_id: userId, uid: String(it.uid), base_id: String(it.base_id),
+                slot: String(it.slot || ''),
+                rarity: Math.max(0, Math.min(5, R2(it.rarity))),
+                ilvl: Math.max(1, Math.min(80, R2(it.ilvl) || 1)),
+                set_id: it.set_id == null ? null : String(it.set_id),
+                locked: false, equipped_by: null, equipped_slot: null,
+                data: it.data && typeof it.data === 'object' ? it.data : {},
+              }));
+            if (rows2.length) {
+              const { error: itErr } = await admin.from('run_items').upsert(rows2, { onConflict: 'user_id,uid' });
+              if (itErr) console.error('[정산] 전리품 반영 실패 — 넘어간다', itErr);
+              else lootN = rows2.length;
+            }
+          }
           const af = (q as { after?: Record<string, unknown> }).after || {};
           const { error: stErr } = await admin.from('run_state').update({
             gold: Math.max(0, Math.round(Number(af.gold) || 0)),
@@ -800,7 +831,7 @@ Deno.serve(async (req) => {
             battles_won: Math.max(0, Math.round(Number(af.battlesWon) || 0)),
             battles_lost: Math.max(0, Math.round(Number(af.battlesLost) || 0)),
           }).eq('user_id', userId);
-          wrote = { did: true, mercs: n, state: !stErr };
+          wrote = { did: true, mercs: n, state: !stErr, loot: lootN, rolls };
         }
       } catch (e) {
         wrote = { did: false, why: '실패' };

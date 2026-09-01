@@ -905,13 +905,28 @@ export async function maybeImport({ auto = false } = {}) {
     const srvSeed = Number(info.data.seed);
     const mySeed = Number(state.seed);
     const sameRunOnServer = Number.isFinite(srvSeed) && Number.isFinite(mySeed) && srvSeed === mySeed;
-    if (!sameRunOnServer || myDay > srvDay) {
+    /* ★★★ **같은 판이면 더 이상 안 덮는다** (§159, 제작자 결정 B).
+     *
+     *   예전엔 «뒤처졌으면 통째로 다시 올린다» 였다. 그건 곧 「클라가 서버 사본을
+     *   언제든 덮는다」 는 뜻이고, 그러면 서버 검증이 연극이 된다 (§152.1).
+     *   이제 사본은 **판정을 통과한 정산과 확인된 op** 으로만 따라온다 —
+     *   실측으로 30일에 골드·레벨·아이템 **차이 0** 이다 (tools/driftcheck.mjs).
+     *
+     * ★ 판이 바뀐 경우(새 게임·다른 세이브)는 **여전히 올린다.** 안 그러면 서버가
+     *   옛 판에 굳는다 (§150 에서 실제로 겪었다). 그건 공격 통로가 아니다 —
+     *   새로 시작하면 일차·의뢰수·명성이 0 으로 돌아가고 그 셋이 순위 축이다.
+     *
+     * ★ 서버가 `locked` 로 거절해도 **아무 일도 안 일어난다.** 게임은 그대로 돈다. */
+    if (!sameRunOnServer) {
       const r = await Run.resync(state);
       if (!r.ok) console.warn('[app] 재동기화 실패 (게임에는 영향 없다)', r.error);
-      else {
-        console.info('[app] 서버 사본을 새로 맞췄다',
-          sameRunOnServer ? `${srvDay}일 → ${myDay}일` : '판이 바뀌었다 (새 판)');
-      }
+      else if (r.data && r.data.ok === false) {
+        console.info('[app] 서버가 재동기화를 안 받았다', r.data.reason);
+      } else console.info('[app] 서버 사본을 새 판으로 맞췄다');
+    } else if (myDay > srvDay) {
+      /* ★ 같은 판인데 서버가 뒤처졌다 — **덮지 않는다.** 정산·op 이 따라올 몫이다.
+       *   여기서 덮으면 자물쇠를 스스로 무는 것이 된다. 벌어지면 관측에 dayLag 로 뜬다. */
+      console.info('[app] 서버 사본이 뒤처졌지만 안 덮는다 (정산이 따라온다)', `${srvDay} → ${myDay}`);
     }
     return;
   }

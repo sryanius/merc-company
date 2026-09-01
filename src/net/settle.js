@@ -120,6 +120,27 @@ export function reportSettle(o) {
         status: String(m.status || 'idle').slice(0, 16),
         woundUntil: Math.max(0, Math.round(Number(m.woundUntil) || 0)),
       })).slice(0, 8),
+      /* ★★★ **이번 정산으로 얻은 전리품** — 서버가 사본에 그대로 넣는다 (§158).
+       *
+       *   왜 필요한가: 재동기화를 잠그려면(제작자 결정 B) 사본이 스스로 따라와야 하는데,
+       *   실측으로 벌어지는 칸이 **아이템 하나뿐**이었다 (30일에 61%, tools/driftcheck.mjs).
+       *   골드·레벨은 이미 따라온다.
+       *
+       * ★ 이것이 **새로운 신뢰 구멍이 아니다.** 지금은 `run_resync` 로 사본 전체를
+       *   덮을 수 있다 — 이 쪽이 **훨씬 좁다** (판정을 통과한 정산 한 건의 전리품만).
+       *   그리고 개수는 재생성한 `itemRolls` 로 이미 판정한다 (`전리품초과`).
+       *
+       * ★ 행 모양은 `runrows.toRows` 와 **같아야 한다** — 손으로 만들면 갈라진다.
+       *   여기서는 그 함수가 만드는 칸만 그대로 옮긴다. */
+      lootRows: (Array.isArray(a.items) ? a.items : []).slice(0, 24).map((it) => ({
+        uid: String(it.uid || ''),
+        base_id: String(it.baseId || ''),
+        slot: String(it.slot || ''),
+        rarity: Math.max(0, Math.min(5, Math.round(Number(it.rarity) || 0))),
+        ilvl: Math.max(1, Math.min(80, Math.round(Number(it.ilvl) || 1))),
+        set_id: it.setId == null ? null : String(it.setId),
+        data: it,
+      })),
       /* 정산 뒤의 총량 — 서버가 `run_state` 를 여기 맞춘다 */
       after: {
         gold: Math.max(0, Math.round(Number(st.gold) || 0)),
