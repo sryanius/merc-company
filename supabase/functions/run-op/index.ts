@@ -667,6 +667,40 @@ Deno.serve(async (req) => {
           allRows(admin, 'run_squads', userId),
         ]);
         const stSrv = fromRows({ state: rs4, mercs: rm || [], items: ri || [], pets: rp || [], squads: rq || [], quests: [] });
+        /* ══════════════════════════════════════════════════════════════════
+         * ★★★ **아군을 «가능한 가장 유리한 상태» 로 세운다.**
+         *
+         *   서버 사본은 낡는다 — 여관 휴식·하루 넘기기 회복·탑·나락은 신고 경로가
+         *   **없어서** HP·레벨이 안 올라온다. 그 낡음이 그대로 판정에 들어가면
+         *   **정직한 승리가 «졌는데 이겼다» 로 찍힌다.** 실측(tools/battleparity.mjs):
+         *
+         *     체력 낡음 + 레벨 낡음 → **11.1%** 오탐
+         *     체력 만땅 + 레벨 낡음 →  **3.7%**
+         *     체력 만땅 + 레벨 최신 →  **0%**
+         *
+         * ⇒ 그래서 **서버가 질 수 있는 쪽으로 절대 기울이지 않는다**:
+         *   · HP 는 **만땅**으로 본다 (`hp = 0` 이 최대치다)
+         *   · 레벨은 **서버 것과 신고된 것 중 큰 쪽**을 쓴다
+         *
+         * ★ 레벨을 클라 신고값으로도 본다는 것은 «조작자가 레벨을 올려 보내면 서버가
+         *   더 세진다» 는 뜻이다 — 그러면 **덜 잡는다.** 그게 맞는 방향이다:
+         *   이 저장소의 잣대는 「정상 플레이어를 막는 쪽이 더 나쁘다」 이고,
+         *   여기서 «서버가 졌다» 는 **그럼에도 졌다** 는 강한 증거가 된다. */
+        {
+          const lvOf = new Map(
+            (Array.isArray((q as { mercsAfter?: { uid?: string; level?: number }[] }).mercsAfter)
+              ? (q as { mercsAfter: { uid?: string; level?: number }[] }).mercsAfter : [])
+              .map((m) => [String(m.uid || ''), Math.max(1, Math.min(80, R2(m.level)))]),
+          );
+          for (const m of (stSrv.roster || []) as { uid?: string; level?: number; hp?: number; status?: string; woundUntil?: number }[]) {
+            m.hp = 0;                                   // 만땅
+            const rep = lvOf.get(String(m.uid || ''));
+            if (rep && rep > (m.level || 1)) m.level = rep;
+            /* ★ 부상도 서버 쪽이 낡을 수 있다 — 벤치로 빠지면 아군이 줄어 진다 */
+            m.status = 'idle';
+            m.woundUntil = 0;
+          }
+        }
         const squadId = String(q.squadId || '');
         const waves = Array.isArray(genHit.waves) ? genHit.waves.length : 0;
         const t0 = Date.now();
