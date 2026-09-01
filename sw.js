@@ -48,7 +48,7 @@
  * v4 — 월드맵 탑 노드 / 정원 70 / 펫 자동배치 / 주점 특화 클래스 고정.
  * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
  * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
-const CACHE = 'merc-v189';
+const CACHE = 'merc-v190';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -160,6 +160,39 @@ const APP_SHELL = [
 ];
 
 /** 모든 클라이언트에 알린다 (index.html 의 갱신 배너가 받는다). */
+/* ★★★ **스스로 새로고침할 줄 아는 셸**의 id (§160).
+ *
+ *   184판부터 페이지 안에 자동 갱신이 있다 — «안전한 때»(전투 아님·창 없음)를
+ *   게임에 물어보고 그때 새로고침한다. 그 셸은 여기에 «내가 한다» 고 답한다.
+ *
+ * ★ **답이 없는 창이 곧 옛 셸이다.** 그 코드가 아예 없으니 답을 못 한다.
+ *   실측(9/1): 도는 계정 4개가 전부 163~180판이었다 — 자동 갱신이 **아무에게도
+ *   없었다.** 서버 쪽 공사(§146~§159)가 통째로 아무에게도 안 닿고 있었다. */
+const ALIVE = new Set();
+const GRACE_MS = 3000;
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 답 없는 창을 **워커가 직접 새로고침시킨다.**
+ *
+ * ★ 왜 워커가 하나: 옛 셸에는 새로고침을 스스로 할 코드가 없다. 배너를 띄워도
+ *   누르지 않으면 그만이고, 실제로 한 계정이 그렇게 **나흘을 옛 판으로 놀았다**.
+ *   워커는 배포와 함께 통째로 갈리므로 **옛 셸의 협조가 필요 없는 유일한 자리**다.
+ *
+ * ★ 안 보는 탭부터 돌린다 — 보고 있는 화면이 갑자기 바뀌는 것보다 낫다.
+ * ★ 고리가 안 생긴다: activate 는 **판마다 한 번**만 돈다.
+ */
+async function reloadOldShells() {
+  await nap(GRACE_MS);                       // 새 셸이 답할 시간
+  let list = [];
+  try { list = await self.clients.matchAll({ type: 'window' }); } catch { return; }
+  const rank = (c) => (c.visibilityState === 'hidden' ? 0 : 1);
+  for (const c of [...list].sort((a, b) => rank(a) - rank(b))) {
+    if (ALIVE.has(c.id)) continue;           // 스스로 하는 셸은 안 건드린다
+    try { await c.navigate(c.url); } catch (err) { console.warn('[sw] 새로고침 못 시켰다', err); }
+  }
+}
+
 async function tellClients(msg) {
   const list = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
   for (const c of list) c.postMessage(msg);
@@ -207,7 +240,11 @@ self.addEventListener('activate', (e) => {
     await self.clients.claim();
     // 옛 캐시를 지웠다 = 첫 설치가 아니라 **갱신**이다. 이때만 새로고침을 권한다
     // (첫 방문자에게 "새 버전이 있다"고 띄우면 거짓말이다).
-    if (old.length) await tellClients({ type: 'merc-sw-updated', version: CACHE });
+    if (old.length) {
+      await tellClients({ type: 'merc-sw-updated', version: CACHE });
+      /* ★ 배너·자동 갱신으로 안 되는 창을 **여기서** 끝낸다 (§160) */
+      await reloadOldShells();
+    }
   })());
 });
 
@@ -269,4 +306,6 @@ self.addEventListener('message', (e) => {
   const t = e.data && e.data.type;
   if (t === 'merc-skip-waiting') self.skipWaiting();
   if (t === 'merc-version' && e.source) e.source.postMessage({ type: 'merc-sw-version', version: CACHE });
+  /* ★ «내가 안전한 때에 알아서 새로고침한다» — 이 답이 있는 창만 안 건드린다 (§160) */
+  if (t === 'merc-alive' && e.source && e.source.id) ALIVE.add(e.source.id);
 });

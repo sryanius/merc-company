@@ -10291,6 +10291,61 @@ section('새 판을 받으면 저절로 넘어가나 (옛 셸로 계속 놀지 �
     const LOOP = "fetch('/rev').then(r => { if (r.minRev > CLIENT_REV) location.reload(); })";
     ok(/minRev/.test(LOOP), '메타 — 서버에 최신 판을 묻는 모양을 잡는다');
   }
+
+  /* ══════════════════════════════════════════════════════════════════════
+   * ★★★ 위의 것은 전부 **셸 안에** 있다 — 그래서 **그 코드가 없는 옛 셸에는 없다.**
+   *
+   *   실측(2026-09-01): 도는 계정 4개가 163·173·179·180판이었다. 자동 갱신은
+   *   **184판부터** 있으므로 **아무에게도 없었다.** 배포는 189판이었고, §146~§159
+   *   (권한 이관·정산 쓰기·전투 판정·자물쇠)가 통째로 아무에게도 안 닿고 있었다.
+   *   가장 많이 노는 계정은 이틀에 관측 485건을 올리면서 계속 163판이었다.
+   *
+   * ⇒ **셸 밖에서** 끝내야 한다. 배포와 함께 통째로 갈리는 자리는 서비스워커뿐이다.
+   *   워커가 창을 직접 navigate 한다 — **옛 셸의 협조가 필요 없는 유일한 자리**다.
+   * ══════════════════════════════════════════════════════════════════════ */
+  const swSrc = decomment(readFileSync(join(rootDir, 'sw.js'), 'utf8'));
+
+  /* ★ «옛 셸» 의 정의는 «답이 없는 창» 이다 — 새 셸은 답한다 */
+  ok(/postMessage\(\{ type: 'merc-alive' \}\)/.test(idx), '새 셸이 «내가 알아서 한다» 고 답한다',
+    '답이 없으면 워커가 강제로 새로고침시킨다 — 새 셸까지 당하면 안 된다');
+  ok(/'merc-alive'[\s\S]{0,80}ALIVE\.add/.test(swSrc), '워커가 그 답을 적어 둔다');
+
+  /* ★ 강제 새로고침 본체 — **그 함수 안**만 본다 (같은 글자가 파일 여러 곳에 있다) */
+  {
+    const at = swSrc.indexOf('async function reloadOldShells');
+    const body = at > 0 ? swSrc.slice(at, at + 900) : '';
+    ok(/c\.navigate\(c\.url\)/.test(body), '워커가 옛 셸을 직접 새로고침시킨다',
+      '배너는 안 누르면 그만이다 — 실측으로 나흘이 그렇게 갔다');
+    ok(/ALIVE\.has\(c\.id\)[\s\S]{0,40}continue/.test(body),
+      '스스로 하는 셸은 안 건드린다', '전투 중에 강제 새로고침하면 그 판이 날아간다');
+    ok(/visibilityState === 'hidden'/.test(body), '안 보는 탭부터 돌린다',
+      '보고 있는 화면을 갑자기 바꾸는 것보다 낫다');
+    ok(/nap\(GRACE_MS\)/.test(body), '답할 시간을 준다', '바로 돌리면 새 셸도 답하기 전에 당한다');
+  }
+
+  /* ★★ **갱신일 때만** 이다 — 첫 설치에 돌리면 방금 연 페이지를 새로고침한다 */
+  {
+    const at = swSrc.indexOf("addEventListener('activate'");
+    const body = at > 0 ? swSrc.slice(at, at + 700) : '';
+    ok(/if \(old\.length\) \{[\s\S]{0,300}reloadOldShells\(\)/.test(body),
+      '옛 캐시를 지웠을 때(=갱신)만 강제한다', '첫 설치에 돌리면 방금 연 페이지를 새로고침한다');
+  }
+
+  /* ★ 메타 — 헐거운 판을 심어 실제로 물리는지 본다 */
+  {
+    const NOACK = 'async function reloadOldShells() {'
+      + ' const list = await self.clients.matchAll({ type: "window" });'
+      + ' for (const c of list) await c.navigate(c.url); }';
+    ok(/c\.navigate\(c\.url\)/.test(NOACK), '메타 — navigate 검사는 이 판을 통과시킨다');
+    ok(!/ALIVE\.has\(c\.id\)[\s\S]{0,40}continue/.test(NOACK),
+      '메타 — 새 셸까지 강제로 돌리면 잡는다');
+    ok(!/visibilityState === 'hidden'/.test(NOACK), '메타 — 보는 탭부터 돌리면 잡는다');
+    const FIRST = "self.addEventListener('activate', (e) => { e.waitUntil(reloadOldShells()); });";
+    ok(!/if \(old\.length\) \{[\s\S]{0,300}reloadOldShells\(\)/.test(FIRST),
+      '메타 — 첫 설치에도 강제하면 잡는다');
+    const MUTE = "navigator.serviceWorker.addEventListener('message', function (e) { markPending(); });";
+    ok(!/postMessage\(\{ type: 'merc-alive' \}\)/.test(MUTE), '메타 — 답을 안 하는 셸이면 잡는다');
+  }
 }
 
 section('서버가 재현한 전투 == 클라가 한 전투 (§152 ②의 관문)');

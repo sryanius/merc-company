@@ -178,7 +178,16 @@
 
     // 워커가 activate 하면서 옛 캐시를 지웠을 때만 알려 온다(첫 설치에는 안 온다).
     navigator.serviceWorker.addEventListener('message', function (e) {
-      if (e.data && e.data.type === 'merc-sw-updated') markPending();
+      if (!e.data || e.data.type !== 'merc-sw-updated') return;
+      /* ★★ **«내가 알아서 한다» 고 답한다** (§160).
+       *   답이 없으면 워커가 이 창을 강제로 새로고침시킨다. 옛 셸(184판 이전)은
+       *   이 코드가 없어서 답을 못 하고, 그래서 강제로 넘어간다 — 그게 노림수다.
+       * ★ 답을 한 뒤에는 우리가 «안전한 때»를 골라 새로고침한다 (전투 중이 아니게). */
+      try {
+        var sw = navigator.serviceWorker.controller;
+        if (sw) sw.postMessage({ type: 'merc-alive' });
+      } catch (err) { /* 답을 못 해도 강제 새로고침이 받아 준다 */ }
+      markPending();
     });
 
     window.addEventListener('load', function () {
