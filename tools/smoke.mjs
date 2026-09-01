@@ -10032,6 +10032,60 @@ section('18단계 — 순위 축을 서버 값으로 갈아 끼운다');
   }
 }
 
+section('판매·착용 권한을 서버로 넘겨도 되나 (10·11단계 관문)');
+{
+  /* ★★★ 이 절은 «켜라» 가 아니라 «**아직 켜지 마라**» 를 지킨다.
+   *
+   *   전직(9단계)은 안전했다 — 서버 판정이 `class_id` 하나에 걸려 있고 그건 서버가
+   *   **직접 소유**한다. 판매·착용은 다르다: 서버가 **안 가진 상태**로 판정한다.
+   *     · 판매 — `locked`·`equipped_by` 는 세션 중에 바뀐다
+   *     · 착용 — `equipIssue` 가 **`merc.level`** 을 본다. 레벨은 의뢰로 오른다
+   *
+   *   `tools/opstale.mjs` 가 실제로 굴려서 잰다 (재동기화 → 의뢰 → 흔들기 → 판정):
+   *     판매 **9.7%** · 착용 **16.1%** 가 «정직한데 막힌다».
+   *     (착용 쪽 사유는 「레벨 38 이상이어야 착용할 수 있습니다」 였다.)
+   *
+   * ★★ 그래서 **둘을 묶는다**: 그 수치가 0 이 되기 전에는 클라가 판매·착용을
+   *   «서버에 물어보고 막는» 경로로 바꾸면 안 된다. 검사가 그 짝을 지킨다. */
+  let out = '';
+  let died = null;
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, 'tools/opstale.mjs'), '--quests=8'],
+      { encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) { died = String((e && (e.stdout || e.message)) || e); }
+  const text = died || out;
+
+  /* 판이 실했나 — 위험을 안 만든 판으로 «안전하다» 고 하면 그게 제일 나쁘다 */
+  const num = (re) => { const m = text.match(re); return m ? Number(m[1]) : -1; };
+  ok(num(/의뢰 (\d+)건을 실제로 돌았다/) >= 3, '판이 실하다 (의뢰를 실제로 돌았다)');
+  ok(/판을 흔들었다/.test(text), '재동기화 뒤의 변화를 실제로 만들었다',
+    '안 만들면 «0% 막힘» 이 나오는데 그건 «안전» 이 아니라 «안 재봄» 이다');
+
+  const sellPct = (text.match(/409 로 막힐 것: \d+ \/ \d+ \((\d+\.\d)%\)/g) || []);
+  ok(sellPct.length === 2, '판매·착용 두 수치를 다 읽어 냈다', sellPct.join(' · '));
+
+  /* ★★★ **짝 검사** — 위험이 남아 있는 동안 클라가 그 경로를 켜면 문다 */
+  const stale = /이대로 «서버가 결정» 으로 바꾸면 정상 플레이어가 막힌다/.test(text);
+  const mir = decomment(readFileSync(join(rootDir, 'src/net/mirror.js'), 'utf8'));
+  const hasSellAuth = /export async function askSell/.test(mir);
+  const hasEquipAuth = /export async function askEquip/.test(mir);
+  if (stale) {
+    okAll([
+      hasSellAuth ? '판매 권한 경로(askSell)가 생겼다 — 아직 9.7% 가 막힌다' : null,
+      hasEquipAuth ? '착용 권한 경로(askEquip)가 생겼다 — 아직 16.1% 가 막힌다' : null,
+    ].filter(Boolean), '위험이 남아 있는 동안 판매·착용 권한을 안 켠다', 2);
+  } else {
+    /* 수치가 0 이 되면 이 검사는 **반대로** 말한다 — 이제 켜도 된다 */
+    pass('판매·착용의 낡음 위험이 사라졌다 — 권한을 켤 수 있다', '10·11단계로 갈 때다');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const FAKE = 'export async function askSell(uids) {}';
+    ok(/export async function askSell/.test(FAKE), '메타 — 권한 경로가 생기면 실제로 알아본다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();
