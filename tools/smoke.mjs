@@ -7793,14 +7793,48 @@ section('의뢰 정산 신고 — 순서와 무해함 (17단계 1번 조각)');
    *     (3) run_ops·run_* 는 여전히 금지 — 적으면 진짜 정산이 재생으로 막힌다
    *   ★ 느슨해진 게 아니라 **정확해졌다.** «아무 표에도 안 쓴다» 는 판정을 켤 수 없다는
    *     뜻이고, 그러면 17단계가 영영 안 끝난다. */
-  const FORBIDDEN17 = ['scores', 'ledger', 'run_state', 'run_mercs',
-    'run_items', 'run_squads', 'run_pets', 'run_ops', 'saves'];
+  /* ★★★ **이 목록은 세 번 바뀌었다.** 그 자체가 17단계의 역사다:
+   *     ① 그림자 — 아무 표에도 안 쓴다
+   *     ② 판정 — `rejections`(tier 'C')만 허용 (§143)
+   *     ③ **쓰기 — `run_ops`·`run_mercs`·`run_state` 도 허용** (지금)
+   *   느슨해진 게 아니라 «정산이 무엇인가» 가 바뀐 것이다. 여전히 못 건드리는 것:
+   *     · `scores` — 순위는 18단계가 자기 경로로 쓴다. 정산이 손대면 안 된다
+   *     · `ledger` — 판정 원장. 정산이 쓰면 케이던스 검사가 어긋난다
+   *     · `saves` — 클라우드 세이브. 진짜 진행도다. 절대 안 건드린다
+   *     · `run_items`·`run_squads`·`run_pets` — 전리품의 정체를 서버가 못 확인한다 (§113) */
+  const FORBIDDEN17 = ['scores', 'ledger', 'run_items', 'run_squads', 'run_pets', 'saves'];
   const w17 = [...qBlock.matchAll(/from\('([a-z_]+)'\)([\s\S]{0,200}?)\.(insert|upsert|update|delete)\(/g)];
   okAll(w17.filter((m) => FORBIDDEN17.includes(m[1]))
     .map((m) => `정산 신고가 ${m[1]} 에 ${m[3]} 한다 — 판정 경로다`),
     '정산 신고가 판정에 닿는 표에 안 쓴다', Math.max(1, w17.length));
-  ok(!/run_ops/.test(qBlock), '★ run_ops 에 안 적는다',
-    '적으면 「했다」 가 되어 나중에 진짜 정산이 재생으로 막힌다 (15단계와 같은 계약)');
+  /* ★★★ **계약이 또 뒤집혔다.** 예전엔 「`run_ops` 에 안 적는다」 였다 —
+   *   그건 정산이 **그림자일 때**의 이야기다 (적으면 나중의 진짜 정산이 재생으로 막힌다).
+   *   이제 정산이 사본에 **실제로 쓰므로** 원장이 **있어야** 한다:
+   *   같은 신고가 두 번 오면 두 번 적용하면 안 된다. */
+  ok(/from\('run_ops'\)/.test(qBlock), '★ 정산이 원장을 남긴다 (두 번 적용을 막는다)',
+    '없으면 네트워크 재시도가 레벨·골드를 두 번 덮는다');
+  ok(/kind: 'questSettle'/.test(qBlock), '원장에 정산으로 표시한다');
+
+  /* ── 사본에 쓰는 자리의 계약 ─────────────────────────────────────────── */
+  ok(/from\('run_mercs'\)[\s\S]{0,400}?\.update\(/.test(qBlock), '정산이 사본에 쓴다 (run_mercs)',
+    '안 쓰면 레벨이 낡아 나중에 정직한 착용이 막힌다 (실측 16.1%)');
+  /* ★★ **판정을 통과할 때만** 쓴다 */
+  const wIdx = qBlock.indexOf("from('run_ops')");
+  const before = wIdx > 0 ? qBlock.slice(Math.max(0, wIdx - 400), wIdx) : '';
+  ok(/verdict\.verdict === 'ok'/.test(before) && /!verdict\.cantJudge/.test(before),
+    '판정을 통과할 때만 쓴다', '표시됐거나 못 잰 정산을 쓰면 그게 곧 무검증이다');
+  /* ★★ `data` 를 통째로 덮으면 이름·외모·전적이 사라진다 — 합쳐야 한다 */
+  ok(/\.\.\.old,/.test(qBlock), 'data 를 통째로 안 덮고 합친다',
+    'run_mercs.data 에는 이름·외모·전적이 같이 들어 있다 (db/013:94)');
+  /* ★ 아이템은 안 쓴다 — 정체를 확인할 방법이 없다 (§113) */
+  ok(!/from\('run_items'\)[\s\S]{0,200}?\.(insert|upsert)\(/.test(qBlock),
+    '정산이 아이템을 만들어 넣지는 않는다', '전리품의 정체를 서버가 확인할 방법이 없다 (§113)');
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "await admin.from('run_mercs').update({ level: 1, data: { exp: 0 } })";
+    ok(!/\.\.\.old,/.test(BAD), '메타 — data 를 통째로 덮는 모양을 실제로 잡는다');
+  }
 
   /* ── 판정을 켠 뒤의 계약 ────────────────────────────────────────────────── */
   const rejIns = qBlock.includes("from('rejections')");

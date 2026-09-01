@@ -606,8 +606,90 @@ Deno.serve(async (req) => {
       console.error('[그림자] 정산 판정 실패 — 넘어간다', String((e as Error)?.message || e));
     }
 
-    /* ★★ `run_ops` 에는 **안 적는다** (적으면 진짜 정산이 재생으로 막힌다).
-     *   대신 **관측 표**에 적는다 — 판정에 안 쓰이고 운영자만 읽는다 (db/022). */
+    /* ═══════════ 정산을 **실제로 쓴다** (§104 17단계의 진짜 형태) ═══════════
+     *
+     * ★★★ 여기까지 정산은 «보기만» 했다. 그래서 서버 사본의 `level` 이 낡았고,
+     *   그 낡음이 판매·착용 권한 이전을 막고 있었다 (실측 착용 16.1% 가 정직한데 막힌다).
+     *   ⇒ 판정을 통과한 정산은 **사본에 반영한다.**
+     *
+     * ★★ **판정을 통과할 때만** 쓴다. `flag` 면 원장에만 남기고 안 쓴다.
+     *   `cantJudge`(이관 전·재현 불가)도 안 쓴다 — 못 재는데 쓰면 그게 곧 무검증이다.
+     *
+     * ★★ **새로운 신뢰 구멍이 아니다.** `run_resync` 가 이미 열려 있어 클라는 언제든
+     *   사본 전체를 덮을 수 있다 (§141.2). 여기서 늘어나는 것은 «사본이 얼마나 자주
+     *   맞느냐» 뿐이다. 신뢰는 여전히 쓰기 op 이 **판정까지** 가질 때 온다.
+     *
+     * ★ **원장을 남긴다.** 이제 이게 진짜 정산이므로 같은 신고가 두 번 오면 두 번
+     *   적용하면 안 된다. (예전 계약 「run_ops 에 안 적는다」 는 이게 **그림자일 때**의
+     *   이야기였다 — 그때는 적으면 나중의 진짜 정산이 재생으로 막혔다.)
+     *
+     * ★ 아이템은 **안 쓴다.** 서버가 전리품의 정체를 확인할 방법이 없고(§113),
+     *   사본에 없는 아이템은 404 로만 나타나는데 그건 애초에 안 막는 경우다 (§146).
+     *   다음 재동기화 때 따라온다.
+     *
+     * ★ 여기서 죽어도 신고 응답은 그대로 `{ok:true}` 다 — 게임을 막지 않는다. */
+    let wrote: Record<string, unknown> = { did: false, why: '' };
+    if (verdict.verdict === 'ok' && !verdict.cantJudge) {
+      try {
+        const { error: ledErr } = await admin.from('run_ops')
+          .insert({ user_id: userId, op_id: opId, kind: 'questSettle', result: { questId: q.questId } });
+        if (ledErr) {
+          /* 같은 신고가 이미 처리됐다 — 두 번 쓰지 않는다. 그게 맞는 동작이다. */
+          wrote = { did: false, why: '재생' };
+        } else {
+          const rows = Array.isArray((q as { mercsAfter?: unknown[] }).mercsAfter)
+            ? (q as { mercsAfter: Record<string, unknown>[] }).mercsAfter.slice(0, 8) : [];
+          const uids = rows.map((m) => String(m.uid || '')).filter(Boolean);
+          /* ★★ `run_mercs` 는 **`level` 만 열**이고 `exp`·`hp`·`status`·`woundUntil` 은
+           *   `data` jsonb 안이다 (db/013:94). 그래서 통째로 덮으면 나머지(이름·외모·
+           *   전적)를 **지운다.** 읽어서 **합쳐** 쓴다.
+           *   ★ `fromRows` 는 `data` 를 먼저 펴고 **열이 이긴다** (§122 의 그 계약) —
+           *     그래서 `level` 은 열로, 나머지는 `data` 로 넣는 것이 맞다. */
+          const { data: cur } = uids.length
+            ? await admin.from('run_mercs').select('uid, data').eq('user_id', userId).in('uid', uids)
+            : { data: [] };
+          const byUid = new Map((cur || []).map((r: { uid: string; data: unknown }) => [r.uid, r.data]));
+          let n = 0;
+          for (const m of rows) {
+            const uid = String(m.uid || '');
+            if (!uid || !byUid.has(uid)) continue;        // 사본에 없는 단원은 건드리지 않는다
+            const old = (byUid.get(uid) || {}) as Record<string, unknown>;
+            /* ★ 열 제약은 db/013 이 갖고 있다(level 1~80). 여기서도 한 번 더 접는다 —
+             *   제약에 걸려 **정산 전체가 500** 이 되는 것보다 잘리는 편이 낫다. */
+            const { error } = await admin.from('run_mercs').update({
+              level: Math.max(1, Math.min(80, Math.round(Number(m.level) || 1))),
+              data: {
+                ...old,
+                exp: Math.max(0, Math.round(Number(m.exp) || 0)),
+                hp: Math.max(0, Math.round(Number(m.hp) || 0)),
+                status: String(m.status || 'idle').slice(0, 16),
+                woundUntil: Math.max(0, Math.round(Number(m.woundUntil) || 0)),
+              },
+            }).eq('user_id', userId).eq('uid', uid);
+            if (!error) n++;
+          }
+          const af = (q as { after?: Record<string, unknown> }).after || {};
+          const { error: stErr } = await admin.from('run_state').update({
+            gold: Math.max(0, Math.round(Number(af.gold) || 0)),
+            renown: Math.max(0, Math.round(Number(af.renown) || 0)),
+            quests_done: Math.max(0, Math.round(Number(af.questsDone) || 0)),
+            battles_won: Math.max(0, Math.round(Number(af.battlesWon) || 0)),
+            battles_lost: Math.max(0, Math.round(Number(af.battlesLost) || 0)),
+          }).eq('user_id', userId);
+          wrote = { did: true, mercs: n, state: !stErr };
+        }
+      } catch (e) {
+        wrote = { did: false, why: '실패' };
+        console.error('[정산] 사본 반영 실패 — 넘어간다', String((e as Error)?.message || e));
+      }
+    } else {
+      wrote = { did: false, why: verdict.cantJudge ? '못잼' : '표시됨' };
+    }
+
+    /* ★ 관측 표에도 적는다 — 판정에 안 쓰이고 운영자만 읽는다 (db/022).
+     *   ★★ 예전 주석은 「`run_ops` 에 안 적는다」 였다. 그건 이게 **그림자일 때**의
+     *     계약이었다 — 적으면 나중의 진짜 정산이 재생으로 막히기 때문이다.
+     *     이제 이게 그 «진짜 정산» 이므로 원장을 남기는 것이 맞다 (위 쓰기 블록). */
     await obs(admin, userId, 'questSettle', {
       rev: Math.max(0, Math.round(Number(q.rev) || 0)),
       questId: q.questId, cityId: q.cityId, win: !!q.win,
@@ -631,6 +713,8 @@ Deno.serve(async (req) => {
       /* ★ 판정을 굴려 본 결과. **아무것도 막지 않는다** — 라이브에서 오탐 0 을
        *   확인한 뒤에 켠다. 그때까지는 이 칸이 «켜면 어떻게 됐을까» 를 알려 준다. */
       judge: { v: verdict.verdict || null, cant: !!verdict.cantJudge, why: (verdict.reasons || []).slice(0, 6) },
+      /* ★ 사본에 실제로 썼나 — 로그로만 남기면 또 못 센다 (§145 에서 같은 실수를 했다) */
+      wrote,
     });
 
     /* ═══════════ 판정을 **켠다** — 다만 «표시» 까지다 (17단계 4번 조각) ═══════════

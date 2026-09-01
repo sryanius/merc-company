@@ -25,6 +25,21 @@ import { EP, CLIENT_REV } from './config.js';
 import { authed } from './rest.js';
 import * as Auth from './auth.js';
 
+/**
+ * 그 부대에 실제로 배치된 단원들.
+ *
+ * ★ 부대를 못 찾으면 **빈 배열**이다 — 명부 전체를 보내지 않는다. 신고가 커지면
+ *   자동판매처럼 자주 도는 경로에서 값이 비싸진다.
+ */
+function mercsOf(st, squadId) {
+  try {
+    const sq = (st.squads || []).find((x) => x && x.id === squadId);
+    if (!sq) return [];
+    const want = new Set((sq.memberUids || []).filter(Boolean).map(String));
+    return (st.roster || []).filter((m) => m && want.has(String(m.uid)));
+  } catch (e) { return []; }
+}
+
 /** 신고에 실을 수 있는 최대 웨이브 수 — 본문이 커지면 안 된다 */
 const MAX_WAVES = 12;
 
@@ -83,6 +98,32 @@ export function reportSettle(o) {
       waveN: results.length,
       questWaveN: Array.isArray(q.waves) ? q.waves.length : 0,
       autoSellRarity: Number(st.autoSellRarity),
+      /* ★★★ **정산 뒤의 단원 상태** — 서버가 자기 사본을 여기 맞춘다 (§104 17단계 쓰기).
+       *
+       *   왜 필요한가: 서버 사본의 `level` 이 낡으면 나중에 착용 권한을 넘길 때
+       *   `equipIssue` 의 「레벨 N 이상」 이 **정직한 착용을 막는다** (실측 16.1%).
+       *   레벨은 의뢰로 오르는데 서버가 그걸 모르기 때문이다.
+       *
+       * ★ 출전한 부대(≤7명)만 보낸다. 나머지는 안 바뀐다.
+       * ★★ 이것이 **새로운 신뢰 구멍이 아니다** — `run_resync` 가 이미 열려 있어서
+       *   클라는 언제든 사본 전체를 덮을 수 있다 (§141.2). 여기서 늘어나는 것은
+       *   «사본이 얼마나 자주 맞느냐» 뿐이다. */
+      mercsAfter: mercsOf(st, o.squadId).map((m) => ({
+        uid: String(m.uid || ''),
+        level: Math.max(1, Math.round(Number(m.level) || 1)),
+        exp: Math.max(0, Math.round(Number(m.exp) || 0)),
+        hp: Math.max(0, Math.round(Number(m.hp) || 0)),
+        status: String(m.status || 'idle').slice(0, 16),
+        woundUntil: Math.max(0, Math.round(Number(m.woundUntil) || 0)),
+      })).slice(0, 8),
+      /* 정산 뒤의 총량 — 서버가 `run_state` 를 여기 맞춘다 */
+      after: {
+        gold: Math.max(0, Math.round(Number(st.gold) || 0)),
+        renown: Math.max(0, Math.round(Number(st.renown) || 0)),
+        questsDone: Math.max(0, Math.round(Number(st.stats?.questsDone) || 0)),
+        battlesWon: Math.max(0, Math.round(Number(st.stats?.battlesWon) || 0)),
+        battlesLost: Math.max(0, Math.round(Number(st.stats?.battlesLost) || 0)),
+      },
     };
 
     /* ★★ 여기서 `await` 하지 않는다. 실패해도 아무 일도 안 한다.
