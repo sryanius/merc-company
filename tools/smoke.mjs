@@ -10211,6 +10211,55 @@ section('판매·착용 권한을 서버로 넘겨도 되나 (10·11단계 관�
   }
 }
 
+section('새 판을 받으면 저절로 넘어가나 (옛 셸로 계속 놀지 못하게)');
+{
+  /* ★★★ 실측으로 겪었다: 한 계정이 **나흘째 옛 판(163)** 으로 몇 분마다 제출했다.
+   *   서비스워커는 뒤에서 새 판을 받아 두는데 **열린 탭은 옛 JS 를 그대로 들고 있다** —
+   *   그래서 그 사람은 이관 UI 도, 그날 만든 것도 하나도 못 봤다 (§145).
+   *
+   * ★★ **서버에 «최신 판이 뭐냐» 고 묻지 않는다.** 함수는 배포됐는데 Pages 빌드가
+   *   아직이면 «업데이트하라 → 해도 그대로» 라는 **고리**에 빠진다.
+   *   ⇒ 서비스워커가 이 기기에 **실제로 받아 놓은 뒤에만** 움직인다. 그러면 새로고침이
+   *     반드시 효과가 있다 — 고리가 원리적으로 안 생긴다. 이 검사가 그것을 지킨다. */
+  const idx = readFileSync(join(rootDir, 'index.html'), 'utf8');
+
+  ok(/markPending/.test(idx), '새 판을 받으면 표시한다');
+  ok(/location\.reload\(\)/.test(idx), '새로고침 길이 있다');
+  /* ★ 「나중에」 가 없어야 한다 — 미룰 수 있으면 나흘이 또 생긴다 */
+  ok(!/pwa-update-x/.test(idx), '「나중에」 로 미룰 수 없다',
+    '미룰 수 있으면 옛 판으로 계속 논다 (실측 나흘)');
+  /* ★★ 서버에 최신 판을 묻지 않는다 — 고리 방지 */
+  ok(!/minRev|serverRev|latestRev/.test(idx), '서버에 «최신 판» 을 묻지 않는다',
+    '함수만 배포되고 Pages 가 아직이면 새로고침 고리에 빠진다');
+  /* ★★★ 아무 때나 새로고침하면 전투가 날아간다 */
+  ok(/__mercSafeToReload/.test(idx), '안전한 때인지 게임에 물어본다',
+    '전투 중에 새로고침하면 그 판이 날아간다');
+  ok(/typeof window\.__mercSafeToReload === 'function'/.test(idx),
+    '게임이 그 함수를 안 내놓으면 자동 새로고침을 안 한다', '모르면 안 하는 쪽이 맞다');
+  /* ★ 확인 주기가 한 시간이면 뜸하다 (실측 나흘이 그래서 났다) */
+  const iv = (idx.match(/setInterval\(check,\s*(\d+)\s*\*\s*60\s*\*\s*1000\)/) || [])[1];
+  ok(iv && Number(iv) <= 10, '갱신 확인이 10분 이내다', `${iv || '?'}분`);
+  ok(/visibilitychange/.test(idx), '탭으로 돌아올 때도 확인한다',
+    '배경 탭은 타이머가 눌린다 — 돌아올 때 봐야 한다');
+
+  /* 게임 쪽 — 무엇을 «안전» 이라고 답하나 */
+  const appSrc = decomment(readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8'));
+  const i = appSrc.indexOf('__mercSafeToReload');
+  const body = i > 0 ? appSrc.slice(i, i + 700) : '';
+  ok(/document\.hidden/.test(body), '안 보는 탭은 안 건드린다');
+  ok(/currentScreen\(\) !== 'city'/.test(body), '도시 화면일 때만 새로고침한다',
+    '전투·던전·월드맵에서 새로고침하면 그 판이 날아간다');
+  ok(/modal-layer/.test(body), '창이 떠 있으면 안 한다');
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "window.__mercSafeToReload = () => true;";
+    ok(!/currentScreen\(\) !== 'city'/.test(BAD), '메타 — 아무 때나 «안전» 이라 답하면 잡는다');
+    const LOOP = "fetch('/rev').then(r => { if (r.minRev > CLIENT_REV) location.reload(); })";
+    ok(/minRev/.test(LOOP), '메타 — 서버에 최신 판을 묻는 모양을 잡는다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

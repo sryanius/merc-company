@@ -78,9 +78,8 @@
   <!-- 새 배포가 설치됐을 때만 뜬다. skipWaiting 으로 워커는 이미 교체됐지만,
        화면에 떠 있는 모듈은 옛 코드라 새로고침을 해야 실제로 바뀐다. -->
   <div class="pwa-bar" id="pwa-update" hidden>
-    <p><b>새 버전</b>이 준비됐다. 새로고침하면 적용된다.</p>
-    <button type="button" class="go" id="pwa-update-go">새로고침</button>
-    <button type="button" id="pwa-update-x">나중에</button>
+    <p><b>새 버전</b>이 준비됐다. 안전한 때가 되면 저절로 넘어간다.</p>
+    <button type="button" class="go" id="pwa-update-go">지금 새로고침</button>
   </div>
 
   <!-- 첫 실행 1회 안내. 세이브는 localStorage 에만 있고, iOS 는 홈 화면에 추가하지 않은
@@ -135,11 +134,51 @@
       updateBar.hidden = false;
     }
     $('pwa-update-go').addEventListener('click', function () { location.reload(); });
-    $('pwa-update-x').addEventListener('click', function () { updateBar.hidden = true; });
+    /* ★ 「나중에」 는 없앴다 — 옛 판으로 계속 놀면 그날 만든 것이 하나도 안 닿는다.
+     *   대신 **안전할 때 저절로** 넘어간다 (아래 tryReload). */
+
+    /* ══════════════════════════════════════════════════════════════════════
+     * ★★★ 새 판을 받았으면 **그냥 넘어가지 못하게** 한다 (제작자 요구)
+     *
+     *   실측으로 겪었다: 한 계정이 **나흘째 옛 판(163)** 으로 몇 분마다 제출했다.
+     *   서비스워커는 뒤에서 새 판을 받아 두는데 **열린 탭은 옛 JS 를 그대로 들고 있다.**
+     *   그래서 그 사람은 이관 UI 도, 그날 만든 것도 하나도 못 봤다.
+     *
+     * ★★ **서버에 «최신 판이 뭐냐» 고 묻지 않는다.** 함수는 배포됐는데 Pages 빌드가
+     *   아직이면 «업데이트하라 → 해도 그대로» 라는 **고리**에 빠진다.
+     *   ⇒ 서비스워커가 **이 기기에 새 판을 실제로 받아 놓은 뒤에만** 움직인다.
+     *     그러면 새로고침이 반드시 효과가 있다 — 고리가 원리적으로 안 생긴다.
+     *
+     * ★ 그리고 **아무 때나 새로고침하지 않는다.** 전투 중에 새로고침하면 그 판이 날아간다.
+     *   «지금 새로고침해도 되나» 를 게임에 물어보고(`window.__mercSafeToReload`),
+     *   안전할 때까지 기다린다. 게임이 그 함수를 안 내놓으면 **안 하고 배너만 둔다.**
+     * ══════════════════════════════════════════════════════════════════════ */
+    var pending = false;
+    function safeNow() {
+      try {
+        return typeof window.__mercSafeToReload === 'function' && window.__mercSafeToReload() === true;
+      } catch (e) { return false; }
+    }
+    function tryReload() {
+      if (!pending) return;
+      if (!safeNow()) return;
+      /* ★ 한 번만. 되돌아오면 새 판이라 pending 이 다시 안 선다. */
+      pending = false;
+      try { sessionStorage.setItem('merc_autoreload', '1'); } catch (e) { /* 사생활 모드 */ }
+      location.reload();
+    }
+    function markPending() {
+      if (pending) return;
+      pending = true;
+      showUpdate();
+      /* 지금 안전하면 바로, 아니면 안전해질 때까지 몇 초마다 본다 */
+      tryReload();
+      setInterval(tryReload, 4000);
+    }
 
     // 워커가 activate 하면서 옛 캐시를 지웠을 때만 알려 온다(첫 설치에는 안 온다).
     navigator.serviceWorker.addEventListener('message', function (e) {
-      if (e.data && e.data.type === 'merc-sw-updated') showUpdate();
+      if (e.data && e.data.type === 'merc-sw-updated') markPending();
     });
 
     window.addEventListener('load', function () {
@@ -149,11 +188,16 @@
           var sw = reg.installing;
           if (!sw || !navigator.serviceWorker.controller) return;
           sw.addEventListener('statechange', function () {
-            if (sw.state === 'installed' || sw.state === 'activated') showUpdate();
+            if (sw.state === 'installed' || sw.state === 'activated') markPending();
           });
         });
-        // 탭을 오래 열어 두는 사람을 위해 한 시간에 한 번 갱신을 확인한다.
-        setInterval(function () { reg.update().catch(function () {}); }, 60 * 60 * 1000);
+        /* ★★ 한 시간에 한 번은 **너무 뜸했다** — 실측으로 한 계정이 나흘을 옛 판으로 놀았다.
+         *   5분마다 보고, **탭으로 돌아올 때도** 본다 (배경 탭은 타이머가 눌린다). */
+        var check = function () { reg.update().catch(function () {}); };
+        setInterval(check, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) check();
+        });
       }).catch(function (err) { console.warn('[pwa] 서비스 워커 등록 실패', err); });
     });
   })();

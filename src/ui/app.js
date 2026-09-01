@@ -1289,6 +1289,29 @@ export async function startTutorial(force = false) {
 export function boot() {
   bus.on('change', () => { renderHud(); });
   // 저장 훅을 꽂고 밀려 있던 업로드를 이어 간다. 꺼져 있으면 아무 일도 안 한다.
+  /* ══════════════════════════════════════════════════════════════════════
+   * ★★★ 「지금 새로고침해도 되나」 — `index.html` 이 물어본다
+   *
+   *   새 판이 받아지면 페이지가 **안전할 때 저절로** 새로고침한다 (제작자 요구).
+   *   실측으로 한 계정이 **나흘째 옛 판**으로 놀았고, 그동안 그날 만든 것이
+   *   하나도 안 닿았다 (이관 UI 도 못 봤다).
+   *
+   * ★★ 그런데 **아무 때나 새로고침하면 안 된다** — 전투 중이면 그 판이 날아간다.
+   *   그래서 «도시 화면이고, 창이 안 떠 있고, 탭이 보이는» 때만 «안전» 이라고 답한다.
+   *   ★ 이 함수를 안 내놓으면 페이지는 **자동 새로고침을 안 한다** (배너만 둔다) —
+   *     모르면 안 하는 쪽이 맞다.
+   * ══════════════════════════════════════════════════════════════════════ */
+  try {
+    window.__mercSafeToReload = () => {
+      try {
+        if (document.hidden) return false;                       // 안 보는 탭은 건드리지 않는다
+        if (currentScreen() !== 'city') return false;             // 전투·던전·월드맵이면 안 된다
+        const layer = document.querySelector('#modal-layer');
+        if (layer && layer.firstChild) return false;              // 창이 떠 있으면 안 된다
+        return true;
+      } catch (e) { return false; }
+    };
+  } catch (e) { console.warn('[app] 새로고침 신호 배선 실패', e); }
   try { Cloud.init(); } catch (e) { console.warn('[app] 클라우드 초기화 실패', e); }
   /* ★★ 장비 변화를 서버 사본에 전한다 (§104 10·11단계 · 거울).
    *   ★ 판매는 **모아서 한 번에** 간다 — 자동판매가 50점을 팔아도 요청은 하나다.
