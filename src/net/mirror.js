@@ -34,6 +34,11 @@ import { EP, CLIENT_REV } from './config.js';
 import { authed } from './rest.js';
 import * as Auth from './auth.js';
 
+/* ★ 권위 경로(`askSell`·`askEquip`)가 **이미 서버에 적용한** uid 들.
+ *   거울이 같은 것을 또 보내면 왕복만 낭비다 (서버는 op_id 로 걸러 주지만). */
+const handled = new Set();
+const eqHandled = new Set();
+
 /** 콘솔에 남길 때 쓰는 이름 */
 const LABEL = { promote: '전직', sell: '판매', equip: '착용' };
 
@@ -121,6 +126,90 @@ export async function askPromote(mercUid, toClass) {
   }
 }
 
+
+/**
+ * 판매를 **서버에 먼저 묻는다** — §104 10단계 (권위)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★ 서버의 `sell` 은 **부분 성공**이다: 못 파는 것은 조용히 건너뛰고 판 것만 정산한다.
+ *   그래서 「막힌다/안 막힌다」 가 아니라 **「어느 것이 거절됐나」** 를 돌려준다.
+ *
+ * ★★★ 거절 사유 중 **«없다» 는 막지 않는다.** 그건 신품 전리품이다 —
+ *   서버 사본에 아이템 «생김» 은 안 따라온다 (§149: 전리품의 정체를 못 확인한다).
+ *   실측으로 그 비율이 크다 (31점 중 16점). 막으면 정상 판매가 절반쯤 막힌다.
+ *
+ * ★ 그리고 서버는 물어보는 순간 **이미 판다.** 그래서 이 함수를 쓴 uid 는
+ *   거울을 또 보내지 않는다 (`handled` 에 담아 둔다).
+ *
+ * @returns {Promise<{ok:boolean, blocked:Set<string>, why:string}>}
+ *   `blocked` 에 든 uid 만 **팔지 않는다.** 못 물었으면 빈 집합이다 (= 오늘 동작).
+ */
+export async function askSell(uids, day) {
+  const none = (why) => ({ ok: false, blocked: new Set(), why });
+  try {
+    if (!Auth || typeof Auth.accessToken !== 'function' || !Auth.accessToken()) return none('로그인안됨');
+    const list = (Array.isArray(uids) ? uids : []).map(String).filter(Boolean).slice(0, 400);
+    if (!list.length) return none('빈목록');
+
+    const r = await authed(EP.fn('run-op'), {
+      method: 'POST',
+      timeout: 6000,
+      body: { op: 'sell', opId: `sl_${list[0]}_${list.length}_${day || 0}`.slice(0, 64), rev: CLIENT_REV, uids: list },
+    }, Auth);
+
+    if (!r || !r.ok) return none(`상태${r && r.status}`);
+    for (const u of list) handled.add(u);          // 서버가 이미 팔았다 — 거울을 또 보내지 않는다
+
+    const blocked = new Set();
+    const skipped = (r.data && r.data.skipped) || [];
+    for (const s of skipped) {
+      const why = String((s && s.why) || '');
+      /* ★★ «없다» 는 **막지 않는다** — 신품 전리품이다 (실측 31점 중 16점) */
+      if (/없다/.test(why)) { handled.delete(String(s.uid)); continue; }
+      blocked.add(String(s && s.uid));
+    }
+    return { ok: true, blocked, why: '서버판정' };
+  } catch (e) {
+    return none('예외');
+  }
+}
+
+/**
+ * 착용을 **서버에 먼저 묻는다** — §104 11단계 (권위)
+ *
+ * ★ 전직과 같은 모양이다: **409 만** 막고 나머지는 오늘 동작.
+ *   ★★ 서버는 **낡지 않는 것**만 문다 (부위·무기 타입·세트 계열). 레벨은 안 본다 (§150.2).
+ */
+export async function askEquip(mercUid, itemUid, slot, day) {
+  const fall = (why) => ({ ok: false, blocked: false, reason: '', why });
+  try {
+    if (!Auth || typeof Auth.accessToken !== 'function' || !Auth.accessToken()) return fall('로그인안됨');
+    const m = String(mercUid || '');
+    const i = String(itemUid || '');
+    if (!m || !i) return fall('인자없음');
+
+    const r = await authed(EP.fn('run-op'), {
+      method: 'POST',
+      timeout: 6000,
+      body: {
+        op: 'equip', rev: CLIENT_REV, mercUid: m, itemUid: i, slot: slot == null ? null : String(slot),
+        opId: `eq_${i}_${day || 0}_${slot == null ? 'off' : slot}`.slice(0, 64),
+      },
+    }, Auth);
+
+    if (r && r.ok) { eqHandled.add(i); return { ok: true, blocked: false, reason: '', why: '서버승인' }; }
+    if (r && r.status === 409) {
+      const why = String(r.error || '');
+      if (/처리 중/.test(why)) return fall('재시도중');
+      return { ok: false, blocked: true, reason: why, why: '서버거절' };
+    }
+    if (r && r.status === 404) return fall('사본에없음');
+    return fall(`상태${r && r.status}`);
+  } catch (e) {
+    return fall('예외');
+  }
+}
+
 /**
  * 전직 한 건.
  * ★ `op_id` 에 **어느 클래스로** 갔는지를 넣는다 — 같은 단원이 2차→3차→4차로 가므로
@@ -195,6 +284,8 @@ export function noteSold(uid, day) {
   try {
     const u = String(uid || '');
     if (!u) return;
+    /* ★ 권위 경로가 이미 서버에 적용했다 — 또 보내지 않는다 */
+    if (handled.has(u)) { handled.delete(u); return; }
     sellDay = Math.round(Number(day) || 0) || sellDay;
     sellBuf.push(u);
     if (sellBuf.length >= SELL_MAX) { flushSell(); return; }
@@ -222,6 +313,8 @@ function flushEquip() {
 export function noteEquip(mercUid, itemUid, slot, day) {
   try {
     if (!itemUid) return;
+    /* ★ 권위 경로가 이미 서버에 적용했다 — 또 보내지 않는다 */
+    if (eqHandled.has(String(itemUid))) { eqHandled.delete(String(itemUid)); return; }
     /* 같은 장비를 여러 번 옮기면 **마지막 것만** 뜻이 있다 */
     eqBuf.set(String(itemUid), { mercUid: String(mercUid || ''), itemUid: String(itemUid), slot, day });
     if (eqTimer) clearTimeout(eqTimer);

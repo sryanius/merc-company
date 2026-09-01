@@ -26,6 +26,8 @@ import * as ItemsAPI from '../data/items.js';
 import * as SetsAPI from '../data/sets.js';
 import * as DungeonAPI from '../data/dungeons.js';
 import * as StateAPI from '../game/state.js';
+/* ★ 판매·착용을 서버에 먼저 묻는다 (§104 10·11단계 · 권위). 못 물으면 오늘 동작이다. */
+import { askSell as srvAskSell, askEquip as srvAskEquip } from '../net/mirror.js';
 
 export const meta = { id: 'inventory', title: '장비' };
 
@@ -1271,12 +1273,17 @@ function bulkSell(maxRarity, label) {
   const gold = targets.reduce((a, it) => a + sellPrice(it), 0);
   confirmBox('일괄 판매',
     `${label} 등급 장비 ${targets.length}점을 약 ${num(gold)}G에 팝니다. 장착 중인 장비와 신화(세트) 장비는 팔지 않습니다.`,
-    () => {
+    async () => {
+      /* ★ 서버가 «못 판다» 고 한 것만 뺀다. 못 물으면 빈 집합이라 지금까지대로 판다. */
+      const ask = await srvAskSell(targets.map((x) => x.uid), state.day);
+      const blocked = ask.blocked || new Set();
       let total = 0; let n = 0;
       for (const it of targets) {
+        if (blocked.has(it.uid)) continue;
         const r = sellItem(state, it.uid);
         if (r.ok) { total += r.gold; n++; }
       }
+      if (blocked.size) toast(`${blocked.size}점은 지금 팔 수 없습니다.`, 'bad');
       addLog(`창고를 정리해 장비 ${n}점을 팔고 ${num(total)}G를 벌었다.`);
       save();
       toast(`${n}점을 팔아 ${num(total)}G를 얻었습니다.`, 'good');
@@ -1617,7 +1624,11 @@ function equipTargets(it, owner) {
 
     box.appendChild(el('div', {
       class: `iv-row${isOwner ? '' : ' pick'}`,
-      onClick: isOwner ? null : () => {
+      onClick: isOwner ? null : async () => {
+        /* ★★ 서버가 «그 부위·그 무기는 안 된다» 고 하면 안 낀다 (§104 11단계).
+         *   이관 전이거나 네트워크가 안 되면 지금까지대로 낀다. */
+        const ask = await srvAskEquip(m.uid, it.uid, slot, state.day);
+        if (ask.blocked) { toast(ask.reason || '지금은 착용할 수 없습니다.', 'bad'); return; }
         const r = equipItem(state, m, it, slot);
         toast(r.reason, r.ok ? 'good' : 'bad');
         if (r.ok) { save(); refresh(); }
@@ -1666,7 +1677,10 @@ function askSell(it) {
   }
   if (isProtected(it)) { toast('던전 세트(신화) 장비는 팔 수 없습니다.', 'bad'); return; }
   const gold = sellPrice(it);
-  confirmBox('장비 판매', `${it.name}${josa(it.name)} ${num(gold)}G에 팝니다. 되돌릴 수 없습니다.`, () => {
+  confirmBox('장비 판매', `${it.name}${josa(it.name)} ${num(gold)}G에 팝니다. 되돌릴 수 없습니다.`, async () => {
+    /* ★ 서버가 규칙으로 거절하면 안 판다. 못 물으면 지금까지대로 판다. */
+    const ask = await srvAskSell([it.uid], state.day);
+    if (ask.blocked && ask.blocked.has(it.uid)) { toast('지금은 팔 수 없습니다.', 'bad'); return; }
     const r = sellItem(state, it.uid);
     toast(r.reason, r.ok ? 'good' : 'bad');
     if (r.ok) {

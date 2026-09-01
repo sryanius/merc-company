@@ -34,6 +34,8 @@ import { go, refresh, toast, modal } from './app.js';
 import * as Tower from '../game/tower.js';
 import * as Abyss from '../game/abyss.js';
 import * as Progress from '../game/progress.js';
+/* ★ 판매를 서버에 먼저 묻는다 (§104 10단계 · 권위). 못 물으면 오늘 동작이다. */
+import { askSell } from '../net/mirror.js';
 
 export const meta = { id: 'city', title: '도시' };
 
@@ -1855,9 +1857,17 @@ function openSmith(city) {
         ? el('div', { class: 'row', style: { marginTop: '8px' } },
           el('button', {
             class: 'btn sm',
-            onClick: () => {
+            onClick: async () => {
+              /* ★★ 서버가 «이건 못 판다» 고 한 것만 뺀다. 못 물으면 빈 집합이라
+               *   지금까지대로 전부 판다 — 새로 막히는 사람이 생기면 안 된다. */
+              const ask = await askSell(junk.map((x) => x.uid), state.day);
+              const blocked = ask.blocked || new Set();
               let g = 0;
-              for (const it of junk) { const r = sellItem(state, it.uid); if (r.ok) g += r.gold; }
+              for (const it of junk) {
+                if (blocked.has(it.uid)) continue;
+                const r = sellItem(state, it.uid); if (r.ok) g += r.gold;
+              }
+              if (blocked.size) toast(`${blocked.size}점은 지금 팔 수 없습니다.`, 'bad');
               addLog(`대장간에 잡동사니 ${junk.length}점을 넘기고 ${num(g)}G를 받았다.`);
               toast(`${junk.length}점 매각 · +${num(g)}G`, 'good');
               paint();
@@ -1911,7 +1921,10 @@ function openSmith(city) {
   });
 }
 
-function sell(it) {
+async function sell(it) {
+  /* ★ 서버가 규칙으로 거절하면 안 판다. 못 물으면 지금까지대로 판다. */
+  const ask = await askSell([it.uid], state.day);
+  if (ask.blocked && ask.blocked.has(it.uid)) { toast('지금은 팔 수 없습니다.', 'bad'); return; }
   const r = sellItem(state, it.uid);
   if (!r.ok) { toast(r.reason, 'bad'); return; }
   addLog(`대장간에 ${it.name}${josa(it.name)} ${num(r.gold)}G에 넘겼다.`);

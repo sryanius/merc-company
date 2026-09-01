@@ -9829,8 +9829,23 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
     const after404 = i404 >= 0 ? ask.slice(i404, i404 + 120) : '';
     ok(i404 >= 0 && !/blocked:\s*true/.test(after404),
       '이관 전(404)은 막지 않는다', '실측 8계정 중 2가 아직 이관 전이다');
-    const blocks = [...ask.matchAll(/blocked:\s*true/g)].length;
-    ok(blocks === 1, '막는 자리가 딱 한 곳이다', `${blocks}곳 — 늘어나면 새로 막히는 사람이 생긴다`);
+    /* ★★★ **모든 «막는다» 는 409 아래에 있어야 한다.**
+     *   처음엔 «막는 자리가 딱 한 곳» 으로 셌는데, 권위 경로가 셋(전직·판매·착용)이
+     *   되면서 그 숫자가 뜻을 잃었다. 지킬 것은 **개수가 아니라 «무엇 때문에 막나»** 다:
+     *   404(이관 전)나 네트워크로 막으면 실측 8명 중 2명이 그 자리에서 못 논다. */
+    const blocks = [...ask.matchAll(/blocked:\s*true/g)].map((m) => m.index);
+    /* ★★ 「앞 400자에 409 가 있나」 로 보면 **헐겁다** — 바로 위 409 분기가 잡혀서
+     *   404 로 막게 바꿔도 안 물었다 (심어 보고 알았다).
+     *   ⇒ **가장 가까운** 상태 검사가 409 인지 본다. */
+    const nearestStatus = (i2) => {
+      const before = ask.slice(0, i2);
+      const all = [...before.matchAll(/status === (\d+)/g)];
+      return all.length ? all[all.length - 1][1] : null;
+    };
+    const bad409 = blocks.filter((i2) => nearestStatus(i2) !== '409');
+    ok(blocks.length > 0, '막는 자리가 있다 (권위가 켜져 있다)');
+    okAll(bad409.map((i2) => `409 없이 막는다: …${ask.slice(Math.max(0, i2 - 60), i2 + 20).replace(/\s+/g, ' ')}`),
+      '막는 자리가 전부 409 아래에 있다', blocks.length);
     /* ★ 버튼이 오래 멈추면 그 자체가 고장이다 */
     ok(/timeout:\s*\d+/.test(ask), '기다리는 시간에 상한이 있다', '기본 15초는 버튼에 너무 길다');
     /* ★ 예외가 나도 막지 않는다 */

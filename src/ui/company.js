@@ -41,7 +41,7 @@ import * as SetsAPI from '../data/sets.js';
 import * as GameState from '../game/state.js';
 import * as Pet from '../game/pet.js';
 /* ★ 서버 사본을 따라오게 하는 채널 — 게임 흐름을 막지 않는다 (net/mirror.js) */
-import { mirrorPromote, askPromote } from '../net/mirror.js';
+import { mirrorPromote, askPromote, askEquip } from '../net/mirror.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -2813,7 +2813,11 @@ function openEquipPicker(m, slot) {
     return el('div', {
       class: 'co-pick',
       style: isMythic(it) ? { borderColor: MYTHIC_COLOR } : {},
-      onClick: () => {
+      onClick: async () => {
+        /* ★★ 서버가 «그 부위·그 무기는 안 된다» 고 하면 안 낀다 (§104 11단계).
+         *   이관 전이거나 네트워크가 안 되면 지금까지대로 낀다 — 새로 막히면 안 된다. */
+        const ask = await askEquip(m.uid, it.uid, slot, state.day);
+        if (ask.blocked) { toast(ask.reason || '지금은 착용할 수 없습니다.', 'bad'); return; }
         const r = equipItem(state, m, it, slot);
         toast(r.reason, r.ok ? 'good' : 'bad');
         if (r.ok) { save(); redraw(); }
