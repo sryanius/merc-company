@@ -151,7 +151,17 @@ export const BUNDLES = [
        *   서버와 `tools/settleband.mjs` 가 **같은 함수**를 부른다 — 밴드 계산을
        *   `index.ts` 안에 인라인으로 두면 오프라인으로 굴려 볼 수가 없고,
        *   도구가 재려면 사본을 만들게 된다 (§94·§98·§107·§124). */
-      'src/game/settlejudge.js'],
+      'src/game/settlejudge.js',
+      /* ★★ 의뢰 전투 재현 (§152 ②). 서버가 「이 부대로 그 의뢰를 이길 수 있나」 를
+       *   물으려면 전투를 다시 돌려야 한다. 닫힘이 **21 → 28개**(624→771KB)로 는다 —
+       *   engine·ai·squad·pet·pets·lineage·questbattle 이 따라온다.
+       *   ★ engine.js 는 ENGINE_HASH 의 재료지만 **지문은 «파일의 내용»** 이라
+       *     묶음을 늘려도 안 바뀐다 (_power 때 확인했다). 내용을 고치는 것만 위험하다. */
+      'src/game/questbattle.js',
+      'src/battle/engine.js',
+      /* ★ 엔진 지문 상수. 아무도 import 하지 않아서 **닫힘으로는 안 따라온다** —
+       *   진입점에 직접 적어야 한다 (전투 엔진 묶음도 같은 이유로 그렇게 한다). */
+      'src/data/enginever.js'],
     walk: true,
     next: 'supabase functions deploy run-op',
   },

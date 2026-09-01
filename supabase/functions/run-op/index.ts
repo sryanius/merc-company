@@ -39,6 +39,8 @@ import { hashStr } from './_rules/enemygen.js';
  *   오탐 0 · 심은 조작 1892건 전부 적발을 확인했다. */
 import { judgeSettle } from './_rules/settlejudge.js';
 import { RNG } from './_rules/rng.js';
+/* ★ 엔진 지문 — 클라와 판이 다르면 같은 시드도 다른 결과다. 그때는 «못 잰다» 다. */
+import { ENGINE_HASH } from './_rules/enginever.js';
 
 /* ★ 서버에서는 로그·저장을 클라가 소유한다 — 빈 함수로 묶는다.
  *   ★ 안 묶으면 `advanceDays` 가 **던진다** (day.js 의 계약). 그래서 여기서 한 번 묶는다. */
@@ -625,6 +627,75 @@ Deno.serve(async (req) => {
       console.error('[그림자] 정산 판정 실패 — 넘어간다', String((e as Error)?.message || e));
     }
 
+    /* ═══════════ 전투를 **다시 돌린다** (§152 ② · 그림자) ═══════════════════
+     *
+     * ★★ **판정하지 않는다.** 계산해서 관측 표에만 적는다. 이 조각의 목적은
+     *   «서버가 재현하면 얼마나 맞나» 를 **수치로** 아는 것이다 — 그 수치가
+     *   ③④단계(불일치 분해 → 판정)를 결정한다.
+     *
+     * ★★★ **패배 신고는 안 본다.** 후퇴는 `ui/battle.js` 가 결과를 합성한다
+     *   (`finish()` 를 안 지나 `margin` 이 없다) — 서버가 같은 시드로 돌리면 이겼을 수
+     *   있다. 그리고 「졌다」 고 거짓말해서 얻는 것이 없다 (패배는 진행도에 비례한
+     *   경험치만 준다). ⇒ **인센티브가 없는 곳을 안 지킨다** (§152 의 답).
+     *
+     * ★ 엔진 판이 다르면 «틀렸다» 가 아니라 «못 잰다» 다. 서비스워커 때문에 클라가
+     *   옛 셸일 수 있다 — 실측으로 한 계정이 나흘을 그랬다 (§145).
+     *
+     * ★ 비용은 이미 쟀다: 의뢰 하나 **3.4ms** (tools/battlecost.mjs). 예산 걱정이 없다.
+     * ★ 여기서 죽어도 신고 처리는 그대로 간다. */
+    let battle: Record<string, unknown> = { ran: false, why: '안돌았다' };
+    try {
+      if (!q.win) {
+        battle = { ran: false, why: '패배는안본다' };
+      } else if (!genHit) {
+        battle = { ran: false, why: '재현불가' };
+      } else if (String(q.engineHash || '') !== String(ENGINE_HASH)) {
+        /* ★ «못 잰다» 다. 거절이 아니다. */
+        battle = { ran: false, why: '엔진판다름', cli: String(q.engineHash || '').slice(0, 12) };
+      } else {
+        const [{ fromRows }, { questBattleDefs, applyWaveCarry, readWaveCarry }, { createBattle }, { getSkill }] =
+          await Promise.all([
+            import('./_rules/runrows.js'),
+            import('./_rules/questbattle.js'),
+            import('./_rules/engine.js'),
+            import('./_rules/skills.js'),
+          ]);
+        const [rm, ri, rp, rq] = await Promise.all([
+          allRows(admin, 'run_mercs', userId),
+          allRows(admin, 'run_items', userId),
+          allRows(admin, 'run_pets', userId),
+          allRows(admin, 'run_squads', userId),
+        ]);
+        const stSrv = fromRows({ state: rs4, mercs: rm || [], items: ri || [], pets: rp || [], squads: rq || [], quests: [] });
+        const squadId = String(q.squadId || '');
+        const waves = Array.isArray(genHit.waves) ? genHit.waves.length : 0;
+        const t0 = Date.now();
+        let carry: unknown = null;
+        let srvWin = true;
+        let ranWaves = 0;
+        for (let w = 0; w < waves; w++) {
+          const cfg = questBattleDefs(genHit, w, stSrv, squadId);
+          const allies = applyWaveCarry(cfg.allies, carry);
+          if (!allies || !allies.length) { srvWin = false; break; }
+          /* ★★ 스킬 해석기를 **설정에 직접 싣는다.** 전역 `setSkillResolver` 는 UI 부팅이
+           *   불러 주는데 서버에는 그 부팅이 없다. 빼먹으면 스킬이 통째로 사라져
+           *   승률이 완전히 달라진다 (`runverify.js` 가 같은 자리에서 겪었다). */
+          const b = createBattle({ ...cfg, allies, getSkill });
+          b.run();
+          ranWaves++;
+          if (b.result.winner !== 'ally') { srvWin = false; break; }
+          if (w < waves - 1) carry = readWaveCarry(b.units, (carry as Record<string, unknown>) || {});
+        }
+        battle = {
+          ran: true, srvWin, cliWin: true, agree: srvWin === true,
+          waves, ranWaves, cliWaveN: R2(q.waveN), ms: Date.now() - t0,
+          squadN: (stSrv.squads || []).length, rosterN: (stSrv.roster || []).length,
+        };
+      }
+    } catch (e) {
+      battle = { ran: false, failed: true, why: String((e as Error)?.message || e).slice(0, 120) };
+    }
+
     /* ═══════════ 정산을 **실제로 쓴다** (§104 17단계의 진짜 형태) ═══════════
      *
      * ★★★ 여기까지 정산은 «보기만» 했다. 그래서 서버 사본의 `level` 이 낡았고,
@@ -734,6 +805,8 @@ Deno.serve(async (req) => {
       judge: { v: verdict.verdict || null, cant: !!verdict.cantJudge, why: (verdict.reasons || []).slice(0, 6) },
       /* ★ 사본에 실제로 썼나 — 로그로만 남기면 또 못 센다 (§145 에서 같은 실수를 했다) */
       wrote,
+      /* ★ 전투 재현 결과 (§152 ②) — **판정에 안 쓴다.** ③④단계가 이 값을 보고 정한다. */
+      battle,
     });
 
     /* ═══════════ 판정을 **켠다** — 다만 «표시» 까지다 (17단계 4번 조각) ═══════════

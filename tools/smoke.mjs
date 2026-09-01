@@ -10265,6 +10265,74 @@ section('새 판을 받으면 저절로 넘어가나 (옛 셸로 계속 놀지 �
   }
 }
 
+section('서버가 재현한 전투 == 클라가 한 전투 (§152 ②의 관문)');
+{
+  /* ★★ ②단계는 「서버가 전투를 다시 돌려 승패를 대조한다」 다. 서버가 낸 답이 클라와
+   *   다르면 **정직한 승리가 전부 «졌는데 이겼다고 신고» 로 찍힌다.**
+   *   `tools/battleparity.mjs` 가 서버 경로를 그대로 흉내내 잰다:
+   *   toRows→fromRows 왕복본으로 정의를 만들고, getSkill 을 설정에 실어 돌린다.
+   * ★ 여기서는 굴리기만 한다 (powerparity·questparity 와 같은 짜임새). */
+  let out = '';
+  let died = null;
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, 'tools/battleparity.mjs'), '--n=18'],
+      { encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) { died = String((e && (e.stdout || e.message)) || e); }
+  const text = died || out;
+  const bad = text.split(/\r?\n/).filter((l) => l.trim().startsWith('✗')).map((l) => l.replace(/^\s*✗\s*/, ''));
+  okAll(bad, '서버 재현이 클라와 같은 승패를 낸다',
+    text.split(/\r?\n/).filter((l) => l.trim().startsWith('✓')).length);
+
+  /* ★★ «100%» 만 보고 끝내지 않는다 — **판이 실했는지**도 본다.
+   *   전부 이긴 판으로 «일치 100%» 라고 하면 아무것도 증명 못 한다. */
+  const m = text.match(/일치 (\d+) \/ (\d+)/);
+  ok(m && Number(m[2]) >= 15, '충분히 많은 의뢰로 쟀다', m ? `${m[2]}건` : '(못 읽었다)');
+  ok(/승패가 섞여 있다/.test(text) && !/✗ 승패가 섞여/.test(text), '승패가 섞인 판이었다',
+    '전부 이긴 판이면 «일치» 가 아무 뜻이 없다');
+  ok(m && m[1] === m[2], '한 건도 안 갈린다', m ? `${m[1]}/${m[2]}` : '(못 읽었다)');
+  /* ★★★ getSkill 메타가 실제로 물어야 «일치» 가 뜻을 갖는다 */
+  ok(/✓ 메타 — getSkill 을 빼면/.test(text), 'getSkill 을 빼면 결과가 갈린다는 것을 보였다',
+    '안 보이면 «일치» 는 «검사가 아무것도 안 본다» 와 구별되지 않는다');
+}
+
+section('서버가 전투를 다시 돌리는 자리의 계약 (§152 ②)');
+{
+  const oSrc = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+  const code = decomment(oSrc);
+  const i = code.indexOf("op === 'questSettle'");
+  const blk = i > 0 ? code.slice(i, code.indexOf('return json({ ok: true, shadow: true });', i)) : '';
+  ok(!!blk, '정산 분기를 찾는다');
+
+  ok(/createBattle\(/.test(blk), '서버가 전투를 다시 돌린다');
+  /* ★★★ getSkill 을 **설정에 싣는다.** 서버에는 UI 부팅이 없어 전역이 안 불린다 —
+   *   빼먹으면 스킬이 통째로 사라져 승률이 완전히 달라진다 (runverify 가 겪은 사고). */
+  ok(/getSkill\s*\}\)|getSkill,/.test(blk), 'getSkill 을 설정에 실어 보낸다',
+    '서버에는 전역 setSkillResolver 가 없다 — 빼먹으면 스킬이 사라진다');
+  /* ★★ 패배는 안 본다 — 후퇴는 클라가 결과를 합성하고, 「졌다」 고 거짓말할 이유가 없다 */
+  /* ★ 「!q.win 이 어딘가 있나」 로 보면 **죽은 검사**다 — 관측의 `win: !!q.win` 에
+   *   걸려서 조건을 지워도 안 물었다 (심어 보고 알았다). **조건문 자체**를 본다.
+   *   ⇒ 이 계열(「이름이 어딘가 있나」)로 헛짚은 것이 이번 세션에만 일곱 번째다. */
+  ok(/if\s*\(\s*!q\.win\s*\)/.test(blk), '패배 신고는 재현하지 않는다',
+    '후퇴는 클라가 결과를 합성한다 — 다시 돌리면 이겼을 수 있다 (§152)');
+  /* ★★ 엔진 판이 다르면 «못 잰다» — 거절이 아니다 */
+  ok(/ENGINE_HASH/.test(blk), '엔진 판이 같은지 본다');
+  ok(/엔진판다름|engineHash/.test(oSrc), '엔진 판이 다르면 «못 잰다» 로 남긴다');
+  /* ★★★ 판정에 안 쓴다 — ②단계는 그림자다 */
+  ok(/battle,/.test(oSrc), '재현 결과를 관측 표에 남긴다',
+    '로그로만 남기면 몇 %가 맞는지 아무도 못 센다 (§145 의 실수)');
+  ok(!/battle\.(agree|srvWin)[\s\S]{0,120}?(reject|flag|status)/.test(blk),
+    '재현 결과로 아직 판정하지 않는다', '②단계는 그림자다 — 켜는 것은 ④단계다');
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const NOSKILL = 'const b = createBattle({ ...cfg, allies });';
+    ok(!/getSkill/.test(NOSKILL), '메타 — getSkill 을 빠뜨린 모양을 실제로 잡는다');
+    const JUDGE = "if (!battle.agree) { status = 'flagged'; }";
+    ok(/battle\.(agree|srvWin)[\s\S]{0,120}?(reject|flag|status)/.test(JUDGE),
+      '메타 — 재현 결과로 판정하는 모양을 실제로 잡는다');
+  }
+}
+
 /* ───────────────────────────── 결과 ───────────────────────────── */
 
 report();

@@ -22,6 +22,9 @@
  * @module net/settle
  */
 import { EP, CLIENT_REV } from './config.js';
+/* ★★ 엔진 지문. 클라와 서버의 엔진 판이 다르면 **같은 시드도 다른 결과**다.
+ *   그때는 «틀렸다» 가 아니라 «못 잰다» 여야 한다 (§152 ②의 계약). */
+import { ENGINE_HASH } from '../data/enginever.js';
 import { authed } from './rest.js';
 import * as Auth from './auth.js';
 
@@ -68,6 +71,7 @@ export function reportSettle(o) {
     const body = {
       op: 'questSettle',
       rev: CLIENT_REV,
+      engineHash: String(ENGINE_HASH || ''),
       /* ★ `op_id` 는 «이 정산 한 건» 이다. 같은 의뢰를 다시 이기면 다른 id 다
        *   (id 에 day 가 박혀 있고 승리하면 목록에서 지워진다). */
       opId: `qs_${q.id}_${st.day}_${o.squadId || ''}`.slice(0, 64),
