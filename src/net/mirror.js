@@ -155,3 +155,76 @@ export function mirrorEquip(mercUid, itemUid, slot, day) {
   send('equip', `eq_${itemUid}_${day || 0}_${slot == null ? 'off' : slot}`,
     { mercUid: String(mercUid), itemUid: String(itemUid), slot: slot == null ? null : String(slot) });
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * **모아서 한 번에 보낸다** — 이게 판매 거울을 가능하게 만드는 전부다
+ *
+ * ★★★ 전에 나는 「자동판매는 요청이 수백 개 나가니 판매는 거울을 못 건다」 고 적었다.
+ *   **그건 op 을 낱개로 걸 때만 참이다.** 서버의 `sell` 은 `uids` 를 **배열로** 받고
+ *   부분 성공을 돌려준다 (최대 500). 그러니 한 번에 모으면 **의뢰 한 건에 요청 1회**다.
+ *
+ * ★ 그래서 갈고리는 «한 점 팔았다» 만 알리고, 여기서 조용해질 때까지 기다렸다 보낸다.
+ *   `autoSellLoot` 이 50점을 팔아도 요청은 하나다.
+ *
+ * ★★ 그래도 **게임을 막지 않는다** — 타이머로 미루고, 보낸 뒤엔 안 본다.
+ * ★ 500개를 넘기면 그 자리에서 한 묶음 내보낸다 (서버 상한이 500이다).
+ * ══════════════════════════════════════════════════════════════════════════ */
+const SELL_MAX = 400;          // 서버 상한 500 아래로 여유를 둔다
+const QUIET_MS = 400;          // 이만큼 조용하면 한 묶음으로 본다
+let sellBuf = [];
+let sellTimer = null;
+let sellDay = 0;
+
+function flushSell() {
+  if (sellTimer) { clearTimeout(sellTimer); sellTimer = null; }
+  const uids = sellBuf;
+  sellBuf = [];
+  if (!uids.length) return;
+  /* ★ 한 줄 남긴다 — 「모아서 한 번에」 가 실제로 도는지 사람이 볼 수 있어야 한다.
+   *   50점을 팔았는데 이 줄이 50번 찍히면 모으기가 깨진 것이다. */
+  console.info('[거울] 판매', uids.length, '점을 한 번에 보낸다');
+  mirrorSell(uids, sellDay);
+}
+
+/**
+ * 「한 점 팔았다」 를 모은다. **부르는 쪽은 이것만 부르면 된다.**
+ * @param {string} uid
+ * @param {number} day
+ */
+export function noteSold(uid, day) {
+  try {
+    const u = String(uid || '');
+    if (!u) return;
+    sellDay = Math.round(Number(day) || 0) || sellDay;
+    sellBuf.push(u);
+    if (sellBuf.length >= SELL_MAX) { flushSell(); return; }
+    if (sellTimer) clearTimeout(sellTimer);
+    sellTimer = setTimeout(flushSell, QUIET_MS);
+  } catch (e) { console.warn('[거울] 판매를 모으지 못했다 (게임에는 영향 없다)', e); }
+}
+
+/**
+ * 「끼거나 벗었다」 를 알린다.
+ *
+ * ★ 착용은 한 번에 한 점이라 모을 필요가 없다 — 다만 `autoEquipAll` 이 여러 번 부를 수
+ *   있어서 **같은 장비의 마지막 상태만** 보낸다 (연속 호출을 접는다).
+ */
+const eqBuf = new Map();
+let eqTimer = null;
+
+function flushEquip() {
+  if (eqTimer) { clearTimeout(eqTimer); eqTimer = null; }
+  const list = [...eqBuf.values()];
+  eqBuf.clear();
+  for (const e of list) mirrorEquip(e.mercUid, e.itemUid, e.slot, e.day);
+}
+
+export function noteEquip(mercUid, itemUid, slot, day) {
+  try {
+    if (!itemUid) return;
+    /* 같은 장비를 여러 번 옮기면 **마지막 것만** 뜻이 있다 */
+    eqBuf.set(String(itemUid), { mercUid: String(mercUid || ''), itemUid: String(itemUid), slot, day });
+    if (eqTimer) clearTimeout(eqTimer);
+    eqTimer = setTimeout(flushEquip, QUIET_MS);
+  } catch (e) { console.warn('[거울] 착용을 모으지 못했다 (게임에는 영향 없다)', e); }
+}

@@ -14,6 +14,10 @@ import * as Auth from '../net/auth.js';
 /* ★ 판번호를 **화면에 보여 준다.** 제작자가 짚었다: 「넌 버전을 말하는데 난 몰라」.
  *   셸이 갈아탔는지 사람이 눈으로 확인할 길이 없으면 «고쳤다» 를 확인할 수가 없다. */
 import { CLIENT_REV } from '../net/config.js';
+/* ★ 장비 갈고리 — `gear.js` 가 «팔았다/끼웠다» 를 알려 오면 서버 사본에 전한다.
+ *   `gear.js` 는 의존성 0 이어야 해서 (묶음에 들어간다) **여기서 묶는다.** */
+import { noteSold, noteEquip } from '../net/mirror.js';
+import { bindGearMirror } from '../game/gear.js';
 /* ★ 진행도 이관 (§104 8단계). 지금까지 이 모듈을 부르는 화면이 **하나도 없었다** —
  *   제작자가 콘솔에서 손으로 한 번 불렀을 뿐이다. 그래서 7계정 중 1개만 서버에 있다. */
 import * as Run from '../net/run.js';
@@ -1275,6 +1279,16 @@ export function boot() {
   bus.on('change', () => { renderHud(); });
   // 저장 훅을 꽂고 밀려 있던 업로드를 이어 간다. 꺼져 있으면 아무 일도 안 한다.
   try { Cloud.init(); } catch (e) { console.warn('[app] 클라우드 초기화 실패', e); }
+  /* ★★ 장비 변화를 서버 사본에 전한다 (§104 10·11단계 · 거울).
+   *   ★ 판매는 **모아서 한 번에** 간다 — 자동판매가 50점을 팔아도 요청은 하나다.
+   *   ★ 이걸 안 묶으면 서버 사본의 `locked`·`equipped_by` 가 낡고, 그러면 나중에
+   *     권한을 넘길 때 정직한 조작이 막힌다 (실측 판매 9.7% · 착용 16.1%). */
+  try {
+    bindGearMirror({
+      onSell: (uid) => noteSold(uid, state.day),
+      onEquip: (mercUid, itemUid, slot) => noteEquip(mercUid, itemUid, slot, state.day),
+    });
+  } catch (e) { console.warn('[app] 장비 거울 배선 실패', e); }
   /* ★ 구글 로그인에서 돌아온 길인지 본다. 주소에 `?code=` 가 붙어 있으면
    *   그걸 토큰으로 바꾸고 주소를 청소한다 (코드가 남으면 새로고침 때 재사용 오류가 난다).
    *   로그인 흔적이 없으면 아무 일도 안 하므로 부팅을 지연시키지 않는다. */

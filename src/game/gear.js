@@ -1333,6 +1333,40 @@ function pickSlotFor(st, m, it) {
  * @param {string|null} [slot] 반지처럼 후보가 여럿일 때 지정. 생략하면 자동
  * @returns {{ok:boolean, reason:string, replaced:object|null, slot:string|null, removed:object[]}}
  */
+/* ══════════════════════════════════════════════════════════════════════════
+ * 서버 사본에 **알리는 갈고리** — §104 10·11단계 (거울)
+ *
+ * ★★★ 왜 여기인가. 파는 자리가 5곳, 끼고 벗는 자리가 5곳이다. 부르는 쪽마다 손으로
+ *   이으면 **하나만 빠져도 서버 사본이 어긋난다** — 그리고 어긋나는 순간
+ *   정직한 조작이 막힌다 (실측 판매 9.7% · 착용 16.1%, `tools/opstale.mjs`).
+ *   ⇒ **바꾸는 자리 한 곳**에 갈고리를 단다. 빠뜨릴 자리가 없어진다.
+ *
+ * ★★ 이 파일은 **의존성 0** 이어야 한다 (`_power`·`_rules` 묶음에 들어간다).
+ *   그래서 `net/` 을 import 하지 않고 **주입받는다** — `day.js` 의 `bindDay` 와 같은 짜임새다.
+ *   ★ 안 묶으면 아무 일도 안 한다 (no-op). 서버(Deno)에서는 영영 안 묶인다 — 그게 맞다.
+ *
+ * ★ 갈고리가 던져도 게임은 그대로 간다. 알리기가 판매를 막으면 안 된다.
+ * ══════════════════════════════════════════════════════════════════════════ */
+let gearMirror = null;
+
+/**
+ * 알림 받을 곳을 묶는다. 클라이언트가 부팅 때 한 번 부른다.
+ * @param {{onSell?:(uid:string)=>void, onEquip?:(mercUid:string,itemUid:string|null,slot:string|null)=>void}|null} h
+ */
+export function bindGearMirror(h) {
+  gearMirror = h && typeof h === 'object' ? h : null;
+}
+
+/** ★ 절대 던지지 않는다 — 알리다 터져서 게임이 멈추면 안 된다. */
+function tellMirror(kind, ...args) {
+  try {
+    const fn = gearMirror && gearMirror[kind];
+    if (typeof fn === 'function') fn(...args);
+  } catch (e) {
+    console.warn('[gear] 서버 알림 실패 (게임에는 영향 없다)', e);
+  }
+}
+
 export function equipItem(state, merc, item, slot = null) {
   if (shifted(state)) { [state, merc, item, slot] = [gs(), state, merc, item]; }
   const st = useState(state);
@@ -1371,6 +1405,7 @@ export function equipItem(state, merc, item, slot = null) {
 
   let msg = `${it.name}${josa(it.name)} 장착했습니다.`;
   if (removed.length) msg += ` (양손 무기라 ${removed[0].name}${josa(removed[0].name, '이/가')} 벗겨졌습니다)`;
+  tellMirror('onEquip', m.uid, it.uid, target);
   return { ok: true, reason: msg, replaced, slot: target, removed };
 }
 
@@ -1391,6 +1426,7 @@ export function unequipSlot(state, merc, slot) {
   const it = findItem(st, cur);
   m.equipment[target] = null;
   const nm = it ? it.name : '장비';
+  tellMirror('onEquip', m.uid, it ? it.uid : cur, null);
   return { ok: true, reason: `${nm}${josa(nm)} 해제했습니다.`, item: it };
 }
 
@@ -1451,6 +1487,7 @@ export function sellItem(state, itemUid) {
 
   const gold = sellPrice(it);
   st.gold = (st.gold || 0) + gold;
+  tellMirror('onSell', it.uid);
   return { ok: true, reason: `${it.name}${josa(it.name)} ${gold}G에 팔았습니다.`, gold, item: it };
 }
 

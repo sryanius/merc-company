@@ -9824,6 +9824,71 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
     '거울은 전직 한 곳에만 이어져 있다', callers.length || 1);
   ok(callers.includes('company:Promote'), '전직이 실제로 이어져 있다', callers.join(' '));
 
+
+  /* ══════════════════════════════════════════════════════════════════════
+   * 장비 갈고리 — **부르는 자리마다 잇지 않는다**
+   *
+   * ★★★ 파는 자리가 5곳, 끼고 벗는 자리가 5곳이다. 손으로 이으면 **하나만 빠져도**
+   *   서버 사본이 어긋나고, 어긋나는 순간 나중에 정직한 조작이 막힌다
+   *   (실측 판매 9.7% · 착용 16.1%, `tools/opstale.mjs`).
+   *   ⇒ **바꾸는 자리 한 곳**(`gear.js`)에 갈고리를 단다. 빠뜨릴 자리가 없어진다.
+   *
+   * ★★ `gear.js` 는 **의존성 0** 이어야 한다 (`_power`·`_rules` 묶음에 들어간다).
+   *   그래서 `net/` 을 물지 않고 **주입받는다** (`bindDay` 와 같은 짜임새).
+   * ══════════════════════════════════════════════════════════════════════ */
+  {
+    /* ★ 이 절에는 app.js 소스가 없다 — 여기서 직접 읽는다 (`code` 는 다른 절의 것이다) */
+    const appCode = decomment(readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8'));
+    const gsrc = readFileSync(join(rootDir, 'src/game/gear.js'), 'utf8');
+    const gcode = decomment(gsrc);
+    ok(/export function bindGearMirror/.test(gcode), 'gear.js 에 갈고리가 있다');
+    /* ★ 묶음 계약 — 여기서 net/ 을 물면 서버(Deno) 사본이 깨진다 */
+    ok(!/from\s*['"]\.\.\/net\//.test(gcode), 'gear.js 가 net/ 을 물지 않는다',
+      '물면 _power·_rules 묶음이 깨진다 — 주입받아야 한다');
+    /* ★ 바꾸는 자리 셋에 전부 달렸나 */
+    const hooks = [...gcode.matchAll(/tellMirror\('(\w+)'/g)].map((m) => m[1]);
+    ok(hooks.filter((h) => h === 'onSell').length >= 1, '판매 자리에 갈고리가 있다');
+    ok(hooks.filter((h) => h === 'onEquip').length >= 2, '착용·해제 자리에 갈고리가 있다',
+      `찾은 onEquip ${hooks.filter((h) => h === 'onEquip').length}개 (끼기·벗기 둘이어야 한다)`);
+    /* ★ 갈고리가 던지면 판매가 멈춘다 — 절대 안 된다 */
+    ok(/function tellMirror[\s\S]{0,300}?try\s*\{/.test(gcode), '갈고리가 던지지 않는다',
+      '던지면 알리기 실패가 곧 판매 실패가 된다');
+    /* ★ 안 묶으면 아무 일도 안 한다 (서버에서는 영영 안 묶인다) */
+    ok(/let gearMirror = null/.test(gcode), '안 묶으면 아무 일도 안 한다');
+
+    /* 부팅에서 실제로 묶나 */
+    ok(/bindGearMirror\s*\(/.test(appCode), '부팅에서 갈고리를 묶는다',
+      '안 묶으면 갈고리가 있어도 아무것도 안 간다');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+   * **모아서 한 번에** — 판매 거울을 가능하게 만드는 전부
+   *
+   * ★★ 전에 「자동판매는 요청이 수백 개 나가니 판매엔 거울을 못 건다」 고 적었는데,
+   *   그건 op 을 **낱개로** 걸 때만 참이다. 서버 `sell` 은 `uids` 를 배열로 받는다.
+   *   브라우저 실측: 50점 → **요청 1회** · 450점 → 2회(400 + 50, 서버 상한 때문).
+   * ══════════════════════════════════════════════════════════════════════ */
+  {
+    ok(/export function noteSold/.test(mirCode), '판매를 모으는 자리가 있다');
+    ok(/export function noteEquip/.test(mirCode), '착용을 모으는 자리가 있다');
+    /* ★ 갈고리는 **모으는 쪽**을 불러야 한다 — 바로 mirrorSell 을 부르면 낱개가 된다 */
+    const appCode2 = decomment(readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8'));
+    ok(/noteSold\s*\(/.test(appCode2) && !/onSell:\s*\([^)]*\)\s*=>\s*mirrorSell/.test(appCode2),
+      '갈고리가 낱개로 안 보내고 모으는 쪽을 부른다',
+      '바로 mirrorSell 을 부르면 의뢰 한 건에 요청이 수십 개 나간다');
+    /* ★ 상한과 잠잠해지는 시간이 둘 다 있어야 한다 */
+    ok(/SELL_MAX\s*=\s*(\d+)/.test(mirCode), '한 묶음 상한이 있다');
+    const cap = Number((mirCode.match(/SELL_MAX\s*=\s*(\d+)/) || [])[1] || 0);
+    ok(cap > 0 && cap <= 500, '상한이 서버 상한(500) 아래다', `${cap}`);
+    ok(/setTimeout\(flushSell/.test(mirCode), '조용해지면 내보낸다');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "bindGearMirror({ onSell: (uid) => mirrorSell([uid], 1) })";
+    ok(/onSell:\s*\([^)]*\)\s*=>\s*mirrorSell/.test(BAD), '메타 — 낱개로 보내는 모양을 실제로 잡는다');
+  }
+
   /* ⑤ 대량 경로에 붙지 않았나 — `autoSellLoot` 근처에 거울이 있으면 문다 */
   {
     const b = decomment(readFileSync(join(rootDir, 'src/ui/battle.js'), 'utf8'));
