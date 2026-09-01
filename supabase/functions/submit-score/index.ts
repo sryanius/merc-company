@@ -20,7 +20,7 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { extractScore, normalizeScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H } from '../_shared/rules.js';
+import { extractScore, normalizeScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H, serverAxes } from '../_shared/rules.js';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -111,6 +111,59 @@ Deno.serve(async (req) => {
   if (via === 'state') console.error('[submit-score] 옛 갈래(세이브 통째)로 왔다');
 
   const admin = createClient(url, service, { auth: { persistSession: false } });
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * ★★★ 18단계 — 순위 축을 **서버가 뽑은 값으로 갈아 끼운다**
+   *
+   *   여기까지 서버는 클라가 신고한 30칸을 «판정» 하기만 했다. 이제 명부에서 나오는
+   *   축들은 **서버가 자기 표에서 직접 뽑아** 쓴다.
+   *
+   * ★★ **전부 아니면 전무다.** 한 칸만 갈아 끼우면 `sMercs > rosterN` 이 되어
+   *   `checkStatic` 이 **A등급 거절**을 낸다. 판단은 `rules.js serverAxes` 한 벌이 한다.
+   *
+   * ★★★ **못 잴 때는 안 바꾼다.** 스냅숏이 없거나(실측 7계정 중 6) 뒤처졌으면
+   *   클라 값 그대로 간다. «없다»·«낡았다» 는 수상함이 아니라 **못 잼**이다 —
+   *   실측으로 겪었다: 사흘 만에 63일 뒤처져 전력 차 −137 이 났고 그건 시차였다.
+   *
+   * ★ **여기서 A등급을 새로 만들지 않는다.** 서버 값이 이상하면 «거절» 이 아니라
+   *   «안 바꿈» 이다 (§104 18단계의 계약).
+   *
+   * ★ 이 블록이 통째로 던져도 판정은 그대로 돈다 — try/catch 안이고 실패하면
+   *   `score` 를 안 건드린다. 그림자 블록과 같은 계약이다.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  let axes: { used: boolean; why: string; diff: Record<string, unknown> } = { used: false, why: '안돌았다', diff: {} };
+  let srvScore: Record<string, unknown> | null = null;
+  try {
+    const [{ data: rs0 }, rm0, ri0, rp0, rq0] = await Promise.all([
+      admin.from('run_state').select('*').eq('user_id', userId).maybeSingle(),
+      allRows(admin, 'run_mercs', userId),
+      allRows(admin, 'run_items', userId),
+      allRows(admin, 'run_pets', userId),
+      allRows(admin, 'run_squads', userId),
+    ]);
+    if (rs0) {
+      const [{ fromRows }, { stampSquadPower }] = await Promise.all([
+        import('./_power/runrows.js'),
+        import('./_power/squad.js'),
+      ]);
+      const st0 = fromRows({ state: rs0, mercs: rm0 || [], items: ri0 || [], pets: rp0 || [], squads: rq0 || [], quests: [] });
+      stampSquadPower(st0);
+      /* ★ `extractScore` 를 그대로 쓴다 — `squad`·`squadsFull` 까지 **한 출처**에서 나온다.
+       *   순위표 카드의 숫자와 그림이 다른 데서 오면 안 된다 (§131). */
+      srvScore = extractScore({ ...st0, dataVersion: Number(score.dataVersion) || 0 });
+      const dayLag = (Math.round(Number(score.day) || 0)) - (Math.round(Number(rs0.day) || 0));
+      const r = serverAxes(score, srvScore, { dayLag });
+      axes = { used: r.used, why: r.why, diff: r.diff };
+      if (r.used) score = r.score as Record<string, unknown>;
+    } else {
+      axes = { used: false, why: '스냅숏없음', diff: {} };
+    }
+  } catch (e) {
+    /* ★ 여기서 죽어도 오늘 경로에는 아무 영향이 없어야 한다 */
+    axes = { used: false, why: '실패', diff: {} };
+    console.error('[18단계] 서버 축을 못 뽑았다 — 클라 값으로 간다', String((e as Error)?.message || e));
+  }
+  console.error('[18단계] 순위 축', { userId, used: axes.used, why: axes.why, diff: axes.diff });
 
   /* ── 3) 지난번에 받아들인 값과 비교한다.
    *    ledger 는 RLS 정책이 하나도 없어서 클라이언트가 존재조차 못 건드린다. */

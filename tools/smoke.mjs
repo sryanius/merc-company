@@ -8427,8 +8427,17 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
    *   잘린 조각이라 여는 표시가 없어서 지울 수가 없다. 이것도 실제로 걸렸다.
    *   ⇒ **파일 전체**를 지운 뒤 «코드» 기준점(run_state 읽기)에서 자른다. */
   const allCode = decomment(iSrc);
-  const cIdx = allCode.indexOf("from('run_state')");
+  /* ★★ 기준점을 **upsert 뒤**의 run_state 읽기로 잡는다.
+   *   예전엔 «파일에서 처음 나오는 run_state 읽기» 였는데, 18단계가 순위 축을 갈아
+   *   끼우려고 **판정보다 먼저** run_state 를 읽게 되면서 그 기준점이 통째로 앞으로
+   *   당겨졌다 — 그러면 «그림자 블록» 슬라이스가 판정·upsert 까지 삼켜서
+   *   「그림자가 scores 에 쓴다」 같은 거짓 실패가 난다 (실제로 났다).
+   *   ⇒ 그림자는 «기록을 끝낸 뒤» 도는 것이므로 upsert 를 지나서 찾는다. */
+  const upIdx = allCode.indexOf('upsert(row');
+  const cIdx = allCode.indexOf("from('run_state')", upIdx > 0 ? upIdx : 0);
   ok(cIdx > 0, '그림자 블록의 코드를 찾는다', "run_state 를 읽는 줄이 없다");
+  ok(upIdx > 0 && cIdx > upIdx, '그림자가 기록(upsert) 뒤에 있다',
+    '앞이면 그림자 실패가 기록을 막는다');
   const shadowCode = cIdx > 0 ? allCode.slice(cIdx) : '';
   ok(!/rejections/.test(shadowCode), '그림자 블록이 rejections 에 안 적는다',
     'A등급으로 세어져 24시간 12건이면 정상 계정이 held 로 묶인다');
@@ -9617,13 +9626,34 @@ section('진행도를 서버로 옮기는 길이 화면에 이어져 있나');
     ok(!/run_(state|mercs|items|squads|pets)/.test(decomment(rules)),
       '판정부가 아직 run_* 를 안 읽는다 (재동기화를 열어 둬도 되는 조건)',
       '★ 읽기 시작하면 db/024 를 잠가야 한다 — 안 그러면 클라가 판정 근거를 덮는다');
-    /* 서버 함수 쪽도 — 그림자 블록 **밖에서** run_* 를 판정에 쓰는지 본다 */
+    /* ★★★ **경계를 정직하게 다시 그었다** (18단계).
+     *   판정 경로가 이제 `run_*` 를 읽는다 — 순위 축을 서버 표에서 뽑기 때문이다.
+     *   그리고 `run_resync` 가 열려 있으므로 그 표는 **클라가 언제든 덮을 수 있다.**
+     *
+     *   ⇒ 그러면 18단계는 «신뢰» 가 아니라 «**일관성**» 이다:
+     *     순위 카드의 숫자와 그림이 **한 출처**에서 나오게 하는 것이 값어치이고,
+     *     «서버가 검증했다» 는 뜻이 아니다. 신뢰는 쓰기 op 이 권위를 가질 때 온다.
+     *
+     * ★ 그래서 여기서 지킬 것은 「run_* 를 안 읽는다」 가 **아니라**
+     *   「`run_*` 에서 나온 값으로 **거절하지 않는다**」 다. 그것만 지키면
+     *   재동기화가 열려 있어도 최악이 «자기 값으로 자기 순위를 적는다» 에서 멈춘다
+     *   (그건 18단계 전에도 그랬다). */
     const sub = readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8');
-    const sIdx = sub.indexOf('그림자 모드 — 서버가');
-    const beforeShadow = decomment(sIdx > 0 ? sub.slice(0, sIdx) : sub);
-    ok(!/from\('run_/.test(beforeShadow),
-      '판정 경로가 그림자 밖에서 run_* 를 안 읽는다',
-      '★ 읽기 시작하면 db/024 를 잠가야 한다');
+    const subCode = decomment(sub);
+    ok(/serverAxes\s*\(/.test(subCode), '순위 축을 서버 표에서 뽑는다 (18단계가 켜졌다)');
+    /* 갈아 끼우는 판단부가 **거절을 만들지 않는다** — rules.js 쪽에서 직접 본다 */
+    const rj = decomment(readFileSync(join(rootDir, 'src/game/rules.js'), 'utf8'));
+    /* ★ 본문 끝을 «닫는 중괄호» 로 찾으려다 틀렸다 (주석을 지운 소스라 모양이 다르다).
+     *   이 함수는 60줄이 안 되므로 **넉넉한 창**으로 자른다 — 판정에 쓰는 것은
+     *   «reject/flag 라는 글자가 있나» 뿐이라 창이 조금 넓어도 뜻이 안 변한다. */
+    const sa = rj.slice(rj.indexOf('export function serverAxes'));
+    const saBody = sa.slice(0, 2600);
+    ok(saBody.length > 100, '서버 축 판단부를 찾는다');
+    ok(!/reject|flag/.test(saBody), '서버 축 판단부가 거절·표시를 만들지 않는다',
+      '★ 못 잴 때는 «안 바꿈» 이지 «수상함» 이 아니다 (§104 18단계의 계약)');
+    /* ★ 그리고 못 잴 때 **클라 값으로 물러나야** 한다 — 안 물러나면 6계정이 0점이 된다 */
+    ok(/used:\s*false/.test(saBody) && /out\.score\s*=\s*merged/.test(saBody),
+      '못 잴 때는 클라 값 그대로 간다', '실측 7계정 중 6이 스냅숏이 없다');
   }
 
   /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
@@ -9878,6 +9908,74 @@ section('정산 판정의 밴드가 게임의 실제 지급과 같나');
   const rop = decomment(readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8'));
   ok(/judgeSettle\s*\(/.test(rop), '서버가 그 판정부를 부른다 (사본을 안 만든다)');
   ok(!/return json\([^)]*judge/.test(rop), '판정 결과가 응답에 안 실린다 (§55)');
+}
+
+section('18단계 — 순위 축을 서버 값으로 갈아 끼운다');
+{
+  /* ★★★ 이 절이 지키는 것은 딱 셋이다:
+   *     (1) **전부 아니면 전무** — 한 칸만 바꾸면 A등급 거절이 난다
+   *     (2) **못 잴 때는 안 바꾼다** — 스냅숏 없음·시차는 «수상함» 이 아니다
+   *     (3) **여기서 A등급을 새로 만들지 않는다**
+   *   §131 이 검사로 이미 보였다: `sMercs` 를 `rosterN + 1` 로 만들면 A등급 거절이 나온다. */
+  const R = need('game/rules.js');
+  ok(!!(R && R.serverAxes), '서버 축 판단부가 있다');
+  if (R && R.serverAxes) {
+    /* 실계정 모양으로 판을 세운다 — 0 대 0 비교는 아무것도 증명 못 한다 */
+    const mk = (o = {}) => ({
+      rosterN: 42, topLevel: 80, sMercs: 38, hiredN: 40,
+      /* ★★ 고용일을 **판 전체에 흩는다.** 처음엔 2,3,4… 로 붙여 놨는데
+       *   그건 «4일차에 S 3명» 이라 §118 의 소급 상한에 걸린다 — 실제로 걸렸다.
+       *   판이 틀리면 검사가 거짓말한다 (여기서는 «18단계가 정상 계정을 문다» 고
+       *   거짓 경보를 냈다). 2192일에 38명이면 대략 55일에 한 명꼴이다. */
+      sHiredDays: Array.from({ length: 38 }, (_, i) => 50 + i * 55),
+      topPower: 166411, squadsN: 5, petsN: 3, itemsN: 1372,
+      squad: [{ n: 'a' }], squadsFull: null, gold: 12345, day: 2192, ...o,
+    });
+    const cli = mk();
+    const srv = mk({ topPower: 166274, sMercs: 37, sHiredDays: Array.from({ length: 37 }, (_, i) => 50 + i * 55) });
+
+    /* (1) 갈아 끼우면 **목록에 있는 것 전부**가 서버 값이어야 한다 */
+    const r = R.serverAxes(cli, srv, { dayLag: 0 });
+    ok(r.used === true, '시차가 0 이면 갈아 끼운다', r.why);
+    const wrong = (R.SERVER_AXES || []).filter((k) => JSON.stringify(r.score[k]) !== JSON.stringify(srv[k]));
+    okAll(wrong.map((k) => `${k} 가 서버 값이 아니다`), '축을 하나도 빼지 않고 바꾼다',
+      (R.SERVER_AXES || []).length);
+    /* 목록 밖은 **안 건드린다** — 진행도(골드·일차)는 클라 것이다 */
+    ok(r.score.gold === cli.gold && r.score.day === cli.day, '진행도 칸은 안 건드린다',
+      '서버 스냅숏의 골드·일차로 바꾸면 케이던스 검사가 통째로 어긋난다');
+
+    /* (2) 못 잴 때는 클라 값 그대로 — 그리고 **거절이 아니다** */
+    const cases = [
+      ['스냅숏 없음', R.serverAxes(cli, null, { dayLag: 0 })],
+      ['시차 49일', R.serverAxes(cli, srv, { dayLag: 49 })],
+      ['시차 −3일', R.serverAxes(cli, srv, { dayLag: -3 })],
+      ['서버 짝 깨짐', R.serverAxes(cli, mk({ sMercs: 99 }), { dayLag: 0 })],
+      ['서버 명부 0', R.serverAxes(cli, mk({ rosterN: 0 }), { dayLag: 0 })],
+    ];
+    const leaked = cases.filter(([, v]) => v.used || v.score !== cli).map(([n]) => `${n}: 갈아 끼웠다`);
+    okAll(leaked, '못 잴 때는 클라 값 그대로 간다', cases.length);
+
+    /* (3) ★★ 갈아 끼운 값으로 **판정이 통과해야 한다.** 여기가 18단계의 관문이다. */
+    if (R.judge) {
+      const v = R.judge(null, { ...r.score, seenPower: r.score.topPower });
+      ok(v.verdict === 'ok', '갈아 끼운 값으로 판정해도 정상 계정이 통과한다',
+        `${JSON.stringify(v)} — 걸리면 18단계가 정상 플레이어를 거절한다`);
+    }
+
+    /* ★★★ 메타 — «한 칸만» 바꾸면 실제로 A등급이 난다는 것을 **직접 보인다.**
+     *   이게 이 절이 존재하는 이유다. 안 보이면 「전부 아니면 전무」 가 그냥 표어다. */
+    if (R.judge) {
+      const half = { ...cli, sMercs: cli.rosterN + 1 };
+      const bad = R.judge(null, { ...half, seenPower: half.topPower });
+      ok(bad.verdict === 'reject' && bad.tier === 'A',
+        '메타 — 축을 반쪽만 바꾸면 실제로 A등급 거절이 난다',
+        `${JSON.stringify(bad)} — 여기가 ok 면 위 경고가 과장이다`);
+    }
+    /* ★ 메타 — 목록에서 한 칸을 빼면 판단부가 «안 바꿈» 으로 물러나야 한다 */
+    const { topPower, ...noPower } = srv;
+    const r2 = R.serverAxes(cli, noPower, { dayLag: 0 });
+    ok(r2.used === false && /축없음/.test(r2.why), '메타 — 축이 하나라도 없으면 통째로 물러난다', r2.why);
+  }
 }
 
 /* ───────────────────────────── 결과 ───────────────────────────── */

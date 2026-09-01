@@ -214,6 +214,72 @@ export function extractScore(st) {
   };
 }
 
+
+/**
+ * 순위 축을 **서버가 뽑은 값으로 갈아 끼운다** — §104 18단계
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ **전부 아니면 전무다.** `rosterN`·`hiredN`·`sHiredDays`·`topLevel`·`sMercs`·
+ *   `topPower` 가 **전부 같은 명부에서** 나온다. 한 칸만 갈아 끼우면 그 관계가 깨지고,
+ *   `checkStatic` 이 `sMercs > rosterN` 을 보고 **`verdict:'reject', tier:'A'`** 를 낸다 —
+ *   표시가 아니라 **거절**이다 (§131 이 검사로 직접 보였다).
+ *   ⇒ 여기서 한 덩어리로 바꾸거나, 아예 안 바꾸거나 둘 중 하나다.
+ *
+ * ★★ 그리고 **못 잴 때는 안 바꾼다.** 이게 이 함수의 절반이다:
+ *   · 스냅숏이 없다 (실측 7계정 중 6) → 클라 값 그대로
+ *   · 스냅숏이 뒤처졌다 (`dayLag > 0`) → 클라 값 그대로
+ *     ★ 실측으로 겪었다: 사흘 만에 63일 뒤처져 전력 차 −137 이 났고, 그건 치트가 아니라
+ *       **시차**였다. 그 상태로 갈아 끼우면 순위가 옛 스냅숏에 얼어붙는다.
+ *   · 서버 값끼리 짝이 안 맞는다 → 클라 값 그대로 (서버를 못 믿을 때 거절하지 않는다)
+ *
+ * ★ «못 잰다» 는 **흠이 아니다.** 여기서 flag 도 reject 도 만들지 않는다.
+ *   그건 §104 가 18단계에 못 박은 것이기도 하다: 「이 커밋에서 A등급을 새로 만들지 않는다」.
+ *
+ * ★ 되돌리기: 부르는 쪽에서 이 함수를 안 쓰면 오늘 동작이다. 단 그 사이 `top_power` 에
+ *   쓴 낮은 값은 되살릴 원본이 DB 에 없다 — 그래서 5단계(`seen_power`)가 앞에 있었다.
+ *
+ * @param {object} cli 클라가 신고한 점수 (`normalizeScore`/`extractScore` 결과)
+ * @param {object|null} srv 서버가 자기 표에서 뽑은 점수 (`extractScore(fromRows(...))`)
+ * @param {object} [opt]
+ * @param {number} [opt.dayLag] 클라 일차 − 서버 일차. 0 이 아니면 안 바꾼다
+ * @returns {{score:object, used:boolean, why:string, diff:object}}
+ *   `used` 가 거짓이면 `score` 는 `cli` 그대로다.
+ */
+export const SERVER_AXES = ['rosterN', 'topLevel', 'sMercs', 'hiredN', 'sHiredDays',
+  'topPower', 'squadsN', 'petsN', 'itemsN', 'squad', 'squadsFull'];
+
+export function serverAxes(cli, srv, opt = {}) {
+  const out = { score: cli, used: false, why: '', diff: {} };
+  if (!cli || typeof cli !== 'object') { out.why = '클라없음'; return out; }
+  if (!srv || typeof srv !== 'object') { out.why = '스냅숏없음'; return out; }
+
+  const lag = Math.round(Number(opt.dayLag) || 0);
+  if (lag !== 0) { out.why = `시차${lag}`; return out; }
+
+  /* ★ 서버 값끼리 짝이 맞나 — 안 맞으면 **서버 쪽이 이상한 것**이다. 그때 갈아 끼우면
+   *   그 이상함이 곧 A등급 거절이 된다. 클라 값으로 물러난다. */
+  const rn = Math.round(Number(srv.rosterN) || 0);
+  const sm = Math.round(Number(srv.sMercs) || 0);
+  const hn = Math.round(Number(srv.hiredN) || 0);
+  const sd = Array.isArray(srv.sHiredDays) ? srv.sHiredDays : null;
+  if (rn <= 0) { out.why = '서버명부0'; return out; }
+  if (sm > rn) { out.why = 'sMercs>rosterN'; return out; }
+  if (hn > rn) { out.why = 'hiredN>rosterN'; return out; }
+  if (!sd || sd.length !== sm) { out.why = 'sHiredDays≠sMercs'; return out; }
+
+  /* ── 갈아 끼운다. **목록에 있는 것 전부**, 하나도 빠짐없이 ─────────────── */
+  const merged = { ...cli };
+  for (const k of SERVER_AXES) {
+    if (!(k in srv)) { out.why = `축없음:${k}`; return out; }   // ★ 반쪽으로 바꾸느니 안 바꾼다
+    if (String(cli[k]) !== String(srv[k])) out.diff[k] = [cli[k], srv[k]];
+    merged[k] = srv[k];
+  }
+  out.score = merged;
+  out.used = true;
+  out.why = 'ok';
+  return out;
+}
+
 /**
  * **모든 부대**의 상세 — 순위표에서 «눌렀을 때» 만 쓴다.
  *
