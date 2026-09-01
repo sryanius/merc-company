@@ -41,7 +41,7 @@ import * as SetsAPI from '../data/sets.js';
 import * as GameState from '../game/state.js';
 import * as Pet from '../game/pet.js';
 /* ★ 서버 사본을 따라오게 하는 채널 — 게임 흐름을 막지 않는다 (net/mirror.js) */
-import { mirrorPromote } from '../net/mirror.js';
+import { mirrorPromote, askPromote } from '../net/mirror.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -3034,14 +3034,26 @@ function openPromote(m) {
       {
         label: '전직 실행',
         kind: 'primary',
-        act: () => {
+        act: async () => {
           if (!picked2) { toast('전직할 클래스를 먼저 고르세요.', 'bad'); return false; }
+          /* ★★★ **서버에 먼저 묻는다** (§104 9단계 — 권위 이전).
+           *   서버가 «규칙 위반» 이라고 분명히 말할 때만 안 한다. 이관 전이거나
+           *   네트워크가 안 되면 **지금까지대로** 클라가 한다 — 새로 막히는 사람이
+           *   생기면 안 된다 (실측 8명 중 2명이 아직 이관 전이다). */
+          const ask = await askPromote(m.uid, picked2);
+          if (ask.blocked) {
+            toast(ask.reason || '지금은 전직할 수 없습니다.', 'bad');
+            return false;
+          }
           const r = promote(m, picked2);
           toast(r.reason, r.ok ? 'good' : 'bad');
           if (!r.ok) return false;
-          /* ★ 서버 사본도 따라오게 한다 (§104 9단계 · 거울).
-           *   기다리지 않는다 — 실패해도 아래가 그대로 돈다. */
-          try { mirrorPromote(m.uid, picked2); } catch (e) { console.warn('[company] 전직 거울 실패', e); }
+          /* ★ 서버가 이미 적용했으면(ask.ok) 거울을 또 보낼 필요가 없다 — 같은 op_id 라
+           *   재생으로 걸러지지만 굳이 왕복할 이유가 없다.
+           *   서버에 못 물었을 때만 «알리기» 로 남겨 둔다 (이관 뒤 따라오게). */
+          if (!ask.ok) {
+            try { mirrorPromote(m.uid, picked2); } catch (e) { console.warn('[company] 전직 거울 실패', e); }
+          }
           addLog(`${m.name}${josa(m.name, '이/가')} ${getClass(picked2)?.name || picked2}${josa(getClass(picked2)?.name || picked2, '으로/로')} 전직했다.`);
           stopAll();
           save();

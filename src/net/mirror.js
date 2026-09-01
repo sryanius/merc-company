@@ -68,6 +68,60 @@ function send(op, opId, body) {
 }
 
 /**
+ * 전직을 **서버에 묻는다** — 여기서부터 서버가 «권위» 를 갖는다 (§104 9단계)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ 거울(`mirrorPromote`)과 무엇이 다른가:
+ *   · 거울 — 클라가 하고 **알린다.** 서버가 뭐라 하든 클라가 한 대로 간다
+ *   · 권위 — **먼저 묻고**, 서버가 «안 된다» 하면 **안 한다**  ← 여기
+ *
+ * ★★ 그래서 «안 된다» 를 **아주 좁게** 잡는다. 서버가 «그 전직은 규칙 위반이다» 라고
+ *   분명히 말할 때(409)만 막는다. 그 밖에는 전부 **지금까지대로 클라가 한다**:
+ *
+ *     · 404 — 아직 이관 안 한 계정. 실측 8명 중 2명이 그렇다. **막으면 안 된다.**
+ *     · 0/500/시간초과 — 네트워크·서버 문제. 게임을 못 하게 만들 이유가 없다
+ *     · 400 — 내가 잘못 보낸 것. 그것 때문에 사람 게임을 막지 않는다
+ *
+ *   ⇒ **최악이라도 «오늘 동작»** 이다. 새로 막히는 사람이 생기지 않는다.
+ *
+ * ★ 기다린다. 다만 **6초까지만** — 버튼이 15초 멈춰 있으면 그게 곧 고장이다.
+ *
+ * @param {string} mercUid
+ * @param {string} toClass
+ * @returns {Promise<{ok:boolean, blocked:boolean, reason:string, why:string}>}
+ *   `blocked` 가 참일 때만 부르는 쪽이 전직을 **하지 않는다**.
+ */
+export async function askPromote(mercUid, toClass) {
+  const fall = (why) => ({ ok: false, blocked: false, reason: '', why });
+  try {
+    if (!Auth || typeof Auth.accessToken !== 'function' || !Auth.accessToken()) return fall('로그인안됨');
+    const uid = String(mercUid || '');
+    const to = String(toClass || '');
+    if (!uid || !to) return fall('인자없음');
+
+    const r = await authed(EP.fn('run-op'), {
+      method: 'POST',
+      timeout: 6000,
+      body: { op: 'promote', opId: `pr_${uid}_${to}`.slice(0, 64), rev: CLIENT_REV, mercUid: uid, toClass: to },
+    }, Auth);
+
+    if (r && r.ok) return { ok: true, blocked: false, reason: '', why: '서버승인' };
+    /* ★★ **409 만 막는다.** 서버가 규칙으로 거절한 경우다.
+     *   ★ 「같은 요청이 이미 처리 중이다」 도 409 인데, 그건 **막을 일이 아니다** —
+     *     같은 op_id 라 곧 재생으로 ok 가 된다. 사유 글자로 가른다. */
+    if (r && r.status === 409) {
+      const why = String((r.error || ''));
+      if (/처리 중/.test(why)) return fall('재시도중');
+      return { ok: false, blocked: true, reason: why, why: '서버거절' };
+    }
+    if (r && r.status === 404) return fall('이관전');
+    return fall(`상태${r && r.status}`);
+  } catch (e) {
+    return fall('예외');
+  }
+}
+
+/**
  * 전직 한 건.
  * ★ `op_id` 에 **어느 클래스로** 갔는지를 넣는다 — 같은 단원이 2차→3차→4차로 가므로
  *   uid 만으로는 두 번째 전직이 «재생» 으로 막힌다.

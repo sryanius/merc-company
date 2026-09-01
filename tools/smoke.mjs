@@ -9757,11 +9757,47 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
   const mirCode = decomment(mir);
 
   /* ① 게임 흐름을 절대 막지 않는다 — settle.js 와 같은 계약 */
-  /* ★ `await authed` 만 보면 좁다 — `await Promise.resolve(authed(…))` 를 놓친다
-   *   (심어 보고 알았다: 검사가 안 물었다). 이 모듈에는 정당한 `await` 이 **하나도 없다**.
-   *   ⇒ 주석을 뺀 본문에 `await` 이 보이면 그 자체로 실패다. */
-  ok(!/\bawait\b/.test(mirCode), '거울이 await 하지 않는다',
-    'await 하면 서버가 느릴 때 게임이 멈춘다 — 이 모듈에는 정당한 await 이 없다');
+  /* ★★ **계약이 둘로 갈렸다** (§104 9단계, 권위 이전):
+   *     · 거울(`mirror*` · `send`) — **절대 안 기다린다.** 알리기만 한다
+   *     · 권위(`askPromote`)      — **기다린다.** 서버 답을 따르는 것이 목적이다
+   *   그래서 «파일에 await 이 있나» 로는 못 잰다. **거울 쪽만 잘라서** 본다.
+   *
+   * ★ `await authed` 만 보면 좁다 — `await Promise.resolve(authed(…))` 를 놓친다
+   *   (심어 보고 알았다). 거울 쪽에는 정당한 await 이 하나도 없다. */
+  const askIdx = mirCode.indexOf('export async function askPromote');
+  const mirrorOnly = askIdx > 0
+    ? mirCode.slice(0, askIdx) + mirCode.slice(mirCode.indexOf('export function mirrorPromote'))
+    : mirCode;
+  ok(askIdx > 0, '권위 경로(askPromote)가 있다', '없으면 9단계가 아직 거울뿐이다');
+  ok(!/\bawait\b/.test(mirrorOnly), '거울이 await 하지 않는다',
+    'await 하면 서버가 느릴 때 게임이 멈춘다 — 거울 쪽에는 정당한 await 이 없다');
+
+  /* ── 권위 경로의 계약 ─────────────────────────────────────────────────── */
+  const ask = askIdx > 0 ? mirCode.slice(askIdx, mirCode.indexOf('export function mirrorPromote')) : '';
+  if (ask) {
+    /* ★★★ **409 일 때만 막는다.** 이관 전(404)·네트워크(0/500)로 막으면
+     *   실측 8명 중 2명이 그 자리에서 게임을 못 하게 된다. */
+    ok(/status === 409/.test(ask), '서버가 규칙으로 거절할 때(409)만 막는다');
+    /* ★ 처음엔 «파일 어딘가에 fall( 이 있나» 로 봤는데 그건 **죽은 검사**였다 —
+     *   404 를 막게 바꿔도 안 물었다 (옆 검사가 대신 잡았다). 404 **바로 뒤**를 본다. */
+    const i404 = ask.indexOf('status === 404');
+    const after404 = i404 >= 0 ? ask.slice(i404, i404 + 120) : '';
+    ok(i404 >= 0 && !/blocked:\s*true/.test(after404),
+      '이관 전(404)은 막지 않는다', '실측 8계정 중 2가 아직 이관 전이다');
+    const blocks = [...ask.matchAll(/blocked:\s*true/g)].length;
+    ok(blocks === 1, '막는 자리가 딱 한 곳이다', `${blocks}곳 — 늘어나면 새로 막히는 사람이 생긴다`);
+    /* ★ 버튼이 오래 멈추면 그 자체가 고장이다 */
+    ok(/timeout:\s*\d+/.test(ask), '기다리는 시간에 상한이 있다', '기본 15초는 버튼에 너무 길다');
+    /* ★ 예외가 나도 막지 않는다 */
+    ok(/catch[\s\S]{0,80}?fall\(/.test(ask), '예외가 나도 막지 않는다');
+  }
+
+  /* ★ 메타 — 판정부를 심어 넣은 판으로 굴린다 */
+  {
+    const BAD = "if (r.status === 404) return { blocked: true };";
+    ok(/status === 404[\s\S]{0,40}blocked:\s*true/.test(BAD),
+      '메타 — 404 로 막는 모양을 실제로 잡는다');
+  }
   ok(/\.catch\(/.test(mirCode), '실패를 삼킨다');
   ok(/try\s*\{/.test(mirCode) && /catch/.test(mirCode), '전체가 try/catch 안에 있다');
   ok(/accessToken\(\)/.test(mirCode), '로그인 안 했으면 아무것도 안 보낸다');
