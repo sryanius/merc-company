@@ -8473,6 +8473,24 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
     ok(new RegExp(k).test(shadowCode), `전력 관측이 ${k} 를 같이 싣는다`,
       '시차와 위조를 구별할 값이 없으면 18단계가 정상 플레이어를 문다');
   }
+
+  /* ★★★ **18단계가 도는지 표에 남기나.**
+   *   처음엔 `console.error` 로만 찍었다. 이 저장소에는 `supabase functions logs` 가
+   *   없어서 그러면 「몇 계정이 서버 축으로 순위를 적고 있나」 를 **아무도 못 센다** —
+   *   §135 가 그림자를 표로 옮긴 이유와 똑같고, 그걸 알면서 같은 자리에서 또 그랬다.
+   *   ⇒ 관측에 `axesUsed`·`axesWhy` 가 실려야 한다. */
+  for (const k of ['axesUsed', 'axesWhy']) {
+    ok(new RegExp(k).test(shadowCode), `전력 관측이 ${k} 를 같이 싣는다`,
+      '로그로만 남기면 18단계가 실제로 도는지 아무도 못 센다');
+  }
+  /* ★ 스냅숏이 없는 경우에도 남겨야 한다 — 지금 그쪽이 다수다 (실측 8계정 중 2) */
+  {
+    const noSnapIdx = shadowCode.indexOf('noSnapshot: true');
+    const near = noSnapIdx > 0 ? shadowCode.slice(noSnapIdx, noSnapIdx + 500) : '';
+    ok(/axesUsed/.test(near), '스냅숏 없는 계정의 관측에도 축 결과를 남긴다',
+      '안 남기면 «왜 안 바뀌었나» 를 계정별로 못 가른다');
+  }
+
   ok(/noSnapshot/.test(shadowCode), '이관 전 계정도 관측 표에 센다',
     '로그로만 남기면 「몇 계정이 스냅숏 없이 판정받나」 를 아무도 못 센다');
   /* ★ 심어 넣은 판으로 확인 — 세 값이 다 빠진 관측은 물려야 한다 */

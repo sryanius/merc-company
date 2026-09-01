@@ -562,7 +562,9 @@ function sanitizeSquad(raw: unknown) {
           user_id: userId, kind: 'power',
           obs: { noSnapshot: true, cliPower: Math.max(0, Math.round(Number(score.topPower) || 0)),
             cliS: Math.max(0, Math.round(Number(score.sMercs) || 0)),
-            cliDay: Math.max(0, Math.round(Number(score.day) || 0)), rev: clientRev, via },
+            cliDay: Math.max(0, Math.round(Number(score.day) || 0)), rev: clientRev, via,
+            /* ★ 여기서는 언제나 «안 바꿈» 이다 — 그래도 **왜** 인지 같이 적는다 */
+            axesUsed: axes.used, axesWhy: String(axes.why || '').slice(0, 24) },
         });
       } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
     } else {
@@ -596,7 +598,14 @@ function sanitizeSquad(raw: unknown) {
              *   ⇒ 날짜 차이를 **같이 적지 않으면** 18단계에서 그 시차가 «전력 위조» 로
              *     찍힌다. 판정을 켤 때는 **「dayLag > 0 이면 판정하지 않는다」**가 계약이다.
              *     (실측: run_state 최종 갱신 8/28 05:30, run_ops 0건 — 스냅숏은 안 늘어난다.) */
-            srvDay, cliDay, dayLag: cliDay - srvDay, snapAgeH },
+            srvDay, cliDay, dayLag: cliDay - srvDay, snapAgeH,
+            /* ★★★ **18단계가 실제로 도는지**를 표에 남긴다.
+             *   처음엔 `console.error` 로만 찍었는데, 이 저장소에는
+             *   `supabase functions logs` 가 없다 — 그러면 「몇 계정이 서버 축으로
+             *   순위를 적고 있나」 에 아무도 수치로 답할 수 없다.
+             *   이번 세션 내내 배운 것이 그것인데 같은 자리에서 또 그랬다. */
+            axesUsed: axes.used, axesWhy: String(axes.why || '').slice(0, 24),
+            axesDiffN: Object.keys(axes.diff || {}).length },
         });
       } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
 
