@@ -349,6 +349,8 @@ if (fixture) {
     }
     /* 3차: 바닥 그림자 — 검수에서 가장 많이 남은 것. 아래 15% 행의 회색·평탄 영역을 아래 테두리에서 flood 로 뺀다 */
     { const k3 = keyFloorShadow(src.w, src.h, src.rgba); if (k3) { keyed += k3; console.error(`  바닥 그림자 제거: ${k3}칸 → 합계 ${(100 * keyed / (src.w * src.h)).toFixed(1)}%`); } }
+    /* 4차: 몸 안에 갇힌 작은 구멍을 주변 색으로 메운다 — 원본 크기 기준 0.4% 까지 (§163.2) */
+    fillHoles(src.w, src.h, src.rgba, Math.round(src.w * src.h * 0.004));
     if (keyed < src.w * src.h * 0.15) { console.error('  ✗ 배경이 15% 도 안 빠졌다 — 배경이 단색이 아니거나 색상대가 틀렸다'); process.exit(1); }
   }
   const fit = arg('fit', DEFAULT_FIT);
@@ -505,6 +507,68 @@ function keyFloorShadow(w, h, rgba) {
   return keyed;
 }
 
+/**
+ * 그림 안에 갇힌 **작은 투명 구멍**을 주변 색으로 메운다 (§163.2).
+ *
+ * ★ 왜: 배경색이 그림 안까지 들어오는 그림이 있다 — 벌린 입 안쪽, 반투명 망토, 갈기 사이. 지우면 구멍이 뚫리고
+ *   남기면 초록/보라 얼룩이 몸에 박힌다. 둘 다 틀렸다. **테두리에 안 닿은** 구멍은 «몸 안» 이므로 메우는 편이 맞다.
+ *   진짜 틈(팔과 몸통 사이, 방패 고리)은 크니까 maxArea 위로 두고 그대로 투명하게 남긴다.
+ * @param {number} maxArea 이 칸수보다 작은 구멍만 메운다
+ */
+function fillHoles(w, h, rgba, maxArea) {
+  /* 투명 성분 중 테두리에 닿은 것 표시 */
+  const outside = new Uint8Array(w * h);
+  const st = [];
+  const push = (p) => { if (rgba[p * 4 + 3] === 0 && !outside[p]) { outside[p] = 1; st.push(p); } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (st.length) {
+    const p = st.pop(); const x = p % w, y = (p / w) | 0;
+    if (x > 0) push(p - 1); if (x < w - 1) push(p + 1);
+    if (y > 0) push(p - w); if (y < h - 1) push(p + w);
+  }
+  /* 갇힌 투명 성분을 모아 작은 것만 메운다 */
+  const mark = new Uint8Array(w * h);
+  const holes = [];
+  for (let p0 = 0; p0 < w * h; p0++) {
+    if (rgba[p0 * 4 + 3] !== 0 || outside[p0] || mark[p0]) continue;
+    const q = [p0]; mark[p0] = 1; const members = [];
+    while (q.length) {
+      const p = q.pop(); members.push(p);
+      const x = p % w, y = (p / w) | 0;
+      const nb = [];
+      if (x > 0) nb.push(p - 1); if (x < w - 1) nb.push(p + 1);
+      if (y > 0) nb.push(p - w); if (y < h - 1) nb.push(p + w);
+      for (const n of nb) if (rgba[n * 4 + 3] === 0 && !outside[n] && !mark[n]) { mark[n] = 1; q.push(n); }
+    }
+    if (members.length <= maxArea) holes.push(members);
+  }
+  if (!holes.length) return 0;
+  const todo = new Uint8Array(w * h);
+  let n = 0;
+  for (const m of holes) for (const p of m) { todo[p] = 1; n++; }
+  /* 가장자리부터 안쪽으로 — 이웃한 불투명 픽셀의 평균색을 칠한다 */
+  for (let pass = 0; pass < 64; pass++) {
+    let filled = 0;
+    const next = [];
+    for (let p = 0; p < w * h; p++) {
+      if (!todo[p]) continue;
+      const x = p % w, y = (p / w) | 0;
+      let r = 0, g = 0, b = 0, c = 0;
+      const nb = [];
+      if (x > 0) nb.push(p - 1); if (x < w - 1) nb.push(p + 1);
+      if (y > 0) nb.push(p - w); if (y < h - 1) nb.push(p + w);
+      for (const q of nb) if (rgba[q * 4 + 3] > 8 && !todo[q]) { r += rgba[q * 4]; g += rgba[q * 4 + 1]; b += rgba[q * 4 + 2]; c++; }
+      if (!c) continue;
+      next.push([p, (r / c) | 0, (g / c) | 0, (b / c) | 0]);
+    }
+    for (const [p, r, g, b] of next) { rgba[p * 4] = r; rgba[p * 4 + 1] = g; rgba[p * 4 + 2] = b; rgba[p * 4 + 3] = 255; todo[p] = 0; filled++; }
+    if (!filled) break;
+  }
+  console.error(`  갇힌 구멍 ${holes.length}곳 ${n}칸 메움`);
+  return n;
+}
+
 /** 테두리에 안 닿은 후보 성분 중 minArea 이상을 뺀다 (갇힌 배경). seen = 테두리 flood 로 이미 뺀 것. */
 function keyEnclosed(w, h, rgba, cand, seen, minArea) {
   let keyed = 0, comps = 0;
@@ -616,7 +680,9 @@ function keyBackground(w, h, rgba, kh, tol = 14, sMin = 0.30) {
     if (y > 0) push(p - w);
     if (y < h - 1) push(p + w);
   }
-  keyed += keyEnclosed(w, h, rgba, cand, seen, 40);          // 갇힌 초록 — 초록 옷은 금지돼 있으니 전부 배경
+  /* ★ 갇힌 배경은 **큰 것만** 지운다 (§163.2). 40칸으로 두면 벌린 입 안쪽·이 사이 틈·반투명 망토가 통째로 사라져
+   *   그림이 조각난다 — 실제로 늑대 갈기와 고블린 망토가 그렇게 부서졌다. 작은 것은 fillHoles 가 주변 색으로 메운다. */
+  keyed += keyEnclosed(w, h, rgba, cand, seen, Math.max(400, Math.round(w * h * 0.004)));
   for (let i = 0; i < w * h; i++) {
     const o = i * 4;
     if (!rgba[o + 3]) continue;

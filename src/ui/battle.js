@@ -839,6 +839,10 @@ function settleWave() {
   S.awaiting = true;
   b.drainEvents();
   recordWave(b);
+  /* 패주(아군)는 로그에 남긴다 — 「왜 다 안 싸우고 끝났지」 를 화면에서 풀어 준다 (§165). routed 는 margin 안에 있다. */
+  if (b.result && b.result.margin && b.result.margin.routed === 'ally') {
+    pushLog('— 부대가 전열을 버리고 물러났다 (패주) —', 'enemy', '★');
+  }
   // 캔버스에도 승패 연출이 떠 있다. 우리 오버레이와 같은 자리라 글자가 겹치므로
   // 넘겨받는다고 알려서 캔버스 쪽을 먼저 걷어낸다 (없는 렌더러여도 무시된다).
   if (S.renderer && typeof S.renderer.skipEnding === 'function') {
@@ -847,15 +851,23 @@ function settleWave() {
 
   const win = b.winner === 'ally';
   const next = S.waveIndex + 1;
+  /* ★ 패주로 끝나면 **적이 서 있는 채로** 승리가 뜬다 (engine.js ROUT_*: 3초 뒤 전력이 20% 아래로 떨어지고
+   *   상대가 3배 앞서면 진 쪽이 도망간다 — 의뢰에서 단원이 전멸하지 않게 하는 장치다).
+   *   제작자가 「적 두마리 남아있는데 승리했다고 뜨네」 라고 짚었다. 규칙은 그대로 두고 **화면이 이유를 말한다** (§165). */
+  /* 패주는 아군만 한다 (engine.js §165) — 아군 승리는 곧 적 전멸이다. 혹시 남아 있으면 그걸 그대로 말한다. */
+  const aliveFoe = b.units.filter((u) => u.alive && u.side === 'enemy' && !u.pet).length;
+  const routLine = aliveFoe > 0 ? `적 ${aliveFoe}명이 전열을 버리고 달아났다.` : '전장을 정리했다.';
   if (win && next < S.waveCount) {
     const healed = Math.round(WAVE_HEAL * 100);
     showContinue(`${S.waveIndex + 1}웨이브 격퇴`,
-      `숨을 고른다 · 체력 ${healed}% 회복 — 준비되면 다음 적을 맞이한다`,
+      `${routedFoe ? `남은 적 ${aliveFoe}명이 달아났다 · ` : ''}숨을 고른다 · 체력 ${healed}% 회복 — 준비되면 다음 적을 맞이한다`,
       `다음 웨이브 (${next + 1}/${S.waveCount})`);
-    pushLog(`웨이브 정리. 붕대를 감고 자세를 고쳐 잡는다. (체력 ${healed}% 회복)`, 'heal');
+    pushLog(routedFoe
+      ? `남은 적 ${aliveFoe}명이 달아났다. 붕대를 감고 자세를 고쳐 잡는다. (체력 ${healed}% 회복)`
+      : `웨이브 정리. 붕대를 감고 자세를 고쳐 잡는다. (체력 ${healed}% 회복)`, 'heal');
   } else {
     showContinue(win ? '승 리' : '패 배',
-      win ? '전장을 정리했다.' : '부대가 물러섰다.',
+      win ? routLine : '부대가 물러섰다.',
       '결과 보기');
   }
 }
@@ -1150,7 +1162,11 @@ function renderResult(win) {
   root.appendChild(el('div', { class: 'panel bt-res-head' },
     el('div', { class: 'verdict', style: { color: verdictColor }, text: win ? '승 리' : '패 배' }),
     el('div', { class: 'muted', text: S.title }),
-    el('div', { class: 'tiny faint', text: `${S.waveCount}웨이브 중 ${S.results.length}웨이브 진행 · 교전 시간 ${Math.round(S.totalTime)}초` })));
+    el('div', { class: 'tiny faint', text: `${S.waveCount}웨이브 중 ${S.results.length}웨이브 진행 · 교전 시간 ${Math.round(S.totalTime)}초` }),
+    /* 패주로 끝난 웨이브가 있으면 적어 준다 — 「적이 남았는데 왜 승리지」 를 화면에서 풀어 준다 (§165) */
+    (S.results.some((r) => r.margin && r.margin.routed === 'ally')
+      ? el('div', { class: 'tiny faint', text: '부대가 물러난 웨이브가 있다 — 전멸하기 전에 빠졌다.' })
+      : null)));
 
   // 전과 표
   const table = el('table', { class: 'data' },

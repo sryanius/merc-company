@@ -2062,7 +2062,9 @@ section('정면 포즈 판·클래스 얼굴의 기하');
 section('정면 PNG 일러스트 (크로마키)');
 {
   /* §162 전투·도시가 PNG 유닛을 초상으로 그리는 배선 — 끊기면 조용히 옆모습 도트로 돌아가서 «왜 전투만 옛 그림이지» 가 된다 */
-  for (const [f, needle] of [['src/battle/renderer.js', 'hasIllustPng(png) ? { png: getPortrait('], ['src/battle/renderer.js', 'drawPortraitFrame(g, sp.png'], ['src/battle/renderer.js', 'drawUnitFrame(g, v, sp, frameOf(v), x, y, {'], ['src/ui/battle.js', 'hasIllustPng(png) ? { png: getPortrait('], ['src/ui/battle.js', 'drawPortraitFrame(ctx, sp.png'], ['src/ui/city.js', 'drawPortraitFrame(ctx, getPortrait({ ...cls.sprite, illustClass: png })'], ['src/art/portrait.js', 'flip = false, flash = 0, bg: showBg = true']]) {
+  /* §165 패주 안내 — 이게 빠지면 «적이 서 있는데 승리» 가 다시 이유 없는 화면이 된다 */
+  for (const [f, needle] of [['src/battle/engine.js', "routed = 'ally'; finish('enemy')"], ['src/ui/battle.js', "margin.routed === 'ally'"],
+    ['src/battle/renderer.js', 'hasIllustPng(png) ? { png: getPortrait('], ['src/battle/renderer.js', 'drawPortraitFrame(g, sp.png'], ['src/battle/renderer.js', 'drawUnitFrame(g, v, sp, frameOf(v), x, y, {'], ['src/ui/battle.js', 'hasIllustPng(png) ? { png: getPortrait('], ['src/ui/battle.js', 'drawPortraitFrame(ctx, sp.png'], ['src/ui/city.js', 'drawPortraitFrame(ctx, getPortrait({ ...cls.sprite, illustClass: png })'], ['src/art/portrait.js', 'flip = false, flash = 0, bg: showBg = true']]) {
     ok(readFileSync(new URL(f, ROOT), 'utf8').includes(needle), `${f} 가 PNG 초상 배선을 갖는다 (§162)`, needle);
   }
   /* ★ 이미지 모델이 그린 PNG 를 문자 행렬 대신 쓴다 (art/illustpng.js, HANDOFF §161).
@@ -5100,7 +5102,9 @@ section('서버 공유 규칙');
    * ★ 실측할 때 판이 스스로를 오염시켰다: 용병단 이름을 `'margin검사'` 로 지어서
    *   세이브에 그 문자열이 들어갔고 「샌다」 로 읽혔다. 중립적인 이름으로 다시 재니 안 샌다. */
   const fsm2 = await import('node:fs');
-  const MARGIN_ALLOWED = ['src/game/quest.js'];      // ← 늘리려면 §25 를 읽고 근거를 적어라
+  /* ★ ui/battle.js 는 **보여주기 위해서만** 읽는다 (§165: 패주로 끝난 웨이브를 화면이 말한다).
+   *   판정·보상에는 안 쓴다 — §25 가 막는 것은 «margin 으로 결과를 바꾸는 것» 이다. */
+  const MARGIN_ALLOWED = ['src/game/quest.js', 'src/ui/battle.js'];      // ← 늘리려면 §25 를 읽고 근거를 적어라
   const marginReaders = ['src/game/quest.js', 'src/game/dungeon.js', 'src/game/tower.js',
     'src/game/abyss.js', 'src/ui/battle.js', 'src/game/runverify.js', 'src/game/forecast.js']
     .filter((f) => { try { return /[.]margin/.test(fsm2.readFileSync(f, 'utf8')); } catch { return false; } });
@@ -5781,14 +5785,15 @@ section('PvP 는 끝까지 싸운다 (패주 끄기)');
   } catch (e) { ok(false, '태그매치를 읽는다', String(e.message)); }
 
   if (EN3 && TM3 && SK3) {
-    /* 한쪽이 크게 세도록 만든다 — 패주가 반드시 걸리는 모양 */
+    /* ★ 패주는 **아군만** 한다 (§165, 제작자 결정) — 그래서 «아군이 크게 밀리는» 모양이라야 패주가 걸린다.
+     *   예전엔 아군을 세게 만들어 적 패주를 봤는데, 그 가지는 이제 없다. */
     const mk = (n, side, hp, atk) => Array.from({ length: n }, (_, i) => ({
       uid: `${side}${i}`, name: `${side}${i}`, classId: 'swordsman', side,
       stats: { hp, atk, def: 20, res: 10, spd: 100, crit: 5, critDmg: 150, eva: 3 },
     }));
     const run = (rout, seed) => {
       const b = EN3.createBattle({
-        allies: mk(6, 'ally', 4000, 400), enemies: mk(6, 'enemy', 900, 60),
+        allies: mk(6, 'ally', 900, 60), enemies: mk(6, 'enemy', 4000, 400),
         seed, getSkill: SK3.getSkill, record: false, rout,
       });
       let g = 0;
@@ -5804,19 +5809,36 @@ section('PvP 는 끝까지 싸운다 (패주 끄기)');
     /* 기본값(안 넘기면)은 예전 그대로여야 한다 — 의뢰·나락·탑이 여기 달려 있다 */
     const dflt = seeds.map((s) => {
       const b = EN3.createBattle({
-        allies: mk(6, 'ally', 4000, 400), enemies: mk(6, 'enemy', 900, 60),
+        allies: mk(6, 'ally', 900, 60), enemies: mk(6, 'enemy', 4000, 400),
         seed: s, getSkill: SK3.getSkill, record: false,
       });
       let g = 0;
       while (!b.finished && g++ < 20000) b.step(1 / 60);
-      return { winner: b.winner, routed: (b.result.margin || {}).routed, loseLeft: (b.result.margin || {}).enemyAlive };
+      return { winner: b.winner, routed: (b.result.margin || {}).routed, loseLeft: (b.result.margin || {}).allyAlive };
     });
     okAll(dflt.map((d, i) => (JSON.stringify(d) === JSON.stringify(onRout[i]) ? null
       : `seed ${seeds[i]}: 기본값이 rout:true 와 다르다`)).filter(Boolean),
       '옵션을 안 넘기면 예전(패주 켬) 그대로다', seeds.length);
 
-    ok(onRout.some((r) => r.routed), '패주를 켜면 실제로 패주가 일어난다 (검사 조건이 맞다)',
+    ok(onRout.some((r) => r.routed === 'ally'), '패주를 켜면 실제로 아군이 패주한다 (검사 조건이 맞다)',
       `${onRout.filter((r) => r.routed).length}/${seeds.length} 판만 패주`);
+
+    /* ★★ §165 의 핵심 보증: **적은 절대 패주하지 않는다.** 아군이 압도해도 적은 끝까지 싸운다 —
+     *   이게 깨지면 「적 두 명 서 있는데 승리」 가 다시 돌아온다 (제작자가 탑에서 짚은 그 화면). */
+    const foeStrong = seeds.map((sd) => {
+      const b = EN3.createBattle({
+        allies: mk(6, 'ally', 4000, 400), enemies: mk(6, 'enemy', 900, 60),
+        seed: sd, getSkill: SK3.getSkill, record: false,
+      });
+      let g = 0;
+      while (!b.finished && g++ < 20000) b.step(1 / 60);
+      const m = b.result.margin || {};
+      return { seed: sd, routed: m.routed, winner: b.winner, enemyAlive: m.enemyAlive };
+    });
+    okAll(foeStrong.filter((r) => r.routed === 'enemy').map((r) => `seed ${r.seed}: 적이 패주했다`),
+      '적은 패주하지 않는다 (§165)', seeds.length);
+    okAll(foeStrong.filter((r) => r.winner === 'ally' && r.enemyAlive > 0).map((r) => `seed ${r.seed}: 이겼는데 적 ${r.enemyAlive}명이 남았다`),
+      '아군 승리 = 적 전멸 (서 있는 적이 없다)', seeds.length);
 
     okAll(offRout.filter((r) => r.routed).map((r, i) => `seed ${seeds[i]}: 껐는데도 패주했다`),
       'rout:false 면 패주가 안 일어난다', seeds.length);
