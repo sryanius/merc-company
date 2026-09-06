@@ -11817,3 +11817,22 @@ activate (갱신일 때만)
 - 교훈: 다음 검수 프롬프트는 E 를 «옷·무기에 보라가 **있으면** 탈락, 없는 것이 정상» 으로 풀어 쓰고, 통과 항목을 먼저 적게 해라. 원문은 `gen/review5.json`. 단검 계열(rogue 5종)은 세 번 굴려도 모델이 검·카타나·총을 쥐여 준다 — 프롬프트가 아니라 참조 이미지(ControlNet/IP-Adapter)가 필요할 수 있다.
 - 상태: 목록 106 · sw.js 106 · 스모크 1017(deno 2건만) · pwa 57 · 브라우저 `[illustpng] 106/106 받음`. **커밋·배포는 아직 안 했다** (제작자 결정 대기).
 
+### 161.13 6차 — 프롬프트를 클래스별로 다시 써서 잔여 14 중 12 교체 (2026-09-06 밤)
+- 5차까지 남은 14장은 seed 만 바꾸지 않고 **워크플로 `class-illust-fix6`(작성 14 + 회의적 검증 14)** 이 raw·컷·적용본을 직접 보고 tags/hairStyle/pose/extra/neg/seed 를 다시 썼다. `buildClassPrompt(id, style, extra, override)` 에 override 인자를 붙여 `gen/fixes.json` 의 tags/hairStyle/pose 가 클래스 태그를 통째로 덮는다(equip·주무기 선두·클래스 부정은 그대로).
+- 무기 실패의 실제 원인(검수·실측): ① Danbooru 에 sword 가 dagger 의 10배 → 전신 «assassin» 의 기본값이 검, ② 단검은 화면 1~2% 라 텍스트 조건이 거의 안 닿음, ③ `oversized dagger` = 대검, 태그 속 보조무기(`katana sheathed`, `clawed gauntlet`)를 주무기로 그림, ④ 보정문이 프롬프트 뒤(약한 자리). 처방: Danbooru 실존 태그(`knife`, `kunai`, `reverse grip`, `dual wielding`, `crossbow` + 부정 `gun, pistol`)를 태그 **맨 앞**, 보조무기 전부 삭제, 흰 옷·빛 효과·바닥 유도어 제거, 남색 옷 → 검정(머리가 남색으로 끌림).
+- 결과: 14장 생성 → 도구 12 통과 → 검수(규칙 E 를 «보라가 **있으면** 탈락» 으로 풀어 씀) 10 ok + 보충 2 ok = **12 교체**: knight, spiritranger, spiritranger_abyss, oathshield, necromancer, lichlord, lichlord_apex(seed 18), shadowarcher, shadowblade, shadowblade_apex, venomfang_apex, skysplitter_apex(seed 17). 단검 계열 4종(shadowarcher·shadowblade·shadowblade_apex·venomfang_apex)이 프롬프트만으로 통과했다 — 참조 이미지 없이 됐다.
+- 사고 두 건: ① `extra` 에 `(purple hair:1.4)` 를 넣자 LEAD 의 1.3·1.2 와 겹쳐 **그림이 붕괴**(stormcaller 베이지 얼룩, lichlord_apex 온몸 보라) — 머리 가중은 LEAD 한 곳에만. ② 빨간 옷 클래스(skysplitter_apex·rogue·stormcaller)는 머리가 자홍(305~330°)으로 끌려 표식(255~300°)이 못 잡는다 → 부정 `magenta hair, pink hair, fuchsia hair` + seed 17~20 중 선택.
+- 보충: rogue 는 seed 18(쿠나이 두 자루), stormcaller 는 seed 19(별 완드) 가 통과 → **14/14 전부 교체.** 6차 결론: 잔여 목록 없음. seed 는 `gen/fixes.json` 에 남아 있다(같은 seed·프롬프트 = 같은 그림).
+- 상태: 목록 106 · 스모크 1017(deno 2) · pwa 57 · 도감 106/106.
+
+## 162. 전투 화면을 정면 PNG 일러스트에 맞췄다 (2026-09-06 밤, 제작자 「전투화면도 바뀐 이미지랑 매칭하는 작업이 필요해보인다」)
+- 전투 무대는 **`battle/renderer.js`(createRenderer)** 다 — `ui/battle.js` 의 `createSimpleRenderer` 는 그게 못 뜰 때의 대체용이고, PvP 재생(`ui/pvpreplay.js`)도 renderer.js 를 쓴다. 처음엔 간이 렌더러에만 배선해 놓고 «됐다» 했다가 검토 워크플로(3관점)가 잡았다. 둘 다 `spritegen`(옆모습 32×40 도트 아틀라스)만 알았고, 도감·주점·단원은 `portrait`(정면) 라서 같은 용병이 화면마다 다른 얼굴이었다.
+- 배선(renderer.js): `spriteOf(v)` 가 `recipe.illustClass` 에 PNG(`hasIllustPng`)가 있으면 `{ png: getPortrait(recipe) }`, 없으면 옆모습 그대로. `drawUnitFrame` 이 갈라 그린다(잔상·본체 둘 다). 표시 크기는 옆모습과 같은 96×120(norm = 120/240)이지만 정수리가 6px 높아서 `footPx(v)` 가 PNG 면 120 을 돌려주고 `headTop`/`chestY`(이름·HP·기절 별·타격 이펙트 높이)가 그걸 쓴다. 간이 렌더러(ui/battle.js)에도 같은 배선.
+- `drawPortraitFrame` 에 옆모습과 같은 뜻의 `flip`(적은 좌우 반전)·`flash`(피격 흰 섬광 = 실루엣 캔버스)·`bg`(false 면 등급 후광 생략 — 무대에서는 산만) 옵션. 기본값은 예전과 같아 도감·주점·단원은 그대로다.
+- 움직임: 숨쉬기 idle0~3(BREATH 0,1,0,-1)을 `animT`로 4.2프레임/초, 유닛마다 위상(idleOff). 걷기·공격 클립은 PNG 에 없어 서 있는 채로 이동·펀치 스케일만 탄다. 사망은 `dieT` 로 0.4초에 걸쳐 발을 축으로 `rotate(1.25·k²)` — **무대 가운데 쪽**으로(아군 오른쪽, 적 왼쪽). 바깥쪽으로 눕히면 폰 폭(340px)에서 앞줄 머리가 화면 밖으로 나간다(검토 지적).
+- 미리보기 발 위치: PNG 는 발이 마지막 행(239/240)이라 `city.js classSprite`·`tavern.js` 는 발을 캔버스 바닥에 둔다 — 38·SCALE 에 두면 정수리 6px 이 잘리고 바닥이 뜬다. 도감은 원래 (h-6) 에 더 큰 캔버스라 무관.
+- 초상 캐시: PNG 한 벌 ≈ 1.5MB 라 개수 상한만으로는 100MB 까지 부풀 수 있어 `getPortrait` 가 **실제 바이트**(32MB)로도 민다. 매니페스트의 `ax` 는 아직 아무도 안 읽는다(가로는 캔버스 중앙) — 무기 자루가 넓은 그림은 그림자 타원이 발과 어긋날 수 있다, 다음 손질 후보.
+- 도시의 클래스 미리보기(`city.js classSprite`)도 PNG 가 있으면 초상(scale 1 = 32×40, 보간 축소).
+- 적: `enemies.js` 76종은 옆모습 레시피(illustClass 없음)라 도트 그대로 → 한 무대에 두 화풍이 섞인다. 다음 단계 후보: 적 인간형에 클래스 PNG 매핑, 몬스터는 별도 프롬프트 세트로 생성(§161 파이프라인 재사용).
+- CACHE merc-v192 · CLIENT_REV 192 · changelog `2026-09-06-battle-illust`. 스모크에 배선 검사(§162) 4건 추가 → 1021건.
+

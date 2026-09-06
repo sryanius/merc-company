@@ -8,7 +8,11 @@
 import { clamp, lerp, TAU } from '../core/util.js';
 import { RNG } from '../core/rng.js';
 import { GRADE_COLOR } from '../art/palette.js';
-import { getSprite, drawSpriteFrame, spriteFootPx } from '../art/spritegen.js';
+import { getSprite, drawSpriteFrame, spriteFootPx, SCALE } from '../art/spritegen.js';
+/* ★ 정면 PNG 일러스트(HANDOFF §161)가 있는 유닛은 무대에서도 그 그림으로 선다 (§162) — 도감·주점과 같은 얼굴이어야 한다.
+ *   없는 것(몬스터·펫·옛 레시피)은 옆모습 도트 그대로. 한 무대에 두 화풍이 섞이는 건 알고 둔다 (적 그림은 다음 단계). */
+import { getPortrait, drawPortraitFrame } from '../art/portrait.js';
+import { hasIllustPng } from '../art/illustpng.js';
 import { createFxSystem } from '../art/fx.js';
 import { getSkill } from '../data/skills.js';
 
@@ -1025,14 +1029,40 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     fx.spawn('trail', posX(v) + d * 6, chestY(v) + 6, { dir: d, scale: 1 });
   }
 
-  const spriteOf = (v) => (v.sprite || (v.sprite = getSprite(v.u.recipe || {})));
+  /* PNG 초상이 있으면 { png: 초상 } — drawUnitFrame 이 갈라 그린다 */
+  const spriteOf = (v) => (v.sprite || (v.sprite = (() => {
+    const rc = v.u.recipe || {};
+    return rc.illustClass && hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) } : getSprite(rc);
+  })()));
+  /** 발밑에서 정수리까지 화면 px — PNG 초상은 옆모습(114)보다 조금 크다(240×0.5 = 120). 이름·HP·기절 별이 이걸로 자리를 잡는다. */
+  const footPx = (v) => { const sp = spriteOf(v); return sp && sp.png ? sp.png.footY * (SPRITE_SCALE / SCALE) * (sp.png.norm || 1) : spriteFootPx(SPRITE_SCALE); };
+  /**
+   * 유닛 한 장 — 옆모습 아틀라스면 drawSpriteFrame, PNG 초상이면 drawPortraitFrame.
+   * PNG 에는 걷기·공격·쓰러짐 프레임이 없다: 살아 있으면 숨쉬기 idle0~3 을 시간으로 돌리고, 피격은 흰 섬광,
+   * 사망은 dieT 로 0.4초에 걸쳐 발을 축으로 **무대 가운데 쪽**으로 눕힌다 (바깥쪽으로 눕히면 폰 폭에서 머리가 화면 밖으로 나간다 — 검토 지적).
+   */
+  function drawUnitFrame(g, v, sp, frame, x, y, o) {
+    if (!sp.png) { drawSpriteFrame(g, sp, frame, x, y, o); return; }
+    const flip = !!o.flip;
+    if (v.dieT >= 0) {
+      const k = clamp(v.dieT / 0.4, 0, 1);
+      g.save();
+      g.translate(x, y);
+      g.rotate((flip ? -1 : 1) * 1.25 * k * k);
+      drawPortraitFrame(g, sp.png, 'idle0', 0, 0, { scale: o.scale, flip, alpha: o.alpha, bg: false });
+      g.restore();
+      return;
+    }
+    const fi = Math.floor(animT * 4.2 + v.idleOff * 4) % 4;
+    drawPortraitFrame(g, sp.png, 'idle' + fi, x, y, { scale: o.scale, flip, flash: o.flash || 0, alpha: o.alpha, bg: false });
+  }
   const homeX = (u) => f2x(u.x);
   const homeY = (u) => f2y(u.y);
   const facing = (u) => (u.side === 'ally' ? 1 : -1);
   const posX = (v) => homeX(v.u) + v.ox + v.kx;
   const posY = (v) => homeY(v.u) + v.oy + v.ky;
-  const chestY = (v) => posY(v) - spriteFootPx(SPRITE_SCALE) * 0.55;
-  const headTop = (v) => posY(v) - spriteFootPx(SPRITE_SCALE);
+  const chestY = (v) => posY(v) - footPx(v) * 0.55;
+  const headTop = (v) => posY(v) - footPx(v);
 
   /* ── 로그 ──────────────────────────────────────────── */
   /**
@@ -1616,7 +1646,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       const n = Math.min(GHOST_MAX, Math.round(gap / GHOST_STEP_PX));
       for (let i = 1; i <= n; i++) {
         const p2 = i / (n + 1);
-        drawSpriteFrame(g, sp, frameOf(v), x + (v.lastX - x) * p2, y + ((v.lastY == null ? y : v.lastY) - y) * p2, {
+        drawUnitFrame(g, v, sp, frameOf(v), x + (v.lastX - x) * p2, y + ((v.lastY == null ? y : v.lastY) - y) * p2, {
           scale: SPRITE_SCALE,
           flip: u.side === 'enemy',
           alpha: (v.alpha == null ? 1 : v.alpha) * GHOST_ALPHA * (1 - p2),
@@ -1626,7 +1656,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     v.lastX = x; v.lastY = y;
 
     // 스케일 펀치는 발밑 기준으로 확대되므로 유닛이 제자리에서 부푼다 (화면은 그대로)
-    drawSpriteFrame(g, sp, frameOf(v), x, y, {
+    drawUnitFrame(g, v, sp, frameOf(v), x, y, {
       scale: SPRITE_SCALE * punchScale(v),
       flip: u.side === 'enemy',
       flash,

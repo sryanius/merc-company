@@ -5,6 +5,9 @@ import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
 // 세트(신화) 등급 표기용 — RARITY_* 는 전설(4)까지라 세트템 rarity 5 를 못 담는다
 import { MYTHIC_COLOR, MYTHIC_NAME, getSet } from '../data/sets.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
+/* ★ 정면 PNG 일러스트(§161)가 있는 유닛은 전투에서도 그 그림으로 선다 (§162) — 도감·주점과 같은 얼굴이어야 한다 */
+import { getPortrait, drawPortraitFrame } from '../art/portrait.js';
+import { hasIllustPng } from '../art/illustpng.js';
 import { getSkill } from '../data/skills.js';
 import { getClass } from '../data/classes.js';
 import { createBattle, setSkillResolver } from '../battle/engine.js';
@@ -1470,14 +1473,18 @@ function createSimpleRenderer(canvas, biome) {
   const px = (fx) => (fx / 100) * W;
   const py = (fy) => HORIZON + (fy / 60) * (H - 40 - HORIZON);
   let battle = null;
+  let clock = 0;                 // 숨쉬기 프레임용 누적 시간(초)
   const pops = [];
   const flash = new Map();
   const sprites = new Map();
 
+  /* PNG 일러스트가 있는 유닛(용병)은 { png: 초상 }, 없는 것(몬스터·펫)은 옆모습 도트 아틀라스 */
   const spriteOf = (u) => {
     if (sprites.has(u.uid)) return sprites.get(u.uid);
     let s = null;
-    try { s = getSprite(u.recipe || {}); } catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
+    const rc = u.recipe || {};
+    try { s = rc.illustClass && hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) } : getSprite(rc); }
+    catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
     sprites.set(u.uid, s);
     return s;
   };
@@ -1486,6 +1493,7 @@ function createSimpleRenderer(canvas, biome) {
     speed: 1,
     setBattle(b) { battle = b; pops.length = 0; flash.clear(); sprites.clear(); },
     update(dt) {
+      clock += dt;
       if (!battle) return;
       for (const e of battle.drainEvents()) {
         if (e.type === 'damage') {
@@ -1522,8 +1530,22 @@ function createSimpleRenderer(canvas, biome) {
         ctx.restore();
 
         const sp = spriteOf(u);
-        const frame = !u.alive ? 'die3' : (flash.has(u.uid) ? 'hit0' : 'idle0');
-        if (sp) {
+        if (sp && sp.png) {
+          /* 정면 일러스트 — 숨쉬기 4프레임을 시간으로 돌리고(유닛마다 위상 다르게), 피격은 흰 섬광, 사망은 발을 축으로 눕힌다.
+           * 표시 크기는 옆모습과 같은 96×120 (norm 이 PNG 240px 을 120 으로 누른다). 등급 후광은 무대에서 끈다. */
+          const hit = flash.has(u.uid);
+          if (u.alive) {
+            const fi = Math.floor(clock * 2.4 + (u.slotIndex || 0) * 1.3) % 4;
+            drawPortraitFrame(ctx, sp.png, 'idle' + fi, x, y, { scale: SPRITE_SCALE, flip: u.side === 'enemy', flash: hit ? 0.7 : 0, bg: false });
+          } else {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate((u.side === 'enemy' ? -1 : 1) * 1.25);   // 무대 가운데 쪽으로 눕힌다 — 바깥쪽이면 폰 폭에서 머리가 화면 밖으로 나간다
+            drawPortraitFrame(ctx, sp.png, 'idle0', 0, 0, { scale: SPRITE_SCALE, flip: u.side === 'enemy', alpha: 0.45, bg: false });
+            ctx.restore();
+          }
+        } else if (sp) {
+          const frame = !u.alive ? 'die3' : (flash.has(u.uid) ? 'hit0' : 'idle0');
           drawSpriteFrame(ctx, sp, frame, x, y, {
             scale: SPRITE_SCALE, flip: u.side === 'enemy',
             alpha: u.alive ? 1 : 0.45, flash: flash.has(u.uid) ? 0.7 : 0,

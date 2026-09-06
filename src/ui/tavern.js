@@ -357,7 +357,9 @@ function drawPreview(entry, frameIdx) {
   if (!entry.sprite) return;
   const f = IDLE_FRAMES[(frameIdx + entry.phase) % IDLE_FRAMES.length];
   /* 스프라이트는 변환 없이 실제 픽셀로 — 그려 주는 쪽이 «줄여 그리는가» 를 정확히 알아야 한다 */
-  drawShowcase(ctx, entry.sprite, f, (PREVIEW_W / 2) * dpr, 38 * SPRITE_SCALE * dpr, { scale: SPRITE_SCALE * dpr });
+  /* PNG 초상은 발이 마지막 행이라 캔버스 바닥에 발을 둔다 — 38·SCALE 에 두면 정수리 6px 이 잘리고 바닥이 뜬다 (§162 검토) */
+  const footY = entry.sprite.front && entry.sprite.sprite && entry.sprite.sprite.png ? PREVIEW_H - 1 : 38 * SPRITE_SCALE;
+  drawShowcase(ctx, entry.sprite, f, (PREVIEW_W / 2) * dpr, footY * dpr, { scale: SPRITE_SCALE * dpr });
 }
 
 function startPreviewLoop() {

@@ -30,6 +30,8 @@ import {
 } from '../game/gear.js';
 import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
+import { getPortrait, drawPortraitFrame } from '../art/portrait.js';
+import { hasIllustPng } from '../art/illustpng.js';
 import { go, refresh, toast, modal } from './app.js';
 import * as Tower from '../game/tower.js';
 import * as Abyss from '../game/abyss.js';
@@ -360,11 +362,14 @@ const itemName = (it) => el('span', { style: { color: RARITY_COLOR[it.rarity || 
 function classSprite(cls, scale = 2) {
   if (!cls || !cls.sprite) return null;
   try {
-    const s = getSprite(cls.sprite);
     const cv = el('canvas', { width: 32 * scale, height: 40 * scale });
     const ctx = cv.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    drawSpriteFrame(ctx, s, 'idle0', 16 * scale, 38 * scale, { scale });
+    /* 클래스 PNG 일러스트(§161)가 있으면 그걸로 — 도감·전투와 같은 얼굴. 없으면 옆모습 도트. */
+    const png = 'illust_' + cls.id;
+    /* PNG 는 발이 마지막 행(239/240)이라 발을 캔버스 바닥(40·scale)에 두어야 정수리가 안 잘린다 — 옆모습은 발이 38 행이라 38·scale */
+    if (hasIllustPng(png)) drawPortraitFrame(ctx, getPortrait({ ...cls.sprite, illustClass: png }), 'idle0', 16 * scale, 40 * scale, { scale, bg: false });
+    else drawSpriteFrame(ctx, getSprite(cls.sprite), 'idle0', 16 * scale, 38 * scale, { scale });
     return el('div', { class: 'sprite-box' }, cv);
   } catch (e) {
     console.warn('[city] 스프라이트 생성 실패', e);

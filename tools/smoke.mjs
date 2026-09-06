@@ -2061,6 +2061,10 @@ section('정면 포즈 판·클래스 얼굴의 기하');
 
 section('정면 PNG 일러스트 (크로마키)');
 {
+  /* §162 전투·도시가 PNG 유닛을 초상으로 그리는 배선 — 끊기면 조용히 옆모습 도트로 돌아가서 «왜 전투만 옛 그림이지» 가 된다 */
+  for (const [f, needle] of [['src/battle/renderer.js', 'hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) }'], ['src/battle/renderer.js', 'drawPortraitFrame(g, sp.png'], ['src/battle/renderer.js', 'drawUnitFrame(g, v, sp, frameOf(v), x, y, {'], ['src/ui/battle.js', 'hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) }'], ['src/ui/battle.js', 'drawPortraitFrame(ctx, sp.png'], ['src/ui/city.js', 'drawPortraitFrame(ctx, getPortrait({ ...cls.sprite, illustClass: png })'], ['src/art/portrait.js', 'flip = false, flash = 0, bg: showBg = true']]) {
+    ok(readFileSync(new URL(f, ROOT), 'utf8').includes(needle), `${f} 가 PNG 초상 배선을 갖는다 (§162)`, needle);
+  }
   /* ★ 이미지 모델이 그린 PNG 를 문자 행렬 대신 쓴다 (art/illustpng.js, HANDOFF §161).
    *   표식(자홍 머리·청록 눈)만 팔레트로 바뀌고 나머지는 그대로다.
    *   목록(illust_manifest.js)·파일·캐시 목록이 어긋나면 폰에서 **조용히 문자 일러스트로 물러나**

@@ -257,8 +257,12 @@ export function buildPortrait(recipe = {}) {
 /* ─── 캐시 — 옆모습과 같은 규칙(바이트 예산 · LRU) ─── */
 const cache = new Map();
 export const portraitBytes = () => PORTRAIT_W * FRAMES.length * PORTRAIT_H * 4 * 2;
-export const PORTRAIT_CACHE_BYTES = 24 * 1024 * 1024;
+/* ★ PNG 초상은 한 벌이 192×240×4프레임×2캔버스 ≈ 1.5MB — 96×120 기준 개수 상한(68)만 믿으면 100MB 까지 부푼다 (§162 검토).
+ *   그래서 개수와 **실제 바이트** 둘 다로 민다. 32MB ≈ PNG 21벌 — 전투 10명 + 주점 5명이 같이 살아 있을 만큼. */
+export const PORTRAIT_CACHE_BYTES = 32 * 1024 * 1024;
 export const PORTRAIT_CACHE_MAX = Math.max(12, Math.floor(PORTRAIT_CACHE_BYTES / portraitBytes()));
+let cacheBytes = 0;
+const bytesOf = (p) => (p.canvas && p.canvas.width ? p.canvas.width * p.canvas.height * 4 * 2 : portraitBytes());
 
 export function getPortrait(recipe = {}) {
   const key = portraitKey(recipe);
@@ -266,10 +270,16 @@ export function getPortrait(recipe = {}) {
   if (hit) { cache.delete(key); cache.set(key, hit); return hit; }
   const p = buildPortrait(recipe);
   cache.set(key, p);
-  while (cache.size > PORTRAIT_CACHE_MAX) cache.delete(cache.keys().next().value);
+  cacheBytes += bytesOf(p);
+  while (cache.size > 1 && (cache.size > PORTRAIT_CACHE_MAX || cacheBytes > PORTRAIT_CACHE_BYTES)) {
+    const k = cache.keys().next().value;
+    cacheBytes -= bytesOf(cache.get(k));
+    cache.delete(k);
+  }
   return p;
 }
-export function clearPortraitCache() { cache.clear(); }
+export function clearPortraitCache() { cache.clear(); cacheBytes = 0; }
+export const portraitCacheBytes = () => cacheBytes;
 export const portraitCacheSize = () => cache.size;
 
 /**
@@ -278,7 +288,9 @@ export const portraitCacheSize = () => cache.size;
  */
 export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   if (!portrait) return;
-  const { scale = 3, alpha = 1 } = opts;
+  /* flip·flash 는 옆모습(drawSpriteFrame)과 같은 뜻 — 전투(HANDOFF §162)가 적을 뒤집고 피격을 흰 섬광으로 찍는다.
+   * bg=false 면 등급 후광을 안 깐다 (전투 무대에서는 산만하다). */
+  const { scale = 3, alpha = 1, flip = false, flash = 0, bg: showBg = true } = opts;
   const f = portrait.frames[frame] || portrait.frames.idle0;
   if (!f) return;
   /* norm: 일러스트(고해상도)를 기존과 **같은 표시 높이**로 누른다.
@@ -289,6 +301,7 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   const dw = W * px;
   const dh = H * px;
   ctx.save();
+  if (flip) { ctx.translate(Math.round(x) * 2, 0); ctx.scale(-1, 1); }   // x 를 축으로 좌우 반전 — 아래 dx0 계산은 그대로 쓴다
   /* ★ PNG 일러스트를 **줄여** 그릴 때만 보간을 켠다 (dpr 1 화면). 최근접으로 줄이면 줄이 통째로 빠진다.
    *   같은 크기·키울 때는 최근접 — 도트가 뭉개지면 안 된다. 문자 일러스트는 예전 그대로 최근접. */
   ctx.imageSmoothingEnabled = !!(portrait.png && dw < W);
@@ -310,7 +323,7 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
     S: { core: '#ffe98a', mid: '#f0d24a', deep: '#a87b1c', rays: 16, ring: true, spin: 1, motes: 9 },
     A: { core: '#d9c2ff', mid: '#b48ef0', deep: '#5b3f9e', rays: 10, ring: false, spin: -0.7, motes: 6 },
   };
-  const bg = portrait.gradeBg && BG[portrait.gradeBg];
+  const bg = showBg && portrait.gradeBg && BG[portrait.gradeBg];
   if (bg) {
     const cx = dx0 + dw / 2;
     const cy = dy0 + dh * 0.46;
@@ -431,5 +444,9 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   }
   ctx.globalAlpha = alpha;
   ctx.drawImage(portrait.canvas, f.sx, f.sy, W, H, dx0, dy0, dw, dh);
+  if (flash > 0) {
+    ctx.globalAlpha = alpha * Math.min(1, flash);
+    ctx.drawImage(portrait.flash, f.sx, f.sy, W, H, dx0, dy0, dw, dh);
+  }
   ctx.restore();
 }
