@@ -100,9 +100,11 @@ export function classNegative(classId) {
  * 클래스별 프롬프트 — 105 클래스 각각 다른 그림 (제작자: 「검사 계열이 모두 같고 머리색만 다른데 다 바꾸는 거 맞지?」).
  * CLASS_TAGS 가 없는 클래스는 스타일 태그로 물러난다. 용병은 전부 여성 (제작자 결정 2026-09-06).
  */
-export function buildClassPrompt(classId, style, extra = '') {
-  const ct = CLASS_TAGS[classId];
-  if (!ct) return buildPrompt(style, '1girl', extra);
+/* ★ 6차: 재생성 보정(gen/fixes.json)이 tags·hairStyle·pose 를 통째로 바꿀 수 있다 — override 로 받는다. equip 은 못 바꾼다(주무기 선두·부정은 그대로). */
+export function buildClassPrompt(classId, style, extra = '', override = null) {
+  const base = CLASS_TAGS[classId];
+  if (!base) return buildPrompt(style, '1girl', extra);
+  const ct = override ? { ...base, ...Object.fromEntries(Object.entries(override).filter(([k, v]) => ['tags', 'hairStyle', 'pose'].includes(k) && v)) } : base;
   const parts = ['1girl', weaponLead(classId), '(standing:1.2), standing straight, full body', LEAD, ct.tags, ct.hairStyle, BG, ct.pose, extra].filter(Boolean);
   return [...parts, COMMON].join(', ');
 }
