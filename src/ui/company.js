@@ -2322,7 +2322,8 @@ function rosterCard(m) {
   const cbBox = el('label', { class: 'co-cbwrap', onClick: (e) => e.stopPropagation() }, cb);
 
   const card = el('div', {
-    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}`,
+    /* ★ 등급 테두리 (§167.1) — S·A 만. 카드 테두리·모서리로 등급을 알리고, 그림 위에는 아무것도 안 얹는다. */
+    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}${m.grade === 'S' ? ' gr-s' : m.grade === 'A' ? ' gr-a' : ''}`,
     draggable: dragEnabled() ? 'true' : false,
     title: '클릭하면 선택 — 그다음 편성판의 칸을 누르세요',
     onDragStart: (e) => {

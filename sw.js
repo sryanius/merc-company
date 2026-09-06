@@ -48,7 +48,7 @@
  * v4 — 월드맵 탑 노드 / 정원 70 / 펫 자동배치 / 주점 특화 클래스 고정.
  * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
  * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
-const CACHE = 'merc-v196';
+const CACHE = 'merc-v197';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -428,6 +428,13 @@ const APP_SHELL = [
   './art/illust/illust_shadowarcher_apex_atk.png',
   './art/illust/illust_shadowarcher_abyss_atk.png',
   './art/illust/illust_plaguelord_abyss_atk.png',
+  './art/illust/illust_enemy_saber_cat.png',
+  './art/illust/illust_enemy_highwayman.png',
+  './art/illust/illust_enemy_frost_spirit.png',
+  './art/illust/illust_bulwark_atk.png',
+  './art/illust/illust_dragoonlord_abyss_atk.png',
+  './art/illust/illust_bladedancer_apex_atk.png',
+  './art/illust/illust_arhat_apex_atk.png',
 ];
 
 /** 모든 클라이언트에 알린다 (index.html 의 갱신 배너가 받는다). */

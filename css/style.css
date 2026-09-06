@@ -159,6 +159,33 @@ img { max-width: 100%; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }
 .card.empty { border-style: dashed; opacity: .55; }
 
+/* ─── 등급 카드 테두리 (§167.1) ────────────────────────────────────────────────
+ * 제작자: 「등급표시는 카드 테투리도 괜찮을것같아」.
+ * 초상 뒤에 깔던 광선(§167 이전)은 세밀한 일러스트와 싸웠다. 그림은 안 건드리고 **카드**가 등급을 말한다:
+ *   테두리 색 + 위쪽 모서리에서 흘러내리는 아주 옅은 빛 + 왼쪽 위 삼각 표식.
+ * `.selected`(금색 테두리)와 겹치면 선택이 이겨야 하므로 그 규칙을 아래에 다시 둔다. */
+.card.gr-a, .card.gr-s { position: relative; }
+.card.gr-a {
+  border-color: #7b62b8;
+  background: linear-gradient(180deg, rgba(146,110,220,.10), rgba(0,0,0,0) 42%), linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+.card.gr-s {
+  border-color: #c9a447;
+  background: linear-gradient(180deg, rgba(240,210,74,.12), rgba(0,0,0,0) 42%), linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+.card.gr-a:hover { border-color: #9a7fdd; }
+.card.gr-s:hover { border-color: #f0d24a; }
+/* 왼쪽 위 삼각 — 작게, 한 번에 등급이 읽히도록 */
+.card.gr-a::before, .card.gr-s::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 16px; height: 16px;
+  border-top-left-radius: var(--radius); pointer-events: none;
+}
+.card.gr-a::before { background: linear-gradient(135deg, #9a7fdd 0 50%, transparent 50%); }
+.card.gr-s::before { background: linear-gradient(135deg, #f0d24a 0 50%, transparent 50%); }
+/* 선택·표시 상태가 등급보다 우선 */
+.card.gr-a.selected, .card.gr-s.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }
+
+
 /* 넓은 표/블록 전용 가로 스크롤 래퍼.
    ★ 규약: 화면이 넓어질 수 있는 표는 `el('div',{class:'table-wrap'}, table)` 로 감싼다.
    페이지가 가로로 밀리는 대신 이 래퍼 안에서만 스크롤된다. PC 에서는 내용이 들어가므로 무동작. */
