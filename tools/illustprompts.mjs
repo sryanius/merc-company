@@ -153,7 +153,7 @@ export function buildClassAttackPrompt(classId, style, extra = '', override = nu
  * 배경색은 적마다 고른다(bg: 'lime green' | 'magenta' | 'sky blue') — 초록 피부(고블린·오크)는 자홍 배경, 불꽃은 초록 배경.
  * 도구는 --bg=auto 로 테두리 색을 재서 빼니 어느 색이든 된다. --nohair 로 넣는다.
  * ENEMY_TAGS[id] = { name, subject, weapon, bg, tags, pose, neg, seed } (illustprompts_enemies.mjs) */
-const ENEMY_COMMON = 'solo, full body, standing, three-quarter view, looking at viewer, masterpiece, high score, great score, absurdres';
+const ENEMY_COMMON = 'solo, full body, three-quarter view, masterpiece, high score, great score, absurdres';
 export const ENEMY_NEGATIVE = 'lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, '
   + 'worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry, '
   + 'multiple views, multiple girls, multiple boys, 2boys, 2girls, chibi, nsfw, explicit, nude, nipples, '
@@ -178,11 +178,16 @@ export function buildEnemyPrompt(id, extra = '', override = null) {
   if (!base) return null;
   const et = override ? { ...base, ...Object.fromEntries(Object.entries(override).filter(([k, v]) => ['tags', 'pose', 'subject', 'weapon', 'bg'].includes(k) && v)) } : base;
   /* 배경 이름 → 모델이 실제로 그리는 말: 'lime' 은 과일로 새어 나왔고(회색 늑대가 라임 조각 위에 섰다), 'magenta' 는 베이지로 그렸다. Danbooru 에 흔한 색 이름으로. */
-  /* ★ 실측(§163 3차): «pink» 은 채도 0.45·색상 358° 의 붉은 분홍으로 그려졌고, 도구의 색상 flood(±14°)가 **붉은 망토·갈색 가죽을 배경으로 먹었다**.
-   *   보라(280°)는 초록 피부(120°)와도 붉은 천(0°)과도 멀다 — 적은 머리 표식을 안 쓰니(--nohair) 보라를 배경으로 써도 안전하다. */
-  const BG_WORD = { 'lime green': 'bright green', magenta: 'purple', 'sky blue': 'blue' };
-  const bg = `(flat ${BG_WORD[et.bg] || 'bright green'} background:1.1), simple background`;
+  /* ★ 모서리 실측(§163 5차): 같은 1.1 가중인데 «purple» 은 채도 0.74·269° 로 선명하게 나오고(고블린 족장)
+   *   «bright green» 은 채도 0.12·97° 의 흐린 세이지로 나왔다(회색 늑대) — 회색 털과 구분이 안 돼 키잉이 통째로 실패했다.
+   *   → 가중 1.35 + «chroma key» 로 강제하고 색 이름을 «vivid …» 로 못 박는다. 그래도 흐리면 그 적만 bg 를 magenta 로 옮겨라. */
+  const BG_WORD = { 'lime green': 'vivid green screen', magenta: 'vivid purple', 'sky blue': 'vivid blue' };
+  const bg = `(flat ${BG_WORD[et.bg] || 'vivid green screen'} background:1.35), (chroma key:1.2), plain background, simple background`;
   const weapon = et.weapon ? `(holding ${et.weapon}:1.3), ${et.weapon} in hand` : '';
-  const parts = [et.subject || '1boy', weapon, '(standing:1.2), full body', et.tags, bg, et.pose, extra].filter(Boolean);
+  /* ★ 짐승(subject 'monster'): «(standing:1.2)» 가 두 발로 세운다 — 검치호가 이족보행 도마뱀으로, 동굴 거미가 이족보행 악마로 나왔다.
+   *   네발 자세는 pose 태그(«standing on four legs»)가 맡고, 여기서는 전신만 요구한다. Danbooru 는 «no humans, animal focus» 로 짐승을 그린다. */
+  const beast = (et.subject || '1boy') === 'monster';
+  const subject = beast ? 'no humans, animal focus, monster' : et.subject;
+  const parts = [subject, weapon, beast ? 'full body' : '(standing:1.2), full body', et.tags, bg, et.pose, extra].filter(Boolean);
   return [...parts, ENEMY_COMMON].join(', ');
 }
