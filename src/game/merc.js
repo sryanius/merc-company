@@ -1085,6 +1085,7 @@ export function mercRecipe(merc, itemsById) {
      *   무기·컨셉으로 **스타일**을 갈라 그쪽 일러스트를 우선한다. */
     const style = illustStyleOf(c);
     rec.illust = `illust_${style}`;
+    rec.illustClass = `illust_${c.id}`;   // class-specific PNG comes first (art/illustpng.js, HANDOFF §161.7)
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
     /* 전투 통짜 시트 — 열 장이 전부 있는 스타일만 spritegen 이 실제로 쓴다 (sheetOf 검사) */

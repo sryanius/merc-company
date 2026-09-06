@@ -136,6 +136,8 @@ const MODULE_LIST = [
   'art/parts_gear.js',
   'art/parts.js',
   'art/parts_front.js',
+  'art/illustpng.js',
+  'art/illust_manifest.js',
   'art/palette.js',
   'art/spritegen.js',
   'art/fx.js',
@@ -2054,6 +2056,122 @@ section('정면 포즈 판·클래스 얼굴의 기하');
     const missing = plates.map(archOf).filter((a) => !faces.includes(`face_${a}`));
     okAll(missing.map((a) => `plate_${a} 는 있는데 face_${a} 가 없다`),
       '판이 있는 계열은 얼굴도 있다', Math.max(1, plates.length));
+  }
+}
+
+section('정면 PNG 일러스트 (크로마키)');
+{
+  /* ★ 이미지 모델이 그린 PNG 를 문자 행렬 대신 쓴다 (art/illustpng.js, HANDOFF §161).
+   *   표식(자홍 머리·청록 눈)만 팔레트로 바뀌고 나머지는 그대로다.
+   *   목록(illust_manifest.js)·파일·캐시 목록이 어긋나면 폰에서 **조용히 문자 일러스트로 물러나**
+   *   «바꿨는데 왜 그대로지» 가 된다 — 그래서 셋을 짝지어 검사한다. */
+  const IP = need('art/illustpng.js');
+  const MF = need('art/illust_manifest.js');
+  const FP = need('art/parts_front.js');
+  const PAL = need('art/palette.js');
+  /* portrait·pixel 은 모듈 목록에 없다 (최상위 DOM 미접근이긴 하다) — 이 절만 직접 읽는다 */
+  let PT = null, PX = null;
+  try { PT = await import(srcUrl('art/portrait.js')); PX = await import(srcUrl('art/pixel.js')); }
+  catch (e) { ok(false, 'portrait.js / pixel.js 를 못 읽었다', `${e.name}: ${e.message}`); }
+  if (!IP || !MF || !FP || !PT || !PAL || !PX) { ok(false, 'PNG 일러스트 모듈을 못 읽었다', [!IP && 'illustpng', !MF && 'manifest', !FP && 'parts_front', !PT && 'portrait', !PAL && 'palette', !PX && 'pixel'].filter(Boolean).join(', ')); } else {
+    /* (1) 표식 분류 — 자홍은 머리, 청록은 눈, 나머지(팔레트에 실제로 있는 색들)는 손대지 않는다 */
+    /* 기본 색상대 = 이미지 모델용 (머리 보라 255~300°). 문자 픽스처는 자홍 300° 팔레트라 marker 로 따로 지정한다 —
+     * 「Animagine 의 magenta 는 분홍 330~355° 로 나와 진홍 옷 그림자(348°)와 섞였다」 가 보라로 간 이유다 (§161). */
+    const specM = IP.markerSpec({ hair: [285, 330], eye: [165, 200] });
+    const cls = (hex, spec) => { const n = parseInt(hex.slice(1), 16); return IP.classifyMarker((n >> 16) & 255, (n >> 8) & 255, n & 255, spec); };
+    const cases = [
+      ['#8040ff', 'hair'], ['#7a4bab', 'hair'],               // 보라(260°)·제비꽃(272°) = 머리 (보라 옷은 생성에서 금지한다)
+      ['#00ffff', 'eye'], ['#006e6e', 'eye'],
+      ['#e8508a', null], ['#ff40c0', null],                    // 분홍(340°)·자홍빛 분홍(320°) 은 기본 색상대 밖
+      ['#c9a0b5', null], ['#171320', null],                    // 보라 기 도는 살색 그늘(채도 0.2)·외곽선(0.28)은 채도 부족
+      /* 깊은 그늘 #2a2438(258°, 채도 0.36)은 기본 색상대에 **든다** — 어두운 보라 머리(남성 파일럿, 채도 0.3대)를 살리려면
+       * 하한을 0.30 으로 둬야 했다. 문자 일러스트는 marker 로 자홍 색상대를 쓰니 무관하다 (§161.6). */
+      ['#e03030', null], ['#f2cda6', null], ['#e8c24a', null], ['#8a8a96', null], ['#a83a4a', null], ['#6e2130', null],
+      ['#3f6fb5', null], ['#4a86c8', null]];
+    okAll(cases.filter(([hex, want]) => cls(hex) !== want).map(([hex, want]) => `${hex} → ${cls(hex)} (기대 ${want})`),
+      '기본 표식 분류: 보라=머리 · 청록=눈 · 분홍·자홍·보랏빛 그늘·외곽선·빨강·살색·금·회색·진홍(그림자까지)·감청·파란 눈은 아님', cases.length);
+    const casesM = [['#ff00ff', 'hair'], ['#7a007a', 'hair'], ['#ff70ff', 'hair'], ['#7a4bab', null], ['#d1738f', null], ['#00c8c8', 'eye']];
+    okAll(casesM.filter(([hex, want]) => cls(hex, specM) !== want).map(([hex, want]) => `${hex} → ${cls(hex, specM)} (기대 ${want})`),
+      '픽스처 색상대(자홍 285~330°): 자홍=머리 · 제비꽃·장미는 아님 · 청록=눈', casesM.length);
+
+    /* (2) 왕복 — 문자 일러스트를 **표식 팔레트**로 찍고 게임 팔레트로 되돌리면 원본과 같아야 한다.
+     *   머리 3단(H·h·y)·눈 2단(E·e)이 순위로 정확히 돌아온다. tools/illustpng.mjs --fixture 와 같은 길. */
+    const name = Object.keys(FP.FRONT_PARTS).find((n) => n.startsWith('illust_'));
+    if (!name) { pass('문자 일러스트가 없어 왕복 검사는 건너뜀'); } else {
+      const p = FP.getFrontPart(name);
+      const real = PAL.makePalette({ skin: 'tan', hair: 'blond', metal: 'steel', cloth: 'crimson', leather: 'brown', accent: 'gold', glow: 'none', eye: 'blue' });
+      const marker = { ...real, H: '#7a007a', h: '#c400c4', y: '#ff70ff', E: '#006e6e', e: '#00c8c8' };
+      const render = (pal) => {
+        const out = new Uint8ClampedArray(p.w * p.h * 4);
+        PX.blitInto(out, p.w, p.h, p, p.ax || 0, p.ay || 0, PX.colorTable(pal), false);
+        return out;
+      };
+      const countDiff = (a, b) => { let d = 0; for (let i = 0; i < a.length; i += 4) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2] || a[i + 3] !== b[i + 3]) d++; return d; };
+      const want = render(real);
+      const src = render(marker);
+      let ex0 = p.w, ey0 = p.h, ex1 = -1, ey1 = -1, hairN = 0, eyeN = 0;
+      for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
+        const o = (y * p.w + x) * 4;
+        if (!src[o + 3]) continue;
+        const k = IP.classifyMarker(src[o], src[o + 1], src[o + 2], specM);
+        if (k === 'hair') hairN++;
+        else if (k === 'eye' && y < p.h * 0.45) { eyeN++; if (x < ex0) ex0 = x; if (y < ey0) ey0 = y; if (x > ex1) ex1 = x; if (y > ey1) ey1 = y; }
+      }
+      IP.registerIllustPng('illust___smoke', { w: p.w, h: p.h, ax: p.ax, ay: p.ay, eyeBox: eyeN ? [ex0, ey0, ex1, ey1] : null, marker: { hair: [285, 330], eye: [165, 200] }, data: src });
+      const got = new Uint8ClampedArray(p.w * p.h * 4);
+      IP.recolorInto(got, p.w, p.h, IP.getIllustPng('illust___smoke'), 0, PX.colorTable(real));
+      ok(hairN > 0 && eyeN > 0, `${name}: 표식 팔레트로 찍으면 표식이 잡힌다 (머리 ${hairN}·눈 ${eyeN}칸)`);
+      ok(countDiff(got, want) === 0, `${name}: 표식 → 게임 팔레트 왕복이 원본과 **같다**`, `${countDiff(got, want)}칸 다름`);
+      /* 다른 팔레트로 되돌리면 머리·눈만 바뀐다 — 그 외 칸은 0 */
+      const other = PAL.makePalette({ ...{ skin: 'tan', metal: 'steel', cloth: 'crimson', leather: 'brown', accent: 'gold', glow: 'none' }, hair: 'red', eye: 'violet' });
+      const got2 = new Uint8ClampedArray(p.w * p.h * 4);
+      IP.recolorInto(got2, p.w, p.h, IP.getIllustPng('illust___smoke'), 0, PX.colorTable(other));
+      const wantOther = render(other);
+      ok(countDiff(got2, wantOther) === 0, `${name}: 다른 머리·눈 색으로 되돌려도 원본 렌더와 같다 (편차가 산다)`, `${countDiff(got2, wantOther)}칸 다름`);
+      /* 메타 검사: 표식이 없는 그림은 팔레트를 바꿔도 **아무것도** 안 바뀐다 */
+      IP.registerIllustPng('illust___smoke2', { w: p.w, h: p.h, marker: { hair: [285, 330], eye: [165, 200] }, data: want.slice() });
+      const got3 = new Uint8ClampedArray(p.w * p.h * 4);
+      IP.recolorInto(got3, p.w, p.h, IP.getIllustPng('illust___smoke2'), 0, PX.colorTable(other));
+      ok(countDiff(got3, want) === 0, '표식 없는 그림은 팔레트를 바꿔도 그대로다 (메타)', `${countDiff(got3, want)}칸 바뀜`);
+
+      /* (3) portrait 가 PNG 를 최우선으로 고른다 — 열쇠에 P: 가 붙고 canDraw 가 선다 */
+      ok(PT.canDraw({ illust: 'illust___smoke' }), 'PNG 가 등록되면 canDraw 가 선다');
+      ok(PT.portraitKey({ illust: 'illust___smoke' }).includes('P:illust___smoke'), '초상 열쇠에 PNG 이름이 들어간다 (캐시 정합)');
+      IP.registerIllustPng('illust___smoke', null);
+      IP.registerIllustPng('illust___smoke2', null);
+      ok(!PT.portraitKey({ illust: 'illust___smoke' }).includes('P:'), 'PNG 를 빼면 열쇠에서도 빠진다 (메타)');
+    }
+
+    /* (4) 목록 ↔ 파일 ↔ 캐시 목록 — 하나라도 어긋나면 폰에서 조용히 옛 그림이 된다 */
+    const entries = Object.entries(MF.ILLUST_PNG || {});
+    const swSrc = readFileSync(join(rootDir, 'sw.js'), 'utf8');
+    const mShell = /const APP_SHELL\s*=\s*\[([\s\S]*?)\];/.exec(swSrc);
+    const shell = mShell ? [...mShell[1].matchAll(/'([^']+)'/g)].map((m) => m[1]) : [];
+    const faults4 = [];
+    for (const [n, e] of entries) {
+      if (!/^illust_[a-z0-9_]+$/.test(n)) faults4.push(`${n}: 이름이 illust_<style> 꼴이 아니다`);
+      const abs = join(rootDir, e.file);
+      if (!existsSync(abs)) { faults4.push(`${n}: ${e.file} 이 없다`); continue; }
+      const buf = readFileSync(abs);
+      const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);   // IHDR
+      if (w !== e.w || h !== e.h) faults4.push(`${n}: 파일 ${w}x${h} ≠ 목록 ${e.w}x${e.h}`);
+      if (!(e.ay >= 0 && e.ay < e.h) || !(e.ax >= 0 && e.ax < e.w)) faults4.push(`${n}: 앵커 (${e.ax},${e.ay}) 가 그림 밖`);
+      if (e.ay < e.h - 4) faults4.push(`${n}: 발바닥 ay=${e.ay} 가 바닥(${e.h - 1})에서 떠 있다`);
+      if (e.eyeBox && !(e.eyeBox[0] >= 0 && e.eyeBox[1] >= 0 && e.eyeBox[2] < e.w && e.eyeBox[3] < e.h)) faults4.push(`${n}: 눈 상자가 그림 밖`);
+      for (const k of ['hair', 'eye']) {
+        const r = e.marker && e.marker[k];
+        if (r && !(r.length === 2 && r[0] >= 0 && r[1] <= 360 && r[0] < r[1])) faults4.push(`${n}: marker.${k} ${JSON.stringify(r)} 가 색상대(0~360, lo<hi)가 아니다`);
+      }
+      if (!shell.includes('./' + e.file)) faults4.push(`${n}: sw.js APP_SHELL 에 ./${e.file} 이 없다 — 오프라인에서 문자 일러스트로 물러난다`);
+    }
+    const dir = join(rootDir, 'art/illust');
+    if (existsSync(dir)) {
+      for (const f of readdirSync(dir)) {
+        if (f.endsWith('.png') && !entries.some(([, e]) => e.file === 'art/illust/' + f)) faults4.push(`art/illust/${f} 는 목록에 없다 — 넣어 놓고 안 쓴다`);
+      }
+    }
+    okAll(faults4, `PNG 일러스트 ${entries.length}장 — 목록·파일·앵커·캐시 목록이 맞는다`, Math.max(1, entries.length));
+    for (const f of ['./src/art/illustpng.js', './src/art/illust_manifest.js']) ok(shell.includes(f), `sw.js APP_SHELL 에 ${f}`);
   }
 }
 

@@ -89,6 +89,85 @@ const pae = (a, b, c) => {
   return (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
 };
 
+let zlibInflate = null;
+try { ({ inflateSync: zlibInflate } = await import('node:zlib')); } catch { /* 디코드는 zlib 없이는 못 한다 */ }
+
+/**
+ * PNG → { w, h, rgba }. **8비트 · 비인터레이스** 만 받는다 (이미지 모델·Aseprite 기본 출력이 그렇다).
+ * 색 유형 0(회색)·2(RGB)·3(인덱스)·4(회색+알파)·6(RGBA) 전부 RGBA 로 편다.
+ * ★ 왜 여기 있나: 외부 의존성 0 — 그림을 **받아들이는** 도구(tools/illustpng.mjs)도 순수 JS 여야 한다.
+ */
+function decodePng(buf) {
+  if (!zlibInflate) throw new Error('PNG 디코드에는 node:zlib 이 필요하다');
+  const SIG = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  for (let i = 0; i < 8; i++) if (buf[i] !== SIG[i]) throw new Error('PNG 가 아니다 (서명 불일치)');
+  let off = 8, w = 0, h = 0, depth = 0, ctype = 0, interlace = 0;
+  let plte = null, trns = null;
+  const idat = [];
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('latin1', off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    off += 12 + len;
+    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); depth = data[8]; ctype = data[9]; interlace = data[12]; }
+    else if (type === 'PLTE') plte = data;
+    else if (type === 'tRNS') trns = data;
+    else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
+  }
+  if (!w || !h) throw new Error('IHDR 가 없다');
+  if (depth !== 8) throw new Error(`비트 깊이 ${depth} 은 안 받는다 — 8비트로 저장해라`);
+  if (interlace) throw new Error('인터레이스 PNG 는 안 받는다 — 인터레이스를 끄고 저장해라');
+  const ch = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[ctype];
+  if (!ch) throw new Error(`색 유형 ${ctype} 은 안 받는다`);
+  const raw = zlibInflate(Buffer.concat(idat));
+  const stride = w * ch;
+  if (raw.length < (stride + 1) * h) throw new Error(`IDAT 가 짧다 (${raw.length} < ${(stride + 1) * h})`);
+  const out = Buffer.alloc(w * h * 4);
+  const prev = Buffer.alloc(stride);
+  const cur = Buffer.alloc(stride);
+  let p = 0;
+  for (let y = 0; y < h; y++) {
+    const f = raw[p++];
+    for (let i = 0; i < stride; i++) {
+      const x = raw[p + i];
+      const a = i >= ch ? cur[i - ch] : 0;
+      const b = prev[i];
+      const c = i >= ch ? prev[i - ch] : 0;
+      let v;
+      if (f === 0) v = x;
+      else if (f === 1) v = x + a;
+      else if (f === 2) v = x + b;
+      else if (f === 3) v = x + ((a + b) >> 1);
+      else if (f === 4) v = x + pae(a, b, c);
+      else throw new Error(`알 수 없는 필터 ${f} (행 ${y})`);
+      cur[i] = v & 255;
+    }
+    p += stride;
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      const s = x * ch;
+      if (ctype === 6) { out[o] = cur[s]; out[o + 1] = cur[s + 1]; out[o + 2] = cur[s + 2]; out[o + 3] = cur[s + 3]; }
+      else if (ctype === 2) {
+        out[o] = cur[s]; out[o + 1] = cur[s + 1]; out[o + 2] = cur[s + 2];
+        out[o + 3] = (trns && trns.length >= 6 && cur[s] === trns[1] && cur[s + 1] === trns[3] && cur[s + 2] === trns[5]) ? 0 : 255;
+      } else if (ctype === 0) {
+        const g = cur[s]; out[o] = out[o + 1] = out[o + 2] = g;
+        out[o + 3] = (trns && trns.length >= 2 && g === trns[1]) ? 0 : 255;
+      } else if (ctype === 4) {
+        const g = cur[s]; out[o] = out[o + 1] = out[o + 2] = g; out[o + 3] = cur[s + 1];
+      } else {
+        const idx = cur[s];
+        if (!plte) throw new Error('PLTE 없는 인덱스 PNG');
+        out[o] = plte[idx * 3]; out[o + 1] = plte[idx * 3 + 1]; out[o + 2] = plte[idx * 3 + 2];
+        out[o + 3] = (trns && idx < trns.length) ? trns[idx] : 255;
+      }
+    }
+    cur.copy(prev);
+  }
+  return { w, h, rgba: new Uint8ClampedArray(out.buffer, out.byteOffset, out.length) };
+}
+
 /** RGBA 버퍼(w*h*4) → PNG. 행마다 필터 5종 중 잔차 합이 가장 작은 것을 고른다. */
 function encodePng(w, h, rgba) {
   const bpp = 4, stride = w * bpp;
@@ -136,4 +215,4 @@ function encodePng(w, h, rgba) {
 /** 압축을 실제로 쓰고 있나 (도구가 로그에 찍는다) */
 export const usingZlib = () => !!zlibDeflate;
 
-export { encodePng, crc32, adler32 };
+export { encodePng, decodePng, crc32, adler32 };

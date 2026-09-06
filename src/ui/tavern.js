@@ -13,7 +13,7 @@ import { rng } from '../core/rng.js';
 import { GRADE_COLOR } from '../art/palette.js';
 /* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
  *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
-import { getShowcase, drawShowcase } from '../art/showcase.js';
+import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
 import { ARCHETYPES, BASE_CLASSES, getClass } from '../data/classes.js';
 import { getCity } from '../data/world.js';
 // 평판/특화/확률 API는 다른 모듈에서 나중에 붙는 것들이라 이름 import 하면
@@ -319,11 +319,16 @@ function injectStyle() {
 /* ─────────────────────────── 스프라이트 미리보기 ─────────────────────────── */
 
 function makePreview(recipe) {
-  const canvas = el('canvas', { width: PREVIEW_W, height: PREVIEW_H });
+  /* ★ 뒷판은 실제 픽셀(dpr)로 — PNG 일러스트가 폰에서 1:1 로 찍히게. CSS 크기는 그대로 (HANDOFF §161). */
+  const dpr = pixelRatio();
+  const canvas = el('canvas', {
+    width: Math.round(PREVIEW_W * dpr), height: Math.round(PREVIEW_H * dpr),
+    style: { width: `${PREVIEW_W}px`, height: `${PREVIEW_H}px` },
+  });
   const box = el('div', { class: 'sprite-box tv-box' }, canvas);
   let sprite = null;
   try { sprite = getShowcase(recipe); } catch (e) { console.warn('[tavern] 스프라이트 생성 실패', e); }
-  const entry = { canvas, sprite, phase: Math.floor(Math.random() * IDLE_FRAMES.length) };
+  const entry = { canvas, sprite, dpr, phase: Math.floor(Math.random() * IDLE_FRAMES.length) };
   previews.push(entry);
   drawPreview(entry, 0);
   return { box, entry };
@@ -337,9 +342,12 @@ function removePreview(entry) {
 function drawPreview(entry, frameIdx) {
   const ctx = entry.canvas.getContext('2d');
   if (!ctx) return;
-  ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
-  // 발밑 그림자
+  const dpr = entry.dpr || 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, entry.canvas.width, entry.canvas.height);
+  // 발밑 그림자 — CSS 좌표로 그리고 배율만 건다
   ctx.save();
+  ctx.scale(dpr, dpr);
   ctx.globalAlpha = 0.35;
   ctx.fillStyle = '#000';
   ctx.beginPath();
@@ -348,7 +356,8 @@ function drawPreview(entry, frameIdx) {
   ctx.restore();
   if (!entry.sprite) return;
   const f = IDLE_FRAMES[(frameIdx + entry.phase) % IDLE_FRAMES.length];
-  drawShowcase(ctx, entry.sprite, f, PREVIEW_W / 2, 38 * SPRITE_SCALE, { scale: SPRITE_SCALE });
+  /* 스프라이트는 변환 없이 실제 픽셀로 — 그려 주는 쪽이 «줄여 그리는가» 를 정확히 알아야 한다 */
+  drawShowcase(ctx, entry.sprite, f, (PREVIEW_W / 2) * dpr, 38 * SPRITE_SCALE * dpr, { scale: SPRITE_SCALE * dpr });
 }
 
 function startPreviewLoop() {

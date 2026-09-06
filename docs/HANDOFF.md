@@ -11605,3 +11605,215 @@ activate (갱신일 때만)
 
 190판이 퍼지면 관측의 `rev` 가 올라가고, `gen.ran` 이 참으로 바뀌고,
 `wrote.loot` 가 찍히기 시작해야 한다. 그게 안 오르면 이 고침이 실패한 것이다.
+
+## 161. 정면 일러스트를 PNG 로 — 크로마키 파이프라인 (2026-09-06)
+
+제작자: 「도트 그래픽이 마음에 안 든다」 「이터널소드(폰 게임) 도트를 가져다 쓰면 퀄리티가 오르나」 →
+**안 된다** (저작권·이용약관, 그리고 다른 게임 스펙의 그림은 섞이면 더 나빠진다) →
+레퍼런스 3장(애니풍 고해상도 정지 일러스트)을 주며 「이런 식으로 이쁘거나 귀엽거나 멋있는 도트」 →
+**A안 채택: 이미지 모델로 생성 + 개인별 머리색 편차 유지.**
+
+### 161.1 진단 — 왜 «허접» 인가 (실측)
+
+- 도감 검사 계열 15종을 원본 해상도로 뽑아 보니 **9종이 `illust_fighter` 한 장 + 머리색만 다르다.**
+  레시피는 104/105 유니크인데, 정면은 §58~60 설계로 **스타일 11장이 전부**라 장비·투구·망토 차이가 사라진다.
+- 그 11장은 언어 모델이 문자 행렬로 찍은 것이다. 검사기(채움·실루엣 폭·비대칭)는 «허약» 은 재지만
+  «이쁨» 은 못 잰다 — §58.1·§65 와 같은 결론이고, 이게 이 방식의 천장이다.
+- 적·펫(조립)·전투 옆모습은 괜찮다. 문제는 정면 일러스트에 집중돼 있고 그게 도감·주점·단원탭에서 제일 크게 보인다.
+- 파츠는 전부 `scale: 3` (423개) — 업스케일 손실은 없다. 해상도 문제가 아니다.
+
+### 161.2 결정
+
+- 정면 초상은 **이미지 모델이 그린 PNG 를 문자 행렬로 바꾸지 않고 RGBA 그대로** 쓴다.
+  팔레트 문자 29종으로 양자화하면 레퍼런스의 풍성함이 죽는다.
+- 개인 편차(머리·눈)는 **크로마키**: 생성할 때 머리=자홍(색상 300°)·홍채=청록(180°) 으로 그리게 하고,
+  그 색상대 픽셀만 팔레트 h/H/y·e/E 로 바꾼다. **명도는 원본을 따른다** — 음영은 모델이 그린 대로 살고 색조만 바뀐다.
+- 청록은 서리 마력광(#a8e8f0 187°)·청록 천(#2f9a97 178°)과 겹친다 → **eyeBox 안에서만** 눈으로 친다.
+  자홍은 판타지 장비에 거의 없다. 파란 눈(#4a86c8 211°)은 대역 밖이라 안 걸린다 — 스모크가 15색으로 못 박는다.
+- 피부 편차는 **포기**(클래스 고정). 살색을 크로마키하면 모델이 초록 피부를 그리다 얼굴을 망친다.
+- 우선순위: **PNG > 문자 일러스트 > 포즈 판 > 조립.** PNG 는 비동기로 받고 못 받았으면 조용히 물러난다 (정면 규칙 그대로).
+- 목표 해상도 **192×240** (레퍼런스 급). §59.1 의 `norm` 이 표시 높이 120 을 유지하므로 카드 배치는 불변.
+  캔버스 뒷판을 dpr 로 키워 폰(dpr 2)에서 1:1 로 찍힌다. dpr 1 PC 는 **줄여 그릴 때만** 보간 — 최근접으로 줄이면 줄이 통째로 빠진다.
+
+### 161.3 구현
+
+- `src/art/illustpng.js` — 등록·조회·`preloadIllustPngs`·`classifyMarker`·`recolorInto`(순수, 도구·스모크 공용).
+  단계 ≤3 이면 **순위** 매핑(왕복이 정확), 아니면 휘도를 [0,1] 로 펴서 H→h→y 3점 보간. 눈은 두 색으로 또렷하게.
+- `src/art/illust_manifest.js` — **도구가 쓴다.** `{file, w, h, ax, ay, eyeBox, roles}`.
+- `portrait.js` — `partsOf`/`canDraw`/`portraitKey`(`P:` 접두)/`dimsOf`/`composeFrame` 에 png 경로. 숨(dy)은 그림 높이에 비례.
+- UI 캔버스 dpr: `codex.stillSprite` · `company.spriteCanvas/animatedSprite` · `tavern.makePreview/drawPreview`.
+  ★ `pixelRatio()` 는 **`art/showcase.js`** 에 있다 — `core/util.js` 에 넣었다가 **syncshared 와 엔진 해시가 깨졌다**
+  (util.js 는 서버 번들과 공유된다). 화면 배율은 화면 일이다.
+- `ui/app.js boot` — preload, 한 장 받을 때마다 `clearPortraitCache()`. 부팅을 막지 않는다.
+- `tools/illustpng.mjs` — 받아들이기: 검사 → **역할별 줄이기**(다수 역할의 원본만 평균 — 자홍·살색이 섞인 «분홍 테» 방지)
+  → `art/illust/<이름>.png` → 목록 갱신 → 되읽기. `--fixture=<문자 일러스트>` 는 표식 팔레트로 찍어 왕복 검증용 PNG 를 만든다.
+  `--preview=<이름> --hair=.. --eye=..` 는 게임과 같은 함수로 재색칠해 본다.
+- `tools/lib/png.mjs` — `decodePng` 추가 (8비트·비인터레이스, 색 유형 0/2/3/4/6). 외부 의존성 0 유지.
+- `sw.js APP_SHELL` — 두 모듈 + PNG. **PNG 를 넣을 때마다 여기도 넣는다** (스모크가 검사).
+- 스모크 «정면 PNG 일러스트 (크로마키)» 13건: 분류 15색 · **표식 팔레트 → 게임 팔레트 왕복이 원본과 0칸 차이** ·
+  다른 머리·눈 색 왕복 · 표식 없는 그림은 불변(메타) · canDraw/열쇠/해제(메타) · 목록↔파일↔앵커↔APP_SHELL.
+
+### 161.4 실측
+
+| | 값 |
+|---|---|
+| 스모크 | **1016건 중 1014** (실패 2 = deno 미설치, 이 PC 의 기존 상태) |
+| `tools/pwa.mjs` | 57건 통과 |
+| 픽스처 `illust_fighter` | 자홍 543칸 · 청록 8칸 · eyeBox [62,24,69,29] · 단계 머리 3/눈 2 |
+| 브라우저 (localhost:5174) | `[illustpng] 1/1 받음` · `recolorInto` 뒤 자홍 0·청록 0 · 도감 15종 머리색 각각 · 콘솔 에러 0 (도감·용병단·주점) |
+| 도감 캔버스 | 120×132 (dpr 1) · 색 ~1010종 = PNG 경로가 실제로 쓰인 증거 (문자 경로는 ~30색) |
+
+★ 함정: 도감 캔버스에서 «자홍 색상대» 를 세면 dpr 1 에서 82~99칸이 나온다 — **보간이 진홍 옷과 보라 외곽선을 섞은 것**이지
+  표식이 아니다. 표식 잔존 판정은 캔버스가 아니라 **아틀라스(recolorInto 결과)** 에서 해야 한다.
+
+### 161.5 남은 것
+
+- 이미지 모델 연결 — 이 PC: RTX 5070 Ti 16GB · RAM 62GB. Pinokio 는 있으나(Fooocus 만 설치) 제어 서버가 옛 PC 주소를 본다.
+  ComfyUI(HTTP API) 를 붙이면 생성→받아들이기→렌더→비교를 내가 직접 돌릴 수 있다. 파일럿 1장 → 105장.
+  생성 규약은 `tools/illustpng.mjs` 머리말에 있다 (자홍 머리 · 청록 홍채 · 자연 피부 · 투명 배경 · 발이 바닥 · 3/4 자세).
+- 픽스처 `art/illust/illust_fighter.png` 는 **문자 일러스트를 그대로 찍은 것** — 화면 변화 0 이 맞다. 진짜 그림이 오면 교체.
+- 배포 시 `sw.js CACHE` · `net/config.js CLIENT_REV` · `data/changelog.js` 항목. **아직 안 올렸다** (커밋도 안 했다).
+- 초상 캐시 예산: 192×240 한 벌 ≈ 1.5MB (4프레임 + flash). flash 는 gradeBg 가 있으면 안 쓰인다 — 지연 생성으로 줄일 수 있다.
+- `ax` 는 마지막 불투명 행의 중앙이라 한 발만 닿으면 치우친다 (픽스처 67 vs 문자 56). 배치엔 안 쓰이지만
+  규약상 아래 6줄 상자의 중앙으로 바꾸는 게 낫다.
+
+### 161.6 파일럿 — 로컬 ComfyUI 로 검사(fighter) 남/여 (2026-09-06 오후)
+
+제작자: 「너도 에셋은 만들 수 있지 않나?」 → 문자 행렬로만 (그게 지금 도감). 「로컬에 이미지 툴 깔아서 연결」 → 승인 후 진행.
+
+- **환경**: Pinokio(제가 `Pinokio.exe` 를 직접 띄웠다 — 설정의 `access` 가 옛 PC 주소라 pterm 이 못 붙던 것) →
+  레지스트리 `maoper11/inteliweb-comfyui` 설치 (ComfyUI 0.34 · Python 3.12 · **torch 2.10.0+cu130** · RTX 5070 Ti 인식) →
+  `pterm run … --default start.js` → `http://localhost:8188`. 체크포인트는 Pinokio 드라이브
+  `C:\pinokio\drive\drives\peers\d1780459804901\checkpoints\` (다른 앱과 공유; flux nf4 12GB 가 이미 있었다).
+- **모델**: Animagine XL 4.0 (`cagliostrolab/animagine-xl-4.0`, 6.94GB, sha256 `1d5b43ff…3916` 원본과 일치,
+  CreativeML Open RAIL++-M — 생성물 상업 이용 가능). 896×1152 · 28단계 · cfg 5 · euler a → **한 장 7.6초.**
+- **클라이언트**: `C:\claude\pinokio_agent\skills\maoper11\inteliweb-comfyui\clients\generate.mjs` (POST /prompt → /history → /view).
+  프롬프트 표는 `tools/illustprompts.mjs` (11 스타일 × 1boy/1girl). 파일럿 실행기는 세션 스크래치 `pilot.mjs`.
+
+**실측으로 바뀐 것 (전부 1차 파일럿에서 나왔다):**
+
+| 문제 | 실측 | 바꾼 것 |
+|---|---|---|
+| «green screen background» 가 청록(158~163°)으로 나옴 | 고정 #00ff00 키잉 0.2% | `--bg=auto` — 테두리 2% 띠에서 최빈 색상을 재서 ±14° 키잉. 60~76% 빠진다 |
+| «lime» 은 파스텔(채도 0.21)로 나옴 | 채도 하한 0.30 이면 0% | 채도 하한 = 잰 배경 채도 × 0.45 (최소 0.08) |
+| «magenta hair» 가 **분홍 330~355°** 로 나옴 | 285~330° 표식 264칸 | 색상대를 넓히니 **진홍 옷 그림자(348°)가 머리로** 분류 → 표식을 **보라 255~300°** 로 바꿈 («purple hair, violet hair»). 빨강·살색·금·청록과 전부 멀다 |
+| 보라 머리 어두운 부분이 채도 0.3대 | 하한 0.40/0.25 면 남성 23칸 | 하한 **0.30/0.15**. 깊은 그늘 #2a2438(258°, 채도 0.36)이 기본 색상대에 들지만 문자 일러스트는 marker 로 자홍 색상대를 쓰니 무관 |
+| 바닥 그림자(회녹색)가 남음 | 채도 낮아 키잉 밖 | 아래 30% 행은 채도 0.06+ 면 키 색상대 ±20° 를 뺀다 (장화는 갈색) + 부정 프롬프트에 shadow |
+| 눈(청록) 표식 | 4.8배 축소에서 살색과 섞여 **0칸** | 축소 때 눈 역할 ×3 가중을 넣었으나 여전히 0. **눈 편차는 포기** (roles: ['hair']). 눈 프롬프트를 강화했더니 같은 seed 에서 그림이 통째로 바뀌어(배경 무채색·머리 소실) 되돌렸다 |
+| 프롬프트 한 단어가 그림 전체를 바꿈 | seed 7 재현은 정확히 같음(키잉 60.7%/69.1% 동일) | **같은 seed·같은 프롬프트 = 같은 그림** 이 확인됐다. 프롬프트 표를 파일로 고정한 이유 |
+
+**결과**: 여성 검사(보라 긴 머리·붉은 군복·검) 를 `illust_fighter` 로 적용 — 머리 표식 1054칸(7.7%) · 배경 69.1% 제거 ·
+192×240 · 48색. 미리보기(금발/빨강/검정/백발)에서 음영이 살아 있고 옷은 안 바뀐다. 스모크 1017건 중 deno 2건만 실패.
+남성(보라 짧은 머리·대검 자세)도 뽑혔고(888칸) 성별은 **제작자 결정 대기**.
+
+**남은 것**: ① 남/여 결정 → 11 스타일 양산(프롬프트 표 그대로, 한 스타일 8초) ② 스타일별 검수(검·방패가 프롬프트대로 나왔나 — 기계 검사는 표식·발·배경뿐이다)
+③ 배포 시 `sw.js APP_SHELL` 에 PNG 11장 + `CACHE`·`CLIENT_REV`·changelog ④ 매니페스트 marker 에 채도·명도 하한도 적어 두는 게 안전하다 (지금은 색상만).
+
+### 161.7 재색칠을 HSL 치환으로 · 클래스별 105장 · 전원 여성 (2026-09-06 저녁)
+
+제작자 피드백 넷: ① 「머리색 바꾼 부분이 많이 어색」 ② 「플레이어가 뽑는 용병은 모두 여자로」 ③ 「검사 계열이 모두 같고 머리색만 다른데 다 바꾸는 거 맞지?」
+④ 「하단은 예전 이미지 같은데」(= 검사 계열의 fiend/tank/rogue 스타일 클래스, 아직 옛 그림).
+
+- **① 재색칠**: 원본 명도를 팔레트 3색(H·h·y) 사이에 선형으로 눌러 넣던 것이 원인 — 보라 머리의 넓은 명암 폭이 금발·백발의
+  좁은 3색으로 찌그러져 대비가 죽었고, 머리만 매끈한 그라데이션이라 48색 나머지와 재질이 달라 보였다.
+  → **HSL 치환**: 색상·채도는 팔레트 기본색(h), 명도는 «원본 − 원본 평균 + 기본색 명도» (음영 폭 그대로), **6단계 밴딩**.
+  가장자리 번짐(채도 0.08+, 8이웃 중 머리 2+)을 **두 번** 흡수 — 가는 머리카락 끝의 보라 테가 여기서 없어졌다.
+  문자 픽스처(단계 ≤3)는 순위 매핑 그대로라 왕복 검사가 유지된다. 미리보기 sheet_recolor.png 로 눈 확인.
+- **② 전원 여성**: `buildClassPrompt` 는 항상 `1girl`. 게임에 성별 개념은 없다.
+- **③④ 클래스별**: `mercRecipe` 가 `rec.illustClass = illust_<classId>` 를 실어 보내고 `portrait.partsOf` 가
+  **클래스 PNG → 스타일 PNG → 문자 일러스트** 순으로 찾는다. 도감은 `mercRecipe({classId})` 라 그대로 탄다.
+  ★ `merc.js` 는 서버 번들 공유 파일 — 한 줄 넣고 `node tools/syncshared.mjs` 로 사본을 갱신했다. 서버 동작과 무관한 필드지만
+    **다음 서버 배포(`supabase functions deploy pvp-battle` 등) 때 같이 나간다.**
+- 프롬프트: 105 클래스 태그는 워크플로(`class-illust-prompts`, 스타일당 작성 1 + 검증 1)가 쓰고 `tools/illustprompts_classes.mjs` 에 담는다.
+  규칙 — 머리색·눈색 금지(표식이 정한다), 보라·분홍·초록·청록 계열 옷 금지(키 색), 배경 단어 금지, equip[0] 무기 명시, 차수별 화려함, 그룹 안 실루엣 상이.
+- 도구: `--apply` 가 `sw.js APP_SHELL` 에 PNG 경로를 **자동으로 넣는다** (`ensureShellEntry`). 105줄을 손으로 적으면 반드시 하나 빠진다.
+- 일괄: 세션 스크래치 `gen_all.mjs` — 생성 → 처리(`--out`) → `results.json`(배경%·머리칸·경고). 검수 뒤 `--apply`.
+
+### 161.8 105장 1차 일괄 — 실측으로 바뀐 것 넷 (2026-09-06 밤)
+
+1차 일괄(105장, 한 장 7.6초·전체 8분) 결과 **29장만 통과, 76장이 도구에서 걸렸다.** 원인은 전부 «프롬프트가 길어지자 생기는 것».
+
+| 문제 | 실측 | 바꾼 것 |
+|---|---|---|
+| 배경 무채색·파스텔 | 클래스 태그 40단어 뒤의 배경 태그가 CLIP 두 번째 청크로 밀림. 파스텔은 채도 0.1대라 5° 칸 최빈이 30% 을 못 넘어 «못 쟀다» | `estimateBg` 15° 칸 + 원형 평균. **무채색 모드**(흰·회색): 테두리 60%+ 가 채도 0.12 미만이면 밝기로 잰다 |
+| 배경을 맨 앞에 1.3 으로 | 방패 줄무늬·지팡이·검 광채가 초록 → 키 색이라 **구멍** | 배경 태그는 머리 모양 뒤(중간) 1.1. 키잉을 **flood fill**(테두리에서 이어진 영역만)로 — 안쪽 초록은 남고 구멍은 안 난다. 무채색은 3×3 평탄성(명도 폭 0.03 미만)까지 요구 — 흰 옷·강철은 음영이 있어 멈춘다 |
+| «vivid purple hair» 가 **탁한 보라** | 기사: 색상대 안 24,021칸 중 채도 0.30+ 는 446칸 | ① 프롬프트 `(vivid purple hair:1.3), (bright violet hair:1.2), saturated purple hair` → 씨앗 742칸 ② `hairMask` = **씨앗(채도 0.30+) + BFS 성장(채도 0.10+, 색상대 ±5°)** — 붙어 있는 탁보라만 먹는다. 게임(`roleStats`)과 도구(`roleMap`·`analyze`)가 같은 함수를 쓴다 |
+| 보라가 무기·보석에 번짐 | 철퇴 손잡이·검날·보석이 보라 → 머리색으로 칠해질 판 | 연결 성분 필터: 가장 큰 성분 + (면적 8%+ 이고 무게중심이 상반부) 만 머리. 부정 프롬프트 purple weapon/blade/gem/glow/trim/armor |
+
+- 머리 표식 <1% 는 치명 → **0 일 때만 치명**, 아니면 경고 (투구·후드 클래스는 원래 적다).
+- 노출: 제작자 「옷들이 노출이 좀 더」 → LEAD 에 `sensitive, revealing clothes, exposed skin, bare shoulders, cleavage, bare thighs`, 부정에 `nsfw, explicit, nude, nipples, sex, underwear only`.
+  클래스 태그는 v2 워크플로(규칙 11: 노출 요소 2개 이상, 중갑은 부분 판금)로 다시 썼다.
+- 문자 픽스처 왕복은 그대로 통과 (씨앗 단계 ≤3 이면 성장·성분 필터를 건너뛴다).
+- ★ 셸 함정: Bash 도구는 `\` 를 `\` 로 접고, `perl -CSD -e` 에 한글을 넣으면 안 맞는다 — 한글이 든 치환은 **node 스크립트 파일**로 한다.
+  node 에 POSIX 경로(`/c/…`)를 주면 `C:\c\…` 가 된다 — 항상 `C:/…`.
+
+### 161.9 검수 라운드 — 워크플로가 본 것과 도구가 고친 것 (2026-09-06 밤)
+
+검수는 **이미지를 직접 보는 에이전트**(스타일당 1, 규칙 A~H)로 했다. 1차 105장 → ok 42 · regen 63. 재생성 63장 재검수 → ok 9 · regen 54.
+검수자가 엄격하다 — 「무기가 equip[0] 과 다르다」「보라가 옷·무기에 있다」「갇힌 배경」「웅크린 자세」를 전부 낙제로 본다.
+
+| 반복된 문제 | 원인 | 고친 것 |
+|---|---|---|
+| **갇힌 배경** (머리카락 고리·망토와 검 사이·장화 사이) | 키잉이 테두리에서 이어진 영역만 뺐다 | `keyEnclosed`: 테두리에 안 닿은 후보 성분도 뺀다 — 초록 키는 40px+ 전부(초록 옷은 금지), 흰 키는 2000px+ 평탄 덩어리만. **despill 전에** 해야 한다 (despill 이 갇힌 초록을 회색으로 바꿔 놓으면 못 알아본다) |
+| **주무기 오류** (dagger→검, wand→지팡이, tome 없음, bow→창) | 모델이 큰 무기를 선호 | `weaponLead`: `(holding dagger:1.3), dagger in hand` 를 **1girl 바로 뒤**에. `classNegative`: 그 클래스가 안 드는 무기 이름 전부를 부정에 (equip 전체 어휘는 제외) |
+| 보라·자홍 무기/이펙트/안감 | «purple hair» 가중치가 번진다 | 부정에 purple lining/cape/flames/aura/crystal, magenta, pink glow 등. 연결 성분 필터가 작은 것은 걸러 준다 |
+| 웅크림·기울임·뒷모습·두 번째 얼굴 | 「sensitive」+자유 자세 | `(standing:1.2), standing straight` 를 앞에, 부정에 kneeling/crouching/bending/close-up/multiple faces/magic circle |
+| 눈 상자 과대(청록 장식) | 치명 규칙 | 눈 편차 포기(eyeBox=null) + 경고로 |
+| 흰·파스텔 배경 | 색상 키가 못 뺌 | `estimateBg` 15° 칸·원형 평균, 채도 <0.08 은 무채색 키(밝기±0.14·3×3 평탄 0.06·순백 예외), 색상 키 뒤 무채색 2차 패스 **항상** |
+
+- 진행 방식: `gen/fixes.json` — 검수자의 promptFix 를 extra 로, seed 를 라운드마다 +1. `gen_all.mjs --only=<ids>` 로 대상만 재생성.
+- 검수 판정 중 D(배경)만 있는 것은 도구 재처리로 살릴 수 있다 — 재생성 전에 `--reuse` 로 먼저 돌려 보라.
+- 적용 순서: 1차 통과 42 → 재검수 통과 9 → 3차 재생성 54 (재검수 후). 배포 판: `CACHE merc-v191` · `CLIENT_REV 191` · changelog `2026-09-06-class-illust`.
+- ★★ **부정 프롬프트에 «face» 를 넣지 마라.** 3차에서 `close-up, portrait, face only, bust, upper body, multiple faces, second head` 를 부정에 넣었더니
+  54장 거의 전부 **얼굴이 검게 비었다** (모델이 «얼굴» 자체를 지운다). 구도는 `(standing:1.2), full body` 같은 **긍정** 태그로 잡고,
+  부정에는 자세 동사(kneeling/crouching/bending)와 `multiple views` 까지만. 4차(seed 14)에서 걷어냈다.
+
+### 161.10 105장 적용 — 마무리 (2026-09-06 저녁)
+
+- **적용**: 105 클래스 전부 `art/illust/illust_<id>.png` (192×240 · 48색 · 보라 머리 표식) + 스타일 대체 1장 = **106장, 2.4MB**.
+  목록·sw.js APP_SHELL 106건, 스모크 1017건 중 deno 2건만 실패, pwa 57건 통과, 브라우저 `[illustpng] 106/106 받음` · 콘솔 에러 0.
+- 라운드: 1차 105 → 검수 ok 42 · 2차 재생성 63 → 재검수 ok 9 · 3차(seed 13) 54 → **도구 버그로 얼굴이 지워짐**(§161.9 face) → 4차(seed 14) 54 → 도구 수정 뒤 재처리.
+  검수 4차는 사용량 한도로 전부 실패했다가 재개(resume)했다 — 결과는 §161.11 에.
+- ★★ **얼굴이 검게 빈 것은 생성이 아니라 도구였다**: 색상 키잉 뒤 무채색 2차 패스의 채도 상한을 `배경 채도+0.08`(라임이면 0.48)로 두자
+  평탄한 뺨이 후보가 됐고, 새로 넣은 갇힌 영역 제거(2000px+)가 얼굴을 통째로 뺐다. 원본 raw 를 먼저 봤으면 3·4차 재생성(2×54장)은 필요 없었다.
+  → 2차 패스는 채도 상한 0.12 고정 · 갇힌 영역 제거 없음. **결과가 이상하면 raw 부터 봐라.**
+- 부정 프롬프트에 «face» 를 넣으면 안 된다 (§161.9 마지막 줄) — 이것도 같이 걷어냈다. 실제 원인은 도구였지만 규칙은 유효하다.
+- 검수자가 여전히 지적할 만한 것(주무기 미표시·보라 의상 일부·자세)은 §161.11 목록으로 남긴다. 그림은 전부 들어가 있으니 다음 세션은 그 목록만 골라 `gen_all.mjs --only=` 로 다시 뽑으면 된다.
+- 배포 판: `CACHE merc-v191` · `CLIENT_REV 191` · changelog `2026-09-06-class-illust`. **커밋·배포는 아직** (제작자 결정).
+
+### 161.11 최종 검수 잔여 — 다음에 다시 뽑을 22장 (2026-09-06)
+
+4차 재생성 54장 최종 검수: ok 32 · 아래 22장은 아직 지적됨 (그림은 들어가 있다 — 「없음」이 아니라 「더 나아질 수 있음」). 평점 평균 3.24/5.
+주된 사유 셋: 바닥 그림자 회색 덩어리(D) · 보라 의상/무기(E) · 주무기 미표시(B, dagger/wand/tome/bow/mace 계열).
+
+- skysplitter_apex 개천검제 — D: large fully opaque white/grey sword-slash streaks float detached around the f
+- reaper 사신낫병 — E: large purple areas on clothing and weapon - full-height purple cape lining an
+- knight 중갑기사 — D: large gray floor/contact-shadow ellipse retained under the feet (192-scale ro
+- madgeneral_abyss 혈기의 대원수 — D: red blood splatter on the floor retained around both feet (wide red streaks a / D: scattered red droplet fragments left as floating islands (77 separate alpha c
+- spiritranger 정령궁수 — B fail: no bow anywhere in the image (raw confirms) - she is holding a white rib / D fail: grey-blue floor-shadow blob under and between the feet survived the cuto
+- rogue 도적 — D: large grey floor-shadow wedge left under and between the boots (~110px wide a
+- shadowarcher 그림자 사수 — D: floor-shadow blob under the feet with trapped greenish background pixels / D (holes): quiver and arrow bundle behind the left shoulder was chewed into frag
+- shadowblade 그림자 밀사 — B: primary weapon (dagger) not recognizable - both hands show only clawed gauntl
+- shadowblade_apex 밤의 군주 — E: bright violet cape and hand-held drape cover most of the lower body (thousand / B: no dagger anywhere; only a gold clawed gauntlet on the left hand, right hand 
+- venomfang_apex 만독의 아왕 — B: primary weapon is dagger but she holds a giant black-and-red greatsword; no d
+- bladedancer_abyss 천무의 환영무희 — B: the item in the extended hand is a small blade wrapped in black shadow tendri / 3px stray speck near the blade tip at far right (soft)
+- archmage 대마법사 — E: sheer cape is a large purple-to-magenta gradient on both sides from shoulders / E (minor): purple ribbon on the staff
+- stormcaller 폭풍술사 — A: not roughly facing the viewer; body in profile bent 90 degrees at the waist w / B: wand is a tiny star-tipped stick that is a few pixels at 192 and not recogniz
+- spiritranger_abyss 정령의 화신 — B: primary weapon (bow) not recognizable. She holds a bare gnarled branch by its / Borderline rule F: gold scale bikini top and bikini bottom with a sheer sarong; 
+- necromancer 강령술사 — E: large violet band covers roughly half of the scythe blade along its full leng
+- lichlord 사령왕 — B: equip[0] is staff but the only weapon is a single scythe (gnarled pole ending
+- plaguelord 역병군주 — E: violet covers a large part of the outfit and weapon - coat lining, hat brim,  / D-adjacent: the raised violet glove hand is a 46px island disconnected from the 
+- lichlord_apex 불사의 사령제 — B: equip[0] is staff but the only weapon is a scythe (ornate pole with a large r / E: violet covers a large part of the clothing - waist sash, sleeve ruffles, both
+- fallenmonk 파계승 — D (hard): grey ground-shadow band kept under and between the feet (~480 px, x 27 / D (soft): orange lava puddle on the ground at the mace base is a floor element r
+- arhat_abyss 금강불괴 — D (hard): grey ground-shadow band kept under and between the feet (~420 px, x 24 / E (soft/borderline): the lower third of the gold gauntlet's claws fades to viole
+- fallenmonk_apex 아수라 파계존 — E (hard): both clawed gauntlets - the primary weapon - are dark purple with mage / E (hard): large purple/magenta energy aura swirls plus purple belt, purple boot 
+- oathshield 서약의 방패 — B: primary weapon (mace) is absent. She holds only the large kite shield; the fr
+
+재생성: gen/fixes.json 에 검수자 promptFix 가 extra 로 들어 있다. `node gen_all.mjs --seed=15 --only=<id,...>` → 재처리 → 검수 → 통과분만 `--apply`.
+### 161.12 5차(seed 15) 결과 — 8장 교체, 14장 잔여 (2026-09-06 저녁)
+- 22장 재생성 → 검수 워크플로 `class-illust-review5`(스타일당 1, 이전 적용본과 비교). **검수자 10명 중 7명이 규칙 E(옷·무기에 보라가 크게 있으면 탈락)를 거꾸로 읽어** «옷에 보라가 없다»를 탈락 사유로 적었다 — mage 검수자만 바로 읽었다("Rule E read as a prohibition"). E 사유를 걷어 내고 A~D·F 만으로 다시 판정했고, 후보 7장은 이전 적용본과 나란히 직접 봤다(`gen/sheet_r5_new.png` / `_old.png`) — 모두 이전보다 낫다(이전본은 낫·드레스·오라가 보라라 머리색에 물들거나 발밑에 용암·핏자국 잔여).
+- 교체 적용 8: plaguelord, reaper, fallenmonk, arhat_abyss, madgeneral_abyss, bladedancer_abyss, archmage, fallenmonk_apex(왼쪽 장화 밑창 4~7px 조각 — 192 에서 안 보임, 감수).
+- 잔여 14 — 이전 적용본 그대로, 5차본 사유: skysplitter_apex(D 흰 빛줄기 잔여) · spiritranger(A 뒷모습, D 왼발 먹힘) · spiritranger_abyss(D 흰 드레스가 키잉돼 몸이 두 조각) · oathshield(B 철퇴가 방패 뒤) · necromancer(B 완드 컷아웃에서 사라짐) · lichlord(도구 거부 — 로브가 보라 60.7%; 검수자가 본 _192 는 그 거부본이라 «ok» 무효) · lichlord_apex(A 발 없음, D 치맛단 부스러기) · rogue(D 발밑 회녹색 띠 — 바닥 그림자 규칙이 얼룩진 띠는 못 잡는다) · shadowarcher(B 석궁이 권총) · shadowblade(B 단검 없음, D 바닥 타원) · shadowblade_apex(B 카타나 두 자루) · venomfang_apex(B 대검, 3번째) · knight(D 발밑 4행 회색 띠, C 머리가 남색) · stormcaller(C 머리가 남색 240~255° — 표식 범위 밖).
+- 교훈: 다음 검수 프롬프트는 E 를 «옷·무기에 보라가 **있으면** 탈락, 없는 것이 정상» 으로 풀어 쓰고, 통과 항목을 먼저 적게 해라. 원문은 `gen/review5.json`. 단검 계열(rogue 5종)은 세 번 굴려도 모델이 검·카타나·총을 쥐여 준다 — 프롬프트가 아니라 참조 이미지(ControlNet/IP-Adapter)가 필요할 수 있다.
+- 상태: 목록 106 · sw.js 106 · 스모크 1017(deno 2건만) · pwa 57 · 브라우저 `[illustpng] 106/106 받음`. **커밋·배포는 아직 안 했다** (제작자 결정 대기).
+

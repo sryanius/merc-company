@@ -53,3 +53,7 @@ export function drawShowcase(ctx, show, frame, x, y, opts = {}) {
   if (!show) return;
   show.draw(ctx, show.sprite, frame, x, y, opts);
 }
+
+/** 화면 배율 — 캔버스 뒷판을 실제 픽셀로 만들 때. 3 을 넘기면 메모리만 먹는다 (art/illustpng, HANDOFF §161).
+ *  ★ util.js 가 아니라 여기 있는 이유: util.js 는 서버 번들과 공유된다 (syncshared) — 화면 배율은 화면 일이다. */
+export const pixelRatio = () => (typeof window === 'undefined' ? 1 : Math.min(3, Math.max(1, window.devicePixelRatio || 1)));

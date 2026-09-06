@@ -15,7 +15,7 @@ import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZone
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
-import { getShowcase, drawShowcase } from '../art/showcase.js';
+import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
 import {
   GRADES, mercStats, mercRecipe, mercPower, baseStatsOf, expProgress,
   canPromote, promoteOptionsFor, promote, nextPromoteLevel, isWounded,
@@ -559,20 +559,27 @@ const fmtStat = (k, v) => (PCT_KEYS.has(k) ? `${Math.round(v * 10) / 10}%` : num
 const mercOf = (uid) => state.roster.find((m) => m.uid === uid) || null;
 
 /** 스프라이트 한 프레임을 그린 캔버스 */
+/* ★ 뒷판은 실제 픽셀(dpr)로 — PNG 일러스트가 폰에서 1:1 로 찍히게. CSS 크기는 그대로 (HANDOFF §161). */
+function dprCanvas(w, h) {
+  const dpr = pixelRatio();
+  const c = el('canvas', { width: Math.round(w * dpr), height: Math.round(h * dpr), style: { width: `${w}px`, height: `${h}px` } });
+  return { c, dpr };
+}
+
 function spriteCanvas(recipe, scale = 1, frame = 'idle0') {
-  const c = el('canvas', { width: 32 * scale, height: 40 * scale });
+  const { c, dpr } = dprCanvas(32 * scale, 40 * scale);
   try {
     const sp = getShowcase(recipe);
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    drawShowcase(ctx, sp, frame, 16 * scale, 38 * scale, { scale });
+    drawShowcase(ctx, sp, frame, 16 * scale * dpr, 38 * scale * dpr, { scale: scale * dpr });
   } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
   return c;
 }
 
 /** idle 애니메이션이 도는 큰 스프라이트 */
 function animatedSprite(recipe, scale = 3) {
-  const c = el('canvas', { width: 32 * scale, height: 40 * scale });
+  const { c, dpr } = dprCanvas(32 * scale, 40 * scale);
   let sp = null;
   try { sp = getShowcase(recipe); } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
   const ctx = c.getContext('2d');
@@ -582,7 +589,7 @@ function animatedSprite(recipe, scale = 3) {
     ctx.clearRect(0, 0, c.width, c.height);
     if (sp) {
       ctx.imageSmoothingEnabled = false;
-      drawShowcase(ctx, sp, seq[i % seq.length], 16 * scale, 38 * scale, { scale });
+      drawShowcase(ctx, sp, seq[i % seq.length], 16 * scale * dpr, 38 * scale * dpr, { scale: scale * dpr });
     }
     i++;
   };

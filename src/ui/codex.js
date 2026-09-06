@@ -6,7 +6,7 @@
 //   그래서 **차수(tier)별 접이식**으로 나누고 연 구간만 그린다 — 기본은 1차만 연다.
 //   (장비 화면 페이징과 같은 교훈: 화면에 안 보이는 것을 만들 이유가 없다)
 import { el } from '../core/util.js';
-import { getShowcase, drawShowcase } from '../art/showcase.js';
+import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
 import { mercRecipe } from '../game/merc.js';
 import { CLASSES, ARCHETYPES, classChain } from '../data/classes.js';
 import { getSkill } from '../data/skills.js';
@@ -63,13 +63,16 @@ function injectStyle() {
 
 /** 정지 프레임 스프라이트 — 도감은 애니메이션이 필요 없다 (105장이 같이 돌면 그게 사고다) */
 function stillSprite(recipe, { front = true, w = 120, h = 132, scale = 3 } = {}) {
-  const c = el('canvas', { width: w, height: h });
+  /* ★ 뒷판은 실제 픽셀(dpr)로 — PNG 일러스트(192×240)가 폰(dpr 2)에서 1:1 로 찍힌다.
+   *   CSS 크기는 그대로라 카드 배치는 안 바뀐다 (HANDOFF §161). */
+  const dpr = pixelRatio();
+  const c = el('canvas', { width: Math.round(w * dpr), height: Math.round(h * dpr), style: { width: `${w}px`, height: `${h}px` } });
   try {
     const sp = getShowcase(recipe, { front });
     if (sp) {
       const ctx = c.getContext('2d');
       ctx.imageSmoothingEnabled = false;
-      drawShowcase(ctx, sp, 'idle0', w / 2, h - 6, { scale });
+      drawShowcase(ctx, sp, 'idle0', (w / 2) * dpr, (h - 6) * dpr, { scale: scale * dpr });
     }
   } catch (e) { console.warn('[codex] 스프라이트 실패', e); }
   return c;

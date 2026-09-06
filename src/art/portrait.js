@@ -19,6 +19,7 @@ import { SCALE, BASE_W, BASE_H, BASE_FOOT_Y } from './scale.js';
 import { getFrontPart, hasFrontPart } from './parts_front.js';
 import { makePalette } from './palette.js';
 import { colorTable, shadeTable, blitInto, blitFrameInto, makeCanvas } from './pixel.js';
+import { hasIllustPng, getIllustPng, recolorInto } from './illustpng.js';
 
 export const PORTRAIT_W = BASE_W * SCALE;
 export const PORTRAIT_H = BASE_H * SCALE;
@@ -122,6 +123,12 @@ function partsOf(recipe = {}) {
    *   3/4 자세·클래스별 얼굴은 공유 두개골로는 안 된다 — 머리카락 레이어 호환을 버리고
    *   전부 굽는다. 개인 색 편차(피부·머리·눈)는 팔레트 문자라 그대로 산다.
    *   머리 모양이 클래스마다 고정되는 것이 트레이드오프다 (색은 사람마다 다르다). */
+  /* ★★★★ «PNG 일러스트» — 이미지 모델이 그린 그림, **최우선** (art/illustpng.js, HANDOFF §161).
+   *   같은 이름(illust_<style>)으로 PNG 가 받아져 있으면 문자 일러스트 대신 그것을 쓴다.
+   *   개인 색 편차(머리·눈)는 크로마키로 산다. 아직 못 받았으면 아래 문자 일러스트로 물러난다. */
+  const png = [recipe.illustClass, recipe.illust].find((n) => n && hasIllustPng(n)) || null;   // class PNG first, then style PNG
+  if (png) return { png };
+
   const illust = recipe.illust && hasFrontPart(recipe.illust) ? recipe.illust : null;
   if (illust) return { illust };
 
@@ -152,6 +159,7 @@ function partsOf(recipe = {}) {
  */
 export function canDraw(recipe = {}) {
   const n = partsOf(recipe);
+  if (n.png) return true;                    // partsOf 가 받아졌는지 이미 확인했다
   if (n.illust) return true;                 // partsOf 가 존재를 이미 확인했다
   if (n.plate) return hasFrontPart(n.plate) && hasFrontPart(n.head2);
   return ['head', 'body', 'arm', 'leg'].every((k) => hasFrontPart(n[k]));
@@ -160,7 +168,7 @@ export function canDraw(recipe = {}) {
 export function portraitKey(recipe = {}) {
   const n = partsOf(recipe);
   const p = recipe.palette || {};
-  return ['F', n.illust, n.plate, n.head2, n.hair2, n.helm2,
+  return ['F', n.png ? 'P:' + n.png : '', n.illust, n.plate, n.head2, n.hair2, n.helm2,
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
     p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura, recipe.gradeBg].join('|');
 }
@@ -172,6 +180,11 @@ export function portraitKey(recipe = {}) {
  * 카드 레이아웃을 안 건드리면서 픽셀 밀도만 올린다 (120/140 ≈ 0.86).
  */
 function dimsOf(names) {
+  /* PNG 는 자기 크기 그대로 — norm 이 표시 높이를 120 에 맞춘다 (일러스트와 같은 규약) */
+  const png = names.png ? getIllustPng(names.png) : null;
+  if (png) {
+    return { W: png.w, H: png.h, footY: png.ay, norm: PORTRAIT_H / png.h, ill: null, png };
+  }
   const ill = names.illust ? getFrontPart(names.illust) : null;
   if (ill) {
     return { W: ill.w, H: ill.h, footY: ill.ay, norm: PORTRAIT_H / ill.h, ill };
@@ -180,8 +193,13 @@ function dimsOf(names) {
 }
 
 function composeFrame(names, dims, tbl, tblFar, dy) {
-  const { W, H, ill } = dims;
+  const { W, H, ill, png } = dims;
   const buf = new Uint8ClampedArray(W * H * 4);
+  if (png) {
+    /* PNG 는 통짜다 — 숨(dy)은 그림 높이에 비례해 키운다 (96×120 기준 1px = 240px 그림에서 2px) */
+    recolorInto(buf, W, H, png, Math.round(dy * H / PORTRAIT_H), tbl);
+    return buf;
+  }
   if (ill) {
     // 일러스트는 조립이 없다 — 제자리에 통짜로 얹는다 (숨쉬기만 dy 로)
     blitInto(buf, W, H, ill, ill.ax, ill.ay + dy, tbl, false);
@@ -229,7 +247,7 @@ export function buildPortrait(recipe = {}) {
 
   return {
     canvas, flash, w: W, h: H, frames, key: portraitKey(recipe), aura: recipe.aura || null,
-    footY: dims.footY, norm: dims.norm,
+    footY: dims.footY, norm: dims.norm, png: !!dims.png,
     /* 등급 배경 (제작자: 「금빛 입히는 건 디자인 제약이니 차라리 배경을 다르게」).
      * 색을 캐릭터에 얹지 않고 **뒤에** 후광을 깐다 — 일러스트 디자인이 자유로워진다. */
     gradeBg: recipe.gradeBg || null,
@@ -271,7 +289,9 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   const dw = W * px;
   const dh = H * px;
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
+  /* ★ PNG 일러스트를 **줄여** 그릴 때만 보간을 켠다 (dpr 1 화면). 최근접으로 줄이면 줄이 통째로 빠진다.
+   *   같은 크기·키울 때는 최근접 — 도트가 뭉개지면 안 된다. 문자 일러스트는 예전 그대로 최근접. */
+  ctx.imageSmoothingEnabled = !!(portrait.png && dw < W);
   const dx0 = Math.round(x) - Math.round(dw / 2);
   const dy0 = Math.round(y) - Math.round((portrait.footY ?? PORTRAIT_FOOT_Y) * px);
 

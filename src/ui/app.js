@@ -24,6 +24,8 @@ import * as Run from '../net/run.js';
 import { getCity } from '../data/world.js';
 import { companyName } from '../data/names.js';
 import { CHANGELOG, LATEST_ID } from '../data/changelog.js';
+import { preloadIllustPngs } from '../art/illustpng.js';
+import { clearPortraitCache } from '../art/portrait.js';
 
 /** 용병단 이름 최대 길이 */
 const NAME_MAX = 20;
@@ -1303,6 +1305,14 @@ export async function startTutorial(force = false) {
 /* ---------------- 부팅 ---------------- */
 export function boot() {
   bus.on('change', () => { renderHud(); });
+  /* ★ PNG 일러스트 미리 받기 (art/illustpng.js, HANDOFF §161). 부팅을 막지 않는다 —
+   *   받는 대로 초상 캐시를 비워 **다음 그리기**부터 쓴다. 첫 화면(도시)은 정면 초상이 없으니
+   *   단원·주점·도감을 열 때쯤이면 받아져 있다 (같은 출처, 서비스워커 캐시). */
+  try {
+    preloadIllustPngs({ onLoaded: () => clearPortraitCache() })
+      .then((r) => { if (r.total) console.info(`[illustpng] ${r.ok}/${r.total} 받음`); })
+      .catch((e) => console.warn('[app] 일러스트 PNG 미리받기 실패', e));
+  } catch (e) { console.warn('[app] 일러스트 PNG 미리받기 실패', e); }
   // 저장 훅을 꽂고 밀려 있던 업로드를 이어 간다. 꺼져 있으면 아무 일도 안 한다.
   /* ══════════════════════════════════════════════════════════════════════
    * ★★★ 「지금 새로고침해도 되나」 — `index.html` 이 물어본다
