@@ -14,6 +14,7 @@ import { LINEAGE_TRAIT, BRANCH_TRAIT } from '../data/lineage.js';
 import '../data/classes_t4.js';
 import { PETS, ROLE_NAME, PET_GRADES } from '../data/pets.js';
 import { ENEMIES } from '../data/enemies.js';
+import { hasIllustPng } from '../art/illustpng.js';
 
 export const meta = { id: 'codex', title: '도감' };
 
@@ -261,7 +262,10 @@ function foeTab(root) {
       const grid = el('div', { class: 'cdx-grid' });
       for (const e of list) {
         grid.appendChild(el('div', { class: 'cdx-card' },
-          stillSprite(e.sprite || {}, { front: false, w: 108, h: 120 }),
+          /* 적 PNG(§163)가 있으면 정면, 없으면 옆모습 도트 */
+          hasIllustPng('illust_enemy_' + e.id)
+            ? stillSprite({ ...(e.sprite || {}), illustClass: 'illust_enemy_' + e.id }, { front: true, w: 108, h: 120 })
+            : stillSprite(e.sprite || {}, { front: false, w: 108, h: 120 }),
           el('div', { class: 'cdx-nm', text: (e.boss ? '👑 ' : '') + (e.name || e.id) }),
           el('div', { class: 'cdx-sub', text: `${e.range === 'ranged' ? '원거리' : '근접'}${e.biome ? ` · ${e.biome}` : ''}` })));
       }

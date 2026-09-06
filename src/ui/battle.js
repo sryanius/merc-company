@@ -1483,7 +1483,8 @@ function createSimpleRenderer(canvas, biome) {
     if (sprites.has(u.uid)) return sprites.get(u.uid);
     let s = null;
     const rc = u.recipe || {};
-    try { s = rc.illustClass && hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) } : getSprite(rc); }
+    const png = rc.illustClass || (u.enemyId ? 'illust_enemy_' + u.enemyId : null);   // 적 PNG (§163)
+    try { s = png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc); }
     catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
     sprites.set(u.uid, s);
     return s;

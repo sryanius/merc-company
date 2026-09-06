@@ -48,7 +48,7 @@
  * v4 — 월드맵 탑 노드 / 정원 70 / 펫 자동배치 / 주점 특화 클래스 고정.
  * v3 — 무한의 탑 + 펫. 새 모듈 6개가 APP_SHELL 에 들어갔다.
  * v2 — 월드맵 라벨 겹침 수정(worldmap.js). */
-const CACHE = 'merc-v192';
+const CACHE = 'merc-v193';
 const CACHE_PREFIX = 'merc-';
 
 /** 오프라인 첫 실행에 필요한 것 전부 (src 전 모듈 + css + manifest + icons). */
@@ -267,6 +267,53 @@ const APP_SHELL = [
   './art/illust/illust_arhat_abyss.png',
   './art/illust/illust_fallenmonk_apex.png',
   './art/illust/illust_fallenmonk_abyss.png',
+  './art/illust/illust_enemy_goblin_grunt.png',
+  './art/illust/illust_enemy_goblin_archer.png',
+  './art/illust/illust_enemy_goblin_bomber.png',
+  './art/illust/illust_enemy_hobgoblin.png',
+  './art/illust/illust_enemy_wild_boar.png',
+  './art/illust/illust_enemy_harpy.png',
+  './art/illust/illust_enemy_bandit_thug.png',
+  './art/illust/illust_enemy_bandit_archer.png',
+  './art/illust/illust_enemy_cutthroat.png',
+  './art/illust/illust_enemy_bandit_brute.png',
+  './art/illust/illust_enemy_rogue_mage.png',
+  './art/illust/illust_enemy_orc_archer.png',
+  './art/illust/illust_enemy_orc_berserker.png',
+  './art/illust/illust_enemy_orc_shaman.png',
+  './art/illust/illust_enemy_orc_shieldbearer.png',
+  './art/illust/illust_enemy_bone_knight.png',
+  './art/illust/illust_enemy_necromancer.png',
+  './art/illust/illust_enemy_swamp_troll.png',
+  './art/illust/illust_enemy_cave_troll.png',
+  './art/illust/illust_enemy_ogre_bruiser.png',
+  './art/illust/illust_enemy_frost_ogre.png',
+  './art/illust/illust_enemy_darkelf_blade.png',
+  './art/illust/illust_enemy_cultist_zealot.png',
+  './art/illust/illust_enemy_lizardman_scout.png',
+  './art/illust/illust_enemy_lizardman_spear.png',
+  './art/illust/illust_enemy_lizardman_shaman.png',
+  './art/illust/illust_enemy_lizardman_bruiser.png',
+  './art/illust/illust_enemy_flame_wisp.png',
+  './art/illust/illust_enemy_imp.png',
+  './art/illust/illust_enemy_succubus.png',
+  './art/illust/illust_enemy_void_sentinel.png',
+  './art/illust/illust_enemy_bandit_lord.png',
+  './art/illust/illust_enemy_cult_hierarch.png',
+  './art/illust/illust_enemy_ancient_troll.png',
+  './art/illust/illust_enemy_darkelf_priestess.png',
+  './art/illust/illust_enemy_lich.png',
+  './art/illust/illust_enemy_demon_lord.png',
+  './art/illust/illust_enemy_flame_dragon.png',
+  './art/illust/illust_enemy_cave_bear.png',
+  './art/illust/illust_enemy_iron_juggernaut.png',
+  './art/illust/illust_enemy_storm_herald.png',
+  './art/illust/illust_enemy_blood_captain.png',
+  './art/illust/illust_enemy_nightmare_stalker.png',
+  './art/illust/illust_enemy_blight_archon.png',
+  './art/illust/illust_enemy_wight.png',
+  './art/illust/illust_enemy_cultist_acolyte.png',
+  './art/illust/illust_enemy_cult_priest.png',
 ];
 
 /** 모든 클라이언트에 알린다 (index.html 의 갱신 배너가 받는다). */

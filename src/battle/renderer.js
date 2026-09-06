@@ -1032,10 +1032,14 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   /* PNG 초상이 있으면 { png: 초상 } — drawUnitFrame 이 갈라 그린다 */
   const spriteOf = (v) => (v.sprite || (v.sprite = (() => {
     const rc = v.u.recipe || {};
-    return rc.illustClass && hasIllustPng(rc.illustClass) ? { png: getPortrait(rc) } : getSprite(rc);
+    /* 적은 레시피에 illustClass 가 없다(enemies.js 는 서버 공유) — enemyId 로 illust_enemy_<id> 를 찾는다 (§163) */
+    const png = rc.illustClass || (v.u.enemyId ? 'illust_enemy_' + v.u.enemyId : null);
+    return png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc);
   })()));
   /** 발밑에서 정수리까지 화면 px — PNG 초상은 옆모습(114)보다 조금 크다(240×0.5 = 120). 이름·HP·기절 별이 이걸로 자리를 잡는다. */
-  const footPx = (v) => { const sp = spriteOf(v); return sp && sp.png ? sp.png.footY * (SPRITE_SCALE / SCALE) * (sp.png.norm || 1) : spriteFootPx(SPRITE_SCALE); };
+  /* 보스는 PNG 초상을 1.25배로 세운다 (§163) — 옆모습 도트에는 없던 «크기» 가 생긴다. 이름·HP 도 footPx 로 따라 올라간다. */
+  const bossMul = (v) => (v.u.boss && spriteOf(v) && spriteOf(v).png ? 1.25 : 1);
+  const footPx = (v) => { const sp = spriteOf(v); return sp && sp.png ? sp.png.footY * (SPRITE_SCALE / SCALE) * (sp.png.norm || 1) * bossMul(v) : spriteFootPx(SPRITE_SCALE); };
   /**
    * 유닛 한 장 — 옆모습 아틀라스면 drawSpriteFrame, PNG 초상이면 drawPortraitFrame.
    * PNG 에는 걷기·공격·쓰러짐 프레임이 없다: 살아 있으면 숨쉬기 idle0~3 을 시간으로 돌리고, 피격은 흰 섬광,
@@ -1049,12 +1053,14 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
       g.save();
       g.translate(x, y);
       g.rotate((flip ? -1 : 1) * 1.25 * k * k);
-      drawPortraitFrame(g, sp.png, 'idle0', 0, 0, { scale: o.scale, flip, alpha: o.alpha, bg: false });
+      drawPortraitFrame(g, sp.png, 'idle0', 0, 0, { scale: o.scale * bossMul(v), flip, alpha: o.alpha, bg: false });
       g.restore();
       return;
     }
+    /* 공격·사격·시전 클립 동안은 공격 포즈(atk0, §164)가 있으면 그걸로 — 없으면 숨쉬기 그대로 */
+    const useAtk = sp.png.atk && /^(atk|shoot|cast)\d/.test(frame);
     const fi = Math.floor(animT * 4.2 + v.idleOff * 4) % 4;
-    drawPortraitFrame(g, sp.png, 'idle' + fi, x, y, { scale: o.scale, flip, flash: o.flash || 0, alpha: o.alpha, bg: false });
+    drawPortraitFrame(g, sp.png, useAtk ? 'atk0' : 'idle' + fi, x, y, { scale: o.scale * bossMul(v), flip, flash: o.flash || 0, alpha: o.alpha, bg: false });
   }
   const homeX = (u) => f2x(u.x);
   const homeY = (u) => f2y(u.y);

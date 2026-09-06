@@ -226,7 +226,11 @@ export function buildPortrait(recipe = {}) {
   const tbl = colorTable(pal);
   const tblFar = shadeTable(tbl, FAR_SHADE);
 
-  const atlasW = W * FRAMES.length;
+  /* ★ 공격 포즈(§164): 같은 이름 + _atk PNG 가 있고 크기가 같으면 5번째 칸 'atk0' 로 굽는다 — 무대가 공격 클립 동안 쓴다 */
+  const atk = dims.png && hasIllustPng(names.png + '_atk') ? getIllustPng(names.png + '_atk') : null;
+  const atkOk = !!(atk && atk.w === W && atk.h === H);
+  const frameNames = atkOk ? [...FRAMES, 'atk0'] : FRAMES;
+  const atlasW = W * frameNames.length;
   const canvas = makeCanvas(atlasW, H);
   const flash = makeCanvas(atlasW, H);
   const ctx = canvas.getContext('2d');
@@ -235,10 +239,10 @@ export function buildPortrait(recipe = {}) {
   const fimg = fctx.createImageData(atlasW, H);
 
   const frames = {};
-  FRAMES.forEach((name, i) => {
+  frameNames.forEach((name, i) => {
     const ox = i * W;
     frames[name] = { sx: ox, sy: 0 };
-    const buf = composeFrame(names, dims, tbl, tblFar, BREATH[name] || 0);
+    const buf = name === 'atk0' ? composeFrame(names, { ...dims, png: atk }, tbl, tblFar, 0) : composeFrame(names, dims, tbl, tblFar, BREATH[name] || 0);
     blitFrameInto(img.data, atlasW, W, H, buf, ox, 0, 0, 1, false);
     blitFrameInto(fimg.data, atlasW, W, H, buf, ox, 0, 0, 1, true);
   });
@@ -247,7 +251,7 @@ export function buildPortrait(recipe = {}) {
 
   return {
     canvas, flash, w: W, h: H, frames, key: portraitKey(recipe), aura: recipe.aura || null,
-    footY: dims.footY, norm: dims.norm, png: !!dims.png,
+    footY: dims.footY, norm: dims.norm, png: !!dims.png, atk: atkOk,
     /* 등급 배경 (제작자: 「금빛 입히는 건 디자인 제약이니 차라리 배경을 다르게」).
      * 색을 캐릭터에 얹지 않고 **뒤에** 후광을 깐다 — 일러스트 디자인이 자유로워진다. */
     gradeBg: recipe.gradeBg || null,

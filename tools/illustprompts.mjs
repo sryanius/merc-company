@@ -13,6 +13,7 @@
 //   해상도 896×1152 (7:9) — 4:5 목표에 가장 가까운 SDXL 버킷. 도구가 그림 상자를 잘라 192×240 으로 맞춘다.
 
 import { CLASS_TAGS } from './illustprompts_classes.mjs';
+import { ENEMY_TAGS } from './illustprompts_enemies.mjs';
 
 /** 스타일별 «누구» — 게임 현재 디자인(도감)과 어긋나지 않게 색·장비를 고정한다. 클래스 태그가 없을 때의 대체다. */
 export const STYLE_TAGS = {
@@ -111,3 +112,77 @@ export function buildClassPrompt(classId, style, extra = '', override = null) {
 
 /** 모델 카드 권장 설정 */
 export const SETTINGS = { w: 896, h: 1152, steps: 28, cfg: 5, sampler: 'euler_ancestral', scheduler: 'normal' };
+
+/* ═══════════════════════ 공격 포즈 (HANDOFF §164) ═══════════════════════
+ * 같은 캐릭터가 주무기를 휘두르는 한 장 — 무대에서 공격 클립 동안 idle 대신 쓴다 (art/illust/illust_<id>_atk.png).
+ * 대기 그림(raw)을 img2img 초기 이미지로 넣어(denoise 0.6 안팎) 옷·색을 지키고, 자세만 바꾼다.
+ * 서 있기 강조·«both feet on the ground» 를 빼고 무기별 동작 태그를 앞에 세운다. 부정에서 자세 금지어(leaning forward 등)를 뺀다. */
+const ATTACK = {
+  sword: 'swinging sword, sword slash, attacking, wide stance', greatsword: 'swinging greatsword overhead, heavy slash, attacking, wide stance', katana: 'katana slash, iaido, attacking, wide stance',
+  rapier: 'lunging thrust with rapier, attacking, wide stance', dagger: 'dagger slash, attacking, lunging, reverse grip', twindagger: 'dual dagger slash, attacking, lunging',
+  axe: 'swinging battle axe, attacking, wide stance', greataxe: 'swinging great axe overhead, attacking, wide stance', mace: 'swinging mace, attacking, wide stance', hammer: 'swinging war hammer overhead, attacking, wide stance',
+  spear: 'spear thrust, attacking, lunging, wide stance', pike: 'pike thrust, attacking, lunging', halberd: 'halberd swing, attacking, wide stance', scythe: 'scythe sweep, attacking, wide stance',
+  bow: 'drawing bow, aiming, arrow nocked, bowstring pulled', longbow: 'drawing longbow, aiming, arrow nocked, bowstring pulled', crossbow: 'aiming crossbow, firing crossbow, shoulder stock',
+  staff: 'casting spell, staff raised, magic glow at staff tip, spellcasting pose', wand: 'casting spell, wand pointed forward, magic glow at wand tip, spellcasting pose', tome: 'casting spell, open grimoire glowing, one hand raised, spellcasting pose',
+  claw: 'clawed strike, attacking, lunging, martial arts pose', orb: 'casting spell, floating orb glowing, one hand raised', shield: 'shield bash, charging, attacking',
+};
+/* 공격 포즈 부정: 몸을 앞으로 기울이는 것(bending over, leaning forward)만 허용하고 점프·한 발 들기 등은 그대로 막는다 — 파일럿에서 궁수·마법사가 뛰어올랐다 */
+/* ★ 1차 실측(105장 검수, txt2img): 옷 바뀜 68 · 공중 66 · 배경/부유물 60 · 보라 효과 17.
+ *   → 생성은 img2img(대기 raw 를 초기 이미지로, denoise 0.72)로 바꿔 옷을 지키고, 부정은 아래로 강화한다.
+ *   자세 금지어에서 «앞으로 기울이기» 만 풀고(공격은 몸을 기울인다) 점프·체공은 1.4 가중으로 막는다. */
+export const NEGATIVE_ATK = NEGATIVE.replace('bending over, squatting, leaning forward, ', 'lying, ')
+  + ', (jumping:1.4), (midair:1.4), (airborne:1.3), leaping, flying, floating, hovering, one leg raised, both feet off the ground, flying kick, diving, falling'
+  + ', standing straight, arms at sides, relaxed pose, idle pose, weapon lowered, weapon pointing down'
+  + ', (purple slash:1.3), (magenta slash:1.3), purple energy, purple trail, purple streak, purple ribbon, magenta ribbon, floating ribbon, purple crescent, purple wave'
+  + ', cast shadow, drop shadow, ground shadow, floor, ground, reflection, floating objects, detached objects, debris, shards, fragments, sparkles, particles, lens flare'
+  + ', different outfit, changed clothes, alternate costume';
+export function buildClassAttackPrompt(classId, style, extra = '', override = null, opts = {}) {
+  const { actWeight = 1.2, withBg = true } = opts;   // img2img 는 초기 이미지에 배경이 이미 있어 BG 태그를 빼야 충돌(네온 외곽선)이 없다
+  const base = CLASS_TAGS[classId];
+  if (!base) return null;
+  const ct = override ? { ...base, ...Object.fromEntries(Object.entries(override).filter(([k, v]) => ['tags', 'hairStyle'].includes(k) && v)) } : base;
+  const eq = ct.equip && ct.equip[0];
+  const act = ATTACK[eq] || 'attacking, dynamic pose';
+  /* 배경 태그를 앞에 — 동작 태그가 앞자리를 차지하면 BG 가 둘째 청크로 밀려 흰 배경이 나온다 (파일럿 실측: 흰 배경 → 얼굴이 무채색 키잉에 먹혔다) */
+  const parts = ['1girl', weaponLead(classId), withBg ? BG : '', `(${act}:${actWeight}), dynamic pose, action pose, full body`, LEAD, ct.tags, ct.hairStyle, extra].filter(Boolean);
+  return [...parts, 'solo, full body, three-quarter view, looking at viewer, masterpiece, high score, great score, absurdres'].join(', ');
+}
+
+/* ═══════════════════════ 적 (HANDOFF §163) ═══════════════════════
+ * 적은 머리색 편차가 없다 → 보라 표식·청록 눈·노출 태그·1girl 강제가 전부 빠진다. 남자·괴물 허용.
+ * 배경색은 적마다 고른다(bg: 'lime green' | 'magenta' | 'sky blue') — 초록 피부(고블린·오크)는 자홍 배경, 불꽃은 초록 배경.
+ * 도구는 --bg=auto 로 테두리 색을 재서 빼니 어느 색이든 된다. --nohair 로 넣는다.
+ * ENEMY_TAGS[id] = { name, subject, weapon, bg, tags, pose, neg, seed } (illustprompts_enemies.mjs) */
+const ENEMY_COMMON = 'solo, full body, standing, three-quarter view, looking at viewer, masterpiece, high score, great score, absurdres';
+export const ENEMY_NEGATIVE = 'lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, '
+  + 'worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry, '
+  + 'multiple views, multiple girls, multiple boys, 2boys, 2girls, chibi, nsfw, explicit, nude, nipples, '
+  + 'jumping, running, sitting, kneeling, crouching, lying, bending over, magic circle, glowing ring, '
+  + 'floating objects, particles, sparkles, light rays, light streaks, lens flare, motion lines, speed lines, '
+  + 'shadow, cast shadow, drop shadow, floor, ground, reflection, scenery, landscape';
+const BG_NEG = {
+  'lime green': 'green clothes, green armor, green trim, green glow, green aura, green skin, olive, teal, cyan',
+  'magenta': 'pink clothes, magenta clothes, purple clothes, violet, lavender, pink hair, purple hair, pink glow, purple glow, magenta',
+  'sky blue': 'blue clothes, blue armor, blue glow, cyan, teal, aqua, sky blue clothes, blue hair',
+};
+export function enemyNegative(id) {
+  const et = ENEMY_TAGS[id];
+  if (!et) return ENEMY_NEGATIVE;
+  const allowed = new Set();
+  for (const w of (et.weaponNouns || [])) allowed.add(w);
+  const nouns = ALL_NOUNS.filter((n) => !allowed.has(n)).join(', ');
+  return [ENEMY_NEGATIVE, BG_NEG[et.bg] || BG_NEG['lime green'], nouns, et.neg].filter(Boolean).join(', ');
+}
+export function buildEnemyPrompt(id, extra = '', override = null) {
+  const base = ENEMY_TAGS[id];
+  if (!base) return null;
+  const et = override ? { ...base, ...Object.fromEntries(Object.entries(override).filter(([k, v]) => ['tags', 'pose', 'subject', 'weapon', 'bg'].includes(k) && v)) } : base;
+  /* 배경 이름 → 모델이 실제로 그리는 말: 'lime' 은 과일로 새어 나왔고(회색 늑대가 라임 조각 위에 섰다), 'magenta' 는 베이지로 그렸다. Danbooru 에 흔한 색 이름으로. */
+  /* ★ 실측(§163 3차): «pink» 은 채도 0.45·색상 358° 의 붉은 분홍으로 그려졌고, 도구의 색상 flood(±14°)가 **붉은 망토·갈색 가죽을 배경으로 먹었다**.
+   *   보라(280°)는 초록 피부(120°)와도 붉은 천(0°)과도 멀다 — 적은 머리 표식을 안 쓰니(--nohair) 보라를 배경으로 써도 안전하다. */
+  const BG_WORD = { 'lime green': 'bright green', magenta: 'purple', 'sky blue': 'blue' };
+  const bg = `(flat ${BG_WORD[et.bg] || 'bright green'} background:1.1), simple background`;
+  const weapon = et.weapon ? `(holding ${et.weapon}:1.3), ${et.weapon} in hand` : '';
+  const parts = [et.subject || '1boy', weapon, '(standing:1.2), full body', et.tags, bg, et.pose, extra].filter(Boolean);
+  return [...parts, ENEMY_COMMON].join(', ');
+}

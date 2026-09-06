@@ -20,6 +20,7 @@
 //     --colors  표식 제외 n 색으로 줄인다 — 부드럽게 줄어든 그림이 «도트» 로 읽히게. 0 = 안 함.
 //     --hairHue / --eyeHue  표식 색상대(도). 쓴 값은 목록(marker)에 적혀 게임이 같은 기준으로 분류한다.
 //     --out     처리 결과(표식 그대로)를 따로 저장해 눈으로 본다. --alpha=hard|soft
+//   --nohair  표식 없는 그림(적, §163): 머리·눈 표식을 안 찾고 목록에 roles:[] 로 적는다 — 게임이 재색을 건너뛴다
 //   node tools/illustpng.mjs --fixture=illust_fighter [--apply]      # 문자 일러스트 → 표식 PNG (왕복 검증용)
 //   node tools/illustpng.mjs --preview=illust_fighter --out=x.png [--hair=blond --eye=blue --skin=pale] [--zoom=3]
 //
@@ -190,6 +191,7 @@ function report(name, w, h, a) {
     lines.push(`  머리 쪽 색상(위 30%, 채도 있는 픽셀): ${top || '없음'}   ← 자홍은 270~330° 에 있어야 한다`);
   }
   if (!a.opaque) warn.push('그림이 비었다');
+  if (NOHAIR) { a.eyeBox = null; if (a.ay < h - 4) warn.push('발이 바닥에서 떠 있다 (그대로 넣어도 되지만 카드에서 뜬다)'); return { lines, warn, fatal: warn.filter((s) => !s.endsWith('(경고)') && !s.startsWith('발이')) }; }
   if (!a.hair) warn.push(`머리 표식이 없다 (0칸) — 프롬프트에 보라 머리를 넣었나?`);
   else if (a.hair < a.opaque * 0.01) warn.push(`머리 표식이 적다 (${a.hair}칸, ${pct(a.hair)}) — 투구·후드면 정상 (경고)`);
   if (a.hair > a.opaque * 0.6) warn.push(`머리 표식이 그림의 ${pct(a.hair)} — 옷까지 자홍인 것 같다`);
@@ -248,6 +250,7 @@ function writeManifest(entries) {
 
 const fixture = arg('fixture', '');
 const preview = arg('preview', '');
+const NOHAIR = flag('nohair');
 
 if (preview) {
   /* 반영된 PNG 를 팔레트로 재색칠해 본다 — 게임과 같은 함수(recolorInto) */
@@ -316,9 +319,11 @@ if (fixture) {
     }
     const tol = Number(arg('bgTol', 14)) || 14;
     let keyed;
-    if (est && (est.achromatic || est.sat < 0.08)) {
+    /* ★ 옅은 저채도 테두리(베이지 40°·채도 0.08~0.15·명도 0.9)는 무채색으로 다룬다 — 색상 flood 로 다루면 갈색·황갈색 옷이 같은 색상대라 통째로 빠진다 (§163 적 1차: 오크 바지·고블린 로브·트롤 다리). */
+    const pale = est && (est.achromatic || est.sat < 0.08 || (est.sat < 0.16 && est.val >= 0.7));
+    if (pale) {
       /* 채도 0.12 미만은 «흰빛 도는 거의 흰색» — 색상대로 빼면 노이즈만 점점이 빠진다 (사제 46%). 밝기로 뺀다 */
-      keyed = keyAchromatic(src.w, src.h, src.rgba, est.val);
+      keyed = keyAchromatic(src.w, src.h, src.rgba, est.val, Math.max(0.12, est.sat + 0.05), true, est.sat);
       console.error(`  배경 키잉 무채색(명도 ${est.val.toFixed(2)}±0.10, 평탄): ${keyed}칸 투명 (${(100 * keyed / (src.w * src.h)).toFixed(1)}%)`);
     } else {
       /* 채도 하한은 잰 배경의 절반 — 모델이 «라임» 을 파스텔(채도 0.2)로 그리면 고정 0.3 으로는 하나도 안 빠진다 */
@@ -328,7 +333,7 @@ if (fixture) {
     }
     /* 2차: 색상으로 뺀 뒤 무채색 패스를 **항상** 한 번 더 — 흰 노이즈·후광 잔여·파스텔+흰 혼합. 둘 다 테두리 flood fill 이라 합쳐도 안전하다.
      * (무채색으로 시작한 경우는 이미 했으니 건너뛴다) */
-    if (est && !(est.achromatic || est.sat < 0.08)) {
+    if (est && !pale) {
       const band = Math.max(2, Math.round(Math.min(src.w, src.h) * 0.02));
       let bright = 0, sv = 0;
       for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) {
@@ -395,9 +400,9 @@ fs.mkdirSync(path.join(ROOT, ILLUST_DIR), { recursive: true });
 const rel = `${ILLUST_DIR}/${name}.png`;
 fs.writeFileSync(path.join(ROOT, rel), encodePng(src.w, src.h, Buffer.from(src.rgba.buffer, src.rgba.byteOffset, src.rgba.length)));
 const roles = [];
-if (a.hair) roles.push('hair');
-if (a.eyeBox) roles.push('eye');
-const entries = { ...ILLUST_PNG, [name]: { file: rel, w: src.w, h: src.h, ax: a.ax, ay: a.ay, eyeBox: a.eyeBox || undefined, marker: { hair: SPEC.hair.hue, eye: SPEC.eye.hue }, roles } };
+if (!NOHAIR && a.hair) roles.push('hair');
+if (!NOHAIR && a.eyeBox) roles.push('eye');
+const entries = { ...ILLUST_PNG, [name]: { file: rel, w: src.w, h: src.h, ax: a.ax, ay: a.ay, eyeBox: (!NOHAIR && a.eyeBox) || undefined, marker: NOHAIR ? null : { hair: SPEC.hair.hue, eye: SPEC.eye.hue }, roles } };
 writeManifest(entries);
 
 /* 써 놓고 되읽는다 — 목록이 실제 파일과 맞는지 */
@@ -526,13 +531,16 @@ function keyEnclosed(w, h, rgba, cand, seen, minArea) {
  * 테두리에서 이어진 성분만 뺀다. 흰 옷·강철 갑옷은 음영과 외곽선이 있어 평탄하지 않다 — 거기서 멈춘다.
  * 바닥 그림자(회색, 아래 30%)는 밝기 조건을 넓혀 후보에 넣는다.
  */
-function keyAchromatic(w, h, rgba, bgV, sMax = 0.12, enclosed = true) {
-  const V = new Float32Array(w * h), S = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) { const o = i * 4; const [, s, v] = hsv(rgba[o], rgba[o + 1], rgba[o + 2]); S[i] = s; V[i] = rgba[o + 3] < 8 ? -1 : v; }
+function keyAchromatic(w, h, rgba, bgV, sMax = 0.12, enclosed = true, bgS = 0) {
+  const V = new Float32Array(w * h), S = new Float32Array(w * h), Hh = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) { const o = i * 4; const [hh, s, v] = hsv(rgba[o], rgba[o + 1], rgba[o + 2]); Hh[i] = hh; S[i] = s; V[i] = rgba[o + 3] < 8 ? -1 : v; }
   const cand = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     if (V[i] < 0 || S[i] >= sMax) continue;
+    /* ★ 살색 보호 (§164 공격 포즈에서 얼굴이 또 검게 빠졌다): 따뜻한 색상(5~50°)에 채도가 조금이라도 있고 밝으면 — 옅은 피부 — 후보에서 뺀다.
+     *   흰 옷·흰 배경은 채도 0.06 미만이라 그대로 빠진다. 크림색 배경(60~90°)은 범위 밖. */
+    if (S[i] >= Math.max(0.10, bgS + 0.04) && Hh[i] >= 5 && Hh[i] <= 45 && V[i] >= 0.55) continue;   // 배경보다 확실히 진해야 살색 — 크림색 배경(채도 0.08, 40°)이 통째로 보호된 사고
     const floor = y >= h * 0.70;
     if (!(Math.abs(V[i] - bgV) <= 0.14 || (floor && V[i] >= 0.35 && V[i] <= bgV))) continue;
     let mn = 1, mx = 0;

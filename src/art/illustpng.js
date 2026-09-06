@@ -199,6 +199,8 @@ export function hairMask(w, h, data, spec = MARKER, minAlpha = 8) {
 function roleStats(rec) {
   if (rec._roles) return rec._roles;
   const { w, h, data, eyeBox } = rec;
+  /* ★ 표식 없는 그림(적, HANDOFF §163): 목록의 roles 가 [] — 분류 없이 그대로 찍는다. 보라 옷·청록 눈이 있어도 안 건드린다. */
+  if (Array.isArray(rec.roles) && rec.roles.length === 0) return (rec._roles = { hair: null, eye: null, role: new Uint8Array(w * h) });
   const spec = markerSpec(rec.marker);
   const out = { hair: null, eye: null };
   const lv = { hair: new Set(), eye: new Set() };
@@ -371,7 +373,7 @@ async function fetchIllust(url, m) {
   ctx.drawImage(bmp, 0, 0);
   const img = ctx.getImageData(0, 0, w, h);
   if (bmp.close) bmp.close();
-  return { w, h, ax: m.ax, ay: m.ay, eyeBox: m.eyeBox || null, marker: m.marker || null, data: img.data };
+  return { w, h, ax: m.ax, ay: m.ay, eyeBox: m.eyeBox || null, marker: m.marker || null, roles: Array.isArray(m.roles) ? m.roles : null, data: img.data };
 }
 
 function blobToImage(blob) {
