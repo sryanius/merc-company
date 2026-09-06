@@ -323,113 +323,80 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
    * ★ 광선은 캐릭터 **뒤**로만 간다 (이 블록이 스프라이트보다 먼저 그려진다).
    *   실루엣을 덮지 않으니 «디자인 제약» 이 안 된다 — 오라를 버린 이유가 그것이었다(§60.2).
    */
+  /* ★★ 등급 표시 (§167) — 제작자: 「이미지 바꾸면서 먼가 어색해졌어」
+   *
+   *   예전에는 캐릭터 **뒤에** 회전하는 광선 16개 + 링 + 떠오르는 입자를 깔았다. 문자 행렬 도트(§58~65)
+   *   시절엔 그림이 단순해서 그게 «있어 보이는» 장치였는데, 세밀한 일러스트(§161)로 바꾸고 나니
+   *   **그림과 싸운다** — 옷의 금장식·망토와 광선이 겹쳐 뭐가 캐릭터인지 흐려진다.
+   *
+   * ★ 바꾼 것: 배경을 걷어내고 **캐릭터 자체를 빛나게** 한다.
+   *     ① 실루엣 테두리 발광 — 이미 있는 flash(실루엣) 캔버스를 등급색으로 물들여 바깥으로 밀어 깐다.
+   *        그림 위에 아무것도 안 얹으므로 옷·무기가 그대로 읽힌다.
+   *     ② 발밑 웅덩이 — 캐릭터가 «빛을 딛고 선» 느낌만 남긴다 (예전 것보다 옅고 넓다).
+   *     ③ 아주 옅은 뒤광 — 어두운 카드에서 실루엣이 묻히지 않게 하는 최소한의 대비.
+   *   회전·광선·링·입자는 전부 뺐다. 숨쉬기처럼 **아주 느린 밝기 맥동**만 남긴다.
+   */
   const BG = {
-    S: { core: '#ffe98a', mid: '#f0d24a', deep: '#a87b1c', rays: 16, ring: true, spin: 1, motes: 9 },
-    A: { core: '#d9c2ff', mid: '#b48ef0', deep: '#5b3f9e', rays: 10, ring: false, spin: -0.7, motes: 6 },
+    S: { core: '#ffe9a0', mid: '#f0d24a', glow: 3.0, halo: 0.30 },
+    A: { core: '#dcc8ff', mid: '#a97ff0', glow: 2.2, halo: 0.22 },
   };
   const bg = showBg && portrait.gradeBg && BG[portrait.gradeBg];
   if (bg) {
     const cx = dx0 + dw / 2;
-    const cy = dy0 + dh * 0.46;
-    const R = dh * 0.60;
-    /* 초상마다 다른 위상 — 같은 캐릭터는 항상 같은 값이라 프레임마다 튀지 않는다 */
+    const fy = dy0 + (portrait.footY ?? PORTRAIT_FOOT_Y) * px;
     let hsh = 0;
     const key = portrait.key || '';
     for (let i = 0; i < key.length; i++) hsh = (hsh * 31 + key.charCodeAt(i)) & 0xffff;
-    const ph = (hsh / 0xffff) * Math.PI * 2;
-    const t = Date.now() / 1000;
+    const ph = (hsh / 0xffff) * Math.PI * 2;                 // 용병마다 맥동 위상이 다르다
+    const puls = 0.5 + 0.5 * Math.sin(Date.now() / 900 + ph);
 
+    /* ③ 뒤광 — 캐릭터 뒤 아주 옅은 원. 어두운 카드에서 실루엣을 띄운다 */
     ctx.save();
-    /* ① 회전 광선 — 굵기가 번갈아 다른 부챗살. 천천히 돈다 */
-    ctx.translate(cx, cy);
-    ctx.rotate(ph + t * 0.18 * bg.spin);
-    const rayGrad = ctx.createRadialGradient(0, 0, R * 0.12, 0, 0, R);
-    rayGrad.addColorStop(0, bg.core + '00');
-    rayGrad.addColorStop(0.35, bg.mid + '4d');
-    rayGrad.addColorStop(1, bg.deep + '00');
-    ctx.fillStyle = rayGrad;
-    for (let i = 0; i < bg.rays; i++) {
-      const a = (i / bg.rays) * Math.PI * 2;
-      /* 긴 살 / 짧은 살을 번갈아 — 전부 같으면 톱니바퀴처럼 보인다 */
-      const len = R * (i % 2 ? 0.72 : 1.0);
-      const wRad = (Math.PI / bg.rays) * (i % 2 ? 0.30 : 0.46);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a - wRad) * len, Math.sin(a - wRad) * len);
-      ctx.lineTo(Math.cos(a + wRad) * len, Math.sin(a + wRad) * len);
-      ctx.closePath();
-      ctx.fill();
-    }
+    const halo = ctx.createRadialGradient(cx, dy0 + dh * 0.45, 0, cx, dy0 + dh * 0.45, dh * 0.55);
+    halo.addColorStop(0, bg.mid + Math.round(bg.halo * 255).toString(16).padStart(2, '0'));
+    halo.addColorStop(1, bg.mid + '00');
+    ctx.globalAlpha = alpha * (0.72 + puls * 0.14);
+    ctx.fillStyle = halo;
+    ctx.fillRect(dx0 - dw * 0.2, dy0, dw * 1.4, dh);
     ctx.restore();
 
+    /* ② 발밑 웅덩이 — 넓고 옅게 */
     ctx.save();
-    /* ② 바닥 웅덩이 — 발밑에 깔리는 납작한 빛. 캐릭터가 «떠 있지 않게» 붙들어 준다 */
-    const fy = dy0 + (portrait.footY ?? PORTRAIT_FOOT_Y) * px;
-    const pool = ctx.createRadialGradient(cx, fy, 0, cx, fy, dw * 0.42);
-    pool.addColorStop(0, bg.mid + '4e');
-    pool.addColorStop(1, bg.deep + '00');
+    const pool = ctx.createRadialGradient(cx, fy, 0, cx, fy, dw * 0.50);
+    pool.addColorStop(0, bg.core + '5a');
+    pool.addColorStop(0.55, bg.mid + '2e');
+    pool.addColorStop(1, bg.mid + '00');
+    ctx.globalAlpha = alpha * (0.80 + puls * 0.20);
     ctx.fillStyle = pool;
-    ctx.save();
-    ctx.translate(cx, fy); ctx.scale(1, 0.30); ctx.translate(-cx, -fy);
-    ctx.beginPath(); ctx.arc(cx, fy, dw * 0.42, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    /* ③ 테 고리 — 머리카락 한 줄이 아니라 **띠**로 그린다.
-     *   외곽선 한 줄은 아무리 예뻐도 «싸구려 원» 으로 읽힌다 — 얇은 획 세 개를 겹쳐
-     *   가운데가 밝고 바깥이 옅은 띠를 만든다 (그림자 흐림은 목록에서 비싸다).
-     *   S 는 띠 + 룬 눈금, A 는 띠만 — 한눈에 서열이 보여야 한다. */
-    {
-      const puls = 0.5 + 0.5 * Math.sin(t * 1.4 + ph);
-      const rr = R * (0.80 + puls * 0.015);
-      const band = [[1.9, '1c'], [0.9, bg.ring ? '77' : '4a'], [1.9, '1c']];
-      band.forEach(([wMul, aa], bi) => {
-        ctx.strokeStyle = (bi === 1 ? bg.core : bg.mid) + aa;
-        ctx.lineWidth = Math.max(1, px * wMul);
-        ctx.beginPath();
-        ctx.arc(cx, cy, rr + (bi - 1) * px * 1.4, 0, Math.PI * 2);
-        ctx.stroke();
-      });
-      /* 룬 눈금 — 고리를 따라 도는 짧은 토막. S 등급만 */
-      if (bg.ring) {
-        const TICKS = 12;
-        const spin = -t * 0.24 + ph;
-        ctx.fillStyle = bg.core + '99';
-        const tw2 = Math.max(1, Math.round(px));
-        for (let i = 0; i < TICKS; i++) {
-          const a = spin + (i / TICKS) * Math.PI * 2;
-          const long = i % 3 === 0;
-          const r0 = rr + px * 2.2;
-          const len = px * (long ? 3.2 : 1.6);
-          const sx2 = cx + Math.cos(a) * r0;
-          const sy2 = cy + Math.sin(a) * r0;
-          ctx.save();
-          ctx.translate(sx2, sy2);
-          ctx.rotate(a);
-          ctx.fillRect(0, -tw2 / 2, len, tw2);
-          ctx.restore();
-        }
-      }
-    }
-
-    /* ④ 떠오르는 입자 — 아래에서 위로 흐른다. 예전 «제자리 반짝이» 를 대신한다 */
-    const r2 = Math.max(1, Math.round(px));
-    for (let i = 0; i < bg.motes; i++) {
-      const seed = ph + i * 2.399;                 // 황금각 — 겹치지 않게 퍼진다
-      const prog = ((t * 0.22 + i / bg.motes + hsh / 0xffff) % 1);
-      const mx = cx + Math.cos(seed) * dw * 0.40 + Math.sin(t * 0.8 + seed) * px * 1.5;
-      const my = fy - prog * dh * 0.86;
-      const fade = Math.sin(prog * Math.PI);       // 태어날 때와 사라질 때 옅다
-      if (fade <= 0.02) continue;
-      ctx.globalAlpha = alpha * fade * 0.75;
-      ctx.fillStyle = i % 3 === 0 ? bg.core : bg.mid;
-      ctx.fillRect(Math.round(mx), Math.round(my), r2, r2);
-    }
-    ctx.globalAlpha = alpha;
+    ctx.translate(cx, fy); ctx.scale(1, 0.26); ctx.translate(-cx, -fy);
+    ctx.beginPath(); ctx.arc(cx, fy, dw * 0.50, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  /* S 등급 오라 — 옆모습(drawSpriteFrame)과 같은 수법.
-   * ★ 등급 배경이 있으면 **오라는 생략한다** — 금빛 테두리가 곧 «디자인 제약» 이었다. */
+  /* ① 실루엣 테두리 발광 — 등급색으로 물들인 실루엣을 바깥으로 밀어 여러 번 깐다.
+   *   `portrait.flash` 는 전투 피격에 쓰는 흰 실루엣이다 (자리를 나눠 쓴다 — 캐시 한 벌로 둘 다 된다). */
+  if (bg) {
+    const tintKey = '_tintG' + portrait.gradeBg;
+    if (!portrait[tintKey]) {
+      const c = makeCanvas(portrait.flash.width, portrait.flash.height);
+      const g = c.getContext('2d');
+      g.drawImage(portrait.flash, 0, 0);
+      g.globalCompositeOperation = 'source-in';
+      g.fillStyle = bg.core;
+      g.fillRect(0, 0, c.width, c.height);
+      portrait[tintKey] = c;
+    }
+    const o1 = Math.max(1, Math.round(px * bg.glow));
+    const puls2 = 0.5 + 0.5 * Math.sin(Date.now() / 900);
+    ctx.globalAlpha = alpha * (0.30 + puls2 * 0.12);
+    /* 8방향으로 밀어 깔면 테두리가 고르게 난다 (4방향이면 대각선이 얇다) */
+    for (const [ax2, ay2] of [[o1, 0], [-o1, 0], [0, o1], [0, -o1],
+      [o1 * 0.7, o1 * 0.7], [-o1 * 0.7, o1 * 0.7], [o1 * 0.7, -o1 * 0.7], [-o1 * 0.7, -o1 * 0.7]]) {
+      ctx.drawImage(portrait[tintKey], f.sx, f.sy, W, H, dx0 + ax2, dy0 + ay2, dw, dh);
+    }
+    ctx.globalAlpha = alpha;
+  }
+
   if (portrait.aura && !bg) {
     if (!portrait._tint) {
       const c = makeCanvas(portrait.flash.width, portrait.flash.height);
