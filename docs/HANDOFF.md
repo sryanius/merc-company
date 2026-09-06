@@ -11880,3 +11880,20 @@ activate (갱신일 때만)
 - 화면: 아군 패주로 끝나면 전투 로그에 「부대가 전열을 버리고 물러났다 (패주)」, 결과 화면에 「부대가 물러난 웨이브가 있다」 를 적는다. `routed` 는 `result.margin.routed` 다 (`result.routed` 가 아니다 — 한 번 잘못 읽었다). `ui/battle.js` 를 margin 허용 목록에 넣었다 — **보여주기 전용**이고 판정·보상엔 안 쓴다.
 - 스모크: 패주 검사가 «아군이 밀리는» 모양으로 뒤집혔고, 「적은 패주하지 않는다」·「아군 승리 = 적 전멸」 두 보증을 8판씩 새로 건다.
 
+## 166. ControlNet OpenPose — 공격 자세를 골격으로 강제한다 (2026-09-07)
+- §164 의 벽은 «동작 ↔ 옷» 저울이었다: 프롬프트로 자세를 밀면 옷이 바뀌고, img2img denoise 를 낮추면 옷은 지켜지지만 자세가 안 바뀐다. **자세를 프롬프트가 아니라 골격 그림으로 주면** 저울이 풀린다.
+- 받은 것: `xinsir/controlnet-openpose-sdxl-1.0` (2.33GB, fp16) → `models/controlnet/openpose-sdxl-xinsir.safetensors`. ComfyUI 는 ControlNet 노드를 **내장**하고 있어 커스텀 노드는 필요 없다.
+- **골격은 직접 그린다** (`tools/openpose.mjs`): 전처리기(DWPose 등)를 쓰려면 모델을 더 받아야 하고, 애초에 우리는 «없는 자세» 를 만드는 것이라 원본 그림이 없다. OpenPose body-18 규약(점 18개·선 17개·표준 색)대로 좌표에서 바로 그린다 — 결정적이고, 무기별로 골라 쓸 수 있다.
+  - 자세 12종: swing_sword · swing_great · thrust · draw_bow · aim_crossbow · cast_staff · cast_wand · stab_dagger · claw_strike · swing_axe · swing_scythe · shield_bash. `POSE_FOR_WEAPON` 이 equip[0] → 자세를 잇는다.
+  - ★ 첫 판은 **머리가 전신의 7%** 라 모델이 «작은 머리» 를 그렸다. ControlNet 은 점 사이 거리로 몸 크기를 읽는다 — 비율(코 0.10 · 목 0.19 · 골반 0.50 · 무릎 0.72 · 발목 0.94, 머리 약 12%)을 사람에 맞춰 다시 잡았다. 기준 골격 하나(`BASE`)에서 팔·다리만 덮어쓰는 구조라 자세를 더 넣기 쉽다.
+- 클라이언트(`generate.mjs`)에 `--cn=<모델> --cnimage=<골격png> [--cnstrength] [--cnend]`. `ControlNetApplyAdvanced` 는 positive·negative 를 함께 받아 KSampler 로 넘긴다. 업로드는 img2img 의 `/upload/image` 를 같이 쓴다.
+- 확정 설정: **img2img(대기 raw init, denoise 0.85) + ControlNet 0.9, end 85%**, 프롬프트의 동작 가중은 1.15 로 **낮춘다** — 자세를 ControlNet 이 잡으니 프롬프트까지 밀면 둘이 싸워 옷이 흔들린다.
+- 파일럿 6종 실측: 궁수는 활을 당기고, 창병은 찌르고, 도적은 단검을 뻗으면서 **빨간 재킷·검은 밴도·마녀 로브가 그대로** 남았다. txt2img+CN 은 자세는 더 크지만 옷이 다시 흔들려 img2img 쪽을 골랐다.
+
+### 166.1 결과 — 27 → 75/105
+- 1차(CN 0.9 · denoise 0.85): 46/105. 자세별 통과율이 답을 줬다 — swing_sword 2/10 · swing_great 2/8 · aim_crossbow 1/4 · thrust 3/11 · swing_axe 5/18 로 **몰려 있었다.** 탈락 사유도 «자세가 대기와 비슷함»(41건)에 몰렸다.
+- 원인: 그 골격들이 «서 있는 자세 + 팔만 조금» 이라 img2img 초기 그림(대기)을 못 이겼다. **몸통(목·골반)까지 옮겨야** 실루엣이 바뀐다 — 허리를 접고, 다리를 크게 벌리고(깊은 런지), 팔을 끝까지 뻗도록 5종을 다시 그렸다.
+- 2차(같은 5종 + CN **1.15** · denoise **0.90** · end 100%): 실패 58장 중 **30장 추가 통과** → 누적 75/105.
+- 남은 30장의 사유는 여전히 «자세가 약함» 이 대부분이고, 대검을 **땅에 꽂고 손만 얹은** 그림이 반복된다 — 대기 그림 자체가 그 자세라 img2img 가 거기서 못 벗어난다. 더 밀려면 그 클래스만 txt2img+CN 으로 가야 한다(옷은 흔들린다).
+- 적용 규약: 통과분만 `illust_<id>_atk.png` 로 넣는다. 없는 클래스는 `portrait.atk` 가 false 라 무대가 대기 그림으로 그대로 선다 — 예전과 같은 동작이다.
+
