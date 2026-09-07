@@ -739,6 +739,7 @@ function startWave(i) {
     S.info[u.uid] = {
       name: u.name, side: u.side, classId: u.classId || null, enemyId: u.enemyId || null,
       level: u.level || 1, grade: u.grade || 'F', boss: !!u.boss, maxHp: u.maxHp,
+      hero: !!u.hero,                                   // §174 결과 표에서 «영웅» 으로 적는다
       // 결과 표에서 단원과 펫을 갈라 놓는 표식 (펫은 경험치·부상이 없다)
       pet: !!u.pet, petRole: u.petRole || null,
     };
@@ -1037,6 +1038,7 @@ function finishAll(win) {
       const gained = extra && Array.isArray(extra.items) ? extra.items.filter(Boolean) : [];
       if (gained.length) S.applied.items = [...(S.applied.items || []), ...gained];
       if (extra && extra.note) S.extraNote = extra.note;
+      if (extra && extra.stones) S.applied.stones = (S.applied.stones || 0) + Math.max(0, Math.round(Number(extra.stones) || 0));   // §174 각성석
     } catch (e) {
       console.error('[battle] 호출부 정산 훅 실패', e);
     }
@@ -1181,7 +1183,7 @@ function renderResult(win) {
           r.uid === mvp ? el('span', { class: 'tag', style: { color: 'var(--gold)', marginLeft: '6px' }, text: 'MVP' }) : null,
           el('div', { class: 'tiny faint' },
             `${cls ? cls.name : '용병'} Lv${r.info.level} · `,
-            el('span', { style: { color: GRADE_COLOR[r.info.grade] || '#999' }, text: `${r.info.grade}등급` }))),
+            el('span', { style: { color: GRADE_COLOR[r.info.hero ? 'H' : r.info.grade] || '#999' }, text: r.info.hero ? '영웅' : `${r.info.grade}등급` }))),
         el('td', { class: 'num', text: num(r.dealt) }),
         el('td', { class: 'num muted', text: num(r.taken) }),
         el('td', { class: 'num muted', text: r.healed ? num(r.healed) : '—' }),
@@ -1199,7 +1201,8 @@ function renderResult(win) {
   reward.appendChild(el('div', { class: 'row wrap', style: { gap: '22px' } },
     rewardStat('획득 골드', `${num(a.gold || 0)}G`, 'var(--gold)'),
     rewardStat('경험치', num(a.exp || 0), 'var(--arcane)'),
-    rewardStat('명성', `+${a.renown || 0}`, 'var(--steel)')));
+    rewardStat('명성', `+${a.renown || 0}`, 'var(--steel)'),
+    a.stones > 0 ? rewardStat('각성석', `+${a.stones}개`, '#ff7fd8') : null));
 
   const items = (a.items || []).filter(Boolean);
   reward.appendChild(el('div', { class: 'sep' }));
@@ -1500,7 +1503,8 @@ function createSimpleRenderer(canvas, biome) {
     if (sprites.has(u.uid)) return sprites.get(u.uid);
     let s = null;
     const rc = u.recipe || {};
-    const png = rc.illustClass || (u.enemyId ? 'illust_enemy_' + u.enemyId : null);   // 적 PNG (§163)
+    /* §174 영웅 전용 그림이 있으면 그것부터 (없으면 클래스 그림) */
+    const png = (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass) || (u.enemyId ? 'illust_enemy_' + u.enemyId : null);   // 적 PNG (§163)
     try { s = png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc); }
     catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
     sprites.set(u.uid, s);

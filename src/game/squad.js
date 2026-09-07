@@ -14,7 +14,7 @@ import { clamp, num, scaleStats } from '../core/util.js';
 import { uid } from '../core/rng.js';
 import { getClass } from '../data/classes.js';
 import { getFormation, formationMods } from '../data/formations.js';
-import { mercStats, mercRecipe, mercPower, isWounded, upkeepOf, mercSetBonus } from './merc.js';
+import { mercStats, mercRecipe, mercPower, isWounded, upkeepOf, mercSetBonus, heroSkillIds } from './merc.js';
 import { josa } from './gear.js';
 // 세트 고유 효과 조회용. **네임스페이스로 받는다** — `setSpecialsFor` 는 gear.js 쪽에서 나중에
 // 붙는 함수라, 이름을 콕 집어 import 하면 아직 없을 때 모듈 링크 단계에서 통째로 터진다.
@@ -663,7 +663,9 @@ export function squadUnitDefs(state, squadId) {
       level: merc.level || 1,
       grade: merc.grade || 'F',
       stats,
-      skills: [...(c.skills || [])],
+      skills: [...(c.skills || []), ...heroSkillIds(merc)],   // §174 영웅 고유 스킬 (questbattle.js 와 같은 배선)
+      hero: merc.hero || null,
+      awakened: !!(merc.hero && merc.awakened),
       basicFx: c.basicFx || 'slash',
       basicRange: c.range || 'melee',
       basicDmgType: c.dmgType || 'phys',

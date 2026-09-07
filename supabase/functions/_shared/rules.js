@@ -42,7 +42,7 @@
  *   (tools/syncshared.mjs 가 이 조건을 검사한다) */
 import { DEPTH_CAP, goldRange, weekIndex } from './abyss.js';
 import { TOWER_FLOORS } from './tower.js';
-import { MAX_LEVEL, DAYS_PER_WEEK, DAYS_PER_MONTH, MAX_SQUADS, ROSTER_CAP_MAX } from './limits.js';
+import { MAX_LEVEL, HERO_MAX_LEVEL, DAYS_PER_WEEK, DAYS_PER_MONTH, MAX_SQUADS, ROSTER_CAP_MAX } from './limits.js';
 
 /** 랭킹에 올라가는 값만 뽑아낸다. 세이브 전체를 서버에 판단시키지 않는다. */
 /**
@@ -325,8 +325,10 @@ function allSquadsOf(st) {
            *   ★★ 이 필드를 더했으면 **submit-score 의 sanitizeSquadsFull 도 같이** 고쳐야 한다.
            *      거기는 «아는 필드만 남기는» 화이트리스트라 안 고치면 조용히 버려진다 (§58). */
           nm: cut(m.name, 16),
-          l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
+          l: Math.max(1, Math.min(HERO_MAX_LEVEL, Number(m.level) || 1)),
           g: cut(m.grade, 1),
+          /* §174 영웅 표식 — 순위표가 S 위를 그린다. ★ submit-score sanitizeSquadsFull 에도 같이 (화이트리스트) */
+          h: m.hero ? 1 : undefined,
           /* ★ **실제로 낀 것만** 센다. state.js 의 normalizeEquipment 가 10칸을 null 로
            *   채워 두므로 Object.keys 로 세면 **누구나 항상 10** 이 된다 —
            *   순위표의 «착용 칸 수» 가 전원 10 으로 올라가고 있었다 (실측: 실제 2, 표시 10). */
@@ -382,8 +384,9 @@ function topSquadOf(st) {
     power: Math.round(Number(best.sq.power) || 0) || undefined,
     members: best.mems.slice(0, 7).map((m) => ({
       c: cut(m.classId, 24),                       // 클래스 id — 이름은 받는 쪽이 찾는다
-      l: Math.max(1, Math.min(MAX_LEVEL, Number(m.level) || 1)),
+      l: Math.max(1, Math.min(HERO_MAX_LEVEL, Number(m.level) || 1)),
       g: cut(m.grade, 1),
+      h: m.hero ? 1 : undefined,                   // §174 영웅 (서버 sanitizeSquad 도 같이)
       /* ★★ 단원 이름. 제작자 요청—「클래스명 대신 내 용병 이름으로」.
        *   상세용 allSquadsOf 에만 넣었다가 **목록은 그대로 클래스명이었다** —
        *   순위표에 실리는 건 이쪽(topSquadOf)이다. 둘은 별도의 함수라 같이 고쳐야 한다.
@@ -405,7 +408,8 @@ export function checkStatic(s) {
   if (s.day < 1) bad.push(`day=${s.day}`);
   if (s.abyssBest < 0 || s.abyssBest > DEPTH_CAP) bad.push(`나락 ${s.abyssBest} (상한 ${DEPTH_CAP})`);
   if (s.towerBest < 0 || s.towerBest > TOWER_FLOORS) bad.push(`탑 ${s.towerBest} (상한 ${TOWER_FLOORS})`);
-  if (s.topLevel < 1 || s.topLevel > MAX_LEVEL) bad.push(`최고레벨 ${s.topLevel} (상한 ${MAX_LEVEL})`);
+  /* §174 각성한 영웅은 100 까지 큰다 — 상한은 HERO_MAX_LEVEL 이다 (MAX_LEVEL 80 은 적 레벨 상한으로 남는다) */
+  if (s.topLevel < 1 || s.topLevel > HERO_MAX_LEVEL) bad.push(`최고레벨 ${s.topLevel} (상한 ${HERO_MAX_LEVEL})`);
   if (s.questsDone < 0) bad.push(`의뢰 ${s.questsDone}`);
   if (s.squadsN < 0 || s.squadsN > MAX_SQUADS) bad.push(`부대 ${s.squadsN}`);
   if (s.rosterN < 0 || s.rosterN > ROSTER_CAP_MAX) bad.push(`단원 ${s.rosterN}`);
@@ -599,9 +603,11 @@ export const SPEC_HIRES_PER_DAY = 6;
  * ★ 재는 방식은 클라이언트의 `squadPower` 와 같다 — 7칸 · 진형 하나 고정 · 펫 제외.
  *   레벨 곡선이 완만한 건 **장비가 지배**하기 때문이다 (Lv1 123k → Lv80 190k).
  */
-export const POWER_LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80];
-/* ★ §172 세트 3단(예산 1.69배)이 생기면서 다시 떴다 — Lv80 190,470 → 293,055 (node tools/powerceiling.mjs) */
-export const POWER_BY_LEVEL = [220760, 228859, 238023, 247194, 256379, 265528, 274721, 283899, 293055];
+/* ★ §174 각성 영웅이 100 까지 크므로 90·100 지점을 더 뜬다 (도구는 그 레벨에 «각성 영웅» 을 세운다) */
+export const POWER_LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+/* ★ §172 세트 3단(예산 1.69배)이 생기면서 다시 떴다 — Lv80 190,470 → 293,055 (node tools/powerceiling.mjs)
+ * ★ §174 90·100 은 각성 영웅 기준 — stormcaller_apex/starseeker3 · Lv90 302,233 / Lv100 311,411 (node tools/powerceiling.mjs) */
+export const POWER_BY_LEVEL = [220760, 228859, 238023, 247194, 256379, 265528, 274721, 283899, 293055, 302233, 311411];
 
 /**
  * 천장 대비 여유. 걸려도 «표시» 라 게임은 그대로 돌아간다.
@@ -649,7 +655,7 @@ export const POWER_SLACK = 1.05;
  */
 export const ABYSS_POWER_CURVE = [
   [5_000, 23], [10_000, 38], [20_000, 66], [30_000, 86],
-  [50_000, 160], [75_000, 301], [100_000, 419], [190_470, 500],
+  [50_000, 160], [75_000, 301], [100_000, 500], [190_470, 500],
 ];
 
 /** 무한의 탑 — 실측 (`tools/towerpower.mjs`, 월 5회 누적 최댓값) */
@@ -694,7 +700,7 @@ export const RECORD_POWER_SLACK = 0.5;
  * @param {number} level 명부의 최고 레벨
  */
 export function powerCeiling(level) {
-  const lv = Math.max(1, Math.min(MAX_LEVEL, Number(level) || 1));
+  const lv = Math.max(1, Math.min(HERO_MAX_LEVEL, Number(level) || 1));
   const st = POWER_LEVEL_STOPS;
   if (lv <= st[0]) return POWER_BY_LEVEL[0];
   for (let i = 1; i < st.length; i++) {

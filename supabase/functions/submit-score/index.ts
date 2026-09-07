@@ -21,6 +21,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { extractScore, normalizeScore, judge, sameRun, POWER_CAP, probePolicy, PROBE_WINDOW_H, serverAxes } from '../_shared/rules.js';
+/* §174 각성 영웅은 Lv100 까지 — 부대 스냅샷의 레벨 상한 */
+import { HERO_MAX_LEVEL } from '../_shared/limits.js';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -390,8 +392,9 @@ function sanitizeSquadsFull(raw: unknown) {
           c: cut(y.c, 24),
           /* ★ 단원 이름 (rules.js 의 nm). 여기 안 적으면 **조용히 버려진다** — §58 의 그 함정이다. */
           nm: cut(y.nm, 16) || undefined,
-          l: Math.max(1, Math.min(80, Math.round(Number(y.l) || 1))),
+          l: Math.max(1, Math.min(HERO_MAX_LEVEL, Math.round(Number(y.l) || 1))),
           g: cut(y.g, 1),
+          h: y.h ? 1 : undefined,   // §174 영웅 표식 (rules.js allSquadsOf 와 쌍)
           e: Math.max(0, Math.min(10, Math.round(Number(y.e) || 0))),
           s: sets && sets.length ? sets : undefined,
         };
@@ -415,8 +418,9 @@ function sanitizeSquad(raw: unknown) {
       const x = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
       return {
         c: cut(x.c, 24),
-        l: Math.max(1, Math.min(80, Math.round(Number(x.l) || 1))),
+        l: Math.max(1, Math.min(HERO_MAX_LEVEL, Math.round(Number(x.l) || 1))),
         g: cut(x.g, 1),
+        h: x.h ? 1 : undefined,   // §174 영웅 표식 (rules.js topSquadOf 와 쌍)
         nm: cut(x.nm, 16),     // 단원 이름 — rules.js topSquadOf 와 쌍이다
       };
     }).filter((m) => m.c),

@@ -126,7 +126,8 @@ function partsOf(recipe = {}) {
   /* ★★★★ «PNG 일러스트» — 이미지 모델이 그린 그림, **최우선** (art/illustpng.js, HANDOFF §161).
    *   같은 이름(illust_<style>)으로 PNG 가 받아져 있으면 문자 일러스트 대신 그것을 쓴다.
    *   개인 색 편차(머리·눈)는 크로마키로 산다. 아직 못 받았으면 아래 문자 일러스트로 물러난다. */
-  const png = [recipe.illustClass, recipe.illust].find((n) => n && hasIllustPng(n)) || null;   // class PNG first, then style PNG
+  /* §174 영웅 전용 그림이 있으면 그것부터 — 없으면 클래스 그림으로 물러난다 (도감·주점·전투가 전부 같은 경로) */
+  const png = [recipe.illustHero, recipe.illustClass, recipe.illust].find((n) => n && hasIllustPng(n)) || null;   // hero PNG, class PNG, style PNG
   if (png) return { png };
 
   const illust = recipe.illust && hasFrontPart(recipe.illust) ? recipe.illust : null;
@@ -339,6 +340,7 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   const BG = {
     S: { core: '#ffe9a0', mid: '#f0d24a', glow: 3.0, halo: 0.30 },
     A: { core: '#dcc8ff', mid: '#a97ff0', glow: 2.2, halo: 0.22 },
+    H: { core: '#ffd9f3', mid: '#ff7fd8', glow: 3.3, halo: 0.34 },   // §174 영웅
   };
   const bg = showBg && portrait.gradeBg && BG[portrait.gradeBg];
   if (bg) {

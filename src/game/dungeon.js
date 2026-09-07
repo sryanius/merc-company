@@ -557,6 +557,9 @@ export function dropSlotForWave(waveIndex = 0, rng = null) {
  */
 export const DROP_CHANCE = 0.30;
 
+/** ★ §174 각성석 — 웨이브를 깰 때 세트 조각과 **별개로** 굴린다. 제작자: 「아이템 드랍확률의 절반」. */
+export const AWAKEN_STONE_CHANCE = DROP_CHANCE / 2;
+
 /** 드랍 아이템 레벨 */
 export function dropIlvl(waveIndex = 0) {
   return clamp(DROP_ILVL_BASE + normWaveIndex(waveIndex), 1, DROP_ILVL_MAX);
@@ -802,7 +805,7 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
   const st = state || State.state;
   const d = getDungeon(dungeonId);
   const empty = {
-    ok: false, reason: '', win: false, wave: 0, item: null, bestWave: 0,
+    ok: false, reason: '', win: false, wave: 0, item: null, stones: 0, bestWave: 0,
     cleared: false, first: false, runOver: true, wounded: [], downed: [],
     progress: { bestWave: 0, clearedAt: null },
   };
@@ -848,6 +851,7 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 
   // 진행도 + 드랍
   let item = null;
+  let stones = 0;
   let progress = dungeonProgress(st, d.id, diff);
   const before = progress.bestWave;
   if (win) {
@@ -855,6 +859,15 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
     item = dropForWave(d.id, wi, opts.rng || null, diff);
     if (item) {
       try { State.addItem(item); } catch (e) { console.warn('[dungeon] 드랍 지급 실패', e); }
+    }
+    /* §174 각성석 — 세트 조각과 독립인 한 번의 굴림 (같은 RNG 에서 이어 뽑는다) */
+    const r = opts.rng || globalRng;
+    if (r.chance(AWAKEN_STONE_CHANCE)) {
+      stones = 1;
+      try {
+        if (st === State.state) State.addAwakenStones(1);
+        else st.awakenStones = Math.max(0, Math.round(st.awakenStones || 0)) + 1;
+      } catch (e) { console.warn('[dungeon] 각성석 지급 실패', e); }
     }
   }
 
@@ -866,6 +879,7 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
     if (win) {
       State.addLog(`[던전] ${label} 돌파! 층의 주인을 쓰러뜨렸다.`);
       if (item) State.addLog(`[던전] ${setName} 세트 획득: ${item.name || '이름 없는 유물'}`);
+      if (stones) State.addLog(`[던전] 각성석 ${stones}개 획득 (보유 ${st.awakenStones || 0}개)`);
       if (waveNo >= d.waves && progress.clearedAt === (st.day || 0) && before < d.waves) {
         State.addLog(`[던전] ${d.name}${dl} — 끝까지 밀어냈다. ${setName} 세트의 주인이 바뀌었다.`);
         const nx = DIFFICULTIES[DIFFICULTIES.indexOf(diff) + 1];
@@ -885,6 +899,7 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
     win,
     wave: waveNo,
     item,
+    stones,
     bestWave: progress.bestWave,
     cleared: progress.clearedAt != null,
     first: win && waveNo > before,

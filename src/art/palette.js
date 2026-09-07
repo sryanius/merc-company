@@ -232,10 +232,23 @@ export const CHAR_NAME = {
 
 export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW, EYE };
 
-/** 등급 색 (F~S) */
+/** 등급 색 (F~S). ★ §174 H = 영웅 (등급 글자가 아니라 표식이다 — GRADES 에는 없다) */
 export const GRADE_COLOR = {
   F: '#8a8a96', E: '#9fb08a', D: '#6fae7a', C: '#5b95d6', B: '#9a6fd6', A: '#e0913a', S: '#f0d24a',
+  H: '#ff7fd8',
 };
+
+/** 화면용 등급 키 — 영웅이면 'H', 아니면 등급 글자. 색을 찾을 때 `GRADE_COLOR[gradeKeyOf(m)]` */
+export function gradeKeyOf(merc) {
+  if (!merc) return 'F';
+  return merc.hero ? 'H' : (merc.grade || 'F');
+}
+
+/** 화면용 등급 이름 — «영웅» / «S등급» */
+export function gradeNameOf(merc) {
+  if (!merc) return 'F등급';
+  return merc.hero ? '영웅' : `${merc.grade || 'F'}등급`;
+}
 
 /** 아이템 희귀도 색 (0~4) */
 export const RARITY_COLOR = ['#9a9aa6', '#6fae7a', '#5b95d6', '#a86fd6', '#e8a13a'];

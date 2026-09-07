@@ -209,7 +209,8 @@ export function bestCeilingRoster(level = 80, grade = 'S') {
 /**
  * 실제 게임 상태를 만든다.
  * @param {object} o
- *   `{classes, level, grade, gear:'none'|'shop'|'sets', setIlvl, slots, members, formation}`
+ *   `{classes, level, grade, gear:'none'|'shop'|'sets', setIlvl, slots, members, formation, hero}`
+ *   · `hero: true` — §174 각성 영웅 부대 (4차 클래스만 영웅이 된다 · 등급 S 고정 · Lv100 까지 · 고유 스킬 둘)
  */
 export function setup(o = {}) {
   State.newGame(20260819, '나락계측단');
@@ -237,9 +238,12 @@ export function setup(o = {}) {
     /* 칸마다 등급·세트 ilvl 을 따로 줄 수 있다 — 「전력을 가장 싸게 쓰는 96심층 편성」 탐색용 */
     const mLevel = slotPlan.level || level;
     const mIlvl = slotPlan.setIlvl || setIlvl;
+    const isHero = !!(o.hero || slotPlan.hero) && (cls.tier || 1) === 4;
     const merc = {
-      uid: `ap_a${i}`, name: cls.name, classId, level: mLevel, grade: slotPlan.grade || o.grade || 'A',
+      uid: `ap_a${i}`, name: cls.name, classId, level: mLevel, grade: isHero ? 'S' : (slotPlan.grade || o.grade || 'A'),
       equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0,
+      // §174 영웅 — hero = 자기 클래스 id, 각성하면 Lv100 까지 (merc.js levelCapOf)
+      hero: isHero ? classId : null, awakened: isHero && !o.unawakened,
     };
     if (o.gear === 'sets') {
       const setId = slotPlan.setId || setForArch(cls.arch);

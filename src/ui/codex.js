@@ -15,11 +15,15 @@ import '../data/classes_t4.js';
 import { PETS, ROLE_NAME, PET_GRADES } from '../data/pets.js';
 import { ENEMIES } from '../data/enemies.js';
 import { hasIllustPng } from '../art/illustpng.js';
+import { state } from '../game/state.js';
+import { HEROES, HERO_IDS } from '../data/heroes.js';
+import { GRADE_COLOR } from '../art/palette.js';
 
 export const meta = { id: 'codex', title: '도감' };
 
 let styleDone = false;
-let tab = 'merc';                 // merc | pet | foe
+let tab = 'merc';                 // merc | hero | pet | foe
+let openHeroLines = { swordsman: true };   // 영웅 탭: 연 계열 (§174 — 56장을 한꺼번에 굽지 않는다)
 let openTiers = { 1: true };      // 용병 탭(차수 보기): 연 차수
 /* ★ 기본은 **계열 보기**다 — 계열 특성은 줄기 전체의 성질이라
  *   차수로 흘어 놓으면 볼 수가 없다 (제작자 요청). */
@@ -57,6 +61,10 @@ function injectStyle() {
 .cdx-sk-meta { color:var(--ink-faint); font-size:10px; }
 .cdx-sk-desc { font-size:10px; color:var(--ink-faint); line-height:1.45; }
 .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+.cdx-unowned { opacity:.5; }
+.cdx-own { display:inline-block; padding:0 7px; border-radius:999px; font-size:10px; font-weight:700; background:var(--bg-4); color:var(--ink-faint); margin-left:5px; vertical-align:middle; }
+.cdx-own.on { color:#ff7fd8; }
+.cdx-story { font-size:11px; color:var(--ink-dim); line-height:1.5; width:100%; text-align:left; }
 @media (max-width: 767px) { .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); } .cdx-sub { font-size:12px; } }
 `,
   }));
@@ -282,7 +290,7 @@ function rerender(root) { root.innerHTML = ''; render(root); }
 
 export function render(root) {
   injectStyle();
-  const tabs = [['merc', '용병'], ['pet', '펫'], ['foe', '적']];
+  const tabs = [['merc', '용병'], ['hero', '영웅'], ['pet', '펫'], ['foe', '적']];
   root.appendChild(el('div', { class: 'panel col', style: { gap: '10px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
       el('h3', { class: 'panel-title', style: { margin: '0' }, text: '도감' }),
@@ -301,6 +309,65 @@ export function render(root) {
       }, label))));
   }
   if (tab === 'merc') root.appendChild(mercTab(root));
+  else if (tab === 'hero') root.appendChild(heroTab(root));
   else if (tab === 'pet') root.appendChild(petTab());
   else root.appendChild(foeTab(root));
+}
+
+/* ─────────────────────────── 영웅 탭 (§174) ─────────────────────────── */
+
+/** 영웅 카드 — 초상 · 이름/별칭 · 보유 여부 · 이야기 · 고유 스킬 둘 */
+function heroCard(h) {
+  const mine = (state.roster || []).filter((m) => m && m.hero === h.id);
+  const owned = mine.length > 0;
+  const awakened = mine.some((m) => m.awakened);
+  const cls = CLASSES[h.classId] || {};
+  const card = el('div', { class: `cdx-card${owned ? '' : ' cdx-unowned'}` },
+    stillSprite(mercRecipe({ classId: h.classId, grade: 'S', hero: h.id }, {})),
+    el('div', { class: 'cdx-nm', style: { color: GRADE_COLOR.H } }, h.name,
+      el('span', { class: `cdx-own${owned ? ' on' : ''}`, text: awakened ? '✔ 각성' : owned ? '✔ 보유' : '미보유' })),
+    el('div', { class: 'cdx-sub', text: `«${h.title}» · ${cls.name || h.classId}` }),
+    el('div', { class: 'cdx-story', text: h.story }));
+  const box = el('div', { class: 'cdx-skills' });
+  for (const [sid, tag] of [[h.skill, '고유'], [h.skill2, '각성']]) {
+    const s = getSkill(sid);
+    if (!s) continue;
+    box.appendChild(el('div', { class: 'cdx-sk' },
+      el('div', { class: 'cdx-sk-nm' },
+        el('b', { text: s.name || sid }),
+        el('span', { class: 'cdx-sk-meta', text: `${tag} · ${s.range === 'melee' ? '근접' : '원거리'} · 재사용 ${s.cd}초` })),
+      s.desc ? el('div', { class: 'cdx-sk-desc', text: s.desc }) : null));
+  }
+  card.appendChild(box);
+  return card;
+}
+
+function heroTab(root) {
+  const byRoot = {};
+  for (const id of HERO_IDS) {
+    const h = HEROES[id];
+    (byRoot[h.root] = byRoot[h.root] || []).push(h);
+  }
+  const ownedAll = HERO_IDS.filter((id) => (state.roster || []).some((m) => m && m.hero === id)).length;
+  const wrap = el('div', { class: 'col', style: { gap: '12px' } },
+    el('div', { class: 'panel col', style: { gap: '4px' } },
+      el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
+        el('b', { style: { color: GRADE_COLOR.H }, text: `영웅 ${ownedAll} / ${HERO_IDS.length}` }),
+        el('span', { class: 'tiny faint', text: '주점에서 S 가 나올 때 주사위를 한 번 더 굴려 절반은 영웅이 된다. 4차 클래스마다 한 명, Lv1 부터 4차로 시작한다.' })),
+      el('div', { class: 'tiny faint', text: 'Lv80 에 각성석 30개(던전 웨이브에서 세트 조각 확률의 절반)로 각성하면 Lv100 까지 크고 두 번째 고유 스킬이 열린다.' })));
+  for (const [root, list] of Object.entries(byRoot)) {
+    const rc = CLASSES[root] || {};
+    const open = !!openHeroLines[root];
+    const ownedN = list.filter((h) => (state.roster || []).some((m) => m && m.hero === h.id)).length;
+    const panel = el('div', { class: 'panel col', style: { gap: '10px' } });
+    panel.appendChild(el('div', {
+      class: 'row spread center cdx-sec',
+      onClick: () => { openHeroLines[root] = !open; rerender(root); },
+    },
+      el('h3', {}, el('span', { class: 'cdx-badge', text: `${ownedN}/${list.length}` }), `${rc.name || root} 계열`),
+      el('span', { class: 'tiny faint', text: open ? '접기 ▲' : '펼치기 ▼' })));
+    if (open) panel.appendChild(el('div', { class: 'cdx-grid' }, list.map(heroCard)));
+    wrap.appendChild(panel);
+  }
+  return wrap;
 }

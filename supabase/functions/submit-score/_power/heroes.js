@@ -1,0 +1,572 @@
+/**
+ * 영웅 — S 위의 존재 (§174)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * 제작자 요구(2026-09-08):
+ *   「S등급 위의 영웅. 주점에서 S 가 뽑힐 때 주사위를 한 번 더 굴려 1/2 로 영웅. 4차 클래스별로 한 명(56명),
+ *    고유한 일러스트와 짧은 스토리, 전투에서 더 화려한 고유 스킬. 1렙부터 4차 클래스로 시작하고
+ *    80레벨에 각성석 30개로 각성하면 100레벨까지 크고 고유 스킬이 하나 더 생긴다.」
+ *
+ * ── 표현
+ *   · 영웅은 **등급 'S' + `merc.hero = <4차 클래스 id>`** 다. 등급 글자를 새로 만들지 않는다 —
+ *     S 를 세는 규칙(rules.js sMercs · 서버 s_mercs · 명물 확률 상한)이 전부 `grade === 'S'` 라서,
+ *     새 글자를 두면 그 규칙들이 조용히 영웅을 놓친다. 화면은 `gradeKeyOf(merc)` 로 «H» 를 따로 그린다.
+ *   · 영웅 id = 4차 클래스 id (한 클래스에 한 명). `merc.classId === merc.hero` 가 항상 성립한다 (state 정규화가 지킨다).
+ *   · 각성: `merc.awakened`. 레벨 상한이 80 → 100 (`merc.js levelCapOf`), 두 번째 고유 스킬이 열린다.
+ *
+ * ── 고유 스킬은 **계열(arch)별 틀**에 영웅마다 이름·문구·속성을 입힌 것이다 (`buildHeroSkills`).
+ *   엔진이 실제로 처리하는 7종 효과(heal/buff/debuff/dot/shield/stun/lifesteal) 안에서만 만든다.
+ *   id 는 `hero_<클래스id>` / `hero2_<클래스id>`. skills.js 가 모듈 끝에서 addSkills 로 합친다 —
+ *   그래서 서버 엔진 사본(_engine)에도 같이 실린다 (여기 없으면 서버 재현에서 조용히 사라진다 — pets.js 의 그 함정).
+ *   `priority` 200/210 — 쿨이 돌면 다른 스킬보다 먼저 쓴다 (ai.js priorityOf).
+ *
+ * ── 이 파일은 limits.js 만 문다 (서버 묶음에 그대로 들어간다). 텍스트는 작가 에이전트가 썼다 (HANDOFF §174).
+ *
+ * @module data/heroes
+ */
+import { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S } from './limits.js';
+
+export { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S };
+
+/**
+ * 영웅 정의. 키 = 4차 클래스 id = 영웅 id.
+ * arch/dmgType/range/fx/root 는 classes_t4.js 의 값을 **베껴 둔 것**이다 — 여기서 classes 를 import 하면
+ * skills.js ↔ classes.js 가 서로를 물게 된다. 스모크가 두 표를 대조한다.
+ */
+const RAW = {
+  swordgod_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '갈라드', title: '한 합의 검객',
+    story: '그의 시합은 언제나 한 번의 교차로 끝났다. 두 번째 합을 본 자가 없어 그의 검법을 제대로 아는 이도 없다. 그 자신도 두 번째를 배울 기회가 없었다고 담담히 말한다.',
+    skillName: '무한일섬', skillDesc: '적 하나를 단 한 번의 물리 섬광으로 강타해 기절시킨다.',
+    skill2Name: '천검무진', skill2Desc: '끝없는 검격이 적 전체를 베어 넘기고, 벤 자리에 지속 피해를 남긴다.',
+  },
+  swordgod_abyss: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '키릴', title: '버려진 칼의 주인',
+    story: '전장 뒤에 버려진 검만 주워 쓴다. 온전한 검을 쥐면 손이 먼저 놓는다고 한다. 그가 한 번 휘두른 칼은 어차피 다시 쓰이지 않으니, 처음부터 온전할 필요도 없었다.',
+    skillName: '절명일자', skillDesc: '가장 약한 적을 찔러 처형하고, 튄 피로 자신의 상처를 메운다.',
+    skill2Name: '파검삼절', skill2Desc: '부러진 검 세 자루로 적 셋을 연달아 찌르고 방어를 깎아낸다.',
+  },
+  madgeneral_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '발드릭', title: '전열을 지운 자',
+    story: '백 개의 깃발이 그의 앞에서 꺾였다. 어느 깃발이었는지는 기록하지 않았고, 아무도 다시 묻지 않았다. 남은 것은 그가 걸어간 방향과, 그 방향으로 난 빈 땅뿐이다.',
+    skillName: '파진일격', skillDesc: '물리 일격으로 적 하나의 진을 부수고 기절시킨다.',
+    skill2Name: '만군멸살', skill2Desc: '전열 전체를 한 칼에 베어 넘긴다. 남은 상처가 계속 피를 흘린다.',
+  },
+  madgeneral_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'swordsman',
+    name: '브란트', title: '다시 세운 깃발',
+    story: '그가 넘어진 것을 본 자가 없다. 무릎이 꺾인 병사도 그의 고함 한 번에 다시 일어나 창을 잡았다. 그 부대는 후퇴라는 단어를 끝내 배우지 못했고, 그도 가르치지 않았다.',
+    skillName: '철혈포효', skillDesc: '포효로 아군 전체에 보호막을 두르고, 자신의 방어를 철벽으로 올린다.',
+    skill2Name: '만군진동', skill2Desc: '대지를 울리는 철퇴 한 번에 적 전체가 짧게 기절한다.',
+  },
+  skysplitter_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '베르길', title: '하늘을 가른 칼',
+    story: '산맥에 난 골짜기 하나가 그의 이름으로 불린다. 그가 내려친 것은 산이 아니라 그 골짜기를 메우고 있던 군대였다. 산은 그저 옆에 서 있다가 함께 갈라졌을 뿐이다.',
+    skillName: '단산참', skillDesc: '산도 가르는 한 칼로 적 하나를 강타해 기절시킨다.',
+    skill2Name: '천붕지열', skill2Desc: '하늘과 땅이 함께 갈라진다. 적 전체를 베어 넘기고 지속 피해를 남긴다.',
+  },
+  skysplitter_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '고드윈', title: '천 번 받아친 자',
+    story: '먼저 검을 뽑은 것은 젊었을 때 딱 한 번이다. 그 한 번으로 아우를 잃은 뒤, 그는 베려 드는 자만 벤다. 그의 앞에서 칼을 든 자는 예외 없이 자기 칼에 되돌려 맞는다.',
+    skillName: '만검진', skillDesc: '천 자루 검을 세워 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
+    skill2Name: '반격천참', skill2Desc: '되돌린 천 번의 검격이 적 전체를 후려쳐 짧게 기절시킨다.',
+  },
+  bloodfiend_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    name: '코르빈', title: '피가 따르는 왕',
+    story: '그는 한 번도 상처를 핥지 않았다. 베인 적의 피가 알아서 그의 칼날을 타고 올라왔고, 그것으로 자신을 채웠다. 사람들은 그 앞에서 출혈을 감추는 법부터 배웠다.',
+    skillName: '혈흡참', skillDesc: '가장 약한 적을 베어 처형하고, 흐른 피로 자신을 회복한다.',
+    skill2Name: '진혈삼연', skill2Desc: '적 셋을 연달아 꿰찌른다. 찔린 자리마다 방어가 무너져 내린다.',
+  },
+  bloodfiend_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'swordsman',
+    name: '벨루나', title: '굶주린 불사자',
+    story: '죽었어야 할 밤이 세 번 있었다. 세 번 다 일어났고, 그날부터 한 번도 배부른 적이 없다. 앞줄에 서는 것은 용기가 아니라, 가장 먼저 피 냄새를 맡을 수 있는 자리이기 때문이다.',
+    skillName: '혈염장막', skillDesc: '검붉은 피의 불길로 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
+    skill2Name: '흑혈폭류', skill2Desc: '검은 피의 격류로 적 전체를 후려쳐 짧게 기절시킨다.',
+  },
+  gatewarden_apex: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'spearman',
+    name: '바르그', title: '성벽을 허문 손',
+    story: '관문을 지키며 성벽의 약점을 전부 외웠다. 어느 날 창을 방패에 걸고 반대편 성문으로 걸어갔다. 지키는 법을 다 배운 뒤 부수는 쪽이 빠르다는 걸 깨달았고, 그가 두드린 문은 셋 중 셋이 열렸다.',
+    skillName: '공성진', skillDesc: '철문 같은 방패로 아군 전체를 감싸고 자신의 방어를 크게 올린다.',
+    skill2Name: '파성일격', skill2Desc: '철퇴 같은 방패로 적 전체를 내리쳐 짧게 기절시킨다.',
+  },
+  gatewarden_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'spearman',
+    name: '토르발', title: '열리지 않는 문',
+    story: '황금 나락의 최하층 문을 홀로 열두 해 지킨 자. 안에서 무엇이 나오려 했는지는 끝내 말하지 않았다. 그가 선 자리는 문이 아니라 벽이었고, 열리는 쪽은 언제나 그가 정했다.',
+    skillName: '철벽수호', skillDesc: '거대한 방패를 세워 아군 전체에 보호막을 두르고 자신의 방어를 크게 올린다.',
+    skill2Name: '세계문진', skill2Desc: '문짝만 한 방패로 적 전체를 후려쳐 짧게 기절시킨다.',
+  },
+  reaper_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'spearman',
+    name: '라자렐', title: '마지막 밤의 낫',
+    story: '거두는 자였다가 거두라 명하는 자가 되었다. 그가 낫을 세우면 전열의 가장 약한 자부터 먼저 넘어진다. 무한의 탑 마흔 층에서 그의 낫이 멈춘 밤, 아무도 그 위에 무엇이 있는지 묻지 못했다.',
+    skillName: '멸혼참', skillDesc: '가장 약한 적을 낫으로 처형하고 흘린 피로 자신을 회복한다.',
+    skill2Name: '만혼수확', skill2Desc: '적 셋을 연달아 베어 넘기고 그들의 방어를 깎는다.',
+  },
+  reaper_abyss: {
+    arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'shadow', root: 'spearman',
+    name: '티스벨', title: '죽음을 삼킨 자',
+    story: '앞줄에서 죽음을 먼저 받아 두는 자. 그녀의 그림자에 닿은 칼날은 뒷줄에 이르기 전에 힘을 잃는다. 삼킨 죽음이 얼마나 쌓였는지 아무도 모르지만, 그녀 뒤에 선 자가 죽은 적은 아직 없다.',
+    skillName: '혼백장막', skillDesc: '암흑의 장막으로 아군 전체에 보호막을 두르고 자신의 방어를 크게 올린다.',
+    skill2Name: '명계수확', skill2Desc: '어둠의 낫을 크게 휘둘러 적 전체를 후려치고 짧게 기절시킨다.',
+  },
+  dragoonlord_apex: {
+    arch: 'lancer', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    name: '타르켄', title: '용을 벤 창끝',
+    story: '북쪽 협곡의 흑룡을 창 하나로 떨어뜨린 뒤, 그는 용의 이름을 자기 것으로 삼았다. 이후 그가 앞장선 돌격에서 전열이 버틴 적은 없다. 창끝이 닿은 자리마다 길이 열렸고, 그 길을 따라 용병단의 시대가 왔다.',
+    skillName: '용격창', skillDesc: '창을 내질러 전열의 적 둘을 한 번에 꿰뚫고 기절시킨다.',
+    skill2Name: '창룡천강', skill2Desc: '용의 기세로 적 전체를 밀어붙이고, 자신의 속도가 치솟는다.',
+  },
+  dragoonlord_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    name: '브리겔', title: '꺾이지 않는 깃대',
+    story: '창을 잃고도 깃발을 놓지 않았던 기수. 그가 든 깃발 아래서 무너진 부대가 셋이나 다시 섰다. 사람들은 그를 불멸이라 불렀지만, 그는 그저 쓰러질 자리를 아직 찾지 못했을 뿐이라 말했다.',
+    skillName: '군기수호', skillDesc: '깃발을 세워 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
+    skill2Name: '불멸군진', skill2Desc: '깃대를 휘둘러 적 전체를 후려치고 짧게 기절시킨다.',
+  },
+  skylancer_apex: {
+    arch: 'lancer', dmgType: 'magic', range: 'melee', fx: 'lightning', root: 'spearman',
+    name: '카이렐', title: '벼락보다 빠른 자',
+    story: '천공창기사 중 유일하게 벼락을 앞질러 창을 꽂은 사람. 그날 이후 그의 창은 던지기 전에 하늘이 먼저 응답한다. 폭풍이 치는 날이면 아직도 성벽 위에서 그의 창끝이 번쩍인다고 한다.',
+    skillName: '뇌정창', skillDesc: '번개를 두른 창으로 전열의 적 둘을 꿰뚫고 기절시킨다.',
+    skill2Name: '천뢰만격', skill2Desc: '벼락을 이끌고 돌격해 적 전체를 밀어붙이며, 자신의 속도를 올린다.',
+  },
+  skylancer_abyss: {
+    arch: 'lancer', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    name: '루아르', title: '바람을 입은 창',
+    story: '갑주를 벗어던진 창기사. 한 번도 맞지 않아 한 번도 뚫린 적이 없다. 그의 창은 막지 않고, 적의 창이 닿기 전에 상대의 자리를 먼저 비워 버리고, 남는 것은 바람 소리뿐이다.',
+    skillName: '천풍관', skillDesc: '바람처럼 파고들어 전열의 적 둘을 꿰뚫고 기절시킨다.',
+    skill2Name: '성풍질주', skill2Desc: '돌풍이 되어 적 전체를 밀어붙이고, 자신의 속도가 크게 오른다.',
+  },
+  bulwark_apex: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    name: '요아킴', title: '성문을 부순 방패',
+    story: '성문을 지키라 했더니 성문을 뜯어 들고 나가 적진을 밀어붙였다. 그날 이후 아무도 그에게 지키는 자리를 맡기지 않았고, 그도 굳이 원하지 않았다. 그의 방패는 늘 앞으로만 간다.',
+    skillName: '철벽진군', skillDesc: '밀고 나가는 방패가 아군 전체를 지키는 보호막이 되고, 그의 방어가 크게 오른다.',
+    skill2Name: '거벽분쇄', skill2Desc: '거대한 방패를 휘둘러 적 전체를 한 번에 짓눌러 잠시 기절시킨다.',
+  },
+  bulwark_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    name: '힐데', title: '걸어다니는 성',
+    story: '함락된 요새의 마지막 수비대장. 성벽이 무너진 뒤에도 그 자리를 떠나지 않았고, 결국 적군은 성이 아니라 그녀를 보고 길을 돌렸다. 이제 그녀가 선 곳이 성이다.',
+    skillName: '부동성벽', skillDesc: '거대한 방패가 아군 전체에 보호막을 두르고, 그녀의 방어가 크게 오른다.',
+    skill2Name: '천성압쇄', skill2Desc: '성벽 같은 방패로 적 전체를 한 번에 후려쳐 잠시 기절시킨다.',
+  },
+  oathshield_apex: {
+    arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    name: '율리안', title: '깨진 맹세의 값',
+    story: '지키기로 맹세한 도시가 그를 팔았다. 살아 돌아온 그는 맹세를 버리는 대신 새로 썼고, 그 방패는 이제 갚아야 할 이름들만 골라 찾아간다. 명단은 아직 절반이 남았다.',
+    skillName: '성광서약', skillDesc: '다시 쓴 맹세의 빛이 아군 전체에 보호막을 두르고, 그의 방어가 크게 오른다.',
+    skill2Name: '응보천벌', skill2Desc: '신성한 응보의 일격이 적 전체를 후려쳐 잠시 기절시킨다.',
+  },
+  oathshield_abyss: {
+    arch: 'healer', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    name: '오렐리', title: '맹세로 짠 결계',
+    story: '한 부대를 끝까지 지키겠다는 맹세를 방패에 새긴 여인. 부대원이 모두 늙어 죽은 뒤에도 맹세는 풀리지 않았다. 이제 그 문장은 곁에 선 누구든 감싸고, 그녀는 새 이름들을 외운다.',
+    skillName: '서약가호', skillDesc: '방패에 새긴 맹세가 아군 전체를 크게 회복시키고 공격력을 올린다.',
+    skill2Name: '영겁결계', skill2Desc: '맹세의 결계가 아군 전체에 보호막을 두르고, 가장 약한 아군을 크게 살린다.',
+  },
+  paladin_apex: {
+    arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    name: '오스발트', title: '빛을 든 심판자',
+    story: '성전기사단의 마지막 총장. 방패를 내리지 않은 채 심판을 내리는 법을 익혔고, 그가 지킨 성벽에는 아직 그림자가 든 적이 없다. 사람들은 그 빛을 성왕이라 불렀고 그는 부정하지 않았다.',
+    skillName: '성광호벽', skillDesc: '신성한 빛이 아군 전체를 감싸 보호막이 되고, 그의 방어가 크게 오른다.',
+    skill2Name: '광휘심판', skill2Desc: '하늘에서 내린 빛의 방패가 적 전체를 후려쳐 잠시 기절시킨다.',
+  },
+  paladin_abyss: {
+    arch: 'healer', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    name: '이레네', title: '하얀 울타리',
+    story: '전쟁터 한복판에 무릎을 꿇고 기도하던 종군 수녀. 그 반경 안에서 죽은 자가 없다는 말이 퍼지며 성인이 되었다. 그녀는 지금도 방패를 내려놓지 않고, 기도도 멈추지 않는다.',
+    skillName: '성역축복', skillDesc: '신성한 성역이 아군 전체를 크게 회복시키고 공격력을 올린다.',
+    skill2Name: '재림성역', skill2Desc: '빛의 결계가 아군 전체를 감싸고, 가장 약한 아군을 크게 되살린다.',
+  },
+  blackknight_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'shieldman',
+    name: '하드리안', title: '버려진 왕관',
+    story: '스스로 왕국을 버린 왕. 갑주 안쪽에 옛 나라의 이름을 새기고, 다시는 입 밖에 내지 않는다. 그가 검을 든 곳마다 왕좌가 하나씩 비어 갔고, 그 자리를 채운 자는 아직 없다.',
+    skillName: '폐왕참', skillDesc: '암흑을 머금은 일격으로 적 하나를 강타해 기절시킨다.',
+    skill2Name: '흑왕멸세', skill2Desc: '암흑의 검이 적 전체를 베어 넘기고, 그림자의 지속 피해를 남긴다.',
+  },
+  blackknight_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'shieldman',
+    name: '울리히', title: '속이 빈 갑주',
+    story: '흑기사단에서 가장 오래 살아남은 자. 살아남기 위해 삼킨 목숨이 갑주를 채웠고, 이제 그 안에 사람이 남아 있는지는 본인도 말하지 못한다. 갑주는 여전히 앞줄에 선다.',
+    skillName: '망혼갑주', skillDesc: '삼킨 영혼이 암흑의 보호막이 되어 아군 전체를 감싸고, 그의 방어가 크게 오른다.',
+    skill2Name: '만혼포식', skill2Desc: '갑주에서 쏟아진 망령이 적 전체를 후려쳐 잠시 기절시킨다.',
+  },
+  shadowarcher_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'ranged', fx: 'shadow', root: 'archer',
+    name: '하르빈', title: '자국 없는 밤',
+    story: '의뢰서에는 이름 대신 빈칸만 적힌다. 그가 맡은 표적은 시체도, 핏자국도, 마지막으로 서 있던 자리조차 남기지 않는다. 용병단은 그 빈칸을 가장 비싼 값에 판다.',
+    skillName: '무흔살', skillDesc: '가장 약한 적을 암흑의 화살로 지우고 그 피로 자신을 회복한다.',
+    skill2Name: '삼점허무', skill2Desc: '세 적을 연달아 어둠으로 꿰뚫어 갑주째 허물고 방어를 깎는다.',
+  },
+  shadowarcher_abyss: {
+    arch: 'archer', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'archer',
+    name: '오데트', title: '따라붙는 원한',
+    story: '그녀에게서 도망친 자는 아직 없다. 화살에 묶어 보낸 망령이 표적의 등 뒤에 붙어 잠자리까지 따라가기 때문이다. 표적이 죽으면 망령은 돌아와, 다음 이름을 기다린다.',
+    skillName: '원령난사', skillDesc: '원한 맺힌 망령을 실은 암흑의 화살을 적 전체에 흩뿌린다.',
+    skill2Name: '귀곡일시', skill2Desc: '가장 강한 적에게 망령을 박아 넣어 암흑으로 저격하고 공격력을 깎는다.',
+  },
+  masterarcher_apex: {
+    arch: 'archer', dmgType: 'phys', range: 'ranged', fx: 'arrow', root: 'archer',
+    name: '오리엘', title: '별을 떨어뜨린 손',
+    story: '무한의 탑 꼭대기에서 밤하늘을 향해 한 발을 쏘았다는 소문이 있다. 그날 이후 별 하나가 보이지 않게 되었고, 그는 그 얘기를 들으면 대답 대신 시위를 매만진다.',
+    skillName: '낙성우', skillDesc: '하늘로 쏘아 올린 화살이 별처럼 쏟아져 적 전체를 꿰뚫는다.',
+    skill2Name: '극성일사', skill2Desc: '가장 강한 적의 급소를 별빛 화살로 꿰뚫어 공격력을 꺾는다.',
+  },
+  masterarcher_abyss: {
+    arch: 'archer', dmgType: 'phys', range: 'ranged', fx: 'arrow', root: 'archer',
+    name: '이오라', title: '바람에 맡긴 활',
+    story: '눈을 감고 쏘는 궁수. 활을 놓은 순간 화살은 이미 그녀의 것이 아니라 바람의 것이다. 천 리 밖에서 날아온 화살에 맞은 이들은 누가 쏘았는지 끝내 알지 못했다.',
+    skillName: '풍시난무', skillDesc: '바람에 실은 화살이 사방에서 휘돌아 적 전체에 내리꽂힌다.',
+    skill2Name: '천리일관', skill2Desc: '천 리 밖의 바람을 모아 가장 강한 적을 꿰뚫고 공격력을 깎는다.',
+  },
+  beastlord_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'archer',
+    name: '울프람', title: '무리가 우는 이름',
+    story: '활을 버린 궁수. 짐승과 함께 사냥하다가 어느 날부터 짐승보다 먼저 물어뜯게 되었다. 숲의 무리들은 그가 우는 밤에는 사냥을 쉬고, 그의 뒤를 따라 울기만 한다.',
+    skillName: '맹아일격', skillDesc: '짐승의 발톱으로 적 하나를 후려쳐 그 자리에 쓰러뜨려 기절시킨다.',
+    skill2Name: '태고광란', skill2Desc: '태초의 울음과 함께 적 전체를 찢어발기고, 출혈의 지속 피해를 남긴다.',
+  },
+  beastlord_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'archer',
+    name: '하겐', title: '짐승의 왕관',
+    story: '왕관을 쓴 뒤로는 화살을 쏘지 않는다. 그가 서 있으면 숲의 무리가 방벽처럼 아군을 에워싸고, 그가 발을 구르면 숲 전체가 함께 구른다. 왕관은 뿔과 이빨로 만들어졌다.',
+    skillName: '만수결진', skillDesc: '짐승 무리가 아군 전체를 에워싸 보호막이 되고, 자신의 방어를 바위처럼 올린다.',
+    skill2Name: '대지진각', skill2Desc: '발을 굴러 대지를 흔들고 적 전체를 짓눌러 잠시 기절시킨다.',
+  },
+  spiritranger_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'nature', root: 'archer',
+    name: '이올린', title: '뿌리를 당기는 자',
+    story: '세계수 아래서 태어나 세계수를 활로 삼는다. 그녀가 시위를 당기면 대지의 뿌리가 함께 당겨지고, 놓는 순간 뿌리가 적진을 뚫고 솟는다. 지나간 자리에는 늘 새 싹이 돋는다.',
+    skillName: '만근발아', skillDesc: '세계수의 뿌리가 적진 아래서 터져 적 전체를 꿰뚫고, 남은 가시가 계속 파고든다.',
+    skill2Name: '신수강림', skill2Desc: '거대한 가지가 내려쳐 적 셋을 짓누르고 그 자리에 붙들어 기절시킨다.',
+  },
+  spiritranger_abyss: {
+    arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'nature', root: 'archer',
+    name: '에이라', title: '숲이 보낸 손님',
+    story: '어느 날 숲에서 걸어 나왔고, 이름은 용병단이 붙여 주었다. 그녀가 손을 대면 상처가 아무는 대신 그 자리에 꽃이 핀다. 사람인지 정령인지 묻는 이는 아직 없다.',
+    skillName: '만생소생', skillDesc: '정령의 숨결이 아군 전체를 크게 회복시키고, 팔에 힘을 실어 공격력을 올린다.',
+    skill2Name: '대수결계', skill2Desc: '세계수의 가호로 아군 전체를 감싸고 가장 약한 아군을 크게 살린다.',
+  },
+  shadowblade_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'rogue',
+    name: '잔데르', title: '부르지 않는 이름',
+    story: '밤에 값을 매겨 팔던 밀사였다. 어느 날부터 값을 받지 않았고, 대신 밤을 통째로 가졌다. 왕도의 뒷골목에서 그의 이름은 부르지 않는 이름이 되었고, 부르면 대답 대신 어둠이 온다.',
+    skillName: '암야참', skillDesc: '가장 약한 적을 어둠 속에서 베어 처형하고, 흘린 피로 제 몸을 채운다.',
+    skill2Name: '만야군림', skill2Desc: '적 셋을 암흑의 칼날로 연달아 꿰뚫고, 그들의 방어를 무너뜨린다.',
+  },
+  shadowblade_abyss: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'rogue',
+    name: '제피르', title: '베이지 않는 잔상',
+    story: '여섯 번 처형되었고 여섯 번 장례가 치러졌다. 무덤마다 시신은 없었다. 벤 자들은 한결같이 잔상을 벴다고 말했고, 그 말을 한 뒤로는 아무도 그들을 다시 보지 못했다.',
+    skillName: '환영살', skillDesc: '잔상을 흘리며 가장 약한 적을 처형하고, 그 피로 제 상처를 메운다.',
+    skill2Name: '무영천참', skill2Desc: '어둠에 녹은 칼끝이 적 셋을 잇달아 찌르고, 방어를 깎아 낸다.',
+  },
+  banditking_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    name: '체사레', title: '왕국을 판 산적',
+    story: '산적 떼를 왕국으로 키웠고, 그 왕국을 팔아 더 큰 사업을 샀다. 지금 그의 영지는 지도에 없고, 도시마다 난 뒷문이 전부 그에게로 통한다. 칼은 여전히 직접 든다.',
+    skillName: '패왕단죄', skillDesc: '가장 약한 적을 골라 단칼에 처형하고, 흘린 피만큼 제 상처를 메운다.',
+    skill2Name: '삼로난참', skill2Desc: '난전 속에서 적 셋을 연달아 찌르고, 갑주 틈을 벌려 방어를 깎는다.',
+  },
+  banditking_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    name: '지오반', title: '칼을 벽에 건 자',
+    story: '도적왕 시절의 칼은 서재 벽에 걸어 두고, 대신 사람을 쓴다. 그가 앞줄에 서는 날은 부하들이 다 죽은 날뿐이고, 그런 날은 아직 오지 않았다. 그래서 그는 늙었고, 살아 있다.',
+    skillName: '흑장진', skillDesc: '아군 전체에 흑막의 장막을 둘러 보호막을 씌우고, 제 방어를 크게 굳힌다.',
+    skill2Name: '대영주령', skill2Desc: '칼을 다시 들어 적 전체를 한 번에 후려쳐 짧게 기절시킨다.',
+  },
+  venomfang_apex: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'poison', root: 'rogue',
+    name: '조슬린', title: '한 번 스친 종막',
+    story: '독을 다루는 자들은 대개 제 독에 죽는다. 그녀는 아직 살아 있고, 그녀를 만난 이들은 대개 그렇지 못하다. 해독제를 만들던 약사들이 그녀의 이름을 듣고 가게를 접었다.',
+    skillName: '아독참', skillDesc: '가장 약한 적을 독니로 물어 처형하고, 독이 밴 피를 마셔 회복한다.',
+    skill2Name: '만독연아', skill2Desc: '적 셋을 독니로 연달아 찌른다. 독이 스민 자리부터 방어가 녹아내린다.',
+  },
+  venomfang_abyss: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'poison', root: 'rogue',
+    name: '저마인', title: '썩어 가는 왕관',
+    story: '독아의 극에서 스스로를 실험대로 삼았다. 살은 썩고 뼈는 부식되었지만, 그는 아직 전열 한가운데 서 있다. 그가 붙잡은 적은 그와 같이 썩는다는 것, 그것이 그가 세운 유일한 법이다.',
+    skillName: '부식강타', skillDesc: '썩은 주먹으로 적 하나를 강타해, 독기에 질린 채 기절시킨다.',
+    skill2Name: '만독부식진', skill2Desc: '적 전체를 베어 넘긴다. 남은 독기가 살을 계속 썩혀 지속 피해를 남긴다.',
+  },
+  bladedancer_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    name: '치아라', title: '끝나지 않는 곡',
+    story: '그녀의 춤은 한 곡이 끝날 때까지 이어진다. 곡이 끝났을 때 서 있는 것은 언제나 그녀뿐이었다. 궁정에서 초대장을 보냈다가, 무희가 아니라 검객이라는 걸 알고 거둬들였다.',
+    skillName: '절검일무', skillDesc: '한 박자에 적 하나를 강타해, 곡이 넘어가기 전까지 기절시킨다.',
+    skill2Name: '천화난무', skill2Desc: '적 전체를 춤사위로 베어 넘긴다. 벤 자리마다 칼자국이 남아 계속 피를 흘린다.',
+  },
+  bladedancer_abyss: {
+    arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    name: '지젤', title: '여섯 그림자의 춤',
+    story: '무대 위에 한 사람, 그림자는 여섯. 관객은 어느 그림자가 진짜인지 맞히는 내기를 했고, 아무도 이기지 못했다. 전장에서 그 내기를 건 자들은 돈 대신 목을 걸었고, 역시 이기지 못했다.',
+    skillName: '환무살', skillDesc: '여섯 잔상 사이로 가장 약한 적을 처형하고, 그 피로 제 상처를 씻는다.',
+    skill2Name: '천무육영', skill2Desc: '여섯 그림자가 적 셋을 연달아 찌르고, 흔들린 방어를 깎아 낸다.',
+  },
+  archmage_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'bolt', root: 'apprentice',
+    name: '오르벨', title: '비워진 하늘',
+    story: '주문을 배운 적이 없다. 처음 손을 들었을 때 허공이 먼저 물러났고, 그 뒤로는 물러난 자리에 무엇을 채울지만 골라 왔다. 그의 이름이 불린 도시들은 지도에서 여백이 되었다.',
+    skillName: '허공붕괴', skillDesc: '적 전체 위의 허공을 마력으로 터뜨리고, 남은 파편이 계속 살을 파고든다.',
+    skill2Name: '만공소멸', skill2Desc: '마력이 적 셋을 때려 그 자리를 통째로 비운다. 허공이 돌아올 때까지 기절한다.',
+  },
+  archmage_abyss: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'bolt', root: 'apprentice',
+    name: '미란데', title: '세상을 고치는 손',
+    story: '오르벨과 같은 탑에서 같은 스승을 두었다. 스승이 세상을 태우는 법을 가르칠 때 그녀는 태운 뒤에 남는 것을 보았다. 이제 그녀의 마력은 부수는 것과 고치는 것을 한 손에서 한다.',
+    skillName: '만상재편', skillDesc: '적 전체의 구조를 마력으로 뒤틀어 터뜨린다. 어긋난 자리는 스스로 계속 무너진다.',
+    skill2Name: '현왕율령', skill2Desc: '적 셋을 마력으로 때려 법칙을 다시 쓴다. 문장이 걷힐 때까지 그들은 기절한다.',
+  },
+  lichlord_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'apprentice',
+    name: '모르가르', title: '죽음의 영주',
+    story: '죽음과 계약하는 대신 죽음을 상속받았다. 그의 영지에서는 흙에 묻힌 것들이 세금을 내듯 일어나 걷는다. 왕관은 그의 뼈가 부서지기 전까지 벗겨지지 않고, 뼈는 아직 온전하다.',
+    skillName: '명부개장', skillDesc: '적 전체에 암흑의 저주를 터뜨린다. 명부에 오른 이름은 계속 생명을 갉아먹힌다.',
+    skill2Name: '사령제칙', skill2Desc: '적 셋에게 죽은 자의 손이 뻗어 때린다. 암흑에 붙들린 몸은 한동안 기절한다.',
+  },
+  lichlord_abyss: {
+    arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'apprentice',
+    name: '에르네', title: '경계의 뱃사공',
+    story: '모르가르와 같은 문에서 나왔지만, 그녀는 강 저편으로 건너간 자를 데려오는 쪽을 택했다. 명계의 어둠은 그녀에게 무기가 아니라 뱃삯이다. 그녀 곁에서 죽은 자는 아직 없다.',
+    skillName: '명계귀환', skillDesc: '명계의 어둠이 아군 전체를 크게 회복시키고, 남은 저주로 공격력을 올린다.',
+    skill2Name: '황천결계', skill2Desc: '아군 전체를 암흑의 결계로 감싸고, 강가에 선 가장 약한 아군을 끌어와 살린다.',
+  },
+  plaguelord_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'poison', root: 'apprentice',
+    name: '헬리아', title: '이름을 붙이는 손',
+    story: '첫 역병에 고향의 이름을 붙였다. 그 뒤로는 새 도시에 닿을 때마다 새 병이 태어났고, 지도는 그녀의 일기장이 되었다. 아직 이름을 붙이지 못한 도시가 세 곳 남았다고 한다.',
+    skillName: '역병개화', skillDesc: '적 전체에 독의 포자를 터뜨린다. 자리 잡은 역병은 숨을 쉴 때마다 살을 갉는다.',
+    skill2Name: '만역강림', skill2Desc: '적 셋의 핏줄에 만 가지 독을 밀어 넣어 때린다. 굳은 몸은 한동안 기절한다.',
+  },
+  plaguelord_abyss: {
+    arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'poison', root: 'apprentice',
+    name: '무르구', title: '부풀어 오른 성벽',
+    story: '헬리아의 첫 역병에 걸리고도 죽지 않은 유일한 사람이다. 썩는 자리마다 새 살이 부풀어 올라 이제 사람의 크기를 넘겼다. 그를 벽이라 부르는 이는 많아도 사람이라 부르는 이는 없다.',
+    skillName: '부패외피', skillDesc: '아군 전체를 독의 점막으로 감싸고, 제 살을 더 부풀려 방어를 크게 굳힌다.',
+    skill2Name: '거체붕락', skill2Desc: '부푼 몸을 통째로 적 전체에 내리찍는다. 튄 독액에 닿은 자는 짧게 기절한다.',
+  },
+  stormcaller_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'lightning', root: 'apprentice',
+    name: '하일로', title: '구름 없는 벼락',
+    story: '구름 없는 날 벼락에 맞고 살아난 아이였다. 그날 이후 하늘이 그를 기다리는 대신 그가 하늘을 데리고 다닌다. 그가 하룻밤 머문 평원에는 아직도 풀이 나지 않는다.',
+    skillName: '천뢰만락', skillDesc: '적 전체에 벼락을 한꺼번에 내리꽂는다. 남은 번개가 살갗을 타고 계속 흐른다.',
+    skill2Name: '뇌제강림', skill2Desc: '적 셋의 정수리에 번개 기둥을 세워 때린다. 감전된 몸은 한동안 기절한다.',
+  },
+  stormcaller_abyss: {
+    arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'lightning', root: 'apprentice',
+    name: '시그린', title: '번개를 감는 손',
+    story: '폭풍술사 중 유일하게 벼락으로 사람을 살리는 법을 찾았다. 하일로가 하늘을 무기로 쓸 때 그녀는 같은 하늘을 붕대로 썼다. 그녀가 지나간 야전병원에는 그을음과 살아난 이름만 남는다.',
+    skillName: '뇌우세례', skillDesc: '아군 전체의 상처를 번개로 지지고, 남은 전류가 무기 끝까지 흘러 공격을 돋운다.',
+    skill2Name: '폭풍성역', skill2Desc: '아군 전체에 번개의 장막을 두르고, 가장 약한 아군의 심장에 벼락을 꽂아 살린다.',
+  },
+  arhat_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'acolyte',
+    name: '안셀름', title: '백 번째 주먹',
+    story: '무기를 든 적이 없다. 상대가 검을 뽑는 사이 주먹은 이미 아흔아홉 번 닿아 있었고, 마지막 한 번은 세지 않는다. 그는 지금도 세지 않고, 상대는 세어 볼 기회가 없다.',
+    skillName: '백련일격', skillDesc: '백 번 벼린 주먹이 적 하나를 강타해 기절시킨다.',
+    skill2Name: '무극연환', skill2Desc: '끝없는 연격이 적 전체를 쳐 넘기고, 부서진 자리에 지속 피해를 남긴다.',
+  },
+  arhat_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'acolyte',
+    name: '오스문트', title: '갑주를 벗은 벽',
+    story: '갑주를 벗은 날 이후 한 번도 넘어지지 않았다. 육신이 벽이 되었으니 벽 뒤의 사람은 상처를 모른다. 그는 그것으로 족하다고만 했고, 그 뒤로 더 말한 적이 없다.',
+    skillName: '금강호법', skillDesc: '단단한 기운을 아군 전체에 둘러 보호막을 만들고, 자신의 방어를 크게 올린다.',
+    skill2Name: '진각뇌동', skill2Desc: '땅을 한 번 밟아 적 전체를 후려치고 짧게 기절시킨다.',
+  },
+  highpriest_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'holy', root: 'acolyte',
+    name: '에제키엘', title: '심판만 맡은 손',
+    story: '붕대는 부사제에게 맡기고, 본인은 제단 앞에서 전장을 본다. 그가 손끝으로 가리킨 자리에는 성가 대신 빛이 떨어졌고, 남은 것은 없었다. 그는 그것도 기도라 부른다.',
+    skillName: '성광폭렬', skillDesc: '신성한 빛이 적 전체를 폭발시키고, 남은 빛이 계속 태운다.',
+    skill2Name: '천벌강림', skill2Desc: '하늘의 심판이 적 셋을 내리쳐 그 자리에 기절시킨다.',
+  },
+  highpriest_abyss: {
+    arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'holy', root: 'acolyte',
+    name: '카스토르', title: '빚을 세는 별',
+    story: '별의 이름으로 기도하고, 별의 이름으로 청구한다. 그의 성좌 아래서 쓰러진 부대는 없고, 값을 다 치른 부대도 아직 없다. 장부는 그가 죽어도 닫히지 않는다고 한다.',
+    skillName: '성좌강림', skillDesc: '성좌의 빛이 아군 전체를 크게 회복하고 공격력을 올린다.',
+    skill2Name: '천구만성', skill2Desc: '하늘의 별이 아군 전체를 감싸 보호막이 되고, 가장 약한 아군을 크게 살린다.',
+  },
+  inquisitor_apex: {
+    arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'fire', root: 'acolyte',
+    name: '우르바노', title: '명부를 든 불',
+    story: '재판을 열지 않는다. 명부에 이름을 적는 것이 판결이고, 불을 붙이는 것이 집행이다. 그가 남긴 것은 재로 된 도시 하나와 빈 명부 한 권뿐이며, 명부는 다시 채워지고 있다.',
+    skillName: '화형선고', skillDesc: '정화의 불꽃이 적 전체를 터뜨리고, 불이 남아 계속 태운다.',
+    skill2Name: '삼단심판', skill2Desc: '세 이름을 불러 적 셋을 불기둥으로 내리치고 기절시킨다.',
+  },
+  inquisitor_abyss: {
+    arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'fire', root: 'acolyte',
+    name: '이그나츠', title: '타지 않는 장작',
+    story: '심문관의 자리를 버리고 스스로 장작이 되었다. 앞줄에 서서 불을 뒤집어쓰면 뒤에 선 이들은 타지 않는다. 그 불은 아직 꺼지지 않았고, 그도 아직 다 타지 않았다.',
+    skillName: '정화성벽', skillDesc: '정화의 화염이 아군 전체를 둘러 보호막이 되고, 자신의 방어를 크게 올린다.',
+    skill2Name: '대정화', skill2Desc: '온몸의 불을 한 번에 터뜨려 적 전체를 후려치고 짧게 기절시킨다.',
+  },
+  fallenmonk_apex: {
+    arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'acolyte',
+    name: '아브살롬', title: '여섯 팔의 꿈',
+    story: '계율을 깬 밤부터 팔이 여섯 개인 꿈을 꾼다. 깨어나면 두 팔뿐이지만, 상대는 여섯 번 맞은 채 쓰러져 있다. 그는 어느 쪽이 꿈인지 묻지 않고, 물을 사람도 남지 않았다.',
+    skillName: '수라파쇄', skillDesc: '어둠을 두른 주먹이 적 하나를 강타해 기절시킨다.',
+    skill2Name: '육비수라', skill2Desc: '여섯 개의 그림자 팔이 적 전체를 쳐 넘기고, 암흑의 상처가 계속 갉아먹는다.',
+  },
+  fallenmonk_abyss: {
+    arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'acolyte',
+    name: '이스마엘', title: '꺼지지 않는 업',
+    story: '남의 업을 대신 태우겠다고 했다. 그래서 그의 불은 검고, 꺼지지 않고, 앞줄에서 그를 향해 온 것만 태운다. 그는 그것을 속죄라 부르지 않고, 그저 제 몫이라 한다.',
+    skillName: '업화호신', skillDesc: '검은 업화가 아군 전체를 감싸 보호막이 되고, 자신의 방어를 크게 올린다.',
+    skill2Name: '업보폭발', skill2Desc: '쌓인 업을 한꺼번에 터뜨려 적 전체를 후려치고 짧게 기절시킨다.',
+  },
+};
+
+/* ─────────────────────────── 고유 스킬 틀 (계열별) ───────────────────────────
+ * 숫자는 4차 스킬 규약(단일 2.6~3.6 / 광역 1.4~2.0 / 회복 1.8~2.6)의 **한 단계 위**다.
+ * 각성 스킬(s2)은 그보다 크다. 밸런스는 tools/abysswall.mjs 로 잰다 (§175).
+ */
+const dmg = (h) => (h.dmgType === 'none' ? 'magic' : h.dmgType);
+const KIT = {
+  tank: {
+    s1: (h) => ({
+      cd: 20, power: 1.6, dmgType: 'none', target: 'allAlly', select: 'self', count: 1, range: 'ranged', fx: 'buff',
+      effects: [{ type: 'shield', power: 1.6, dur: 8, target: 'allAlly' }, { type: 'buff', stat: 'def', amount: 0.45, dur: 8, target: 'self' }],
+    }),
+    s2: (h) => ({
+      cd: 22, power: 1.8, dmgType: dmg(h), target: 'allEnemy', select: 'random', count: 1, range: h.range, fx: h.fx,
+      effects: [{ type: 'stun', dur: 0.9, chance: 0.7 }],
+    }),
+  },
+  healer: {
+    s1: () => ({
+      cd: 18, power: 2.0, dmgType: 'none', target: 'allAlly', select: 'self', count: 1, range: 'ranged', fx: 'heal',
+      effects: [{ type: 'heal', power: 2.0, target: 'allAlly' }, { type: 'buff', stat: 'atk', amount: 0.25, dur: 10, target: 'allAlly' }],
+    }),
+    s2: () => ({
+      cd: 22, power: 3.5, dmgType: 'none', target: 'allAlly', select: 'self', count: 1, range: 'ranged', fx: 'holy',
+      effects: [{ type: 'shield', power: 2.0, dur: 10, target: 'allAlly' }, { type: 'heal', power: 3.5, target: 'ally' }],
+    }),
+  },
+  fighter: {
+    s1: (h) => ({
+      cd: 16, power: 3.6, dmgType: dmg(h), target: 'enemy', select: 'front', count: 1, range: h.range, fx: h.fx,
+      effects: [{ type: 'stun', dur: 1.0, chance: 0.7 }],
+    }),
+    s2: (h) => ({
+      cd: 20, power: 2.2, dmgType: dmg(h), target: 'allEnemy', select: 'random', count: 1, range: h.range, fx: h.fx,
+      effects: [{ type: 'dot', dmgType: dmg(h), power: 0.35, tick: 1, dur: 6 }],
+    }),
+  },
+  rogue: {
+    s1: (h) => ({
+      cd: 16, power: 4.0, dmgType: dmg(h), target: 'enemy', select: 'lowestHp', count: 1, range: h.range, fx: h.fx,
+      effects: [{ type: 'lifesteal', ratio: 0.5 }],
+    }),
+    s2: (h) => ({
+      cd: 20, power: 2.6, dmgType: dmg(h), target: 'enemy', select: 'random', count: 3, range: h.range, fx: h.fx,
+      effects: [{ type: 'debuff', stat: 'def', amount: -0.3, dur: 8 }],
+    }),
+  },
+  lancer: {
+    s1: (h) => ({
+      cd: 16, power: 3.2, dmgType: dmg(h), target: 'enemy', select: 'front', count: 2, range: h.range, fx: h.fx,
+      effects: [{ type: 'stun', dur: 0.8, chance: 0.6 }],
+    }),
+    s2: (h) => ({
+      cd: 20, power: 2.2, dmgType: dmg(h), target: 'allEnemy', select: 'random', count: 1, range: h.range, fx: h.fx,
+      effects: [{ type: 'buff', stat: 'spd', amount: 0.3, dur: 8, target: 'self' }],
+    }),
+  },
+  archer: {
+    s1: (h) => ({
+      cd: 18, power: 2.0, dmgType: dmg(h), target: 'allEnemy', select: 'random', count: 1, range: 'ranged', fx: h.fx,
+      effects: [],
+    }),
+    s2: (h) => ({
+      cd: 20, power: 4.5, dmgType: dmg(h), target: 'enemy', select: 'highestAtk', count: 1, range: 'ranged', fx: h.fx,
+      effects: [{ type: 'debuff', stat: 'atk', amount: -0.3, dur: 8 }],
+    }),
+  },
+  mage: {
+    s1: (h) => ({
+      cd: 18, power: 2.2, dmgType: dmg(h), target: 'allEnemy', select: 'random', count: 1, range: 'ranged', fx: h.fx,
+      effects: [{ type: 'dot', dmgType: dmg(h), power: 0.4, tick: 1, dur: 6 }],
+    }),
+    s2: (h) => ({
+      cd: 20, power: 3.2, dmgType: dmg(h), target: 'enemy', select: 'random', count: 3, range: 'ranged', fx: h.fx,
+      effects: [{ type: 'stun', dur: 0.6, chance: 0.6 }],
+    }),
+  },
+};
+
+/** 계열별 틀 이름 (도감·상세 표기용) */
+export const KIT_LABEL = {
+  tank: '수호', healer: '축복', fighter: '맹공', rogue: '암살', lancer: '관통', archer: '일제 사격', mage: '재앙',
+};
+
+/** id 주입 + 스킬 id 부여 */
+function stamp(map) {
+  const out = {};
+  for (const [id, h] of Object.entries(map)) {
+    out[id] = { ...h, id, classId: id, skill: `hero_${id}`, skill2: `hero2_${id}` };
+  }
+  return out;
+}
+
+/** @type {Record<string, object>} 영웅 id → 정의 */
+export const HEROES = stamp(RAW);
+/** 영웅 id 목록 (계열 → 3차 → apex/abyss 순) */
+export const HERO_IDS = Object.keys(HEROES);
+
+/** @returns {object|null} */
+export function getHero(id) {
+  return (id && HEROES[id]) || null;
+}
+
+/** 이 용병이 영웅이면 그 정의, 아니면 null. **클래스가 영웅 클래스와 같을 때만** 인정한다. */
+export function heroOf(merc) {
+  if (!merc || !merc.hero) return null;
+  const h = HEROES[merc.hero];
+  return h && h.classId === merc.classId ? h : null;
+}
+
+/** 영웅인가 */
+export function isHero(merc) {
+  return !!heroOf(merc);
+}
+
+/** 각성했나 */
+export function isAwakened(merc) {
+  return !!(heroOf(merc) && merc.awakened);
+}
+
+/**
+ * 이 용병이 전투에 들고 나갈 고유 스킬 id (0~2개). 편성(allyUnitDefs)이 클래스 스킬 뒤에 붙인다.
+ * ★ 문자열만 돌려준다 — 실제 정의는 skills.js 사전에 있어야 하고, 없으면 엔진이 조용히 버린다.
+ */
+export function heroSkillIds(merc) {
+  const h = heroOf(merc);
+  if (!h) return [];
+  return merc.awakened ? [h.skill, h.skill2] : [h.skill];
+}
+
+/**
+ * 고유 스킬 112개를 만든다 (skills.js 가 addSkills 로 합친다).
+ * 영웅마다 **새 객체**를 만든다 — 같은 틀이라도 effects 배열을 공유하지 않는다.
+ */
+export function buildHeroSkills() {
+  const out = {};
+  for (const h of Object.values(HEROES)) {
+    const kit = KIT[h.arch] || KIT.fighter;
+    out[h.skill] = { name: h.skillName, desc: h.skillDesc, hero: true, ult: 1, priority: 200, ...kit.s1(h) };
+    out[h.skill2] = { name: h.skill2Name, desc: h.skill2Desc, hero: true, ult: 2, priority: 210, ...kit.s2(h) };
+  }
+  return out;
+}

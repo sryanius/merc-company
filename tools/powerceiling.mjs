@@ -48,7 +48,8 @@ export const RANDOM_TRIES = 400;
 
 export const SQUAD_SLOTS = 7;
 /** 표를 뜨는 레벨 지점 (사이는 선형 보간한다) */
-export const LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80];
+/* ★ §174 90·100 은 각성 영웅(4차 · S · hero+awakened)만 설 수 있는 레벨이다 — 그 레벨의 용병은 영웅으로 세운다 */
+export const LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 /**
  * 장비 한 벌을 입힌 스탯.
@@ -65,7 +66,9 @@ function equip(clsId, setId, level, grade, style, rng = rngMax) {
     if (!it) { try { it = Gear.rollItem({ ilvl: 80, rarity: Gear.RARITY_MYTHIC, slot, rng }); } catch { it = null; } }
     if (it) { it.id = `x_${slot}`; items[it.id] = it; equipment[slot] = it.id; }
   }
-  return { m: { uid: 'x', classId: clsId, level, grade, equipment }, items };
+  /* §174 80 을 넘는 레벨은 각성 영웅만 가능 — 4차 클래스면 영웅으로 세운다 (다른 클래스는 상한 80 에서 잘린다 = 실제와 같다) */
+  const hero = level > 80 ? clsId : null;
+  return { m: { uid: 'x', classId: clsId, level, grade, equipment, hero, awakened: !!hero }, items };
 }
 
 /** 무작위 빌드의 **최댓값** — 씨앗을 여러 개 굴려 고른다 (`pick` 의 «마지막» 편향을 없앤다) */

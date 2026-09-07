@@ -710,7 +710,10 @@ function headerPanel(owners, list) {
         }, filterOpen ? '필터 접기' : (nf ? `필터·정렬 (${nf})` : '필터·정렬'))),
       filters),
     el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
-      el('div', { class: 'tiny faint', text: `미장착 ${free.length}점 · 매각 가능 ${sellable.length}점 / ${num(stock)}G (전부 팔면 약 ${num(sellable.reduce((a, it) => a + sellPrice(it), 0))}G)` }),
+      el('div', { class: 'tiny faint' },
+        `미장착 ${free.length}점 · 매각 가능 ${sellable.length}점 / ${num(stock)}G (전부 팔면 약 ${num(sellable.reduce((a, it) => a + sellPrice(it), 0))}G)`,
+        /* §174 각성석 — 아이템이 아니라 개수다 (팔리지 않는다). 영웅 상세에서 30개로 각성한다. */
+        el('span', { style: { color: '#ff7fd8', marginLeft: '8px' }, title: '영웅 각성 재료 — 던전 웨이브를 깨면 세트 조각과 별개로 나온다', text: `각성석 ${num(state.awakenStones || 0)}개` })),
       el('div', { class: 'row wrap', style: { gap: '6px' } },
         el('button', { class: 'btn sm primary', onClick: openAutoEquipPicker }, '자동 착용'),
         bulkSellControl())),

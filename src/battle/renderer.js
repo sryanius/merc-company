@@ -1033,7 +1033,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   const spriteOf = (v) => (v.sprite || (v.sprite = (() => {
     const rc = v.u.recipe || {};
     /* 적은 레시피에 illustClass 가 없다(enemies.js 는 서버 공유) — enemyId 로 illust_enemy_<id> 를 찾는다 (§163) */
-    const png = rc.illustClass || (v.u.enemyId ? 'illust_enemy_' + v.u.enemyId : null);
+    const png = (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass) || (v.u.enemyId ? 'illust_enemy_' + v.u.enemyId : null);   // §174 영웅 그림 우선
     return png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc);
   })()));
   /** 발밑에서 정수리까지 화면 px — PNG 초상은 옆모습(114)보다 조금 크다(240×0.5 = 120). 이름·HP·기절 별이 이걸로 자리를 잡는다. */
@@ -1129,6 +1129,17 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (sk) {
       v.bubble = { text: sk.name || e.skillId, t: 0, dur: 1.05 };
       log(`${u.name} — «${sk.name || e.skillId}»`, sideKind(e.uid), 'skill');
+      /* ★ §174 영웅 고유 스킬 — 시전자 자리의 큰 광륜 + 화면 가장자리 펄스 + 짧은 히트스톱.
+       *   **렌더러 전용**이다 — 엔진·AI 는 모른다 (결정론·골든 픽스처를 건드리지 않는다). */
+      if (sk.hero) {
+        try {
+          fx.spawn('ultimate', posX(v), chestY(v), { dir: facing(u), scale: sk.ult === 2 ? 1.9 : 1.5, color: sk.fx });
+          pulseEdge(1, u.side === 'ally' ? EDGE_ALLY : EDGE_ENEMY);
+          stopFor(0.08);
+        } catch (err) { /* 연출이 전투를 막으면 안 된다 */ }
+        v.bubble.dur = 1.6;
+        v.bubble.hero = true;
+      }
     }
     const range = sk ? (sk.range || 'melee') : (u.basicRange === 'ranged' ? 'ranged' : 'melee');
     const support = sk ? (sk.target === 'self' || sk.target === 'ally' || sk.target === 'allAlly') : false;
@@ -1728,7 +1739,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     if (v.plate && v.plateLv === v.u.level) return v.plate;
     const u = v.u;
     const us = uiScale;
-    const label = `${u.boss ? '★ ' : ''}${u.name}`;
+    const label = `${u.hero ? '♛ ' : ''}${u.boss ? '★ ' : ''}${u.name}`;   // §174 영웅 왕관
     const lvText = `Lv${u.level || 1}`;
     const fName = fnt('bold', FS_NAME * us);
     const fLv = fnt('', FS_LV * us);
@@ -1751,7 +1762,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const ny = top;                               // 스프라이트 안에서의 베이스라인
     q.beginPath();
     q.arc(sx + 3 * us, ny - 4 * us, 3.2 * us, 0, TAU);
-    q.fillStyle = GRADE_COLOR[u.grade] || '#8a8a96';
+    q.fillStyle = GRADE_COLOR[u.hero ? 'H' : u.grade] || '#8a8a96';   // §174 영웅은 S 위 색
     q.fill();
     q.strokeStyle = 'rgba(8,6,12,.9)';
     q.lineWidth = Math.max(1, us * 0.8);

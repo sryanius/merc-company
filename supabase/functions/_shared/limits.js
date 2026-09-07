@@ -22,6 +22,18 @@
 /** 단원 최고 레벨 */
 export const MAX_LEVEL = 80;
 
+/* ★ §174 영웅 — S 위의 존재. 등급은 'S' 그대로고 `merc.hero` 로 구분한다 (data/heroes.js).
+ *   MAX_LEVEL 은 그대로 80 이다 — 적 레벨·의뢰 레벨·탑/나락 적 레벨이 전부 이 값을 문다.
+ *   각성한 영웅만 아래 상한으로 큰다 (merc.js levelCapOf). */
+/** 각성한 영웅의 최고 레벨 */
+export const HERO_MAX_LEVEL = 100;
+/** 각성할 수 있는 레벨 */
+export const HERO_AWAKEN_LEVEL = 80;
+/** 각성에 드는 각성석 */
+export const HERO_AWAKEN_STONES = 30;
+/** 주점에서 S 가 나왔을 때 영웅으로 바뀔 확률 (주사위 한 번 더) */
+export const HERO_CHANCE_ON_S = 0.5;
+
 /** 1주의 일수 */
 export const DAYS_PER_WEEK = 7;
 /** 1개월의 주 수 */

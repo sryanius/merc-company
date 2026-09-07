@@ -280,6 +280,8 @@ function defaultState() {
      *   옛 세이브는 0 으로 시작한다 — 그래서 검사는 **증가분끼리만** 비교한다
      *   (전체를 비교하면 옛 세이브가 전부 걸린다). */
     stats: { battlesWon: 0, battlesLost: 0, questsDone: 0, hires: 0, specHires: 0 },
+    /** §174 각성석 — 영웅 각성 재료. 던전 웨이브를 깨면 세트 조각과 별개로 DROP_CHANCE/2 확률로 1개. 아이템이 아니라 개수다. */
+    awakenStones: 0,
   };
 }
 
@@ -491,6 +493,7 @@ function replaceState(src) {
   for (const m of state.roster) {
     if (m) m.equipment = normalizeEquipment(m.equipment);
   }
+  normalizeRoster(state);
   for (const s of state.squads) {
     if (!Array.isArray(s.memberUids)) s.memberUids = new Array(7).fill(null);
     while (s.memberUids.length < 7) s.memberUids.push(null);
@@ -511,6 +514,7 @@ function replaceState(src) {
     const v = Math.round(Number(state.autoSellRarity));
     state.autoSellRarity = Number.isFinite(v) && v >= 0 && v <= 4 ? v : -1;
   }
+  state.awakenStones = clampInt(state.awakenStones, 0, 1e6);   // §174
   normalizePets(state);
   normalizeTower(state);
   normalizeAbyss(state);
@@ -549,6 +553,23 @@ function normalizePets(st) {
   for (const s of st.squads || []) {
     if (!Array.isArray(s.petUids)) continue;
     for (let i = 0; i < s.petUids.length; i++) if (s.petUids[i] && !alive.has(s.petUids[i])) s.petUids[i] = null;
+  }
+}
+
+/**
+ * ★ §174 영웅 필드 정규화 — `Object.assign(state, base, src)` 는 세이브 값을 검증 없이 덮는다.
+ *   손으로 고친 세이브의 `hero:'x'` · `awakened:true, level:100` 이 그대로 통과하면 스탯·레벨 상한이 뚫린다.
+ *   규칙: hero 는 아는 영웅 id 이고 classId 와 같아야 한다 (아니면 영웅 아님) · 영웅은 등급 S ·
+ *         awakened 는 영웅만 · level 은 levelCapOf 이하.
+ */
+export function normalizeRoster(st) {
+  for (const m of st.roster || []) {
+    if (!m) continue;
+    const h = m.hero ? Merc.heroOf(m) : null;
+    if (!h) { m.hero = null; m.awakened = false; } else { m.hero = h.id; m.grade = 'S'; m.awakened = !!m.awakened; }
+    const cap = Merc.levelCapOf(m);
+    const lv = Math.round(Number(m.level) || 1);
+    m.level = Math.max(1, Math.min(cap, lv));
   }
 }
 
@@ -1178,6 +1199,43 @@ export function addGold(n) {
   touch();
   return state.gold;
 }
+
+/* ─────────────────────────── 각성석 · 각성 (§174) ─────────────────────────── */
+
+export function addAwakenStones(n) {
+  state.awakenStones = Math.max(0, Math.round((state.awakenStones || 0) + (n || 0)));
+  touch();
+  return state.awakenStones;
+}
+
+/** @returns {{ok:boolean, have:number}} */
+export function spendAwakenStones(n) {
+  const need = Math.max(0, Math.round(n || 0));
+  const have = Math.max(0, Math.round(state.awakenStones || 0));
+  if (have < need) return { ok: false, have };
+  state.awakenStones = have - need;
+  touch();
+  return { ok: true, have: state.awakenStones };
+}
+
+/**
+ * 영웅 각성 — 각성석 30개를 쓰고 레벨 상한 100 · 두 번째 고유 스킬.
+ * @returns {{ok:boolean, reason:string, levels?:number}}
+ */
+export function awakenMerc(uid) {
+  const m = (state.roster || []).find((x) => x && x.uid === uid);
+  if (!m) return { ok: false, reason: '용병을 찾을 수 없습니다.' };
+  const why = Merc.awakenIssue(m, state.awakenStones || 0);
+  if (why) return { ok: false, reason: why };
+  const paid = spendAwakenStones(Merc.HERO_AWAKEN_STONES);
+  if (!paid.ok) return { ok: false, reason: '각성석이 모자란다.' };
+  const r = Merc.awaken(m);
+  if (!r.ok) { addAwakenStones(Merc.HERO_AWAKEN_STONES); return r; }
+  addLog(`${m.name}${josaOf(m.name)} 각성했다 — 이제 Lv${Merc.HERO_MAX_LEVEL} 까지 큰다. 고유 스킬이 하나 더 열렸다.`);
+  touch();
+  return { ok: true, reason: '', levels: r.levels };
+}
+const josaOf = (name) => (/[가-힣]$/.test(name) && (name.charCodeAt(name.length - 1) - 0xac00) % 28 ? '이' : '가');
 
 export function addItem(item) {
   if (!item) return null;

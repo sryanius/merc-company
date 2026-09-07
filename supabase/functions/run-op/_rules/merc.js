@@ -1,6 +1,9 @@
 // 용병(Mercenary) 런타임 모델 — 생성 / 스탯 / 성장 / 전직 / 외형 레시피.
 // 순수 JS: 모듈 최상위에서 document·window·canvas를 만지지 않는다 (node import 가능).
-import { MAX_LEVEL as LIMIT_MAX_LEVEL } from './limits.js';
+import { MAX_LEVEL as LIMIT_MAX_LEVEL, HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S } from './limits.js';
+import { heroOf, heroSkillIds as heroSkillIdsOf } from './heroes.js';
+/* §174 상수를 여기서도 내보낸다 — state.js·UI 가 Merc 네임스페이스로 읽는다 */
+export { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S };
 //
 // 주의: 예전엔 state.js 를 되물었다 (순환). 지금은 ambient.js 한 칸만 본다 — §108.
 import { clamp, clone, lerp } from './util.js';
@@ -75,9 +78,9 @@ const TIER_UPKEEP = [1, 1.3, 1.7, 2.2];
 const UPKEEP_LV1 = 0.05;
 const UPKEEP_LV2 = 0.0005;
 
-/** 임금의 레벨 비례항 (1차 + 2차) */
-export function upkeepLevelTerm(level = 1) {
-  const d = clamp(Math.round(level || 1), 1, MAX_LEVEL) - 1;
+/** 임금의 레벨 비례항 (1차 + 2차). `cap` 은 그 용병의 레벨 상한 (각성 영웅 100 — §174) */
+export function upkeepLevelTerm(level = 1, cap = MAX_LEVEL) {
+  const d = clamp(Math.round(level || 1), 1, cap || MAX_LEVEL) - 1;
   return 1 + UPKEEP_LV1 * d + UPKEEP_LV2 * d * d;
 }
 
@@ -408,31 +411,65 @@ export function rollName(rng = defaultRng, opts = {}) {
 const EXP_BASE = 60;
 const EXP_POW = 1.55;
 
-/** 다음 레벨까지 필요한 경험치 (SPEC §2.4). 만렙이면 Infinity. */
-export function expToNext(level) {
-  const lv = clamp(Math.floor(level || 1), 1, MAX_LEVEL);
-  if (lv >= MAX_LEVEL) return Infinity;
-  return Math.round(EXP_BASE * Math.pow(lv, EXP_POW));
+/**
+ * ★ §174 이 용병의 레벨 상한. 각성한 영웅만 100, 나머지는 80.
+ *   MAX_LEVEL 을 직접 보던 자리(경험치·스탯·임금)는 전부 이걸 본다.
+ */
+export function levelCapOf(merc) {
+  return merc && merc.hero && merc.awakened ? HERO_MAX_LEVEL : MAX_LEVEL;
+}
+
+/** 레벨 곡선 그 자체 (상한 무시) — 만렙에 묶어 두는 경험치 상한 계산에 쓴다 */
+const expCurve = (lv) => Math.round(EXP_BASE * Math.pow(Math.max(1, lv), EXP_POW));
+
+/** 다음 레벨까지 필요한 경험치 (SPEC §2.4). 상한이면 Infinity. `cap` = 그 용병의 레벨 상한 (levelCapOf) */
+export function expToNext(level, cap = MAX_LEVEL) {
+  const top = cap || MAX_LEVEL;
+  const lv = clamp(Math.floor(level || 1), 1, top);
+  if (lv >= top) return Infinity;
+  return expCurve(lv);
 }
 
 /**
  * Lv1 부터 `level` 까지의 누적 필요 경험치. (밸런스 도구·UI 표기용 — 위 표를 코드로 뽑을 때 쓴다)
  * @param {number} level 목표 레벨 (1 이면 0)
+ * @param {number} [cap] 레벨 상한 (각성 영웅 100)
  */
-export function expTotalTo(level) {
-  const target = clamp(Math.floor(level || 1), 1, MAX_LEVEL);
+export function expTotalTo(level, cap = MAX_LEVEL) {
+  const top = cap || MAX_LEVEL;
+  const target = clamp(Math.floor(level || 1), 1, top);
   let acc = 0;
   // 반올림된 단계값을 더한다 — gainExp 가 실제로 소비하는 양과 정확히 같아야 한다.
-  for (let lv = 1; lv < target; lv++) acc += expToNext(lv);
+  for (let lv = 1; lv < target; lv++) acc += expToNext(lv, top);
   return acc;
 }
 
 /** UI용 진행도 */
 export function expProgress(merc) {
-  const need = expToNext(merc?.level || 1);
+  const need = expToNext(merc?.level || 1, levelCapOf(merc));
   const cur = merc?.exp || 0;
   if (!isFinite(need)) return { cur: 0, need: 0, ratio: 1, max: true };
   return { cur, need, ratio: clamp(cur / need, 0, 1), max: false };
+}
+
+/**
+ * 쌓인 경험치로 레벨을 올린다 (상한까지). gainExp 와 각성(awaken)이 같이 쓴다.
+ * ★ 상한에서는 경험치를 0 으로 버리지 않고 **한 레벨치까지 묶어 둔다** — Lv80 영웅이 각성석을 모으는 동안
+ *   벌어 둔 경험치가 각성 직후 레벨로 이어진다 (§174). 일반 용병도 같은 규칙이지만 상한이라 쓸 일이 없다.
+ */
+function applyLevels(merc) {
+  const cap = levelCapOf(merc);
+  let levels = 0;
+  while (merc.level < cap) {
+    const need = expToNext(merc.level, cap);
+    if (merc.exp < need) break;
+    merc.exp -= need;
+    merc.level += 1;
+    levels += 1;
+  }
+  if (merc.level >= cap) { merc.level = cap; merc.exp = Math.min(merc.exp || 0, expCurve(cap)); }
+  if (levels) merc.upkeep = upkeepOf(merc);
+  return levels;
 }
 
 /**
@@ -443,16 +480,7 @@ export function gainExp(merc, amount) {
   const gained = Math.max(0, Math.round(amount || 0));
   if (!merc || !gained) return { levels: 0, promoteReady: canPromote(merc), gained: 0, level: merc?.level || 1 };
   merc.exp = (merc.exp || 0) + gained;
-  let levels = 0;
-  while (merc.level < MAX_LEVEL) {
-    const need = expToNext(merc.level);
-    if (merc.exp < need) break;
-    merc.exp -= need;
-    merc.level += 1;
-    levels += 1;
-  }
-  if (merc.level >= MAX_LEVEL) { merc.level = MAX_LEVEL; merc.exp = 0; }
-  if (levels) merc.upkeep = upkeepOf(merc);
+  const levels = applyLevels(merc);
   return { levels, promoteReady: canPromote(merc), gained, level: merc.level };
 }
 
@@ -462,10 +490,12 @@ export function gainExp(merc, amount) {
  * 용병 하나를 만든다 (SPEC §3.7).
  * @param {{classId:string, grade?:string, level?:number, rng?:object, name?:string, day?:number}} opt
  */
-export function createMerc({ classId, grade, level = 1, rng = defaultRng, name, day = 1 } = {}) {
+export function createMerc({ classId, grade, level = 1, rng = defaultRng, name, day = 1, hero = null } = {}) {
   const c = klass(classId) || klass(Object.keys(CLASSES || {})[0]);
   const cid = c ? c.id : classId;
-  const g = GRADE_MULT[grade] ? grade : gradeRoll(1, rng);
+  /* ★ §174 영웅은 등급 S 고정 + hero = 자기 클래스 id. 클래스가 안 맞으면 영웅이 아니다. */
+  const heroId = hero && String(hero) === cid ? cid : null;
+  const g = heroId ? 'S' : (GRADE_MULT[grade] ? grade : gradeRoll(1, rng));
   const lv = clamp(Math.round(level || 1), 1, MAX_LEVEL);
 
   const merc = {
@@ -475,6 +505,9 @@ export function createMerc({ classId, grade, level = 1, rng = defaultRng, name, 
     classId: cid,
     level: lv,
     exp: 0,
+    // §174 영웅 표식 · 각성 여부 (모든 용병이 이 키를 갖는다 — 세이브 정규화가 지킨다)
+    hero: heroId,
+    awakened: false,
     hp: 1,
     status: 'ready',
     woundUntil: 0,
@@ -558,7 +591,7 @@ export function mercStats(merc, itemsById) {
   const c = klass(merc.classId);
   const arch = (c && ARCHETYPES && ARCHETYPES[c.arch]) || FALLBACK_ARCH;
   const mods = (c && c.mods) || {};
-  const lv = clamp(merc.level || 1, 1, MAX_LEVEL);
+  const lv = clamp(merc.level || 1, 1, levelCapOf(merc));   // §174 각성 영웅은 100 까지 스탯이 큰다
   const gi = GRADE_IDX[merc.grade] ?? 0;
 
   const lvMul = 1 + GROWTH_RATE * (lv - 1);
@@ -851,6 +884,91 @@ export function gradeRoll(cityTier = 1, rng = defaultRng, opts = {}) {
   return (r.weighted(entries) || entries[0]).g;
 }
 
+/* ─────────────────────────── 영웅 (§174) ───────────────────────────
+ * ★ 영웅 판정은 **gradeRoll 뒤에 따로** 굴린다 — gradeRoll 의 뽑기 횟수·반환 집합을 바꾸면
+ *   서버가 op_id 시드로 재현하는 등급이 전부 달라진다 (run-op 의 경고). 같은 rng 에서 next() 하나만 더 쓴다.
+ *   서버 rng 심은 next()/weighted() 만 있으므로 여기서도 그 둘만 쓴다. */
+
+/** S 가 나왔을 때 영웅으로 바뀌는가 (주사위 한 번 더, 1/2) */
+export function heroRoll(grade, rng = defaultRng) {
+  if (grade !== 'S') return false;
+  return (rng || defaultRng).next() < HERO_CHANCE_ON_S;
+}
+
+/** 이 클래스에서 갈라져 나가는 4차 클래스 전부 (자기 자신이 4차면 자기 하나). 정렬된 id 배열. */
+export function heroCandidatesOf(classId) {
+  const out = [];
+  const seen = new Set();
+  const stack = [classId];
+  while (stack.length) {
+    const id = stack.pop();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const c = klass(id);
+    if (!c) continue;
+    if ((c.tier || 1) >= MAX_TIER) { out.push(c.id); continue; }
+    let nexts = [];
+    try { nexts = promoteOptions(c.id) || []; } catch { nexts = []; }
+    if (!nexts.length) nexts = c.next || [];
+    for (const n of nexts) stack.push(typeof n === 'string' ? n : n && n.id);
+  }
+  return out.sort();
+}
+
+/**
+ * 영웅으로 바뀐 고용의 **실제 클래스**를 고른다 — 주점에 걸린 클래스 계열의 4차 후보 중 하나.
+ * 아직 없는 영웅을 우선한다 (56명을 모으는 도감 재미). 전부 있으면 아무나.
+ * @param {string} classId 주점에 걸린 클래스 (보통 1차)
+ * @param {object} rng
+ * @param {string[]} ownedIds 이미 보유한 영웅 id
+ */
+export function pickHeroClass(classId, rng = defaultRng, ownedIds = []) {
+  const all = heroCandidatesOf(classId);
+  if (!all.length) return null;
+  const owned = new Set(ownedIds || []);
+  const fresh = all.filter((id) => !owned.has(id));
+  const pool = fresh.length ? fresh : all;
+  const r = rng || defaultRng;
+  return pool[Math.floor(r.next() * pool.length) % pool.length];
+}
+
+/** 영웅이면 그 정의 (data/heroes.js). 클래스가 안 맞으면 null. */
+export { heroOf };
+
+/** 전투에 들고 나갈 고유 스킬 id (편성이 클래스 스킬 뒤에 붙인다) */
+export function heroSkillIds(merc) {
+  return heroSkillIdsOf(merc);
+}
+
+/**
+ * 지금 각성할 수 없는 이유. null 이면 할 수 있다.
+ * @param {object} merc
+ * @param {number} stones 보유 각성석
+ */
+export function awakenIssue(merc, stones = 0) {
+  if (!merc || !heroOf(merc)) return '영웅만 각성할 수 있다.';
+  if (merc.awakened) return '이미 각성했다.';
+  if ((merc.level || 1) < HERO_AWAKEN_LEVEL) return `Lv${HERO_AWAKEN_LEVEL} 이 되어야 각성할 수 있다. (현재 Lv${merc.level || 1})`;
+  const have = Math.max(0, Math.round(stones || 0));
+  if (have < HERO_AWAKEN_STONES) return `각성석이 ${HERO_AWAKEN_STONES - have}개 모자란다. (${have}/${HERO_AWAKEN_STONES})`;
+  return null;
+}
+
+/**
+ * 각성 — 레벨 상한 80 → 100, 두 번째 고유 스킬. **각성석은 호출자(state.awakenMerc)가 뺀다.**
+ * 묶어 두었던 경험치가 있으면 그 자리에서 레벨로 이어진다.
+ * @returns {{ok:boolean, reason:string, levels:number}}
+ */
+export function awaken(merc) {
+  if (!merc || !heroOf(merc)) return { ok: false, reason: '영웅만 각성할 수 있다.', levels: 0 };
+  if (merc.awakened) return { ok: false, reason: '이미 각성했다.', levels: 0 };
+  if ((merc.level || 1) < HERO_AWAKEN_LEVEL) return { ok: false, reason: `Lv${HERO_AWAKEN_LEVEL} 이 되어야 각성할 수 있다.`, levels: 0 };
+  merc.awakened = true;
+  const levels = applyLevels(merc);
+  merc.upkeep = upkeepOf(merc);
+  return { ok: true, reason: '', levels };
+}
+
 /** 고용 비용 (골드) */
 export function hireCost(classId, grade, level = 1) {
   const c = klass(classId);
@@ -885,7 +1003,7 @@ export function upkeepOf(merc) {
   const c = klass(merc.classId);
   const tier = clamp(((c && c.tier) || 1) - 1, 0, TIER_UPKEEP.length - 1);
   const base = GRADE_UPKEEP[merc.grade] ?? GRADE_UPKEEP.F;
-  return Math.max(1, Math.round(base * TIER_UPKEEP[tier] * upkeepLevelTerm(merc.level || 1)));
+  return Math.max(1, Math.round(base * TIER_UPKEEP[tier] * upkeepLevelTerm(merc.level || 1, levelCapOf(merc))));
 }
 
 /**
@@ -1076,6 +1194,13 @@ export function mercRecipe(merc, itemsById) {
    * 옆모습(전투)은 화면이 작아 오라를 유지한다. */
   if (g === 'S' || g === 'A') rec.gradeBg = g;
 
+  /* ★ §174 영웅 — S 위. 테두리 오라를 영웅색으로, 후광도 영웅색(portrait BG.H). 파츠는 S 그대로. */
+  const hero = heroOf(merc);
+  if (hero) {
+    rec.aura = '#ff7fd8';
+    rec.gradeBg = 'H';
+  }
+
   const arch = c && c.arch;
   if (arch) {
     /* illust(통짜 일러스트, 최우선) > plate(포즈 판) > 조립 — portrait.js 가 있는 것부터 쓴다.
@@ -1086,6 +1211,8 @@ export function mercRecipe(merc, itemsById) {
     const style = illustStyleOf(c);
     rec.illust = `illust_${style}`;
     rec.illustClass = `illust_${c.id}`;   // class-specific PNG comes first (art/illustpng.js, HANDOFF §161.7)
+    /* §174 영웅 전용 일러스트 — 있으면 portrait.js 가 이걸 먼저 쓴다 (없으면 클래스 그림으로 물러난다) */
+    if (hero) rec.illustHero = `illust_hero_${hero.id}`;
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
     /* 전투 통짜 시트 — 열 장이 전부 있는 스타일만 spritegen 이 실제로 쓴다 (sheetOf 검사) */
@@ -1136,5 +1263,6 @@ export function isWounded(merc, day = 0) {
 /** UI 한 줄 요약: "검사 Lv12 · B등급" */
 export function mercLabel(merc) {
   const c = klass(merc?.classId);
-  return `${c ? c.name : merc?.classId || '?'} Lv${merc?.level || 1} · ${merc?.grade || 'F'}등급`;
+  const g = heroOf(merc) ? '영웅' : `${merc?.grade || 'F'}등급`;
+  return `${c ? c.name : merc?.classId || '?'} Lv${merc?.level || 1} · ${g}`;
 }

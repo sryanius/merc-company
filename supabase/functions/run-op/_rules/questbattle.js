@@ -165,7 +165,10 @@ export function allyUnitDefs(st, squad, opts = {}) {
       grade: m.grade,
       stats,
       hp: clamp(Math.round(m.hp || stats.hp), 1, Math.round(stats.hp)),
-      skills: Array.isArray(cls.skills) ? cls.skills.slice() : [],
+      /* ★ §174 영웅 고유 스킬을 클래스 스킬 뒤에 붙인다 (각성하면 둘). squad.js squadUnitDefs 에도 같은 배선. */
+      skills: [...(Array.isArray(cls.skills) ? cls.skills : []), ...Merc.heroSkillIds(m)],
+      hero: m.hero || null,
+      awakened: !!(m.hero && m.awakened),
       basicFx: cls.basicFx || 'slash',
       basicRange: cls.range || 'melee',
       basicDmgType: cls.dmgType || 'phys',

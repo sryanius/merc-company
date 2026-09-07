@@ -704,6 +704,7 @@ function settleRun() {
 
   let win;
   let item = freshSet[0] || null;
+  let stones = 0;   // §174 각성석
 
   if (run.reported) {
     win = !!(run.reported.win != null ? run.reported.win : run.reported.winner === 'ally');
@@ -725,7 +726,7 @@ function settleRun() {
         { winner: win ? 'ally' : 'enemy', survivors, squadId: run.squadId },
         { settleMercs: false, squadId: run.squadId, rng, difficulty: rdiff },
       );
-      if (res && res.ok) item = res.item || null;
+      if (res && res.ok) { item = res.item || null; stones = res.stones || 0; }
     } catch (e) {
       console.warn('[dungeon] 던전 결과 반영 실패', e);
     }
@@ -745,6 +746,7 @@ function settleRun() {
     total: run.total,
     win,
     item,
+    stones,
     bestWave: progress.bestWave,
     cleared: progress.clearedAt != null,
     next: win && waveNo < run.total ? waveNo : 0,   // 이어서 도전할 웨이브 번호 (0 = 런 종료)
@@ -1010,7 +1012,13 @@ function outcomePanel(d, root) {
           el('span', { class: 'faint', text: '드랍 — ' }),
           el('span', { style: { color: MYTHIC_COLOR, fontWeight: '700' }, text: `${o.item.name}` }),
           el('span', { class: 'faint', text: ` (${MYTHIC_NAME} · ${SLOT_LABEL[o.item.slot] || o.item.slot})` }))
-      : el('div', { class: 'tiny faint', text: o.win ? '보스는 쓰러졌지만 손에 남은 것은 없었다.' : '전리품은 없다.' }),
+      : el('div', { class: 'tiny faint', text: o.win ? (o.stones ? '세트 조각은 없었다.' : '보스는 쓰러졌지만 손에 남은 것은 없었다.') : '전리품은 없다.' }),
+    o.stones
+      ? el('div', { class: 'tiny' },
+          el('span', { class: 'faint', text: '각성석 — ' }),
+          el('span', { style: { color: '#ff7fd8', fontWeight: '700' }, text: `+${o.stones}개` }),
+          el('span', { class: 'faint', text: ` (보유 ${state.awakenStones || 0}개 · 영웅 각성 재료)` }))
+      : null,
     o.win && o.next
       ? el('div', { class: 'tiny muted', text: `체력은 회복되지 않는다. 이대로 ${o.next + 1}웨이브로 밀고 들어갈지, 물러나 정비할지 고른다.` })
       : el('div', { class: 'tiny muted', text: '다음 도전은 다시 1웨이브부터다. 진행도는 기록으로만 남는다.' }));
@@ -1411,7 +1419,7 @@ async function enterWave(d, id, waveIndex, root) {
     onResult: () => {
       const res = settleRun();
       if (res) LAST = res;
-      return { items: res && res.item ? [res.item] : [] };
+      return { items: res && res.item ? [res.item] : [], stones: res ? res.stones || 0 : 0 };
     },
   });
 

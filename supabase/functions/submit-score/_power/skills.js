@@ -1,5 +1,8 @@
 // 스킬 정의 (SPEC §3.1). 순수 데이터 — DOM/Canvas 참조 금지.
 //
+// ★ §174 영웅 고유 스킬 112개(hero_<4차id> / hero2_<4차id>)는 data/heroes.js 가 만들고
+//   이 파일 끝에서 addSkills 로 합친다 — 그래야 서버 엔진 사본(_engine)에도 같이 실린다.
+//
 // ── 필드 규약 ────────────────────────────────────────────────────────────
 //  cd        재사용 대기(초). 1~3차 5~14 / 4차 10~20
 //  power     atk 배율. 단일 1.6~2.6 / 광역·다중 0.8~1.4 / 회복 1.0~1.8
@@ -39,6 +42,8 @@
 //     4차 스킬   id  =  't4_<3차클래스id>_apex' | 't4_<3차클래스id>_abyss'
 //  성격 분담: _apex  = 공격·폭발 (고위력 단일 / 광역 섬멸 / 처형)
 //            _abyss = 지속·생존·제어 (도트 / 보호막 / 기절·약화 / 흡혈)
+
+import { buildHeroSkills } from './heroes.js';
 
 /** @type {Record<string, object>} */
 const RAW = {
@@ -1128,3 +1133,6 @@ export function addSkills(map) {
 
 /** 등록된 스킬 개수 (밸런스 테스트용) */
 export const skillCount = () => Object.keys(SKILLS).length;
+
+/* ★ §174 영웅 고유 스킬 — 모듈 로드 시 한 번 합친다 (enemies.js 의 addSkills 와 같은 자리) */
+addSkills(buildHeroSkills());

@@ -59,6 +59,11 @@ const CONFIGS = [
   { key: 't3s', label: '3단 풀세트 Lv80 S +펫S', o: { roster: rosterAt(3), level: 80, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'max' } },
   { key: 'd1', label: '최심편성 1단 Lv80 S +펫S', o: { roster: deepAt(1), level: 80, grade: 'S', gear: 'sets', setIlvl: 80, formation: DEEP_FID, pets: 'max' } },
   { key: 'd3', label: '최심편성 3단 Lv80 S +펫S', o: { roster: deepAt(3), level: 80, grade: 'S', gear: 'sets', setIlvl: 80, formation: DEEP_FID, pets: 'max' } },
+  /* §174 영웅 부대 — 각성(Lv100 · 고유 스킬 둘). 제작자 목표: 「영웅 + 3단이면 500언저리」 */
+  { key: 'h1', label: '영웅 1단 Lv100 +중급펫', o: { roster: rosterAt(1), level: 100, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'mid', hero: true } },
+  { key: 'h3', label: '영웅 3단 Lv100 +중급펫', o: { roster: rosterAt(3), level: 100, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'mid', hero: true } },
+  { key: 'h3s', label: '영웅 3단 Lv100 +펫S', o: { roster: rosterAt(3), level: 100, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'max', hero: true } },
+  { key: 'h80', label: '영웅(미각성) 3단 Lv80 +중급펫', o: { roster: rosterAt(3), level: 80, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'mid', hero: true, unawakened: true } },
 ];
 
 /** 1심층부터 이월 잠수 — 도달 심층 (N회) */

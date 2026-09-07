@@ -211,7 +211,7 @@ function squadLine(squad) {
      *   옛 세이브에서 온 스냅샷에는 이름(nm)이 없다 — 그때는 클래스명만 쓴다. */
     row.appendChild(el('span', {
       class: 'rk-mem',
-      style: { color: GRADE_COLOR[m.g] || 'var(--ink-dim)' },
+      style: { color: GRADE_COLOR[m.h ? 'H' : m.g] || 'var(--ink-dim)' },
       title: `${m.nm ? `${m.nm} · ` : ''}${cls.name} · ${m.g || '?'}등급 · Lv${m.l || 1}`,
     }, m.nm || cls.name,
     m.nm ? el('i', { text: ` (${cls.name})` }) : null,
@@ -272,7 +272,7 @@ async function openSquads(kind, rank, name) {
       }) : [];
       grid.appendChild(el('div', { class: 'rk-sqmem' },
         el('div', {},
-          el('b', { style: { color: GRADE_COLOR[m.g] || 'var(--ink)' }, text: m.nm || cls.name }),
+          el('b', { style: { color: GRADE_COLOR[m.h ? 'H' : m.g] || 'var(--ink)' }, text: m.nm || cls.name }),
           m.nm ? el('span', { class: 'faint', text: ` (${cls.name})` }) : null,
           el('span', { class: 'faint', text: ` ${m.g || ''}${m.l || ''}` })),
         el('div', { class: 'faint tiny' },

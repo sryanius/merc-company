@@ -10,7 +10,8 @@
 //     저티어 도시를 순회할 이유가 여기서 나온다.
 import { el, num, clamp } from '../core/util.js';
 import { rng } from '../core/rng.js';
-import { GRADE_COLOR } from '../art/palette.js';
+import { GRADE_COLOR, gradeKeyOf, gradeNameOf } from '../art/palette.js';
+import { getHero } from '../data/heroes.js';
 /* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
  *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -403,6 +404,8 @@ function statMaxima(classes) {
 }
 
 const gradeTag = (g) => el('span', { class: 'tag', style: { color: GRADE_COLOR[g] || '#999' }, text: `${g}등급` });
+/** §174 영웅이면 «영웅» 표식 (S 위), 아니면 등급 */
+const gradeTagOf = (m) => el('span', { class: 'tag', style: { color: GRADE_COLOR[gradeKeyOf(m)] || '#999' }, text: gradeNameOf(m) });
 
 /* ─────────────────────────── 렌더 ─────────────────────────── */
 
@@ -780,7 +783,16 @@ function tryHire(cls, offer, city, ctx) {
   addGold(-offer.cost);
   // 평판·특화를 그대로 추첨에 태운다. opts 를 생략하면 예전과 같은 확률이 나온다.
   const grade = gradeRoll(city.tier || 1, rng, { rep: gate.rep, specialty: isSpec });
-  const merc = createMerc({ classId: cls.id, grade, level: 1, rng, day: state.day });
+  /* ★ §174 영웅 — S 가 뜨면 **같은 rng 로 주사위 하나 더** (1/2). gradeRoll 뒤에 굴린다 (서버 재현 순서).
+   *   영웅은 그 계열의 4차 클래스 하나로 **Lv1 부터 4차**로 시작한다. 아직 없는 영웅을 먼저 준다. */
+  const heroId = Merc.heroRoll(grade, rng)
+    ? Merc.pickHeroClass(cls.id, rng, (state.roster || []).filter((m) => m && m.hero).map((m) => m.hero))
+    : null;
+  const heroDef = heroId ? getHero(heroId) : null;
+  const merc = createMerc({
+    classId: heroId || cls.id, grade, level: 1, rng, day: state.day,
+    hero: heroId, name: heroDef ? heroDef.name : undefined,
+  });
   merc.hiredDay = state.day;
   offer.hired = true;
   /* ★ 고용 횟수를 센다 — 서버가 «S 가 이만큼 나올 수 있는 횟수인가» 를 묻는 데 쓴다.
@@ -789,7 +801,8 @@ function tryHire(cls, offer, city, ctx) {
   state.stats.hires = (Number(state.stats.hires) || 0) + 1;
   if (isSpec) state.stats.specHires = (Number(state.stats.specHires) || 0) + 1;
   addMerc(merc);
-  addLog(`${city.name} 주점에서 ${cls.name} ${merc.name}${josa(merc.name, '을/를')} ${num(offer.cost)}G에 고용했다. (${grade}등급${isSpec ? ' · 이 도시의 명물' : ''})`);
+  const clsHired = getClass(merc.classId) || cls;
+  addLog(`${city.name} 주점에서 ${clsHired.name} ${merc.name}${josa(merc.name, '을/를')} ${num(offer.cost)}G에 고용했다. (${grade}등급${heroId ? ' · ★영웅' : ''}${isSpec ? ' · 이 도시의 명물' : ''})`);
   try { save(); } catch (e) { console.warn('[tavern] 저장 실패', e); }
 
   openHireModal(cls, merc, city, isSpec);
@@ -840,10 +853,26 @@ function openHireModal(cls, merc, city, isSpec) {
       /* ★ A 이상은 오래 데리고 갈 사람이라 이름을 그 자리에서 정하게 한다.
        *   나중에 용병 상세에서도 바꿀 수 있지만, **뽑은 순간**이 정하고 싶은 순간이다. */
       detail.appendChild(nameRow(merc));
+      /* §174 S 위 — 글자가 S 에 멈춘 뒤 한 박자 있다가 «영웅» 으로 한 번 더 뒤집힌다 */
+      if (merc.hero) later(() => heroReveal(gradeNode, msgNode, detail, merc), 650);
     } else {
       toast(`${merc.name}${josa(merc.name, '을/를')} 고용했다. (${merc.grade}등급)`, merc.grade === 'F' ? 'bad' : '');
     }
   }, (i) => spinner.tick(i));
+}
+
+/** §174 영웅 등장 연출 — 두 번째 주사위. 상태는 이미 확정돼 있다 (연출만) */
+function heroReveal(gradeNode, msgNode, detail, merc) {
+  const h = getHero(merc.hero);
+  if (!h) return;
+  gradeNode.textContent = '영웅';
+  gradeNode.style.color = GRADE_COLOR.H;
+  gradeNode.classList.remove('hit');
+  void gradeNode.offsetWidth;
+  gradeNode.classList.add('hit');
+  msgNode.textContent = `주사위가 한 번 더 굴렀다. ${h.name} — «${h.title}». 이름을 가진 전설이 손도장을 찍었다.`;
+  detail.style.color = GRADE_COLOR.H;
+  toast(`영웅! ${h.name} «${h.title}»${josa(h.title, '이/가')} 용병단에 합류했다.`, 'good');
 }
 
 /**
@@ -956,11 +985,15 @@ function gradeMessage(g) {
 
 function revealBlock(merc, cls, spriteBox) {
   const st = mercStats(merc, state);
+  /* §174 영웅은 주점에 걸린 1차 클래스가 아니라 **4차 클래스**로 왔다 — 실제 클래스로 적는다 */
+  const cls2 = getClass(merc.classId) || cls;
+  const hero = merc.hero ? getHero(merc.hero) : null;
   return el('div', { class: 'row', style: { gap: '14px', textAlign: 'left', marginTop: '8px' } },
     spriteBox,
     el('div', { class: 'col', style: { gap: '2px', flex: '1' } },
-      el('div', { style: { fontWeight: '700', fontSize: '15px' } }, merc.name, ' ', gradeTag(merc.grade)),
-      el('div', { class: 'tiny muted', text: `${cls.name} · Lv${merc.level} · ${cls.role || ''}` }),
+      el('div', { style: { fontWeight: '700', fontSize: '15px' } }, merc.name, ' ', gradeTagOf(merc)),
+      hero ? el('div', { class: 'tiny', style: { color: GRADE_COLOR.H }, text: `«${hero.title}» — Lv1 부터 4차. Lv80 에 각성석 30개로 각성한다.` }) : null,
+      el('div', { class: 'tiny muted', text: `${cls2.name} · Lv${merc.level} · ${cls2.role || ''}` }),
       el('div', { class: 'sep', style: { margin: '6px 0' } }),
       el('div', { class: 'tv-kv' }, el('span', { class: 'faint', text: '체력 / 공격' }), el('span', { class: 'num', text: `${num(st.hp)} / ${num(st.atk)}` })),
       el('div', { class: 'tv-kv' }, el('span', { class: 'faint', text: '방어 / 저항' }), el('span', { class: 'num', text: `${num(st.def)} / ${num(st.res)}` })),

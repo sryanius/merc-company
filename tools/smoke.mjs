@@ -3345,8 +3345,8 @@ section('제출 필드가 서버 화이트리스트와 맞나');
      *
      *   그래서 «필드 목록의 지문» 을 여기 못 박는다. 필드가 바뀌면 이 검사가 깨지고,
      *   고치려면 cloud.js 의 SNAPSHOT_REV 를 올린 다음 아래 두 값을 갱신해야 한다. */
-    const PINNED_REV = 2;
-    const PINNED_FP = '0e59e0a8e248';
+    const PINNED_REV = 3;
+    const PINNED_FP = '8520d3edc9bb';
 
     const fpFields = [
       ...[...fieldsOf(rulesSrc, 'function allSquadsOf', 'function topSquadOf')].sort(),
@@ -3579,6 +3579,7 @@ section('적 생성부가 가벼운 채로 남아 있는가 (game/enemygen.js)')
     'src/core/rng.js', 'src/core/util.js',
     'src/data/classes.js', 'src/data/classes_t4.js', 'src/data/enemies.js',
     'src/data/formations.js', 'src/data/limits.js', 'src/data/skills.js',
+      'src/data/heroes.js',   // §174 영웅 정의 (limits.js 만 문는 잎 노드 — skills.js 가 문다)
   ]);
   const eg = closureOf('src/game/enemygen.js');
   okAll(eg.filter((f) => !ALLOWED_CLOSURE.has(f))
@@ -3681,6 +3682,7 @@ section('나락·탑을 서버가 다시 돌릴 수 있는가 (game/runverify.js
     'src/data/abyss.js', 'src/data/tower.js', 'src/data/pets.js',
     'src/data/classes.js', 'src/data/classes_t4.js', 'src/data/enemies.js',
     'src/data/formations.js', 'src/data/limits.js', 'src/data/skills.js',
+      'src/data/heroes.js',   // §174 영웅 정의 (limits.js 만 문는 잎 노드 — skills.js 가 문다)
   ]);
   const rvClosure = closureOf('src/game/runverify.js');
   okAll(rvClosure.filter((f) => !RV_CLOSURE.has(f))
@@ -4635,6 +4637,243 @@ section('펫 / 무한의 탑');
 }
 
 /* ───────────────────── 황금 나락 ───────────────────── */
+
+section('영웅 (§174)');
+{
+  const H = await import('../src/data/heroes.js');
+  const SK = await import('../src/data/skills.js');
+  const M = await import('../src/game/merc.js');
+  const C = await import('../src/data/classes.js');
+  await import('../src/data/classes_t4.js');
+  const LIM = await import('../src/data/limits.js');
+  const { RNG } = await import('../src/core/rng.js');
+
+  /* 1) 56명 = 4차 클래스 전부, 기계 필드가 classes_t4 와 같다, 텍스트가 비어 있지 않다, 이름·스킬명이 유일하다 */
+  {
+    const bad = [];
+    const t4 = Object.values(C.CLASSES).filter((c) => c && (c.tier || 1) === 4).map((c) => c.id).sort();
+    const ids = H.HERO_IDS.slice().sort();
+    if (JSON.stringify(t4) !== JSON.stringify(ids)) bad.push(`영웅 id 집합 ≠ 4차 클래스 집합 (${ids.length} vs ${t4.length})`);
+    const names = new Set(); const skn = new Set();
+    for (const id of H.HERO_IDS) {
+      const h = H.HEROES[id]; const c = C.CLASSES[id];
+      if (!c) { bad.push(`${id} 클래스 없음`); continue; }
+      if (h.classId !== id) bad.push(`${id} classId 불일치`);
+      if (h.arch !== c.arch || h.dmgType !== c.dmgType || h.range !== c.range || h.fx !== c.basicFx) bad.push(`${id} 기계 필드가 classes_t4 와 다르다`);
+      for (const k of ['name', 'title', 'story', 'skillName', 'skillDesc', 'skill2Name', 'skill2Desc']) if (!h[k] || String(h[k]).length < 2) bad.push(`${id}.${k} 비었다`);
+      if (h.story && (h.story.length < 60 || h.story.length > 200)) bad.push(`${id} story 길이 ${h.story.length}`);
+      if (h.title === c.name) bad.push(`${id} title 이 클래스명과 같다`);
+      if (names.has(h.name)) bad.push(`이름 중복 ${h.name}`); names.add(h.name);
+      for (const n of [h.skillName, h.skill2Name]) { if (skn.has(n)) bad.push(`스킬명 중복 ${n}`); skn.add(n); }
+      const s1 = SK.getSkill(h.skill), s2 = SK.getSkill(h.skill2);
+      if (!s1 || !s2) { bad.push(`${id} 고유 스킬이 사전에 없다`); continue; }
+      if (!s1.hero || !s2.hero || s1.ult !== 1 || s2.ult !== 2) bad.push(`${id} 스킬 hero/ult 표식`);
+      if (!(s1.priority >= 200) || !(s2.priority > s1.priority)) bad.push(`${id} priority`);
+      if (s1.name !== h.skillName || s2.name !== h.skill2Name) bad.push(`${id} 스킬 이름 불일치`);
+      for (const sk of [s1, s2]) for (const e of sk.effects || []) if (!['heal', 'buff', 'debuff', 'dot', 'shield', 'stun', 'lifesteal'].includes(e.type)) bad.push(`${sk.id} 엔진이 모르는 효과 ${e.type}`);
+    }
+    // 같은 계열의 두 영웅이 effects 배열을 공유하지 않는다 (틀에서 새 객체를 만든다)
+    const a = SK.getSkill('hero_madgeneral_apex'), b = SK.getSkill('hero_swordgod_apex');
+    if (a && b && a.effects === b.effects) bad.push('영웅 스킬이 effects 배열을 공유한다');
+    okAll(bad, '영웅 56명 — 4차 클래스와 1:1 · 기계 필드 일치 · 원고 · 고유 스킬 112개 등록', H.HERO_IDS.length * 2);
+  }
+
+  /* 2) 주점 굴림 — gradeRoll 분포는 그대로, 영웅은 S 의 절반, 후보는 그 계열 4차만, 미보유 우선 */
+  {
+    const bad = [];
+    const r1 = new RNG(11), r2 = new RNG(11);
+    const g1 = [], g2 = [];
+    for (let i = 0; i < 300; i++) { g1.push(M.gradeRoll(3, r1, { rep: 50, specialty: true })); }
+    for (let i = 0; i < 300; i++) { const g = M.gradeRoll(3, r2, { rep: 50, specialty: true }); g2.push(g); M.heroRoll(g, r2); }
+    // heroRoll 은 S 가 아닐 때 rng 를 안 건드린다 → 두 수열이 S 를 만나기 전까지 같다
+    const firstS = g1.indexOf('S');
+    if (firstS > 0 && JSON.stringify(g1.slice(0, firstS)) !== JSON.stringify(g2.slice(0, firstS))) bad.push('heroRoll 이 S 가 아닐 때도 rng 를 쓴다');
+    if (M.heroRoll('A', new RNG(1)) || M.heroRoll('F', new RNG(1))) bad.push('S 가 아닌데 영웅');
+    let h = 0; const r = new RNG(7);
+    for (let i = 0; i < 4000; i++) if (M.heroRoll('S', r)) h++;
+    if (h < 1800 || h > 2200) bad.push(`S → 영웅 비율 ${h}/4000 (기대 ≈ 1/2)`);
+    for (const root of ['swordsman', 'spearman', 'shieldman', 'archer', 'rogue', 'apprentice', 'acolyte']) {
+      const c = M.heroCandidatesOf(root);
+      if (c.length !== 8) bad.push(`${root} 후보 ${c.length}개 (기대 8)`);
+      if (c.some((id) => !H.HEROES[id])) bad.push(`${root} 후보에 영웅 아닌 클래스`);
+    }
+    if (M.heroCandidatesOf('madgeneral_apex').join() !== 'madgeneral_apex') bad.push('4차를 주면 자기 하나');
+    const cands = M.heroCandidatesOf('swordsman');
+    const owned = cands.slice(0, 7);
+    const picks = new Set();
+    const rOwn = new RNG(100);
+    for (let i = 0; i < 40; i++) picks.add(M.pickHeroClass('swordsman', rOwn, owned));
+    if (picks.size !== 1 || !picks.has(cands[7])) bad.push(`미보유 우선이 안 된다 (${[...picks].join(',')})`);
+    const all = new Set();
+    const rAll = new RNG(500);   // ★ 첫 뽑기는 시드에 묶인다 — RNG 하나로 연속해서 굴린다 (§172.3)
+    for (let i = 0; i < 200; i++) all.add(M.pickHeroClass('swordsman', rAll, cands));
+    if (all.size < 6) bad.push(`전부 보유면 골고루 나와야 한다 (${all.size}종)`);
+    okAll(bad, '주점 영웅 굴림 — gradeRoll 뒤 별도 주사위 · 1/2 · 계열 4차 8명 · 미보유 우선', 12);
+  }
+
+  /* 3) 생성·레벨 상한·경험치·각성 */
+  {
+    const bad = [];
+    const rng = new RNG(3);
+    const m = M.createMerc({ classId: 'madgeneral_apex', grade: 'B', level: 1, rng, hero: 'madgeneral_apex', name: '테스트' });
+    if (m.grade !== 'S' || m.hero !== 'madgeneral_apex' || m.awakened !== false) bad.push('영웅 생성: 등급 S 고정·hero·awakened 키');
+    const notHero = M.createMerc({ classId: 'swordsman', grade: 'S', level: 1, rng, hero: 'madgeneral_apex' });
+    if (notHero.hero) bad.push('클래스가 안 맞는 hero 를 받아들인다');
+    if (M.levelCapOf(m) !== LIM.MAX_LEVEL) bad.push('미각성 영웅 상한이 80 이 아니다');
+    if (!Number.isFinite(M.expToNext(79)) || Number.isFinite(M.expToNext(80))) bad.push('expToNext 80 상한');
+    if (!Number.isFinite(M.expToNext(80, LIM.HERO_MAX_LEVEL)) || Number.isFinite(M.expToNext(100, LIM.HERO_MAX_LEVEL))) bad.push('expToNext 100 상한');
+    if (M.expTotalTo(80) !== M.expTotalTo(80, LIM.HERO_MAX_LEVEL)) bad.push('expTotalTo 가 상한에 따라 달라진다 (80 까지는 같아야)');
+    // Lv80 에서 경험치가 한 레벨치까지 묶인다 (각성 전 벌어 둔 경험치)
+    m.level = 79; m.exp = 0;
+    M.gainExp(m, 10 ** 9);
+    if (m.level !== 80) bad.push(`미각성 영웅이 80 을 넘었다 (${m.level})`);
+    if (!(m.exp > 0)) bad.push('상한에서 경험치가 0 으로 버려진다');
+    const s80 = M.mercStats(m, null);
+    if (M.awakenIssue(m, 29) == null) bad.push('각성석 29개로 각성된다');
+    if (M.awakenIssue({ ...m, level: 79 }, 30) == null) bad.push('Lv79 에 각성된다');
+    if (M.awakenIssue({ ...m, hero: null }, 30) == null) bad.push('영웅이 아닌데 각성된다');
+    if (M.awakenIssue(m, 30) != null) bad.push(`Lv80·30개인데 각성 불가: ${M.awakenIssue(m, 30)}`);
+    const r = M.awaken(m);
+    if (!r.ok || !m.awakened || M.levelCapOf(m) !== LIM.HERO_MAX_LEVEL) bad.push('각성 실패');
+    if (!(r.levels >= 1) || m.level < 81) bad.push('묶어 둔 경험치가 각성 뒤 레벨로 안 이어진다');
+    if (M.awaken(m).ok) bad.push('두 번 각성된다');
+    M.gainExp(m, 10 ** 10);
+    if (m.level !== LIM.HERO_MAX_LEVEL) bad.push(`각성 영웅 상한 ${m.level} (기대 100)`);
+    const s100 = M.mercStats(m, null);
+    if (!(s100.hp > s80.hp * 1.15 && s100.atk > s80.atk * 1.15)) bad.push('Lv100 스탯이 Lv80 보다 충분히 크지 않다');
+    if (!(M.upkeepOf(m) > M.upkeepOf({ ...m, level: 80 }))) bad.push('Lv100 임금이 Lv80 과 같다');
+    if (M.mercLabel(m).indexOf('영웅') < 0) bad.push('mercLabel 에 영웅이 없다');
+    // 일반 용병은 여전히 80
+    const plain = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1, rng });
+    M.gainExp(plain, 10 ** 10);
+    if (plain.level !== LIM.MAX_LEVEL) bad.push(`일반 S 4차가 ${plain.level} 까지 큰다`);
+    okAll(bad, '영웅 생성 · 상한 80/100 · 경험치 묶어 두기 · 각성 조건 · Lv100 스탯/임금', 20);
+  }
+
+  /* 4) 편성 — 고유 스킬이 실제 아군 UnitDef 에 실린다 (questbattle · squad 두 경로) */
+  {
+    const bad = [];
+    const State = await import('../src/game/state.js');
+    const Quest = await import('../src/game/quest.js');
+    const Squad = await import('../src/game/squad.js');
+    State.newGame(781, '영웅스모크');
+    const st = State.state;
+    const sq = st.squads[0];
+    const rng = new RNG(9);
+    const hero = M.createMerc({ classId: 'highpriest_abyss', grade: 'S', level: 80, rng, hero: 'highpriest_abyss' });
+    State.addMerc(hero);
+    const slot = (sq.memberUids || []).indexOf(null);
+    sq.memberUids[slot >= 0 ? slot : 0] = hero.uid;
+    hero.squadId = sq.id; hero.slotIndex = slot >= 0 ? slot : 0;
+    const find = (defs) => defs.find((d) => d.uid === hero.uid);
+    const d1 = find(Quest.allyUnitDefs(st, sq));
+    if (!d1) bad.push('questbattle 편성에 영웅이 없다');
+    else {
+      if (!d1.skills.includes('hero_highpriest_abyss')) bad.push('questbattle: 고유 스킬 없음');
+      if (d1.skills.includes('hero2_highpriest_abyss')) bad.push('questbattle: 각성 전인데 각성 스킬');
+      if (d1.hero !== 'highpriest_abyss' || d1.awakened) bad.push('questbattle: hero/awakened 표식');
+      const cls = C.getClass('highpriest_abyss');
+      if (d1.skills.length !== cls.skills.length + 1) bad.push('클래스 스킬이 사라지거나 늘었다');
+    }
+    hero.awakened = true;
+    const d2 = find(Quest.allyUnitDefs(st, sq));
+    if (!d2 || !d2.skills.includes('hero2_highpriest_abyss') || !d2.awakened) bad.push('각성 뒤 두 번째 고유 스킬이 안 실린다');
+    let d3 = null;
+    try { d3 = find(Squad.squadUnitDefs(st, sq.id) || []); } catch (e) { bad.push(`squadUnitDefs 예외: ${e.message}`); }
+    if (d3 && (!d3.skills.includes('hero_highpriest_abyss') || !d3.skills.includes('hero2_highpriest_abyss'))) bad.push('squad.js 편성에 고유 스킬이 없다');
+    // 엔진이 실제로 그 스킬을 안다 (헤드리스 한 판)
+    const RV = await import('../src/game/runverify.js');
+    const cfg = RV.abyssBattleDefs({ allies: Quest.allyUnitDefs(st, sq), ctx: st, squadId: sq.id, depth: 1, allyFormationId: sq.formationId });
+    const b = RV.simulateBattle(cfg);
+    const u = b.units.find((x) => x.uid === hero.uid);
+    if (!u) bad.push('전투 유닛에 영웅이 없다');
+    else if (!(u.skillDefs || u.skills || []).some((x) => (x && x.id) === 'hero_highpriest_abyss' || x === 'hero_highpriest_abyss')) bad.push('엔진 유닛에 고유 스킬이 안 붙었다');
+    okAll(bad, '편성 두 경로에 고유 스킬 · 각성 시 둘 · 엔진이 스킬을 안다', 10);
+  }
+
+  /* 5) 각성석 — 드랍 확률 = DROP_CHANCE/2 (RNG 하나로 연속), 정산 결과에 stones, 상태에 쌓인다 */
+  {
+    const bad = [];
+    const State = await import('../src/game/state.js');
+    const D = await import('../src/game/dungeon.js');
+    const DG0 = (await import('../src/data/dungeons.js')).DUNGEON_LIST[0].id;
+    if (Math.abs(D.AWAKEN_STONE_CHANCE - D.DROP_CHANCE / 2) > 1e-9) bad.push('각성석 확률이 드랍의 절반이 아니다');
+    State.newGame(782, '각성석스모크');
+    const st = State.state;
+    st.awakenStones = 0;
+    const rng = new RNG(4242);
+    let got = 0, items = 0;
+    const N = 400;
+    for (let i = 0; i < N; i++) {
+      const res = D.applyDungeonResult(st, DG0, i % 10, { winner: 'ally', survivors: [] }, { settleMercs: false, rng });
+      if (!res.ok) { bad.push(res.reason); break; }
+      got += res.stones || 0;
+      if (res.item) items++;
+    }
+    if (st.awakenStones !== got) bad.push(`상태의 각성석 ${st.awakenStones} ≠ 정산 합 ${got}`);
+    const rate = got / N;
+    if (rate < 0.09 || rate > 0.22) bad.push(`각성석 비율 ${rate.toFixed(3)} (기대 ≈ 0.15)`);
+    if (!(items > 0)) bad.push('세트 조각이 하나도 안 나왔다 (독립 굴림이 조각을 막았나)');
+    const lose = D.applyDungeonResult(st, DG0, 0, { winner: 'enemy', survivors: [] }, { settleMercs: false, rng });
+    if (lose.stones) bad.push('졌는데 각성석');
+    const before = st.awakenStones;
+    State.addAwakenStones(5);
+    if (st.awakenStones !== before + 5) bad.push('addAwakenStones');
+    if (State.spendAwakenStones(before + 6).ok) bad.push('없는 각성석을 쓴다');
+    if (!State.spendAwakenStones(before + 5).ok || st.awakenStones !== 0) bad.push('spendAwakenStones');
+    // 각성 흐름: 영웅 Lv80 + 30개 → 각성 · 29개면 거절
+    const hero = M.createMerc({ classId: 'archmage_apex', grade: 'S', level: 80, rng, hero: 'archmage_apex' });
+    State.addMerc(hero);
+    st.awakenStones = 29;
+    if (State.awakenMerc(hero.uid).ok) bad.push('29개로 각성된다');
+    st.awakenStones = 31;
+    const r = State.awakenMerc(hero.uid);
+    if (!r.ok || !hero.awakened || st.awakenStones !== 1) bad.push(`각성 흐름: ${r.reason} · 남은 ${st.awakenStones}`);
+    okAll(bad, '각성석 — 드랍 절반 확률 · 정산·상태 일치 · 소비 · 각성 흐름', 12);
+  }
+
+  /* 6) 세이브 정규화 — 위조된 hero/awakened/level 을 되돌린다, 정상 영웅은 보존 */
+  {
+    const bad = [];
+    const State = await import('../src/game/state.js');
+    const st = { roster: [
+      { uid: 'a', classId: 'swordsman', grade: 'S', level: 100, hero: 'madgeneral_apex', awakened: true },   // 클래스 불일치 → 영웅 아님, 80
+      { uid: 'b', classId: 'madgeneral_apex', grade: 'A', level: 95, hero: 'madgeneral_apex', awakened: false },   // 미각성인데 95 → 80, 등급 S
+      { uid: 'c', classId: 'madgeneral_apex', grade: 'S', level: 95, hero: 'madgeneral_apex', awakened: true },    // 정상 각성 영웅
+      { uid: 'd', classId: 'archer', grade: 'C', level: 90, hero: null, awakened: true },                           // 일반인데 awakened → false, 80
+      { uid: 'e', classId: 'archer', grade: 'C', level: 10 },                                                        // 옛 세이브 (키 없음)
+    ] };
+    State.normalizeRoster(st);
+    const [a, b, c, d, e] = st.roster;
+    if (a.hero || a.awakened || a.level !== 80) bad.push('클래스 불일치 hero 가 남았다');
+    if (b.hero !== 'madgeneral_apex' || b.grade !== 'S' || b.level !== 80 || b.awakened) bad.push('미각성 영웅 정규화');
+    if (c.hero !== 'madgeneral_apex' || !c.awakened || c.level !== 95) bad.push('정상 각성 영웅이 훼손됐다');
+    if (d.hero || d.awakened || d.level !== 80) bad.push('일반 용병 awakened 가 남았다');
+    if (e.hero !== null || e.awakened !== false) bad.push('옛 세이브에 hero/awakened 키가 안 생긴다');
+    if (State.normalizeAbyssRun == null) bad.push('(앞 절) normalizeAbyssRun 없음');
+    okAll(bad, '세이브 정규화 — hero/awakened/level 위조를 되돌리고 정상 영웅은 보존', 6);
+  }
+
+  /* 7) 서버 사본 상수 — statbound.HERO_MAX_LEVEL == limits.HERO_MAX_LEVEL, rules 가 100 을 받아들인다 */
+  {
+    const bad = [];
+    const SB = await import('../supabase/functions/pvp-battle/statbound.js');
+    if (SB.HERO_MAX_LEVEL !== LIM.HERO_MAX_LEVEL) bad.push(`statbound HERO_MAX_LEVEL ${SB.HERO_MAX_LEVEL} ≠ ${LIM.HERO_MAX_LEVEL}`);
+    const base = { classId: 'madgeneral_apex', grade: 'S', level: 100 };
+    const okUnit = { ...base, hero: 'madgeneral_apex', awakened: true, stats: SB.bareStats('madgeneral_apex', 100, 'S', 100) };
+    const fake = { ...base, stats: SB.bareStats('madgeneral_apex', 100, 'S', 100) };
+    if (SB.checkUnit(okUnit).length) bad.push(`각성 영웅 Lv100 을 거절: ${SB.checkUnit(okUnit).join(' / ')}`);
+    if (!SB.checkUnit(fake).some((x) => x.includes('레벨'))) bad.push('영웅 표식 없는 Lv100 을 받아들인다');
+    const RL = await import('../src/game/rules.js');
+    const sc = RL.normalizeScore({ day: 200, abyssBest: 0, towerBest: 0, topLevel: 100, questsDone: 1, squadsN: 1, rosterN: 1, gold: 0 });
+    if (RL.checkStatic(sc).some((x) => x.includes('최고레벨'))) bad.push('rules.checkStatic 이 topLevel 100 을 거절한다');
+    const sc2 = RL.normalizeScore({ day: 200, abyssBest: 0, towerBest: 0, topLevel: 101, questsDone: 1, squadsN: 1, rosterN: 1, gold: 0 });
+    if (!RL.checkStatic(sc2).some((x) => x.includes('최고레벨'))) bad.push('101 을 받아들인다');
+    if (RL.POWER_LEVEL_STOPS[RL.POWER_LEVEL_STOPS.length - 1] !== 100 || RL.POWER_BY_LEVEL.length !== RL.POWER_LEVEL_STOPS.length) bad.push('POWER_LEVEL_STOPS 가 100 까지 안 간다');
+    if (!(RL.powerCeiling(100) > RL.powerCeiling(80))) bad.push('powerCeiling(100) 이 80 보다 크지 않다');
+    okAll(bad, '서버 사본 — statbound 각성 영웅 Lv100 허용 · 위조 거절 · rules topLevel 100', 7);
+  }
+}
 
 section('황금 나락');
 {
@@ -7764,7 +8003,8 @@ section('전력 계산이 게임 전체를 안 끌고 온다 — ambient 한 칸
    *     ★ 하나(자기 자신)만 늘 줄 알았는데 data/lineage.js 가 traitOfChain 을 따라
    *       같이 왔다 (6KB · import 0개인 잎 노드라 거기서 멈춘다). 예측이 틀렸고
    *       **그걸 이 검사가 잡았다** — 숫자를 손으로 적어 두는 이유가 이것이다. */
-  ok(POWER_CLOSURE.length <= 29, '전력 닫힘이 가벼운 채로 남아 있다',
+  /* ★ **30개** — §174 영웅 정의(data/heroes.js)가 skills.js 를 따라 왔다. limits.js 만 문는 잎 노드라 거기서 멈춘다. */
+  ok(POWER_CLOSURE.length <= 30, '전력 닫힘이 가벼운 채로 남아 있다',
     `${POWER_CLOSURE.length}개: ${POWER_CLOSURE.join(', ')}`);
 
   /* ★★ 세 묶음을 **전부** 잰다 — syncshared 와 같은 걷기, 같은 정의.

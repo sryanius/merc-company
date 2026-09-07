@@ -28,6 +28,8 @@ import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
 import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
 import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
+/* §174 각성 영웅은 Lv100 까지 (limits.js 는 merc.js 가 물어 _rules 에 이미 있다) */
+import { HERO_MAX_LEVEL } from './_rules/limits.js';
 /* ★★ 의뢰 목록을 **다시 만든다** (§104 17단계 2번 조각).
  *   §138 이 `genQuests` 를 `state.js` 에서 떼어 냈다 — 여기서 부르는 것은 게임이
  *   부르는 **바로 그 함수**다. 손으로 다시 쓰지 않는다 (§124 에서 세 번 틀렸다). */
@@ -690,7 +692,7 @@ Deno.serve(async (req) => {
           const lvOf = new Map(
             (Array.isArray((q as { mercsAfter?: { uid?: string; level?: number }[] }).mercsAfter)
               ? (q as { mercsAfter: { uid?: string; level?: number }[] }).mercsAfter : [])
-              .map((m) => [String(m.uid || ''), Math.max(1, Math.min(80, R2(m.level)))]),
+              .map((m) => [String(m.uid || ''), Math.max(1, Math.min(HERO_MAX_LEVEL, R2(m.level)))]),
           );
           for (const m of (stSrv.roster || []) as { uid?: string; level?: number; hp?: number; status?: string; woundUntil?: number }[]) {
             m.hp = 0;                                   // 만땅
@@ -778,10 +780,10 @@ Deno.serve(async (req) => {
             const uid = String(m.uid || '');
             if (!uid || !byUid.has(uid)) continue;        // 사본에 없는 단원은 건드리지 않는다
             const old = (byUid.get(uid) || {}) as Record<string, unknown>;
-            /* ★ 열 제약은 db/013 이 갖고 있다(level 1~80). 여기서도 한 번 더 접는다 —
+            /* ★ 열 제약은 db/013 이 갖고 있다(level 1~80 → §174 db/026 에서 1~100). 여기서도 한 번 더 접는다 —
              *   제약에 걸려 **정산 전체가 500** 이 되는 것보다 잘리는 편이 낫다. */
             const { error } = await admin.from('run_mercs').update({
-              level: Math.max(1, Math.min(80, Math.round(Number(m.level) || 1))),
+              level: Math.max(1, Math.min(HERO_MAX_LEVEL, Math.round(Number(m.level) || 1))),
               data: {
                 ...old,
                 exp: Math.max(0, Math.round(Number(m.exp) || 0)),

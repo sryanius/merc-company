@@ -12,7 +12,9 @@ import { state, addLog, addGold, save } from '../game/state.js';
 import { getClass, classChain } from '../data/classes.js';
 import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
-import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME, gradeKeyOf } from '../art/palette.js';
+import { levelCapOf, heroSkillIds, awakenIssue } from '../game/merc.js';
+import { getHero, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -533,7 +535,8 @@ function redraw() {
 
 /* ─────────────────────────── 공용 소도구 ─────────────────────────── */
 
-const gradeColor = (g) => GRADE_COLOR[g] || GRADE_COLOR.F;
+/** 등급 색 — 용병 객체를 주면 영웅(H)을 안다 (§174). 글자를 주면 예전 그대로. */
+const gradeColor = (g) => GRADE_COLOR[g && typeof g === 'object' ? gradeKeyOf(g) : g] || GRADE_COLOR.F;
 
 /**
  * 확인 모달. `app.js confirmDlg` 와 동작은 같지만 본문에 `co-mbody` 를 달아
@@ -1542,7 +1545,7 @@ function pickBanner(sq, f) {
     miniPortrait(m),
     el('div', { class: 'col', style: { gap: '1px', flex: '1 1 160px', minWidth: '0' } },
       el('div', { class: 'row center wrap', style: { gap: '6px' } },
-        el('b', { style: { color: gradeColor(m.grade) }, text: m.name }),
+        el('b', { style: { color: gradeColor(m) }, text: m.name }),
         el('span', { class: 'tiny faint', text: `${c.name || m.classId} · ${c.rank === 2 ? '후열형' : '전열형'}` })),
       el('div', { class: 'tiny', style: { color: 'var(--gold)' }, text: isNarrow() ? hint : `${hint} (Esc로 취소)` })),
     el('button', { class: 'btn sm primary', onClick: () => placeToFirstEmpty(m.uid) }, short('빈자리', '빈 자리에')),
@@ -1695,7 +1698,7 @@ function slotCell(sq, f, i, slot, merc, owned = true) {
   cell.append(
     el('span', { class: 'lv', text: `L${merc.level || 1}` }),
     spriteCanvas(mercRecipe(merc, state), SLOT_SCALE),
-    el('span', { class: 'nm', style: { color: gradeColor(merc.grade) }, text: merc.name }));
+    el('span', { class: 'nm', style: { color: gradeColor(merc) }, text: merc.name }));
   // 상세 보기 전용 버튼.
   //
   // 예전에는 더블클릭으로만 열 수 있었는데 실제로는 열리지 않았다 — 첫 클릭이 onSlotClick →
@@ -2167,7 +2170,7 @@ function filterBar() {
       ? mk([['', '전체 차수'], ...usedTiers.map((t) => [String(t), TIER_NAME[t]])],
         rosterFilter.tier, (v) => { rosterFilter.tier = v; })
       : null,
-    mk([['', '전체 등급'], ...usedGrades.map((g) => [g, `${g} 등급`])],
+    mk([['', '전체 등급'], ...(state.roster.some((m) => m && m.hero) ? [['hero', '영웅']] : []), ...usedGrades.map((g) => [g, `${g} 등급`])],
       rosterFilter.grade, (v) => { rosterFilter.grade = v; }),
     // 부대 필터 — 부대가 2개 이상일 때만. 40명 명부에서 "이 부대 사람만" 보려는 요구가 흔하다.
     state.squads.length > 1
@@ -2201,7 +2204,7 @@ function filterBar() {
 }
 
 function filteredRoster() {
-  const gi = (g) => GRADES.indexOf(g);
+  const gi = (m) => GRADES.indexOf(m.grade) + (m.hero ? 1 : 0);   // §174 영웅은 S 위에 선다
   const tierOf = (m) => getClass(m.classId)?.tier || 1;
   let list = state.roster.filter((m) => {
     if (rosterFilter.classId) {
@@ -2213,7 +2216,8 @@ function filteredRoster() {
       } else if (m.classId !== rosterFilter.classId) return false;
     }
     if (rosterFilter.tier && String(tierOf(m)) !== rosterFilter.tier) return false;
-    if (rosterFilter.grade && m.grade !== rosterFilter.grade) return false;
+    if (rosterFilter.grade === 'hero') { if (!m.hero) return false; }   // §174
+    else if (rosterFilter.grade && m.grade !== rosterFilter.grade) return false;
     if (rosterFilter.hideWounded && isWounded(m, state.day)) return false;
     if (rosterFilter.onlyFree && m.squadId) return false;
     if (rosterFilter.onlyPromotable && !promotable(m)) return false;
@@ -2223,9 +2227,9 @@ function filteredRoster() {
   });
   const by = {
     power: (a, b) => mercPower(b, state) - mercPower(a, state),
-    level: (a, b) => (b.level || 1) - (a.level || 1) || gi(b.grade) - gi(a.grade),
+    level: (a, b) => (b.level || 1) - (a.level || 1) || gi(b) - gi(a),
     tier: (a, b) => tierOf(b) - tierOf(a) || (b.level || 1) - (a.level || 1) || mercPower(b, state) - mercPower(a, state),
-    grade: (a, b) => gi(b.grade) - gi(a.grade) || (b.level || 1) - (a.level || 1),
+    grade: (a, b) => gi(b) - gi(a) || (b.level || 1) - (a.level || 1),
     name: (a, b) => String(a.name).localeCompare(String(b.name), 'ko'),
     // 부대 순서 → 슬롯 번호. 부대별로 묶여 보이고, 미배치는 맨 뒤로 간다.
     squad: (a, b) => {
@@ -2323,7 +2327,7 @@ function rosterCard(m) {
 
   const card = el('div', {
     /* ★ 등급 테두리 (§167.1) — S·A 만. 카드 테두리·모서리로 등급을 알리고, 그림 위에는 아무것도 안 얹는다. */
-    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}${m.grade === 'S' ? ' gr-s' : m.grade === 'A' ? ' gr-a' : ''}`,
+    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}${m.hero ? ' gr-s gr-hero' : m.grade === 'S' ? ' gr-s' : m.grade === 'A' ? ' gr-a' : ''}`,
     draggable: dragEnabled() ? 'true' : false,
     title: '클릭하면 선택 — 그다음 편성판의 칸을 누르세요',
     onDragStart: (e) => {
@@ -2340,8 +2344,8 @@ function rosterCard(m) {
       miniPortrait(m),
       el('div', { class: 'col', style: { gap: '1px', minWidth: '0', flex: '1' } },
         el('div', { class: 'row spread center', style: { gap: '6px' } },
-          el('b', { style: { color: gradeColor(m.grade), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, text: m.name }),
-          el('span', { class: 'tag', style: { color: gradeColor(m.grade) }, text: m.grade })),
+          el('b', { style: { color: gradeColor(m), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, text: m.name }),
+          el('span', { class: 'tag', style: { color: gradeColor(m) }, text: m.hero ? '영웅' : m.grade })),
         // 소속 부대 — 이름 바로 아래. 아래 태그 줄에 묻어 두면 40명 명부에서 안 읽힌다.
         el('div', { style: { marginTop: '3px' } }, squadBadge(m)),
         el('div', { class: 'tiny muted', style: { marginTop: '3px' }, text: `${c.name} · Lv${m.level || 1} · ${c.role || ''}` }),
@@ -2368,6 +2372,15 @@ function rosterCard(m) {
  * 레벨업이 3배 느려졌으므로 "얼마나 남았는가"를 숫자로 보여 진행감을 만든다.
  */
 function promoteProgressLine(m) {
+  /* §174 영웅 — 전직 대신 각성 */
+  if (m.hero) {
+    if (m.awakened) return el('div', { class: 'tiny', style: { color: GRADE_COLOR.H }, text: `각성 완료 · Lv${m.level || 1} / ${HERO_MAX_LEVEL}` });
+    const why = awakenIssue(m, state.awakenStones || 0);
+    return el('div', {
+      class: 'tiny', style: { color: why ? 'var(--ink-dim)' : GRADE_COLOR.H, fontWeight: why ? '400' : '700' },
+      text: why ? `각성 — Lv${HERO_AWAKEN_LEVEL} · 각성석 ${HERO_AWAKEN_STONES}개 (보유 ${state.awakenStones || 0}개)` : '★ 지금 각성할 수 있다',
+    });
+  }
   const need = nextPromoteLevel(m);
   if (need == null) {
     return el('div', { class: 'tiny', style: { color: 'var(--gold)' }, text: `최종 차수 도달 · Lv${m.level || 1} / ${MAX_LEVEL}` });
@@ -2445,14 +2458,14 @@ export function openMercDetail(mercUid) {
   const left = el('div', { class: 'col co-dl', style: { flex: '0 0 210px', alignItems: 'center', gap: '8px' } },
     el('div', { class: 'sprite-box', style: { width: '100%', height: '132px', padding: '6px' } }, anim.canvas),
     el('div', { class: 'col center', style: { gap: '2px', textAlign: 'center' } },
-      el('b', { style: { color: gradeColor(m.grade), fontSize: '16px' }, text: m.name }),
+      el('b', { style: { color: gradeColor(m), fontSize: '16px' }, text: m.name }),
       el('div', { class: 'tiny muted', text: `${c.name || m.classId} · ${c.tier || 1}차 · ${c.role || ''}` }),
       el('div', { class: 'row center', style: { gap: '6px', justifyContent: 'center' } },
-        el('span', { class: 'tag', style: { color: gradeColor(m.grade) }, text: `${m.grade} 등급` }),
+        el('span', { class: 'tag', style: { color: gradeColor(m) }, text: m.hero ? '영웅' : `${m.grade} 등급` }),
         el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: `Lv ${m.level || 1}` }))),
     el('div', { class: 'col', style: { width: '100%', gap: '3px' } },
       el('div', { class: 'row spread tiny faint' },
-        el('span', { text: `경험치 · Lv${m.level || 1} / ${MAX_LEVEL}` }),
+        el('span', { text: `경험치 · Lv${m.level || 1} / ${levelCapOf(m)}` }),
         el('span', { class: 'num', text: exp.max ? '최대 레벨' : `${num(exp.cur)} / ${num(exp.need)}` })),
       el('div', { class: 'bar exp' }, el('i', { style: { width: `${exp.ratio * 100}%` } })),
       promoteProgressLine(m)),
@@ -2466,8 +2479,9 @@ export function openMercDetail(mercUid) {
   /* 우측 — 계보 / 스탯 / 스킬 / 장비 */
   const right = el('div', { class: 'col co-dr', style: { flex: '1 1 380px', minWidth: '340px' } },
     lineageBlock(m),
+    heroBlock(m),
     statTable(base, gear, total, mods),
-    skillBlock(c),
+    skillBlock(c, m),
     equipBlock(m, () => anim.stop()),
     setBlock(m));
 
@@ -2519,9 +2533,46 @@ function statTable(base, gear, total, mods) {
     xs(table));
 }
 
-function skillBlock(c) {
+/** §174 영웅 — 별칭·이야기 */
+function heroBlock(m) {
+  const h = m && m.hero ? getHero(m.hero) : null;
+  if (!h) return null;
+  return el('div', { class: 'col co-hero', style: { gap: '4px' } },
+    el('div', { class: 'row spread center wrap', style: { gap: '6px' } },
+      el('h3', { class: 'panel-title', style: { margin: '0', color: GRADE_COLOR.H }, text: `영웅 — «${h.title}»` }),
+      el('span', { class: 'tiny faint', text: m.awakened ? '각성' : '미각성' })),
+    el('div', { class: 'tiny muted', style: { lineHeight: '1.55' }, text: h.story }));
+}
+
+/** 스킬 한 줄 (영웅 고유 스킬용 — 기존 클래스 스킬 줄과 같은 꼴) */
+function heroSkillRow(s, tag, locked = false) {
+  return el('div', { class: 'co-eq col', style: { gap: '2px', opacity: locked ? '.55' : '1' } },
+    el('div', { class: 'row spread center wrap', style: { gap: '6px' } },
+      el('span', { class: 'row center', style: { gap: '6px' } },
+        el('b', { style: { color: GRADE_COLOR.H }, text: s.name }),
+        el('span', { class: 'tag', style: { color: GRADE_COLOR.H }, text: tag })),
+      el('span', { class: 'tiny faint num', text: `쿨 ${s.cd}초 · 배율 x${s.power} · ${s.range === 'ranged' ? '원거리' : '근접'}` })),
+    el('div', { class: 'tiny muted', text: s.desc || '' }),
+    locked ? el('div', { class: 'tiny', style: { color: 'var(--ink-faint)' }, text: `Lv${HERO_AWAKEN_LEVEL} · 각성석 ${HERO_AWAKEN_STONES}개로 각성하면 열린다.` }) : null);
+}
+
+function skillBlock(c, m = null) {
   const box = el('div', { class: 'col', style: { gap: '6px' } },
     el('h3', { class: 'panel-title', text: '보유 스킬', style: { margin: '0' } }));
+  /* §174 영웅 고유 스킬 — 클래스 스킬 뒤에 (각성 전엔 두 번째를 잠긴 채로 보여 준다) */
+  const heroRows = [];
+  if (m && m.hero) {
+    for (const sid of heroSkillIds(m)) {
+      const s = getSkill(sid);
+      if (s) heroRows.push(heroSkillRow(s, s.ult === 2 ? '각성 고유' : '영웅 고유'));
+    }
+    if (!m.awakened) {
+      const h = getHero(m.hero);
+      const s2 = h ? getSkill(h.skill2) : null;
+      if (s2) heroRows.push(heroSkillRow(s2, '각성 고유', true));
+    }
+  }
+  box.heroRows = heroRows;
   const basicName = { phys: '물리', magic: '마법', none: '무속성' }[c.dmgType] || '물리';
   box.appendChild(el('div', { class: 'co-eq col', style: { gap: '2px' } },
     el('div', { class: 'row spread center' },
@@ -2541,6 +2592,7 @@ function skillBlock(c) {
           s.effects.map((ef) => el('span', { class: 'tag', style: { color: 'var(--arcane)' }, text: effectLabel(ef) })))
         : null));
   }
+  for (const r of box.heroRows || []) box.appendChild(r);
   return box;
 }
 
@@ -2936,7 +2988,30 @@ function dispositionOf(cls) {
   }
 }
 
+/** §174 각성 버튼 — 영웅의 «전직» 자리 */
+function awakenBlock(m, stopAnim) {
+  if (m.awakened) return el('div', { class: 'tiny', style: { color: GRADE_COLOR.H }, text: `각성 완료 — Lv${HERO_MAX_LEVEL} 까지 큰다. 고유 스킬 둘.` });
+  const why = awakenIssue(m, state.awakenStones || 0);
+  return el('div', { class: 'col', style: { width: '100%', gap: '4px' } },
+    el('button', {
+      class: `btn ${why ? '' : 'primary'}`,
+      style: { width: '100%', color: why ? '' : GRADE_COLOR.H },
+      disabled: !!why,
+      onClick: () => {
+        stopAnim();
+        const r = StateAPI.awakenMerc(m.uid);
+        if (!r.ok) { toast(r.reason, 'bad'); return; }
+        try { save(); } catch (e) { /* 저장 실패는 다음 저장에서 */ }
+        toast(`${m.name}${josa(m.name, '이/가')} 각성했다! Lv${HERO_MAX_LEVEL} 까지 큰다${r.levels ? ` · 묶어 둔 경험치로 ${r.levels}레벨 상승` : ''}.`, 'good');
+        refresh();
+        setTimeout(() => openMercDetail(m.uid), 30);
+      },
+    }, `★ 각성 — 각성석 ${HERO_AWAKEN_STONES}개 (보유 ${state.awakenStones || 0}개)`),
+    why ? el('div', { class: 'tiny faint', text: why }) : null);
+}
+
 function promoteBlock(m, stopAnim) {
+  if (m && m.hero) return awakenBlock(m, stopAnim);
   if (canPromote(m)) {
     return el('button', {
       class: 'btn primary',
@@ -3130,8 +3205,8 @@ function askDismissMany(mercs) {
     const c = getClass(m.classId) || {};
     const sq = m.squadId ? state.squads.find((s) => s.id === m.squadId) : null;
     names.appendChild(el('div', { class: 'row center tiny', style: { gap: '6px' } },
-      el('span', { class: 'tag', style: { color: gradeColor(m.grade), flex: '0 0 auto' }, text: m.grade }),
-      el('b', { style: { color: gradeColor(m.grade), flex: '0 0 auto' }, text: m.name }),
+      el('span', { class: 'tag', style: { color: gradeColor(m), flex: '0 0 auto' }, text: m.hero ? '영웅' : m.grade }),
+      el('b', { style: { color: gradeColor(m), flex: '0 0 auto' }, text: m.name }),
       el('span', { class: 'muted', style: { flex: '1 1 auto', minWidth: '0' }, text: `${c.name || m.classId} · Lv${m.level || 1}` }),
       sq
         ? el('span', { class: 'tag', style: { color: 'var(--bad)', flex: '0 0 auto' }, text: `${sq.name} ${m.slotIndex + 1}번` })

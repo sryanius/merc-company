@@ -40,7 +40,17 @@ export const FX_TYPES = [
   'nature', 'lightning', 'blunt', 'poison', 'buff', 'heal', 'death', 'crit', 'dust',
   // 타격감 보강용 국소 연출 (화면 전체를 건드리지 않는다)
   'impact', 'ring', 'shockwave', 'trail', 'shatter',
+  // §174 영웅 고유 스킬 시전 (시전자 자리, 렌더러 onAct 가 부른다)
+  'ultimate',
 ];
+
+/** 영웅 스킬 광륜 색 — 스킬 fx(속성) 이름으로 고른다 */
+const ULT_COLOR = {
+  fire: ['#ffd9a8', '#ff7a2a'], ice: ['#e6fbff', '#6fd8ff'], holy: ['#fffbe0', '#ffd36b'], shadow: ['#e9d2ff', '#8a4ad8'],
+  nature: ['#e8ffd8', '#6fd86a'], lightning: ['#fffbd0', '#ffe14a'], poison: ['#f0ffb0', '#a6e34a'], bolt: ['#e6ddff', '#8f7bff'],
+  slash: ['#fff2c8', '#ffd36b'], pierce: ['#fff2c8', '#ffd36b'], arrow: ['#fff2c8', '#ffd36b'], blunt: ['#ffe6c8', '#ffb36b'],
+  heal: ['#eaffe8', '#8fe0a6'], buff: ['#fff6dc', '#ffd36b'],
+};
 /** 엔진 쪽에서 다른 이름이 와도 무난히 매핑 */
 const ALIAS = { magic: 'bolt', phys: 'hit', frost: 'ice', dark: 'shadow', earth: 'blunt', wind: 'nature', none: 'hit' };
 
@@ -454,6 +464,23 @@ const SPAWN = {
       }));
     }
     emit(P({ shape: 'ring', x, y: y - 16, r0: 4, r1: 46, w: 3, col: '#ffffff', life: 0.28, blend: true }));
+  },
+
+  // §174 영웅 고유 스킬 — 큰 이중 광륜 + 12방향 광선 + 솟는 불꽃. 색은 opts.color(속성 fx 이름). 입자 ~40개.
+  ultimate(emit, x, y, o) {
+    const col = ULT_COLOR[o.color] || ULT_COLOR.slash;
+    emit(P({ shape: 'ring', x, y, r0: 6, r1: 72 * o.scale, w: 5, col: col[0], life: 0.5, blend: true }));
+    emit(P({ shape: 'ring', x, y, r0: 2, r1: 42 * o.scale, w: 3, col: '#ffffff', life: 0.32, blend: true }));
+    emit(P({ shape: 'orb', x, y, size: 26 * o.scale, col: col[1], col2: col[0], life: 0.3, shrink: true, blend: true }));
+    for (let i = 0; i < 12; i++) {
+      emit(P({ shape: 'ray', x, y, ang: i * Math.PI / 6 + rf(-0.12, 0.12), r0: 4, r1: rf(40, 72) * o.scale, size: 3, col: col[1], life: rf(0.3, 0.5), blend: true }));
+    }
+    for (let i = 0; i < 24; i++) {
+      emit(P({
+        shape: 'orb', x: x + rf(-24, 24), y: y + rf(-6, 12), vx: rf(-70, 70), vy: rf(-170, -60), g: 70,
+        size: rf(2, 5), col: rp(col), life: rf(0.5, 0.95), fade: 0.6, blend: true,
+      }));
+    }
   },
 };
 

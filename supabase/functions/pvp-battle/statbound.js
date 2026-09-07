@@ -47,6 +47,8 @@ export const SCALING_KEYS = ['hp', 'atk', 'def', 'res', 'spd'];
 export const FLAT_KEYS = ['crit', 'critDmg', 'eva'];
 export const FALLBACK_ARCH = { hp: 220, atk: 30, def: 15, res: 12, spd: 46, crit: 6, critDmg: 50, eva: 5 };
 export const MAX_LEVEL = 80;
+/** §174 각성한 영웅의 상한 (data/limits.js HERO_MAX_LEVEL 과 같은 값 — 스모크가 대조한다) */
+export const HERO_MAX_LEVEL = 100;
 
 /**
  * 맨몸 대비 최대 배율 — `node tools/statceiling.mjs` 실측.
@@ -88,11 +90,11 @@ export const ABSOLUTE = Object.fromEntries(
 );
 
 /** 맨몸(장비 0) 스탯 — rng 를 쓰지 않으므로 서버가 정확히 계산할 수 있다 */
-export function bareStats(classId, level, grade) {
+export function bareStats(classId, level, grade, cap = MAX_LEVEL) {
   const c = CLASSES[classId];
   const arch = (c && ARCHETYPES && ARCHETYPES[c.arch]) || FALLBACK_ARCH;
   const mods = (c && c.mods) || {};
-  const lv = Math.max(1, Math.min(MAX_LEVEL, Number(level) || 1));
+  const lv = Math.max(1, Math.min(cap || MAX_LEVEL, Number(level) || 1));
   const gi = GRADE_IDX[grade] ?? 0;
   const lvMul = 1 + GROWTH_RATE * (lv - 1);
   const tierMul = TIER_MULT[Math.max(0, Math.min(TIER_MULT.length - 1, ((c && c.tier) || 1) - 1))];
@@ -117,14 +119,18 @@ export function checkUnit(u) {
   const cls = String(u.classId || '');
   if (!CLASSES[cls]) return [`없는 클래스: ${cls}`];
 
+  /* §174 각성 영웅(hero + awakened, 4차 클래스, 등급 S)만 100 까지. 표식은 편성 스냅샷에 실려 온다 —
+   *   위조하면 «Lv100 인 척» 은 되지만 스탯은 그 레벨의 맨몸 × 실측 배율 안에 있어야 한다. */
+  const isHero = !!u.hero && !!u.awakened && String(u.grade) === 'S' && Number(CLASSES[cls] && CLASSES[cls].tier) === 4;
+  const cap = isHero ? HERO_MAX_LEVEL : MAX_LEVEL;
   const lv = Number(u.level);
-  if (!Number.isFinite(lv) || lv < 1 || lv > MAX_LEVEL) bad.push(`레벨 ${u.level}`);
+  if (!Number.isFinite(lv) || lv < 1 || lv > cap) bad.push(`레벨 ${u.level}`);
   if (!(String(u.grade) in GRADE_MULT)) bad.push(`등급 ${u.grade}`);
 
   const st = u.stats;
   if (!st || typeof st !== 'object') return [...bad, '스탯이 없다'];
 
-  const base = bareStats(cls, lv, u.grade);
+  const base = bareStats(cls, lv, u.grade, cap);
   for (const k of [...SCALING_KEYS, ...FLAT_KEYS]) {
     const v = Number(st[k]);
     if (!Number.isFinite(v)) { bad.push(`${k} 가 숫자가 아니다`); continue; }

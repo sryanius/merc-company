@@ -417,7 +417,7 @@ function readSubmitted() {
  *
  * 1: 처음  →  2: 단원 이름(nm) · 대표 부대(flagSquadId) 반영
  */
-export const SNAPSHOT_REV = 2;
+export const SNAPSHOT_REV = 3;   // §174 영웅 표식(h) 이 스냅샷에 실렸다
 
 /** 지금 값이 마지막으로 제출한 것보다 나은가 */
 function worthSubmitting(score) {

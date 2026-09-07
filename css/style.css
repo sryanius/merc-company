@@ -182,6 +182,13 @@ img { max-width: 100%; }
 }
 .card.gr-a::before { background: linear-gradient(135deg, #9a7fdd 0 50%, transparent 50%); }
 .card.gr-s::before { background: linear-gradient(135deg, #f0d24a 0 50%, transparent 50%); }
+/* §174 영웅 — S 카드 위에 분홍빛 표식 (gr-s 와 같이 붙는다, 뒤에 와서 이긴다) */
+.card.gr-hero {
+  border-color: #d66bb8;
+  background: linear-gradient(180deg, rgba(255,127,216,.14), rgba(0,0,0,0) 42%), linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+.card.gr-hero:hover { border-color: #ff7fd8; }
+.card.gr-hero::before { background: linear-gradient(135deg, #ff7fd8 0 50%, transparent 50%); }
 /* 선택·표시 상태가 등급보다 우선 */
 .card.gr-a.selected, .card.gr-s.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }
 
