@@ -12135,5 +12135,6 @@ activate (갱신일 때만)
 - 파급: 나락 앵커 [300, 20.17 → **24.3**] · [500, 32 → **45**] (3단 A 가 버티는 배율 24.3, 각성 영웅 3단+펫S 42.6 → ~480; `abysswall --p500=70` 으로 500 너머의 배율을 쟀다). 치트표 잠정 변환 재계산. 전력 천장 Lv80 293,055 → **394,903** (Lv100 413,874). 스탯 천장 hp 124,675 · atk 40,296 · def 12,967 · res 6,777 · spd 7,485 / 비율 19.0 · 166.8 · 69.3 · 75.8 · 16.0 · eva 5.28 (`statceiling`). 스모크 조작 픽스처 ×1.3475. 서버 사본 sync — **배포 필요** (statbound 손사본 포함).
 
 ### 180.1 서버 배포 (2026-09-08, 제작자 「함수도 배포해」)
--  — 세 함수 ACTIVE (submit-score v41 · run-op v22 · pvp-battle v16). §172.3 부터 밀린 사본 전부(_shared·_power·_rules·_engine·statbound 손사본) 포함. ENGINE_HASH 82a9fb4a 가 서버에 올라갔으므로 PvP 등록은 전원 재빌드 대상.
-- 이 세션의 배포 경로: (자격은 CLI 가 이미 갖고 있었다) →  → .  는 gitignore.
+- `npx supabase functions deploy submit-score / run-op / pvp-battle` — 세 함수 ACTIVE (submit-score v41 · run-op v22 · pvp-battle v16). §172.3 부터 밀린 사본 전부(_shared·_power·_rules·_engine·statbound 손사본) 포함. ENGINE_HASH 82a9fb4a 가 서버에 올라갔으므로 PvP 등록은 전원 재빌드 대상. 배포 직후 `GET pvp-battle?selftest=1` 로 골든 픽스처 자가검사를 확인했다: `{"ok":true,"total":60,"bad":[],"engineHash":"82a9fb4a"}`.
+- 이 세션의 배포 경로: `npx -y supabase link --project-ref peilvwrqgauwlaqojttq` (자격은 CLI 가 이미 갖고 있었다 — Windows 자격 저장소) → `npx supabase db query --linked -f db/026_hero_level.sql` · `db/027_abyss_500.sql` → `npx supabase functions deploy <함수>`. bash 에서는 `node`/`npx` 가 PATH 에 없다 — `export PATH="/c/Program Files/nodejs:$PATH"` 를 앞에 둔다. `supabase/.temp` 는 gitignore.
+- ★ bash 의 `node -e "..."` 안에 백틱을 쓰면 명령 치환으로 사라진다 — 이 절의 첫 판이 그렇게 깨졌다. 문서·패치는 파일(cjs)로 써서 돌려라.
