@@ -12091,3 +12091,13 @@ activate (갱신일 때만)
 - 스킬을 키우는 대신 **300→500 구간을 눕혔다**: POWER_ANCHORS [500, 32]. 재측정: 3단 S+펫S 340/380 · 각성 영웅 3단 +중급펫 380/420 · **+펫S 440/480** · 최심편성 1단 S 는 여전히 500 관통(균형 편성이 기준이다).
 - 잠정표 `ABYSS_POWER_CURVE` 의 [100k]·[190k] 행이 500 으로 올라갔다 (같은 변환식). 격자 재측정은 영웅 일러스트 뒤에 (§176).
 - 전력 천장 표: Lv90 302,233 · Lv100 311,411 (각성 영웅 · stormcaller_apex/starseeker3).
+
+
+## 176. 영웅 일러스트 112장 (2026-09-08, 제작자 「고유한(더욱 이쁘고 멋진) 일러스트」)
+- **한 번에 112/112.** 대기 = txt2img (Animagine XL 4.0, 클래스 프롬프트 그대로 + REGALIA 태그 + **고정 머리·눈색**), 공격 = 그 raw 를 Qwen-Image-Edit 로 «자세만» (§171 방식, turbo, 27초/장). 생성 11초 · 편집 27초 → 56명 35분. 도구 경고 0, 배경 키잉 62~77%.
+- **표식을 안 쓴다** (`--nohair`, roles:[]): 영웅은 «그 사람» 이라 머리색이 용병마다 바뀌면 안 된다. 그래서 LEAD 의 보라 머리/청록 눈 구절을 `lookOf(id)` (16색 머리 × 12색 눈, 같은 3차의 apex/abyss 가 다르게) 로 갈아 끼우고, 부정에 «purple/pink/green/teal hair, cyan/green eyes» 를 더했다 (키 색·표식 색 회피). 클래스 프롬프트의 «no green/purple clothes» 제약은 그대로라 옷은 클래스와 같은 규칙 안에 있다.
+- REGALIA = `(ornate gold trim:1.1), intricate detailed armor, elaborate embroidery, jeweled hair ornament, flowing cape, majestic aura, dramatic rim lighting` — 토큰 절벽(§170.3) 안. 결과: 클래스 실루엣은 남고(무기·의상 계열) 장식·망토·후광이 붙어 «같은 클래스의 전설» 로 읽힌다.
+- 공격 지시문은 무기(equip[0])별 `POSE` 표 + «Keep her outfit, her weapon, her <색> hair, her face, all colours and the plain flat light green background exactly the same. Both feet stay on the ground.» 한 문장. raw 가 라임 배경이므로 «light green background» 로 고정했다 (§171.3 의 흰 옷 문제는 안 났다).
+- 배선: `merc.js mercRecipe` 가 영웅이면 `rec.illustHero = illust_hero_<id>` (§174 에서 미리), `portrait.partsOf` 가 `[illustHero, illustClass, illust]` 순으로 고른다, 전투(renderer/battle.js)도 illustHero 우선. `_atk` 짝은 portrait 가 이름으로 찾는다. 셸(sw.js APP_SHELL)에 112줄이 도구(`--apply`)로 붙었다 → 첫 로드 +112 요청·약 2.5MB (전부 프리캐시).
+- 스크립트: `scratchpad/gen_hero_art.mjs` (세션 임시 폴더 — 저장소에 없다. §171 의 qedit/gen_all 과 같은 운명이라 다음에 도구를 손볼 때 `tools/gen/` 로 옮겨라). 시트 검수는 `sheet.mjs` 로 14장씩 8장을 눈으로 봤다 — 팔다리 결손·중복 없음, 초록 치마 몇 벌은 키잉을 살아남았다.
+- 스모크: 영웅 112장 목록·파일·192x240·표식 없음·레시피 우선·셸 (§176 블록).

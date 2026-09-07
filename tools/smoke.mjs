@@ -4875,6 +4875,36 @@ section('영웅 (§174)');
   }
 }
 
+section('영웅 일러스트 (§176)');
+{
+  const H = await import('../src/data/heroes.js');
+  const { ILLUST_PNG } = await import('../src/art/illust_manifest.js');
+  const M = await import('../src/game/merc.js');
+  const rootDir = fileURLToPath(ROOT);
+  const bad = [];
+  for (const id of H.HERO_IDS) {
+    for (const name of [`illust_hero_${id}`, `illust_hero_${id}_atk`]) {
+      const e = ILLUST_PNG[name];
+      if (!e) { bad.push(`${name} 목록에 없다`); continue; }
+      if (!existsSync(join(rootDir, 'art', 'illust', `${name}.png`))) bad.push(`${name}.png 파일이 없다`);
+      if (e.w !== 192 || e.h !== 240) bad.push(`${name} 크기 ${e.w}x${e.h}`);
+      if (Array.isArray(e.roles) && e.roles.length) bad.push(`${name} 에 머리·눈 표식이 있다 — 영웅은 고정 외모다 (--nohair)`);
+    }
+  }
+  // 레시피: 영웅이면 illustHero 가 붙고, 아니면 안 붙는다
+  const hero = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1, hero: 'madgeneral_apex' });
+  const rec = M.mercRecipe(hero, {});
+  if (rec.illustHero !== 'illust_hero_madgeneral_apex') bad.push(`영웅 레시피 illustHero = ${rec.illustHero}`);
+  if (rec.gradeBg !== 'H' || rec.aura !== '#ff7fd8') bad.push('영웅 레시피 후광/오라가 H 가 아니다');
+  const plain = M.mercRecipe(M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1 }), {});
+  if (plain.illustHero) bad.push('일반 S 에 illustHero 가 붙는다');
+  // 서비스워커 셸에 전부 있다
+  const sw = readFileSync(join(rootDir, 'sw.js'), 'utf8');
+  const missing = H.HERO_IDS.filter((id) => !sw.includes(`'./art/illust/illust_hero_${id}.png'`) || !sw.includes(`'./art/illust/illust_hero_${id}_atk.png'`));
+  if (missing.length) bad.push(`sw.js APP_SHELL 에 없다: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ' …' : ''}`);
+  okAll(bad, '영웅 일러스트 112장 — 목록·파일·192x240·표식 없음·레시피 우선·셸', H.HERO_IDS.length * 2 + 3);
+}
+
 section('황금 나락');
 {
   const AD = await import('../src/data/abyss.js');
