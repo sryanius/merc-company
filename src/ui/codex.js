@@ -16,8 +16,7 @@ import { PETS, ROLE_NAME, PET_GRADES } from '../data/pets.js';
 import { ENEMIES } from '../data/enemies.js';
 import { hasIllustPng } from '../art/illustpng.js';
 import { state } from '../game/state.js';
-import { HEROES, HERO_IDS } from '../data/heroes.js';
-import { GRADE_COLOR } from '../art/palette.js';
+import { HEROES, HERO_IDS, heroTheme } from '../data/heroes.js';
 
 export const meta = { id: 'codex', title: '도감' };
 
@@ -61,10 +60,20 @@ function injectStyle() {
 .cdx-sk-meta { color:var(--ink-faint); font-size:10px; }
 .cdx-sk-desc { font-size:10px; color:var(--ink-faint); line-height:1.45; }
 .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
-.cdx-unowned { opacity:.5; }
+/* §177 영웅 카드 — 카드마다 자기 색(--hc = 일러스트 머리색). 미보유는 흑백으로 «잠긴 수집품» 처럼. */
+.cdx-hero { --hc:#ff7fd8; position:relative; border-color: color-mix(in srgb, var(--hc) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--hc) 16%, transparent), transparent 46%), var(--bg-2); }
+.cdx-hero.owned { box-shadow: 0 0 0 1px color-mix(in srgb, var(--hc) 35%, transparent), 0 8px 22px -10px var(--hc); }
+.cdx-hero.unowned { filter: saturate(.45) opacity(.62); }   /* 미보유 — 색은 남기고 힘만 뺀다 (전부 흑백이면 특색이 다시 사라진다) */
+.cdx-hero-band { width:100%; display:flex; justify-content:space-between; gap:6px; font-size:10px; letter-spacing:.04em;
+  color: var(--hc); border-bottom:1px solid color-mix(in srgb, var(--hc) 30%, transparent); padding-bottom:3px; margin-bottom:2px; }
+.cdx-hero-nm { color: var(--hc); font-size:14px; }
+.cdx-hero-title { color: var(--ink); font-style: italic; }
+.cdx-hero .cdx-sk-nm b { color: var(--hc); }
 .cdx-own { display:inline-block; padding:0 7px; border-radius:999px; font-size:10px; font-weight:700; background:var(--bg-4); color:var(--ink-faint); margin-left:5px; vertical-align:middle; }
-.cdx-own.on { color:#ff7fd8; }
+.cdx-own.on { color: var(--hc, #ff7fd8); }
 .cdx-story { font-size:11px; color:var(--ink-dim); line-height:1.5; width:100%; text-align:left; }
+@media (max-width: 767px) { .cdx-hero-band { font-size:11px; } }
 @media (max-width: 767px) { .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); } .cdx-sub { font-size:12px; } }
 `,
   }));
@@ -322,12 +331,18 @@ function heroCard(h) {
   const owned = mine.length > 0;
   const awakened = mine.some((m) => m.awakened);
   const cls = CLASSES[h.classId] || {};
-  const card = el('div', { class: `cdx-card${owned ? '' : ' cdx-unowned'}` },
+  const th = heroTheme(h);
+  const card = el('div', { class: `cdx-card cdx-hero${owned ? ' owned' : ' unowned'}` },
+    el('div', { class: 'cdx-hero-band' },
+      el('span', { text: `${th.crest} ${(CLASSES[h.root] || {}).name || ''} 계열` }),
+      el('span', { style: { color: th.element.color }, text: `${th.element.name} · ${th.kit}` })),
     stillSprite(mercRecipe({ classId: h.classId, grade: 'S', hero: h.id }, {})),
-    el('div', { class: 'cdx-nm', style: { color: GRADE_COLOR.H } }, h.name,
+    el('div', { class: 'cdx-nm cdx-hero-nm' }, h.name,
       el('span', { class: `cdx-own${owned ? ' on' : ''}`, text: awakened ? '✔ 각성' : owned ? '✔ 보유' : '미보유' })),
-    el('div', { class: 'cdx-sub', text: `«${h.title}» · ${cls.name || h.classId}` }),
+    el('div', { class: 'cdx-sub cdx-hero-title', text: `«${h.title}»` }),
+    el('div', { class: 'cdx-sub', text: cls.name || h.classId }),
     el('div', { class: 'cdx-story', text: h.story }));
+  card.style.setProperty('--hc', th.color);
   const box = el('div', { class: 'cdx-skills' });
   for (const [sid, tag] of [[h.skill, '고유'], [h.skill2, '각성']]) {
     const s = getSkill(sid);
@@ -352,19 +367,20 @@ function heroTab(root) {
   const wrap = el('div', { class: 'col', style: { gap: '12px' } },
     el('div', { class: 'panel col', style: { gap: '4px' } },
       el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
-        el('b', { style: { color: GRADE_COLOR.H }, text: `영웅 ${ownedAll} / ${HERO_IDS.length}` }),
+        el('b', { style: { color: 'var(--gold)' }, text: `영웅 ${ownedAll} / ${HERO_IDS.length}` }),
         el('span', { class: 'tiny faint', text: '주점에서 S 가 나올 때 주사위를 한 번 더 굴려 절반은 영웅이 된다. 4차 클래스마다 한 명, Lv1 부터 4차로 시작한다.' })),
       el('div', { class: 'tiny faint', text: 'Lv80 에 각성석 30개(던전 웨이브에서 세트 조각 확률의 절반)로 각성하면 Lv100 까지 크고 두 번째 고유 스킬이 열린다.' })));
-  for (const [root, list] of Object.entries(byRoot)) {
-    const rc = CLASSES[root] || {};
-    const open = !!openHeroLines[root];
+  /* ★ 루프 변수 이름이 함수 인자 root(DOM)를 가리면 rerender(root) 에 문자열이 들어간다 — 실제로 났다 (§177). */
+  for (const [lineId, list] of Object.entries(byRoot)) {
+    const rc = CLASSES[lineId] || {};
+    const open = !!openHeroLines[lineId];
     const ownedN = list.filter((h) => (state.roster || []).some((m) => m && m.hero === h.id)).length;
     const panel = el('div', { class: 'panel col', style: { gap: '10px' } });
     panel.appendChild(el('div', {
       class: 'row spread center cdx-sec',
-      onClick: () => { openHeroLines[root] = !open; rerender(root); },
+      onClick: () => { openHeroLines[lineId] = !open; rerender(root); },
     },
-      el('h3', {}, el('span', { class: 'cdx-badge', text: `${ownedN}/${list.length}` }), `${rc.name || root} 계열`),
+      el('h3', {}, el('span', { class: 'cdx-badge', text: `${ownedN}/${list.length}` }), `${rc.name || lineId} 계열`),
       el('span', { class: 'tiny faint', text: open ? '접기 ▲' : '펼치기 ▼' })));
     if (open) panel.appendChild(el('div', { class: 'cdx-grid' }, list.map(heroCard)));
     wrap.appendChild(panel);

@@ -30,7 +30,7 @@ import { RNG } from './rng.js';
 import { createBattle } from './engine.js';
 import {
   ABYSS_NAME, DEPTH_CAP, depthPower, depthEnemyCount, depthEnemyLevel, isRestDepth,
-  zoneOf as abyssZone,
+  zoneOf as abyssZone, heroGateOpen, countAwakenedHeroes,
 } from './abyss.js';
 import {
   TOWER_FLOORS, floorPower, floorEnemyCount, isRestFloor, tierWeights, gradeWeights,
@@ -404,8 +404,14 @@ export function runAbyss(o) {
   const log = o.log || [];
   let reached = start - 1;
   let carry = o.carry || null;  // null = 만피에서 시작
+  /* ★ §177 영웅 관문 — HERO_GATE_DEPTH 아래는 각성한 영웅이 있어야 한다. 아군 표식으로 센다 (서버도 같은 표식을 받는다). */
+  const heroN = countAwakenedHeroes(o.allies);
 
   for (let d = start; d <= maxDepth; d++) {
+    if (!heroGateOpen(heroN, d)) {
+      log.push({ type: 'gate', depth: d, heroN });
+      break;
+    }
     if (o.before && o.before(d) === false) break;
     const r = runOneDepth({ ...o, depth: d, carry });
     if (!r.win) {

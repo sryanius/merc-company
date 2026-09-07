@@ -14,7 +14,7 @@ import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME, gradeKeyOf } from '../art/palette.js';
 import { levelCapOf, heroSkillIds, awakenIssue } from '../game/merc.js';
-import { getHero, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
+import { getHero, heroTheme, heroColorOf, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -536,7 +536,10 @@ function redraw() {
 /* ─────────────────────────── 공용 소도구 ─────────────────────────── */
 
 /** 등급 색 — 용병 객체를 주면 영웅(H)을 안다 (§174). 글자를 주면 예전 그대로. */
-const gradeColor = (g) => GRADE_COLOR[g && typeof g === 'object' ? gradeKeyOf(g) : g] || GRADE_COLOR.F;
+const gradeColor = (g) => {
+  if (g && typeof g === 'object') return g.hero ? heroColorOf(g.hero) : (GRADE_COLOR[g.grade] || GRADE_COLOR.F);   // §177 영웅은 자기 색
+  return GRADE_COLOR[g] || GRADE_COLOR.F;
+};
 
 /**
  * 확인 모달. `app.js confirmDlg` 와 동작은 같지만 본문에 `co-mbody` 를 달아
@@ -2362,6 +2365,7 @@ function rosterCard(m) {
     el('div', { class: 'row', style: { gap: '5px', marginTop: '8px' } },
       mainBtn,
       el('button', { class: 'btn sm ghost', onClick: stop(() => openMercDetail(m.uid)) }, '상세')));
+  if (m.hero) card.style.setProperty('--hc', gradeColor(m));   // §177 카드 테두리·광채가 영웅 색을 따른다 (css .card.gr-hero)
   return card;
 }
 
@@ -2537,20 +2541,21 @@ function statTable(base, gear, total, mods) {
 function heroBlock(m) {
   const h = m && m.hero ? getHero(m.hero) : null;
   if (!h) return null;
+  const th = heroTheme(h);
   return el('div', { class: 'col co-hero', style: { gap: '4px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '6px' } },
-      el('h3', { class: 'panel-title', style: { margin: '0', color: GRADE_COLOR.H }, text: `영웅 — «${h.title}»` }),
-      el('span', { class: 'tiny faint', text: m.awakened ? '각성' : '미각성' })),
+      el('h3', { class: 'panel-title', style: { margin: '0', color: th.color }, text: `${th.crest} 영웅 — «${h.title}»` }),
+      el('span', { class: 'tiny', style: { color: th.element.color }, text: `${th.element.name} · ${th.kit}${m.awakened ? ' · 각성' : ''}` })),
     el('div', { class: 'tiny muted', style: { lineHeight: '1.55' }, text: h.story }));
 }
 
 /** 스킬 한 줄 (영웅 고유 스킬용 — 기존 클래스 스킬 줄과 같은 꼴) */
-function heroSkillRow(s, tag, locked = false) {
+function heroSkillRow(s, tag, locked = false, m = null) {
   return el('div', { class: 'co-eq col', style: { gap: '2px', opacity: locked ? '.55' : '1' } },
     el('div', { class: 'row spread center wrap', style: { gap: '6px' } },
       el('span', { class: 'row center', style: { gap: '6px' } },
-        el('b', { style: { color: GRADE_COLOR.H }, text: s.name }),
-        el('span', { class: 'tag', style: { color: GRADE_COLOR.H }, text: tag })),
+        el('b', { style: { color: gradeColor(m || {}) }, text: s.name }),
+        el('span', { class: 'tag', style: { color: gradeColor(m || {}) }, text: tag })),
       el('span', { class: 'tiny faint num', text: `쿨 ${s.cd}초 · 배율 x${s.power} · ${s.range === 'ranged' ? '원거리' : '근접'}` })),
     el('div', { class: 'tiny muted', text: s.desc || '' }),
     locked ? el('div', { class: 'tiny', style: { color: 'var(--ink-faint)' }, text: `Lv${HERO_AWAKEN_LEVEL} · 각성석 ${HERO_AWAKEN_STONES}개로 각성하면 열린다.` }) : null);
@@ -2564,12 +2569,12 @@ function skillBlock(c, m = null) {
   if (m && m.hero) {
     for (const sid of heroSkillIds(m)) {
       const s = getSkill(sid);
-      if (s) heroRows.push(heroSkillRow(s, s.ult === 2 ? '각성 고유' : '영웅 고유'));
+      if (s) heroRows.push(heroSkillRow(s, s.ult === 2 ? '각성 고유' : '영웅 고유', false, m));
     }
     if (!m.awakened) {
       const h = getHero(m.hero);
       const s2 = h ? getSkill(h.skill2) : null;
-      if (s2) heroRows.push(heroSkillRow(s2, '각성 고유', true));
+      if (s2) heroRows.push(heroSkillRow(s2, '각성 고유', true, m));
     }
   }
   box.heroRows = heroRows;

@@ -1,7 +1,7 @@
 // 용병(Mercenary) 런타임 모델 — 생성 / 스탯 / 성장 / 전직 / 외형 레시피.
 // 순수 JS: 모듈 최상위에서 document·window·canvas를 만지지 않는다 (node import 가능).
 import { MAX_LEVEL as LIMIT_MAX_LEVEL, HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S } from '../data/limits.js';
-import { heroOf, heroSkillIds as heroSkillIdsOf } from '../data/heroes.js';
+import { heroOf, heroSkillIds as heroSkillIdsOf, heroColorOf } from '../data/heroes.js';
 /* §174 상수를 여기서도 내보낸다 — state.js·UI 가 Merc 네임스페이스로 읽는다 */
 export { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S };
 //
@@ -1197,8 +1197,10 @@ export function mercRecipe(merc, itemsById) {
   /* ★ §174 영웅 — S 위. 테두리 오라를 영웅색으로, 후광도 영웅색(portrait BG.H). 파츠는 S 그대로. */
   const hero = heroOf(merc);
   if (hero) {
-    rec.aura = '#ff7fd8';
+    /* §177 영웅마다 자기 색 (= 일러스트 머리색). 옆모습 오라·정면 후광이 그 색을 쓴다. */
+    rec.aura = heroColorOf(hero.id);
     rec.gradeBg = 'H';
+    rec.heroColor = rec.aura;
   }
 
   const arch = c && c.arch;

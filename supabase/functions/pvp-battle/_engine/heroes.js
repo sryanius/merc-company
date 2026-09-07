@@ -36,6 +36,7 @@ export { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES, HERO_CHANCE_ON_S
 const RAW = {
   swordgod_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'crimson red hair', color: '#e0433f',
     name: '갈라드', title: '한 합의 검객',
     story: '그의 시합은 언제나 한 번의 교차로 끝났다. 두 번째 합을 본 자가 없어 그의 검법을 제대로 아는 이도 없다. 그 자신도 두 번째를 배울 기회가 없었다고 담담히 말한다.',
     skillName: '무한일섬', skillDesc: '적 하나를 단 한 번의 물리 섬광으로 강타해 기절시킨다.',
@@ -43,6 +44,7 @@ const RAW = {
   },
   swordgod_abyss: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'golden hair', color: '#ffc94a',
     name: '키릴', title: '버려진 칼의 주인',
     story: '전장 뒤에 버려진 검만 주워 쓴다. 온전한 검을 쥐면 손이 먼저 놓는다고 한다. 그가 한 번 휘두른 칼은 어차피 다시 쓰이지 않으니, 처음부터 온전할 필요도 없었다.',
     skillName: '절명일자', skillDesc: '가장 약한 적을 찔러 처형하고, 튄 피로 자신의 상처를 메운다.',
@@ -50,6 +52,7 @@ const RAW = {
   },
   madgeneral_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'jet black hair', color: '#9a9cb8',
     name: '발드릭', title: '전열을 지운 자',
     story: '백 개의 깃발이 그의 앞에서 꺾였다. 어느 깃발이었는지는 기록하지 않았고, 아무도 다시 묻지 않았다. 남은 것은 그가 걸어간 방향과, 그 방향으로 난 빈 땅뿐이다.',
     skillName: '파진일격', skillDesc: '물리 일격으로 적 하나의 진을 부수고 기절시킨다.',
@@ -57,6 +60,7 @@ const RAW = {
   },
   madgeneral_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'swordsman',
+    hair: 'platinum blonde hair', color: '#f6e7b5',
     name: '브란트', title: '다시 세운 깃발',
     story: '그가 넘어진 것을 본 자가 없다. 무릎이 꺾인 병사도 그의 고함 한 번에 다시 일어나 창을 잡았다. 그 부대는 후퇴라는 단어를 끝내 배우지 못했고, 그도 가르치지 않았다.',
     skillName: '철혈포효', skillDesc: '포효로 아군 전체에 보호막을 두르고, 자신의 방어를 철벽으로 올린다.',
@@ -64,6 +68,7 @@ const RAW = {
   },
   skysplitter_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'pale blonde hair', color: '#f7e6c0',
     name: '베르길', title: '하늘을 가른 칼',
     story: '산맥에 난 골짜기 하나가 그의 이름으로 불린다. 그가 내려친 것은 산이 아니라 그 골짜기를 메우고 있던 군대였다. 산은 그저 옆에 서 있다가 함께 갈라졌을 뿐이다.',
     skillName: '단산참', skillDesc: '산도 가르는 한 칼로 적 하나를 강타해 기절시킨다.',
@@ -71,6 +76,7 @@ const RAW = {
   },
   skysplitter_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'navy blue hair', color: '#6b84e6',
     name: '고드윈', title: '천 번 받아친 자',
     story: '먼저 검을 뽑은 것은 젊었을 때 딱 한 번이다. 그 한 번으로 아우를 잃은 뒤, 그는 베려 드는 자만 벤다. 그의 앞에서 칼을 든 자는 예외 없이 자기 칼에 되돌려 맞는다.',
     skillName: '만검진', skillDesc: '천 자루 검을 세워 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
@@ -78,6 +84,7 @@ const RAW = {
   },
   bloodfiend_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'swordsman',
+    hair: 'copper red hair', color: '#e6773f',
     name: '코르빈', title: '피가 따르는 왕',
     story: '그는 한 번도 상처를 핥지 않았다. 베인 적의 피가 알아서 그의 칼날을 타고 올라왔고, 그것으로 자신을 채웠다. 사람들은 그 앞에서 출혈을 감추는 법부터 배웠다.',
     skillName: '혈흡참', skillDesc: '가장 약한 적을 베어 처형하고, 흐른 피로 자신을 회복한다.',
@@ -85,6 +92,7 @@ const RAW = {
   },
   bloodfiend_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'swordsman',
+    hair: 'snow white hair', color: '#f4f4f8',
     name: '벨루나', title: '굶주린 불사자',
     story: '죽었어야 할 밤이 세 번 있었다. 세 번 다 일어났고, 그날부터 한 번도 배부른 적이 없다. 앞줄에 서는 것은 용기가 아니라, 가장 먼저 피 냄새를 맡을 수 있는 자리이기 때문이다.',
     skillName: '혈염장막', skillDesc: '검붉은 피의 불길로 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
@@ -92,6 +100,7 @@ const RAW = {
   },
   gatewarden_apex: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'spearman',
+    hair: 'dark blue hair', color: '#5e78e0',
     name: '바르그', title: '성벽을 허문 손',
     story: '관문을 지키며 성벽의 약점을 전부 외웠다. 어느 날 창을 방패에 걸고 반대편 성문으로 걸어갔다. 지키는 법을 다 배운 뒤 부수는 쪽이 빠르다는 걸 깨달았고, 그가 두드린 문은 셋 중 셋이 열렸다.',
     skillName: '공성진', skillDesc: '철문 같은 방패로 아군 전체를 감싸고 자신의 방어를 크게 올린다.',
@@ -99,6 +108,7 @@ const RAW = {
   },
   gatewarden_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'spearman',
+    hair: 'blonde hair', color: '#f2d27a',
     name: '토르발', title: '열리지 않는 문',
     story: '황금 나락의 최하층 문을 홀로 열두 해 지킨 자. 안에서 무엇이 나오려 했는지는 끝내 말하지 않았다. 그가 선 자리는 문이 아니라 벽이었고, 열리는 쪽은 언제나 그가 정했다.',
     skillName: '철벽수호', skillDesc: '거대한 방패를 세워 아군 전체에 보호막을 두르고 자신의 방어를 크게 올린다.',
@@ -106,6 +116,7 @@ const RAW = {
   },
   reaper_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'spearman',
+    hair: 'auburn hair', color: '#d0703f',
     name: '라자렐', title: '마지막 밤의 낫',
     story: '거두는 자였다가 거두라 명하는 자가 되었다. 그가 낫을 세우면 전열의 가장 약한 자부터 먼저 넘어진다. 무한의 탑 마흔 층에서 그의 낫이 멈춘 밤, 아무도 그 위에 무엇이 있는지 묻지 못했다.',
     skillName: '멸혼참', skillDesc: '가장 약한 적을 낫으로 처형하고 흘린 피로 자신을 회복한다.',
@@ -113,6 +124,7 @@ const RAW = {
   },
   reaper_abyss: {
     arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'shadow', root: 'spearman',
+    hair: 'silver hair', color: '#d8dce8',
     name: '티스벨', title: '죽음을 삼킨 자',
     story: '앞줄에서 죽음을 먼저 받아 두는 자. 그녀의 그림자에 닿은 칼날은 뒷줄에 이르기 전에 힘을 잃는다. 삼킨 죽음이 얼마나 쌓였는지 아무도 모르지만, 그녀 뒤에 선 자가 죽은 적은 아직 없다.',
     skillName: '혼백장막', skillDesc: '암흑의 장막으로 아군 전체에 보호막을 두르고 자신의 방어를 크게 올린다.',
@@ -120,6 +132,7 @@ const RAW = {
   },
   dragoonlord_apex: {
     arch: 'lancer', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    hair: 'ash gray hair', color: '#b8bcc8',
     name: '타르켄', title: '용을 벤 창끝',
     story: '북쪽 협곡의 흑룡을 창 하나로 떨어뜨린 뒤, 그는 용의 이름을 자기 것으로 삼았다. 이후 그가 앞장선 돌격에서 전열이 버틴 적은 없다. 창끝이 닿은 자리마다 길이 열렸고, 그 길을 따라 용병단의 시대가 왔다.',
     skillName: '용격창', skillDesc: '창을 내질러 전열의 적 둘을 한 번에 꿰뚫고 기절시킨다.',
@@ -127,6 +140,7 @@ const RAW = {
   },
   dragoonlord_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    hair: 'black hair with silver streaks', color: '#c0c4d0',
     name: '브리겔', title: '꺾이지 않는 깃대',
     story: '창을 잃고도 깃발을 놓지 않았던 기수. 그가 든 깃발 아래서 무너진 부대가 셋이나 다시 섰다. 사람들은 그를 불멸이라 불렀지만, 그는 그저 쓰러질 자리를 아직 찾지 못했을 뿐이라 말했다.',
     skillName: '군기수호', skillDesc: '깃발을 세워 아군 전체에 보호막을 두르고, 자신의 방어를 크게 올린다.',
@@ -134,6 +148,7 @@ const RAW = {
   },
   skylancer_apex: {
     arch: 'lancer', dmgType: 'magic', range: 'melee', fx: 'lightning', root: 'spearman',
+    hair: 'dark brown hair', color: '#c08a5a',
     name: '카이렐', title: '벼락보다 빠른 자',
     story: '천공창기사 중 유일하게 벼락을 앞질러 창을 꽂은 사람. 그날 이후 그의 창은 던지기 전에 하늘이 먼저 응답한다. 폭풍이 치는 날이면 아직도 성벽 위에서 그의 창끝이 번쩍인다고 한다.',
     skillName: '뇌정창', skillDesc: '번개를 두른 창으로 전열의 적 둘을 꿰뚫고 기절시킨다.',
@@ -141,6 +156,7 @@ const RAW = {
   },
   skylancer_abyss: {
     arch: 'lancer', dmgType: 'phys', range: 'melee', fx: 'pierce', root: 'spearman',
+    hair: 'chestnut brown hair', color: '#c08a58',
     name: '루아르', title: '바람을 입은 창',
     story: '갑주를 벗어던진 창기사. 한 번도 맞지 않아 한 번도 뚫린 적이 없다. 그의 창은 막지 않고, 적의 창이 닿기 전에 상대의 자리를 먼저 비워 버리고, 남는 것은 바람 소리뿐이다.',
     skillName: '천풍관', skillDesc: '바람처럼 파고들어 전열의 적 둘을 꿰뚫고 기절시킨다.',
@@ -148,6 +164,7 @@ const RAW = {
   },
   bulwark_apex: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    hair: 'crimson red hair', color: '#e0433f',
     name: '요아킴', title: '성문을 부순 방패',
     story: '성문을 지키라 했더니 성문을 뜯어 들고 나가 적진을 밀어붙였다. 그날 이후 아무도 그에게 지키는 자리를 맡기지 않았고, 그도 굳이 원하지 않았다. 그의 방패는 늘 앞으로만 간다.',
     skillName: '철벽진군', skillDesc: '밀고 나가는 방패가 아군 전체를 지키는 보호막이 되고, 그의 방어가 크게 오른다.',
@@ -155,6 +172,7 @@ const RAW = {
   },
   bulwark_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    hair: 'golden hair', color: '#ffc94a',
     name: '힐데', title: '걸어다니는 성',
     story: '함락된 요새의 마지막 수비대장. 성벽이 무너진 뒤에도 그 자리를 떠나지 않았고, 결국 적군은 성이 아니라 그녀를 보고 길을 돌렸다. 이제 그녀가 선 곳이 성이다.',
     skillName: '부동성벽', skillDesc: '거대한 방패가 아군 전체에 보호막을 두르고, 그녀의 방어가 크게 오른다.',
@@ -162,6 +180,7 @@ const RAW = {
   },
   oathshield_apex: {
     arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    hair: 'jet black hair', color: '#9a9cb8',
     name: '율리안', title: '깨진 맹세의 값',
     story: '지키기로 맹세한 도시가 그를 팔았다. 살아 돌아온 그는 맹세를 버리는 대신 새로 썼고, 그 방패는 이제 갚아야 할 이름들만 골라 찾아간다. 명단은 아직 절반이 남았다.',
     skillName: '성광서약', skillDesc: '다시 쓴 맹세의 빛이 아군 전체에 보호막을 두르고, 그의 방어가 크게 오른다.',
@@ -169,6 +188,7 @@ const RAW = {
   },
   oathshield_abyss: {
     arch: 'healer', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'shieldman',
+    hair: 'platinum blonde hair', color: '#f6e7b5',
     name: '오렐리', title: '맹세로 짠 결계',
     story: '한 부대를 끝까지 지키겠다는 맹세를 방패에 새긴 여인. 부대원이 모두 늙어 죽은 뒤에도 맹세는 풀리지 않았다. 이제 그 문장은 곁에 선 누구든 감싸고, 그녀는 새 이름들을 외운다.',
     skillName: '서약가호', skillDesc: '방패에 새긴 맹세가 아군 전체를 크게 회복시키고 공격력을 올린다.',
@@ -176,6 +196,7 @@ const RAW = {
   },
   paladin_apex: {
     arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    hair: 'pale blonde hair', color: '#f7e6c0',
     name: '오스발트', title: '빛을 든 심판자',
     story: '성전기사단의 마지막 총장. 방패를 내리지 않은 채 심판을 내리는 법을 익혔고, 그가 지킨 성벽에는 아직 그림자가 든 적이 없다. 사람들은 그 빛을 성왕이라 불렀고 그는 부정하지 않았다.',
     skillName: '성광호벽', skillDesc: '신성한 빛이 아군 전체를 감싸 보호막이 되고, 그의 방어가 크게 오른다.',
@@ -183,6 +204,7 @@ const RAW = {
   },
   paladin_abyss: {
     arch: 'healer', dmgType: 'magic', range: 'melee', fx: 'holy', root: 'shieldman',
+    hair: 'navy blue hair', color: '#6b84e6',
     name: '이레네', title: '하얀 울타리',
     story: '전쟁터 한복판에 무릎을 꿇고 기도하던 종군 수녀. 그 반경 안에서 죽은 자가 없다는 말이 퍼지며 성인이 되었다. 그녀는 지금도 방패를 내려놓지 않고, 기도도 멈추지 않는다.',
     skillName: '성역축복', skillDesc: '신성한 성역이 아군 전체를 크게 회복시키고 공격력을 올린다.',
@@ -190,6 +212,7 @@ const RAW = {
   },
   blackknight_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'shieldman',
+    hair: 'copper red hair', color: '#e6773f',
     name: '하드리안', title: '버려진 왕관',
     story: '스스로 왕국을 버린 왕. 갑주 안쪽에 옛 나라의 이름을 새기고, 다시는 입 밖에 내지 않는다. 그가 검을 든 곳마다 왕좌가 하나씩 비어 갔고, 그 자리를 채운 자는 아직 없다.',
     skillName: '폐왕참', skillDesc: '암흑을 머금은 일격으로 적 하나를 강타해 기절시킨다.',
@@ -197,6 +220,7 @@ const RAW = {
   },
   blackknight_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'shieldman',
+    hair: 'snow white hair', color: '#f4f4f8',
     name: '울리히', title: '속이 빈 갑주',
     story: '흑기사단에서 가장 오래 살아남은 자. 살아남기 위해 삼킨 목숨이 갑주를 채웠고, 이제 그 안에 사람이 남아 있는지는 본인도 말하지 못한다. 갑주는 여전히 앞줄에 선다.',
     skillName: '망혼갑주', skillDesc: '삼킨 영혼이 암흑의 보호막이 되어 아군 전체를 감싸고, 그의 방어가 크게 오른다.',
@@ -204,6 +228,7 @@ const RAW = {
   },
   shadowarcher_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'ranged', fx: 'shadow', root: 'archer',
+    hair: 'dark blue hair', color: '#5e78e0',
     name: '하르빈', title: '자국 없는 밤',
     story: '의뢰서에는 이름 대신 빈칸만 적힌다. 그가 맡은 표적은 시체도, 핏자국도, 마지막으로 서 있던 자리조차 남기지 않는다. 용병단은 그 빈칸을 가장 비싼 값에 판다.',
     skillName: '무흔살', skillDesc: '가장 약한 적을 암흑의 화살로 지우고 그 피로 자신을 회복한다.',
@@ -211,6 +236,7 @@ const RAW = {
   },
   shadowarcher_abyss: {
     arch: 'archer', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'archer',
+    hair: 'blonde hair', color: '#f2d27a',
     name: '오데트', title: '따라붙는 원한',
     story: '그녀에게서 도망친 자는 아직 없다. 화살에 묶어 보낸 망령이 표적의 등 뒤에 붙어 잠자리까지 따라가기 때문이다. 표적이 죽으면 망령은 돌아와, 다음 이름을 기다린다.',
     skillName: '원령난사', skillDesc: '원한 맺힌 망령을 실은 암흑의 화살을 적 전체에 흩뿌린다.',
@@ -218,6 +244,7 @@ const RAW = {
   },
   masterarcher_apex: {
     arch: 'archer', dmgType: 'phys', range: 'ranged', fx: 'arrow', root: 'archer',
+    hair: 'auburn hair', color: '#d0703f',
     name: '오리엘', title: '별을 떨어뜨린 손',
     story: '무한의 탑 꼭대기에서 밤하늘을 향해 한 발을 쏘았다는 소문이 있다. 그날 이후 별 하나가 보이지 않게 되었고, 그는 그 얘기를 들으면 대답 대신 시위를 매만진다.',
     skillName: '낙성우', skillDesc: '하늘로 쏘아 올린 화살이 별처럼 쏟아져 적 전체를 꿰뚫는다.',
@@ -225,6 +252,7 @@ const RAW = {
   },
   masterarcher_abyss: {
     arch: 'archer', dmgType: 'phys', range: 'ranged', fx: 'arrow', root: 'archer',
+    hair: 'silver hair', color: '#d8dce8',
     name: '이오라', title: '바람에 맡긴 활',
     story: '눈을 감고 쏘는 궁수. 활을 놓은 순간 화살은 이미 그녀의 것이 아니라 바람의 것이다. 천 리 밖에서 날아온 화살에 맞은 이들은 누가 쏘았는지 끝내 알지 못했다.',
     skillName: '풍시난무', skillDesc: '바람에 실은 화살이 사방에서 휘돌아 적 전체에 내리꽂힌다.',
@@ -232,6 +260,7 @@ const RAW = {
   },
   beastlord_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'archer',
+    hair: 'ash gray hair', color: '#b8bcc8',
     name: '울프람', title: '무리가 우는 이름',
     story: '활을 버린 궁수. 짐승과 함께 사냥하다가 어느 날부터 짐승보다 먼저 물어뜯게 되었다. 숲의 무리들은 그가 우는 밤에는 사냥을 쉬고, 그의 뒤를 따라 울기만 한다.',
     skillName: '맹아일격', skillDesc: '짐승의 발톱으로 적 하나를 후려쳐 그 자리에 쓰러뜨려 기절시킨다.',
@@ -239,6 +268,7 @@ const RAW = {
   },
   beastlord_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'archer',
+    hair: 'black hair with silver streaks', color: '#c0c4d0',
     name: '하겐', title: '짐승의 왕관',
     story: '왕관을 쓴 뒤로는 화살을 쏘지 않는다. 그가 서 있으면 숲의 무리가 방벽처럼 아군을 에워싸고, 그가 발을 구르면 숲 전체가 함께 구른다. 왕관은 뿔과 이빨로 만들어졌다.',
     skillName: '만수결진', skillDesc: '짐승 무리가 아군 전체를 에워싸 보호막이 되고, 자신의 방어를 바위처럼 올린다.',
@@ -246,6 +276,7 @@ const RAW = {
   },
   spiritranger_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'nature', root: 'archer',
+    hair: 'dark brown hair', color: '#c08a5a',
     name: '이올린', title: '뿌리를 당기는 자',
     story: '세계수 아래서 태어나 세계수를 활로 삼는다. 그녀가 시위를 당기면 대지의 뿌리가 함께 당겨지고, 놓는 순간 뿌리가 적진을 뚫고 솟는다. 지나간 자리에는 늘 새 싹이 돋는다.',
     skillName: '만근발아', skillDesc: '세계수의 뿌리가 적진 아래서 터져 적 전체를 꿰뚫고, 남은 가시가 계속 파고든다.',
@@ -253,6 +284,7 @@ const RAW = {
   },
   spiritranger_abyss: {
     arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'nature', root: 'archer',
+    hair: 'chestnut brown hair', color: '#c08a58',
     name: '에이라', title: '숲이 보낸 손님',
     story: '어느 날 숲에서 걸어 나왔고, 이름은 용병단이 붙여 주었다. 그녀가 손을 대면 상처가 아무는 대신 그 자리에 꽃이 핀다. 사람인지 정령인지 묻는 이는 아직 없다.',
     skillName: '만생소생', skillDesc: '정령의 숨결이 아군 전체를 크게 회복시키고, 팔에 힘을 실어 공격력을 올린다.',
@@ -260,6 +292,7 @@ const RAW = {
   },
   shadowblade_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'rogue',
+    hair: 'crimson red hair', color: '#e0433f',
     name: '잔데르', title: '부르지 않는 이름',
     story: '밤에 값을 매겨 팔던 밀사였다. 어느 날부터 값을 받지 않았고, 대신 밤을 통째로 가졌다. 왕도의 뒷골목에서 그의 이름은 부르지 않는 이름이 되었고, 부르면 대답 대신 어둠이 온다.',
     skillName: '암야참', skillDesc: '가장 약한 적을 어둠 속에서 베어 처형하고, 흘린 피로 제 몸을 채운다.',
@@ -267,6 +300,7 @@ const RAW = {
   },
   shadowblade_abyss: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'rogue',
+    hair: 'golden hair', color: '#ffc94a',
     name: '제피르', title: '베이지 않는 잔상',
     story: '여섯 번 처형되었고 여섯 번 장례가 치러졌다. 무덤마다 시신은 없었다. 벤 자들은 한결같이 잔상을 벴다고 말했고, 그 말을 한 뒤로는 아무도 그들을 다시 보지 못했다.',
     skillName: '환영살', skillDesc: '잔상을 흘리며 가장 약한 적을 처형하고, 그 피로 제 상처를 메운다.',
@@ -274,6 +308,7 @@ const RAW = {
   },
   banditking_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    hair: 'jet black hair', color: '#9a9cb8',
     name: '체사레', title: '왕국을 판 산적',
     story: '산적 떼를 왕국으로 키웠고, 그 왕국을 팔아 더 큰 사업을 샀다. 지금 그의 영지는 지도에 없고, 도시마다 난 뒷문이 전부 그에게로 통한다. 칼은 여전히 직접 든다.',
     skillName: '패왕단죄', skillDesc: '가장 약한 적을 골라 단칼에 처형하고, 흘린 피만큼 제 상처를 메운다.',
@@ -281,6 +316,7 @@ const RAW = {
   },
   banditking_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    hair: 'platinum blonde hair', color: '#f6e7b5',
     name: '지오반', title: '칼을 벽에 건 자',
     story: '도적왕 시절의 칼은 서재 벽에 걸어 두고, 대신 사람을 쓴다. 그가 앞줄에 서는 날은 부하들이 다 죽은 날뿐이고, 그런 날은 아직 오지 않았다. 그래서 그는 늙었고, 살아 있다.',
     skillName: '흑장진', skillDesc: '아군 전체에 흑막의 장막을 둘러 보호막을 씌우고, 제 방어를 크게 굳힌다.',
@@ -288,6 +324,7 @@ const RAW = {
   },
   venomfang_apex: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'poison', root: 'rogue',
+    hair: 'pale blonde hair', color: '#f7e6c0',
     name: '조슬린', title: '한 번 스친 종막',
     story: '독을 다루는 자들은 대개 제 독에 죽는다. 그녀는 아직 살아 있고, 그녀를 만난 이들은 대개 그렇지 못하다. 해독제를 만들던 약사들이 그녀의 이름을 듣고 가게를 접었다.',
     skillName: '아독참', skillDesc: '가장 약한 적을 독니로 물어 처형하고, 독이 밴 피를 마셔 회복한다.',
@@ -295,6 +332,7 @@ const RAW = {
   },
   venomfang_abyss: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'poison', root: 'rogue',
+    hair: 'navy blue hair', color: '#6b84e6',
     name: '저마인', title: '썩어 가는 왕관',
     story: '독아의 극에서 스스로를 실험대로 삼았다. 살은 썩고 뼈는 부식되었지만, 그는 아직 전열 한가운데 서 있다. 그가 붙잡은 적은 그와 같이 썩는다는 것, 그것이 그가 세운 유일한 법이다.',
     skillName: '부식강타', skillDesc: '썩은 주먹으로 적 하나를 강타해, 독기에 질린 채 기절시킨다.',
@@ -302,6 +340,7 @@ const RAW = {
   },
   bladedancer_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    hair: 'copper red hair', color: '#e6773f',
     name: '치아라', title: '끝나지 않는 곡',
     story: '그녀의 춤은 한 곡이 끝날 때까지 이어진다. 곡이 끝났을 때 서 있는 것은 언제나 그녀뿐이었다. 궁정에서 초대장을 보냈다가, 무희가 아니라 검객이라는 걸 알고 거둬들였다.',
     skillName: '절검일무', skillDesc: '한 박자에 적 하나를 강타해, 곡이 넘어가기 전까지 기절시킨다.',
@@ -309,6 +348,7 @@ const RAW = {
   },
   bladedancer_abyss: {
     arch: 'rogue', dmgType: 'phys', range: 'melee', fx: 'slash', root: 'rogue',
+    hair: 'snow white hair', color: '#f4f4f8',
     name: '지젤', title: '여섯 그림자의 춤',
     story: '무대 위에 한 사람, 그림자는 여섯. 관객은 어느 그림자가 진짜인지 맞히는 내기를 했고, 아무도 이기지 못했다. 전장에서 그 내기를 건 자들은 돈 대신 목을 걸었고, 역시 이기지 못했다.',
     skillName: '환무살', skillDesc: '여섯 잔상 사이로 가장 약한 적을 처형하고, 그 피로 제 상처를 씻는다.',
@@ -316,6 +356,7 @@ const RAW = {
   },
   archmage_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'bolt', root: 'apprentice',
+    hair: 'dark blue hair', color: '#5e78e0',
     name: '오르벨', title: '비워진 하늘',
     story: '주문을 배운 적이 없다. 처음 손을 들었을 때 허공이 먼저 물러났고, 그 뒤로는 물러난 자리에 무엇을 채울지만 골라 왔다. 그의 이름이 불린 도시들은 지도에서 여백이 되었다.',
     skillName: '허공붕괴', skillDesc: '적 전체 위의 허공을 마력으로 터뜨리고, 남은 파편이 계속 살을 파고든다.',
@@ -323,6 +364,7 @@ const RAW = {
   },
   archmage_abyss: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'bolt', root: 'apprentice',
+    hair: 'blonde hair', color: '#f2d27a',
     name: '미란데', title: '세상을 고치는 손',
     story: '오르벨과 같은 탑에서 같은 스승을 두었다. 스승이 세상을 태우는 법을 가르칠 때 그녀는 태운 뒤에 남는 것을 보았다. 이제 그녀의 마력은 부수는 것과 고치는 것을 한 손에서 한다.',
     skillName: '만상재편', skillDesc: '적 전체의 구조를 마력으로 뒤틀어 터뜨린다. 어긋난 자리는 스스로 계속 무너진다.',
@@ -330,6 +372,7 @@ const RAW = {
   },
   lichlord_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'apprentice',
+    hair: 'auburn hair', color: '#d0703f',
     name: '모르가르', title: '죽음의 영주',
     story: '죽음과 계약하는 대신 죽음을 상속받았다. 그의 영지에서는 흙에 묻힌 것들이 세금을 내듯 일어나 걷는다. 왕관은 그의 뼈가 부서지기 전까지 벗겨지지 않고, 뼈는 아직 온전하다.',
     skillName: '명부개장', skillDesc: '적 전체에 암흑의 저주를 터뜨린다. 명부에 오른 이름은 계속 생명을 갉아먹힌다.',
@@ -337,6 +380,7 @@ const RAW = {
   },
   lichlord_abyss: {
     arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'shadow', root: 'apprentice',
+    hair: 'silver hair', color: '#d8dce8',
     name: '에르네', title: '경계의 뱃사공',
     story: '모르가르와 같은 문에서 나왔지만, 그녀는 강 저편으로 건너간 자를 데려오는 쪽을 택했다. 명계의 어둠은 그녀에게 무기가 아니라 뱃삯이다. 그녀 곁에서 죽은 자는 아직 없다.',
     skillName: '명계귀환', skillDesc: '명계의 어둠이 아군 전체를 크게 회복시키고, 남은 저주로 공격력을 올린다.',
@@ -344,6 +388,7 @@ const RAW = {
   },
   plaguelord_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'poison', root: 'apprentice',
+    hair: 'ash gray hair', color: '#b8bcc8',
     name: '헬리아', title: '이름을 붙이는 손',
     story: '첫 역병에 고향의 이름을 붙였다. 그 뒤로는 새 도시에 닿을 때마다 새 병이 태어났고, 지도는 그녀의 일기장이 되었다. 아직 이름을 붙이지 못한 도시가 세 곳 남았다고 한다.',
     skillName: '역병개화', skillDesc: '적 전체에 독의 포자를 터뜨린다. 자리 잡은 역병은 숨을 쉴 때마다 살을 갉는다.',
@@ -351,6 +396,7 @@ const RAW = {
   },
   plaguelord_abyss: {
     arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'poison', root: 'apprentice',
+    hair: 'black hair with silver streaks', color: '#c0c4d0',
     name: '무르구', title: '부풀어 오른 성벽',
     story: '헬리아의 첫 역병에 걸리고도 죽지 않은 유일한 사람이다. 썩는 자리마다 새 살이 부풀어 올라 이제 사람의 크기를 넘겼다. 그를 벽이라 부르는 이는 많아도 사람이라 부르는 이는 없다.',
     skillName: '부패외피', skillDesc: '아군 전체를 독의 점막으로 감싸고, 제 살을 더 부풀려 방어를 크게 굳힌다.',
@@ -358,6 +404,7 @@ const RAW = {
   },
   stormcaller_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'lightning', root: 'apprentice',
+    hair: 'dark brown hair', color: '#c08a5a',
     name: '하일로', title: '구름 없는 벼락',
     story: '구름 없는 날 벼락에 맞고 살아난 아이였다. 그날 이후 하늘이 그를 기다리는 대신 그가 하늘을 데리고 다닌다. 그가 하룻밤 머문 평원에는 아직도 풀이 나지 않는다.',
     skillName: '천뢰만락', skillDesc: '적 전체에 벼락을 한꺼번에 내리꽂는다. 남은 번개가 살갗을 타고 계속 흐른다.',
@@ -365,6 +412,7 @@ const RAW = {
   },
   stormcaller_abyss: {
     arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'lightning', root: 'apprentice',
+    hair: 'chestnut brown hair', color: '#c08a58',
     name: '시그린', title: '번개를 감는 손',
     story: '폭풍술사 중 유일하게 벼락으로 사람을 살리는 법을 찾았다. 하일로가 하늘을 무기로 쓸 때 그녀는 같은 하늘을 붕대로 썼다. 그녀가 지나간 야전병원에는 그을음과 살아난 이름만 남는다.',
     skillName: '뇌우세례', skillDesc: '아군 전체의 상처를 번개로 지지고, 남은 전류가 무기 끝까지 흘러 공격을 돋운다.',
@@ -372,6 +420,7 @@ const RAW = {
   },
   arhat_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'acolyte',
+    hair: 'crimson red hair', color: '#e0433f',
     name: '안셀름', title: '백 번째 주먹',
     story: '무기를 든 적이 없다. 상대가 검을 뽑는 사이 주먹은 이미 아흔아홉 번 닿아 있었고, 마지막 한 번은 세지 않는다. 그는 지금도 세지 않고, 상대는 세어 볼 기회가 없다.',
     skillName: '백련일격', skillDesc: '백 번 벼린 주먹이 적 하나를 강타해 기절시킨다.',
@@ -379,6 +428,7 @@ const RAW = {
   },
   arhat_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'blunt', root: 'acolyte',
+    hair: 'golden hair', color: '#ffc94a',
     name: '오스문트', title: '갑주를 벗은 벽',
     story: '갑주를 벗은 날 이후 한 번도 넘어지지 않았다. 육신이 벽이 되었으니 벽 뒤의 사람은 상처를 모른다. 그는 그것으로 족하다고만 했고, 그 뒤로 더 말한 적이 없다.',
     skillName: '금강호법', skillDesc: '단단한 기운을 아군 전체에 둘러 보호막을 만들고, 자신의 방어를 크게 올린다.',
@@ -386,6 +436,7 @@ const RAW = {
   },
   highpriest_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'holy', root: 'acolyte',
+    hair: 'jet black hair', color: '#9a9cb8',
     name: '에제키엘', title: '심판만 맡은 손',
     story: '붕대는 부사제에게 맡기고, 본인은 제단 앞에서 전장을 본다. 그가 손끝으로 가리킨 자리에는 성가 대신 빛이 떨어졌고, 남은 것은 없었다. 그는 그것도 기도라 부른다.',
     skillName: '성광폭렬', skillDesc: '신성한 빛이 적 전체를 폭발시키고, 남은 빛이 계속 태운다.',
@@ -393,6 +444,7 @@ const RAW = {
   },
   highpriest_abyss: {
     arch: 'healer', dmgType: 'magic', range: 'ranged', fx: 'holy', root: 'acolyte',
+    hair: 'platinum blonde hair', color: '#f6e7b5',
     name: '카스토르', title: '빚을 세는 별',
     story: '별의 이름으로 기도하고, 별의 이름으로 청구한다. 그의 성좌 아래서 쓰러진 부대는 없고, 값을 다 치른 부대도 아직 없다. 장부는 그가 죽어도 닫히지 않는다고 한다.',
     skillName: '성좌강림', skillDesc: '성좌의 빛이 아군 전체를 크게 회복하고 공격력을 올린다.',
@@ -400,6 +452,7 @@ const RAW = {
   },
   inquisitor_apex: {
     arch: 'mage', dmgType: 'magic', range: 'ranged', fx: 'fire', root: 'acolyte',
+    hair: 'pale blonde hair', color: '#f7e6c0',
     name: '우르바노', title: '명부를 든 불',
     story: '재판을 열지 않는다. 명부에 이름을 적는 것이 판결이고, 불을 붙이는 것이 집행이다. 그가 남긴 것은 재로 된 도시 하나와 빈 명부 한 권뿐이며, 명부는 다시 채워지고 있다.',
     skillName: '화형선고', skillDesc: '정화의 불꽃이 적 전체를 터뜨리고, 불이 남아 계속 태운다.',
@@ -407,6 +460,7 @@ const RAW = {
   },
   inquisitor_abyss: {
     arch: 'tank', dmgType: 'magic', range: 'melee', fx: 'fire', root: 'acolyte',
+    hair: 'navy blue hair', color: '#6b84e6',
     name: '이그나츠', title: '타지 않는 장작',
     story: '심문관의 자리를 버리고 스스로 장작이 되었다. 앞줄에 서서 불을 뒤집어쓰면 뒤에 선 이들은 타지 않는다. 그 불은 아직 꺼지지 않았고, 그도 아직 다 타지 않았다.',
     skillName: '정화성벽', skillDesc: '정화의 화염이 아군 전체를 둘러 보호막이 되고, 자신의 방어를 크게 올린다.',
@@ -414,6 +468,7 @@ const RAW = {
   },
   fallenmonk_apex: {
     arch: 'fighter', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'acolyte',
+    hair: 'copper red hair', color: '#e6773f',
     name: '아브살롬', title: '여섯 팔의 꿈',
     story: '계율을 깬 밤부터 팔이 여섯 개인 꿈을 꾼다. 깨어나면 두 팔뿐이지만, 상대는 여섯 번 맞은 채 쓰러져 있다. 그는 어느 쪽이 꿈인지 묻지 않고, 물을 사람도 남지 않았다.',
     skillName: '수라파쇄', skillDesc: '어둠을 두른 주먹이 적 하나를 강타해 기절시킨다.',
@@ -421,6 +476,7 @@ const RAW = {
   },
   fallenmonk_abyss: {
     arch: 'tank', dmgType: 'phys', range: 'melee', fx: 'shadow', root: 'acolyte',
+    hair: 'snow white hair', color: '#f4f4f8',
     name: '이스마엘', title: '꺼지지 않는 업',
     story: '남의 업을 대신 태우겠다고 했다. 그래서 그의 불은 검고, 꺼지지 않고, 앞줄에서 그를 향해 온 것만 태운다. 그는 그것을 속죄라 부르지 않고, 그저 제 몫이라 한다.',
     skillName: '업화호신', skillDesc: '검은 업화가 아군 전체를 감싸 보호막이 되고, 자신의 방어를 크게 올린다.',
@@ -510,6 +566,40 @@ const KIT = {
 export const KIT_LABEL = {
   tank: '수호', healer: '축복', fighter: '맹공', rogue: '암살', lancer: '관통', archer: '일제 사격', mage: '재앙',
 };
+
+/* ─────────────────────────── 테마 (§177) ───────────────────────────
+ * 제작자: 「특정 색으로 강조하지 말고 UI 를 다르게 — 영웅마다 특색이 없어 보인다」.
+ * 영웅의 색 = **일러스트의 머리색**(`color`, 그림과 같은 값) · 속성 = 고유 스킬 fx · 문장 = 계열.
+ * 도감 카드·명부 카드·상세·이름표·초상 후광이 전부 이 셋으로 갈린다. 분홍(GRADE_COLOR.H)은 색이 없을 때의 폴백이다.
+ */
+export const HERO_ELEMENT = {
+  fire: { name: '화염', color: '#ff7a2a' }, ice: { name: '한기', color: '#6fd8ff' }, holy: { name: '신성', color: '#ffd36b' },
+  shadow: { name: '암흑', color: '#a56bff' }, nature: { name: '정령', color: '#6fd86a' }, lightning: { name: '뇌전', color: '#ffe14a' },
+  poison: { name: '맹독', color: '#a6e34a' }, bolt: { name: '마력', color: '#8f7bff' }, slash: { name: '검격', color: '#e6e9f5' },
+  pierce: { name: '관통', color: '#e6e9f5' }, arrow: { name: '화살', color: '#e6e9f5' }, blunt: { name: '타격', color: '#ffb36b' },
+  heal: { name: '치유', color: '#8fe0a6' }, buff: { name: '가호', color: '#ffd36b' },
+};
+/** 계열 문장 (1차 클래스 id) */
+export const HERO_CREST = { swordsman: '⚔', spearman: '🔱', shieldman: '🛡', archer: '🏹', rogue: '🗡', apprentice: '✦', acolyte: '✚' };
+
+/** 이 영웅의 화면 테마 — { color, hair, element:{name,color}, crest, kit } */
+export function heroTheme(hero) {
+  const h = typeof hero === 'string' ? HEROES[hero] : hero;
+  if (!h) return { color: '#ff7fd8', hair: '', element: { name: '', color: '#ff7fd8' }, crest: '★', kit: '' };
+  return {
+    color: h.color || '#ff7fd8',
+    hair: h.hair || '',
+    element: HERO_ELEMENT[h.fx] || { name: '', color: h.color || '#ff7fd8' },
+    crest: HERO_CREST[h.root] || '★',
+    kit: KIT_LABEL[h.arch] || '',
+  };
+}
+
+/** 영웅 색 하나만 (UI 의 짧은 호출용). 모르는 id 면 분홍. */
+export function heroColorOf(id) {
+  const h = id && HEROES[id];
+  return (h && h.color) || '#ff7fd8';
+}
 
 /** id 주입 + 스킬 id 부여 */
 function stamp(map) {

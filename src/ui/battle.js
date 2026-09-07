@@ -2,6 +2,7 @@
 // params: { questId, squadId }  또는  { battleCfg, ... } (랜덤 인카운터용)
 import { el, num, clamp } from '../core/util.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+import { heroColorOf } from '../data/heroes.js';
 // 세트(신화) 등급 표기용 — RARITY_* 는 전설(4)까지라 세트템 rarity 5 를 못 담는다
 import { MYTHIC_COLOR, MYTHIC_NAME, getSet } from '../data/sets.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
@@ -739,7 +740,7 @@ function startWave(i) {
     S.info[u.uid] = {
       name: u.name, side: u.side, classId: u.classId || null, enemyId: u.enemyId || null,
       level: u.level || 1, grade: u.grade || 'F', boss: !!u.boss, maxHp: u.maxHp,
-      hero: !!u.hero,                                   // §174 결과 표에서 «영웅» 으로 적는다
+      hero: u.hero || null,                              // §174 결과 표에서 «영웅» 으로 적는다 (§177 색은 영웅마다)
       // 결과 표에서 단원과 펫을 갈라 놓는 표식 (펫은 경험치·부상이 없다)
       pet: !!u.pet, petRole: u.petRole || null,
     };
@@ -1183,7 +1184,7 @@ function renderResult(win) {
           r.uid === mvp ? el('span', { class: 'tag', style: { color: 'var(--gold)', marginLeft: '6px' }, text: 'MVP' }) : null,
           el('div', { class: 'tiny faint' },
             `${cls ? cls.name : '용병'} Lv${r.info.level} · `,
-            el('span', { style: { color: GRADE_COLOR[r.info.hero ? 'H' : r.info.grade] || '#999' }, text: r.info.hero ? '영웅' : `${r.info.grade}등급` }))),
+            el('span', { style: { color: (r.info.hero ? heroColorOf(r.info.hero) : GRADE_COLOR[r.info.grade]) || '#999' }, text: r.info.hero ? '영웅' : `${r.info.grade}등급` }))),
         el('td', { class: 'num', text: num(r.dealt) }),
         el('td', { class: 'num muted', text: num(r.taken) }),
         el('td', { class: 'num muted', text: r.healed ? num(r.healed) : '—' }),

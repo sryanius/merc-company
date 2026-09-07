@@ -8,6 +8,7 @@
 -- ★ 순서: 이 마이그레이션 → submit-score/run-op/pvp-battle 배포 → 클라이언트 (rev 203). 거꾸로 하면
 --   Lv81+ 영웅을 가진 계정의 순위 제출이 A 등급 거절(rules.js checkStatic) 또는 500(제약) 이 된다.
 -- ★ 돌린 뒤 node tools/sqlcheck.mjs (plpgsql_check) · node tools/rlscheck.mjs.
+-- ★ 함수 본문 안의 least(100) 줄에는 주석을 달지 않는다 — 줄 끝 주석이 뒤따르는 쉼표를 먹어 문법 오류가 났다 (첫 시도).
 
 alter table public.scores drop constraint if exists scores_top_level_check;
 alter table public.scores add constraint scores_top_level_check check (top_level between 1 and 100);
@@ -111,7 +112,7 @@ begin
          m ->> 'uid',
          coalesce(nullif(m ->> 'class_id', ''), 'swordsman'),
          left(coalesce(nullif(m ->> 'grade', ''), 'C'), 1),
-         least(100, greatest(1, coalesce((m ->> 'level')::integer, 1)))   -- §174 각성 영웅 Lv100,
+         least(100, greatest(1, coalesce((m ->> 'level')::integer, 1))),
          greatest(0, coalesce((m ->> 'hired_day')::integer, 1)),
          coalesce(m -> 'data', '{}'::jsonb)
     from jsonb_array_elements(coalesce(p_rows -> 'mercs', '[]'::jsonb)) m

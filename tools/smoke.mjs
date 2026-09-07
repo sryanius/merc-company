@@ -4895,7 +4895,9 @@ section('영웅 일러스트 (§176)');
   const hero = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1, hero: 'madgeneral_apex' });
   const rec = M.mercRecipe(hero, {});
   if (rec.illustHero !== 'illust_hero_madgeneral_apex') bad.push(`영웅 레시피 illustHero = ${rec.illustHero}`);
-  if (rec.gradeBg !== 'H' || rec.aura !== '#ff7fd8') bad.push('영웅 레시피 후광/오라가 H 가 아니다');
+  if (rec.gradeBg !== 'H' || rec.aura !== H.heroColorOf('madgeneral_apex') || rec.heroColor !== rec.aura) bad.push('영웅 레시피 후광/오라가 영웅 색이 아니다 (§177)');
+  if (H.HERO_IDS.some((id) => !/^#[0-9a-f]{6}$/i.test(H.HEROES[id].color || '') || !H.HEROES[id].hair)) bad.push('영웅 색/머리색이 비었다');
+  if (new Set(H.HERO_IDS.map((id) => H.HEROES[id].color)).size < 12) bad.push('영웅 색이 너무 적게 갈린다');
   const plain = M.mercRecipe(M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1 }), {});
   if (plain.illustHero) bad.push('일반 S 에 illustHero 가 붙는다');
   // 서비스워커 셸에 전부 있다
@@ -4999,6 +5001,41 @@ section('황금 나락');
     Abyss.dive(st, sq.id, { force: true, maxDepth: 2, noSweep: true, onDepth: (d) => first.push(d) });
     if (first.length && first[0] !== 1) bad.push(`noSweep 인데 ${first[0]} 부터 싸운다`);
     okAll(bad, '§173 소탕 — 기록까지 전투 없이 골드, 그 다음 심층부터 전투', 9);
+  }
+
+  /* ★ §177 영웅 관문 — 400 아래는 각성 영웅이 있어야 한다 (헤드리스·관전 둘 다) */
+  {
+    const RVm = await import('../src/game/runverify.js');
+    const M = await import('../src/game/merc.js');
+    const bad = [];
+    if (!AD.heroGateOpen(0, AD.HERO_GATE_DEPTH) || AD.heroGateOpen(0, AD.HERO_GATE_DEPTH + 1) || !AD.heroGateOpen(AD.HERO_GATE_NEED, AD.DEPTH_CAP)) bad.push('heroGateOpen 경계');
+    if (AD.countAwakenedHeroes([{ hero: 'x', awakened: true }, { hero: 'y' }, {}]) !== 1) bad.push('countAwakenedHeroes');
+    let fights = 0;
+    const r0 = RVm.runAbyss({ allies: [{ uid: 'a', hero: null }], ctx: { seed: 1, day: 1 }, squadId: 'x', startDepth: AD.HERO_GATE_DEPTH + 1, before: () => { fights++; return true; } });
+    if (r0.reached !== AD.HERO_GATE_DEPTH || fights !== 0 || !r0.log.some((e) => e.type === 'gate' && e.depth === AD.HERO_GATE_DEPTH + 1)) bad.push(`영웅 없이 ${AD.HERO_GATE_DEPTH + 1} 부터 시작했는데 싸운다 (reached ${r0.reached}, 전투 ${fights})`);
+    let fights2 = 0;
+    RVm.runAbyss({ allies: [{ uid: 'a', hero: 'madgeneral_apex', awakened: true }], ctx: { seed: 1, day: 1 }, squadId: 'x', startDepth: AD.HERO_GATE_DEPTH + 1, maxDepth: AD.HERO_GATE_DEPTH + 1, before: () => { fights2++; return false; } });
+    if (fights2 !== 1) bad.push('각성 영웅이 있는데 문이 안 열린다');
+    // 관전 잠수: 기록 400 · 영웅 없음 → 시작 즉시 닫힘(gate) · 각성 영웅을 넣으면 열린다
+    State.newGame(783, '관문스모크');
+    const st = State.state; const sq = st.squads[0];
+    st.day = 15; st.abyss = { best: AD.HERO_GATE_DEPTH, bestDay: 1, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
+    const b1 = Abyss.beginLiveRun(st, sq.id);
+    if (!b1.ok || !b1.done || !b1.gate || Abyss.liveRun(st) || !(b1.result && b1.result.why === 'gate')) bad.push('영웅 없는 부대가 401 로 들어간다');
+    const hero = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 80, hero: 'madgeneral_apex' }); hero.awakened = true;
+    State.addMerc(hero); const slot = sq.memberUids.indexOf(null); sq.memberUids[slot >= 0 ? slot : 0] = hero.uid; hero.squadId = sq.id;
+    if (Abyss.squadHeroCount(st, sq.id) !== 1) bad.push('squadHeroCount');
+    st.day = 22; st.abyss.lastRunDay = 0;
+    const b2 = Abyss.beginLiveRun(st, sq.id);
+    if (!b2.ok || b2.done || !Abyss.liveRun(st) || Abyss.liveRun(st).depth !== AD.HERO_GATE_DEPTH + 1) bad.push('각성 영웅이 있는데 401 로 못 들어간다');
+    // 문 바로 위에서 이기면: 영웅을 빼면 다음 심층에서 닫힌다
+    Abyss.finishLiveRun(st, 'stop');
+    st.day = 29; st.abyss.lastRunDay = 0; st.abyss.best = AD.HERO_GATE_DEPTH - 1;
+    Abyss.beginLiveRun(st, sq.id);
+    hero.awakened = false;
+    const s1 = Abyss.settleLiveDepth(st, { win: true, finalHp: {} });
+    if (!s1 || !s1.finished || !s1.gate || Abyss.liveRun(st) || st.abyss.best !== AD.HERO_GATE_DEPTH) bad.push('400 을 이긴 뒤 영웅이 없으면 닫혀야 한다');
+    okAll(bad, '§177 영웅 관문 — 400 아래는 각성 영웅 · 헤드리스/관전 모두', 9);
   }
 
   /* ★ §173 관전 잠수 — 시작 → 정산(승) → 이월 → 쉼터 → 자동 마무리 → 패배 → 주 경과 → 바닥 */

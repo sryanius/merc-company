@@ -11,7 +11,7 @@
 import { el, num, clamp } from '../core/util.js';
 import { rng } from '../core/rng.js';
 import { GRADE_COLOR, gradeKeyOf, gradeNameOf } from '../art/palette.js';
-import { getHero } from '../data/heroes.js';
+import { getHero, heroColorOf } from '../data/heroes.js';
 /* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
  *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -405,7 +405,7 @@ function statMaxima(classes) {
 
 const gradeTag = (g) => el('span', { class: 'tag', style: { color: GRADE_COLOR[g] || '#999' }, text: `${g}등급` });
 /** §174 영웅이면 «영웅» 표식 (S 위), 아니면 등급 */
-const gradeTagOf = (m) => el('span', { class: 'tag', style: { color: GRADE_COLOR[gradeKeyOf(m)] || '#999' }, text: gradeNameOf(m) });
+const gradeTagOf = (m) => el('span', { class: 'tag', style: { color: (m && m.hero ? heroColorOf(m.hero) : GRADE_COLOR[gradeKeyOf(m)]) || '#999' }, text: gradeNameOf(m) });
 
 /* ─────────────────────────── 렌더 ─────────────────────────── */
 
@@ -601,7 +601,7 @@ function oddsPanel({ tier, gate, spec }) {
   const nowSpecS = hasSpec ? oddsOf(tier, { rep, specialty: true }).S : 0;
   const compare = el('div', { class: 'tiny', style: { marginTop: '8px', color: hasSpec ? 'var(--ok)' : 'var(--ink-dim)' } },
     hasSpec
-      ? `S 등급은 명물 클래스에서만 나온다 — 지금 ${pctText(nowSpecS)}, 평판 ${repTop2}이면 ${pctText(bestS)}까지 오른다. 다른 클래스는 여기서 아무리 뽑아도 S가 나오지 않는다.`
+      ? `S 등급은 명물 클래스에서만 나온다 — 지금 ${pctText(nowSpecS)}, 평판 ${repTop2}이면 ${pctText(bestS)}까지 오른다. 다른 클래스는 여기서 아무리 뽑아도 S가 나오지 않는다. S 가 나오면 주사위를 한 번 더 굴려 절반은 영웅이 된다 — 그 클래스 계열의 4차 영웅 중 아직 없는 이가 먼저 온다.`
       : '이 도시에는 명물 클래스가 없어 S 등급이 나오지 않는다. S를 원한다면 그 클래스의 명물 도시로 가야 한다.');
 
   const chips = el('div', { class: 'tv-chances', style: { marginTop: '10px' } },
@@ -836,7 +836,7 @@ function openHireModal(cls, merc, city, isSpec) {
   const spinBox = el('div', { class: 'tv-spinbox' });
   detail.appendChild(spinBox);
   detail.style.opacity = '1';
-  const spinner = silhouetteSpinner(spinBox, merc);
+  const spinner = silhouetteSpinner(spinBox, merc, cls.id);
 
   spinGrade(gradeNode, merc.grade, () => {
     spinner.dispose();
@@ -865,13 +865,14 @@ function openHireModal(cls, merc, city, isSpec) {
 function heroReveal(gradeNode, msgNode, detail, merc) {
   const h = getHero(merc.hero);
   if (!h) return;
+  const hc = heroColorOf(merc.hero);
   gradeNode.textContent = '영웅';
-  gradeNode.style.color = GRADE_COLOR.H;
+  gradeNode.style.color = hc;
   gradeNode.classList.remove('hit');
   void gradeNode.offsetWidth;
   gradeNode.classList.add('hit');
   msgNode.textContent = `주사위가 한 번 더 굴렀다. ${h.name} — «${h.title}». 이름을 가진 전설이 손도장을 찍었다.`;
-  detail.style.color = GRADE_COLOR.H;
+  detail.style.color = hc;
   toast(`영웅! ${h.name} «${h.title}»${josa(h.title, '이/가')} 용병단에 합류했다.`, 'good');
 }
 
@@ -940,12 +941,15 @@ function spinGrade(node, finalGrade, onDone, onTick) {
  *
  * @returns {{tick:(i:number)=>void, dispose:()=>void}}
  */
-function silhouetteSpinner(box, merc) {
+function silhouetteSpinner(box, merc, plainClassId = null) {
   const VARIANTS = 6;
   const made = [];
   try {
     for (let k = 0; k < VARIANTS; k++) {
-      const fake = { ...merc, look: Merc.rollLook(rng) };
+      /* ★ 굴리는 동안은 **등급도 영웅도 보이면 안 된다** (제작자: 「배경에서 A 등급인 게 보인다」 — §177).
+       *   후광(gradeBg)·오라·영웅 전용 그림은 등급이 정하는 치장이라, C 등급 · 주점에 걸린 클래스로 그린다.
+       *   결과는 spinGrade 가 멈춘 뒤 revealBlock 이 진짜 레시피로 다시 그린다. */
+      const fake = { ...merc, grade: 'C', hero: null, awakened: false, classId: plainClassId || merc.classId, look: Merc.rollLook(rng) };
       const { box: b, entry } = makePreview(mercRecipe(fake, state));
       b.style.display = 'none';
       made.push({ b, entry });
@@ -992,7 +996,7 @@ function revealBlock(merc, cls, spriteBox) {
     spriteBox,
     el('div', { class: 'col', style: { gap: '2px', flex: '1' } },
       el('div', { style: { fontWeight: '700', fontSize: '15px' } }, merc.name, ' ', gradeTagOf(merc)),
-      hero ? el('div', { class: 'tiny', style: { color: GRADE_COLOR.H }, text: `«${hero.title}» — Lv1 부터 4차. Lv80 에 각성석 30개로 각성한다.` }) : null,
+      hero ? el('div', { class: 'tiny', style: { color: heroColorOf(hero.id) }, text: `«${hero.title}» — Lv1 부터 4차. Lv80 에 각성석 30개로 각성한다.` }) : null,
       el('div', { class: 'tiny muted', text: `${cls2.name} · Lv${merc.level} · ${cls2.role || ''}` }),
       el('div', { class: 'sep', style: { margin: '6px 0' } }),
       el('div', { class: 'tv-kv' }, el('span', { class: 'faint', text: '체력 / 공격' }), el('span', { class: 'num', text: `${num(st.hp)} / ${num(st.atk)}` })),

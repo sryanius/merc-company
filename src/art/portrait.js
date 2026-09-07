@@ -171,7 +171,7 @@ export function portraitKey(recipe = {}) {
   const p = recipe.palette || {};
   return ['F', n.png ? 'P:' + n.png : '', n.illust, n.plate, n.head2, n.hair2, n.helm2,
     n.body, n.head, n.hair, n.helm, n.armor, n.cape, n.arm, n.leg, n.weapon, n.offhand, n.pauldron,
-    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura, recipe.gradeBg].join('|');
+    p.skin, p.hair, p.metal, p.cloth, p.leather, p.accent, p.glow, p.eye, recipe.aura, recipe.gradeBg, recipe.heroColor].join('|');
 }
 
 /**
@@ -256,7 +256,18 @@ export function buildPortrait(recipe = {}) {
     /* 등급 배경 (제작자: 「금빛 입히는 건 디자인 제약이니 차라리 배경을 다르게」).
      * 색을 캐릭터에 얹지 않고 **뒤에** 후광을 깐다 — 일러스트 디자인이 자유로워진다. */
     gradeBg: recipe.gradeBg || null,
+    /* §177 영웅 후광 색 (없으면 BG.H 의 분홍) */
+    heroColor: recipe.heroColor || null,
   };
+}
+
+/** #rrggbb 두 색을 t 만큼 섞는다 (후광 core 는 영웅 색을 흰색 쪽으로 눕힌 것) */
+function mixHex(a, b, t) {
+  const pa = /^#([0-9a-f]{6})$/i.exec(a || ''), pb = /^#([0-9a-f]{6})$/i.exec(b || '');
+  if (!pa || !pb) return a;
+  const x = parseInt(pa[1], 16), y = parseInt(pb[1], 16);
+  const ch = (s) => Math.round(((x >> s) & 255) * (1 - t) + ((y >> s) & 255) * t);
+  return '#' + [16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('');
 }
 
 /* ─── 캐시 — 옆모습과 같은 규칙(바이트 예산 · LRU) ─── */
@@ -342,7 +353,10 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
     A: { core: '#dcc8ff', mid: '#a97ff0', glow: 2.2, halo: 0.22 },
     H: { core: '#ffd9f3', mid: '#ff7fd8', glow: 3.3, halo: 0.34 },   // §174 영웅
   };
-  const bg = showBg && portrait.gradeBg && BG[portrait.gradeBg];
+  let bg = showBg && portrait.gradeBg && BG[portrait.gradeBg];
+  if (bg && portrait.gradeBg === 'H' && portrait.heroColor) {
+    bg = { ...bg, core: mixHex(portrait.heroColor, '#ffffff', 0.55), mid: portrait.heroColor };   // §177 영웅 색 후광
+  }
   if (bg) {
     const cx = dx0 + dw / 2;
     const fy = dy0 + (portrait.footY ?? PORTRAIT_FOOT_Y) * px;

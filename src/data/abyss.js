@@ -176,6 +176,28 @@ export function depthForPower(power) {
   return DEPTH_CAP;
 }
 
+/* ─────────────────────────── 영웅 관문 (§177) ───────────────────────────
+ * 제작자: 「영웅 없이 S 로는 500 에 못 가면 좋겠다」.
+ * 배율 곡선만으로는 못 가른다 — 역할 특화 최적 편성(DEEP_ROSTER, 균형 편성의 2~3배)은 영웅 없이도 500 을 뚫는다(§175).
+ * 그래서 **문**을 둔다: HERO_GATE_DEPTH 아래 심층은 **각성한 영웅**이 부대에 HERO_GATE_NEED 명 이상 있어야 내려간다.
+ * 서버 재현(runverify.runAbyss)도 같은 판정을 쓴다 — 아군 UnitDef 의 hero/awakened 표식으로 센다.
+ */
+/** 이 심층까지는 누구나. 그 아래는 각성한 영웅이 있어야 한다 */
+export const HERO_GATE_DEPTH = 400;
+/** 필요한 각성 영웅 수 */
+export const HERO_GATE_NEED = 1;
+
+/** 아군 UnitDef 배열에서 각성한 영웅 수 (allyUnitDefs 가 hero/awakened 를 싣는다) */
+export function countAwakenedHeroes(allies) {
+  return (allies || []).filter((a) => a && a.hero && a.awakened).length;
+}
+
+/** 이 심층으로 내려갈 수 있는가 */
+export function heroGateOpen(heroN, depth) {
+  const d = Math.round(depth || 1);
+  return d <= HERO_GATE_DEPTH || (heroN || 0) >= HERO_GATE_NEED;
+}
+
 /* ─────────────────────────── 소탕 (§173) ─────────────────────────── */
 
 /** 이번 잠수에서 전투 없이 지나는 마지막 심층 = 최고 기록 (상한 안). 골드는 그대로 캔다. */

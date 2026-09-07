@@ -12101,3 +12101,12 @@ activate (갱신일 때만)
 - 배선: `merc.js mercRecipe` 가 영웅이면 `rec.illustHero = illust_hero_<id>` (§174 에서 미리), `portrait.partsOf` 가 `[illustHero, illustClass, illust]` 순으로 고른다, 전투(renderer/battle.js)도 illustHero 우선. `_atk` 짝은 portrait 가 이름으로 찾는다. 셸(sw.js APP_SHELL)에 112줄이 도구(`--apply`)로 붙었다 → 첫 로드 +112 요청·약 2.5MB (전부 프리캐시).
 - 스크립트: `scratchpad/gen_hero_art.mjs` (세션 임시 폴더 — 저장소에 없다. §171 의 qedit/gen_all 과 같은 운명이라 다음에 도구를 손볼 때 `tools/gen/` 로 옮겨라). 시트 검수는 `sheet.mjs` 로 14장씩 8장을 눈으로 봤다 — 팔다리 결손·중복 없음, 초록 치마 몇 벌은 키잉을 살아남았다.
 - 스모크: 영웅 112장 목록·파일·192x240·표식 없음·레시피 우선·셸 (§176 블록).
+
+
+## 177. 영웅 관문 400 · 영웅마다 자기 색 · 주점 굴림 누출 · DB 적용 (2026-09-08, 제작자 피드백 5건)
+- **관문** (제작자: 「영웅 없이 S 로는 500 못 가게」): 배율 곡선만으로는 못 가른다 — 역할 특화 최적 편성(DEEP_ROSTER)이 균형 영웅 부대보다 세다(§175). 그래서 `data/abyss.js HERO_GATE_DEPTH=400 · HERO_GATE_NEED=1`: 401 부터는 **각성한 영웅**이 부대에 있어야 한다. 판정은 `runverify.runAbyss` 루프 안(아군 UnitDef 의 hero/awakened 로 센다 → 서버 재현도 같다)과 관전 잠수(`beginLiveRun`·`settleLiveDepth` — 다음 심층이 문 아래면 `gate` 로 닫힌다, 이긴 만큼은 기록) 둘 다. 로그 `{type:'gate'}`, 화면에 규칙·안내. 500 앵커(32)는 그대로 — 영웅 7명 + 3단 + 펫S 가 440~480.
+- **자기 색** (제작자: 「분홍 한 색으로 강조하지 말고 UI 를 다르게 — 특색이 없다」): `heroes.js` 에 영웅마다 `hair`(일러스트 머리색, gen_hero_art.mjs lookOf 와 같은 식) · `color`(그 머리색의 hex) · `heroTheme(h)` = {color, element(고유 스킬 fx → 이름·색), crest(계열 문장 ⚔🔱🛡🏹🗡✦✚), kit}. 레시피 `rec.heroColor` → 정면 후광(portrait BG.H 를 그 색으로) · 옆모습 오라 · 명부 카드(`--hc` CSS 변수, css .card.gr-hero) · 상세 heroBlock · 이름표 점 · 결과표 · 주점 반전 색 · 도감 카드(`.cdx-hero`: 색 띠에 계열/속성/틀, 이름 색, 보유는 광채, **미보유는 흑백**). 16색이 갈린다. GRADE_COLOR.H 분홍은 폴백.
+- **주점 누출** (제작자: 「굴릴 때 배경에서 A 등급이 보인다」): `silhouetteSpinner` 가 진짜 레시피(gradeBg 후광·오라·영웅 그림)로 그렸다. 굴리는 동안은 등급 C · 영웅 없음 · **주점에 걸린 클래스**로 그린다 — 영웅은 4차 그림이라 클래스 자체가 새는 것도 막는다. 결과는 spinGrade 뒤 revealBlock 이 진짜로 다시 그린다.
+- **주점 계열** (제작자 4번): 이미 그렇게 돼 있었다 — `pickHeroClass(주점 클래스, …)` 는 그 클래스에서 갈라지는 4차 8명만 본다. 안내 문구를 확률 패널에 적었다.
+- **도감 버그**: heroTab 의 루프 변수 `root` 가 함수 인자 root(DOM)를 가려 `rerender('archer')` → `innerHTML on string`. `lineId` 로.
+- **DB 적용**: `db/026_hero_level.sql` 을 이 세션에서 돌렸다 (`npx supabase link --project-ref …` → `db query --linked -f`). 첫 시도는 함수 본문의 `least(100, …)   -- 주석` 이 뒤따르는 쉼표를 먹어 문법 오류 → 주석을 뗐다. 확인: scores.top_level 1~100 · run_mercs.level 1~100 · run_import least(100). sqlcheck·rlscheck 통과. **Edge Function 배포(submit-score/run-op/pvp-battle)는 아직** — 제작자 확인 뒤.

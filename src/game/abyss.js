@@ -42,6 +42,7 @@
 import {
   ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, sweepLimit,
   isRestDepth, isVaultDepth, zoneOf, weekIndex, REST_EVERY, VAULT_EVERY, VAULT_MULT,
+  HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen, countAwakenedHeroes,
 } from '../data/abyss.js';
 import * as State from './state.js';
 import * as Quest from './quest.js';
@@ -50,7 +51,15 @@ import * as RV from './runverify.js';
 export {
   ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, zoneOf, sweepLimit,
   isRestDepth, isVaultDepth, REST_EVERY, VAULT_EVERY, VAULT_MULT,
+  HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen,
 };
+
+/** 이 부대의 각성 영웅 수 (§177 관문 판정 — 편성 경로 그대로 센다) */
+export function squadHeroCount(st, squadId) {
+  const squad = (st.squads || []).find((s) => s.id === squadId);
+  if (!squad) return 0;
+  try { return countAwakenedHeroes(Quest.allyUnitDefs(st, squad)); } catch { return 0; }
+}
 
 /** 심층 시드와 합성 의뢰는 `runverify.js` 한 벌뿐이다 — 여기서는 이름만 다시 내보낸다.
  *  (`st` 는 `.seed`·`.day` 만 읽히므로 서명이 그대로다.) */
@@ -273,6 +282,11 @@ export function beginLiveRun(st, squadId) {
     const result = finishLiveRun(st, 'cap');
     return { ok: true, reason: '', done: true, sweepTo: to, gold, result };
   }
+  /* §177 영웅 관문 — 첫 전투 심층부터 문 아래면 각성 영웅이 있어야 한다 */
+  if (!heroGateOpen(squadHeroCount(st, squadId), to + 1)) {
+    const result = finishLiveRun(st, 'gate');
+    return { ok: true, reason: '', done: true, gate: true, sweepTo: to, gold, result };
+  }
   return { ok: true, reason: '', run: st.abyss.run, sweepTo: to, gold };
 }
 
@@ -334,6 +348,11 @@ export function settleLiveDepth(st, res = {}) {
     const result = finishLiveRun(st, 'cap');
     return { win: true, depth: d, next: 0, finished: true, gold: g, result };
   }
+  /* §177 영웅 관문 — 다음 심층이 문 아래인데 각성 영웅이 없으면 여기서 끝난다 (이긴 만큼은 기록) */
+  if (!heroGateOpen(squadHeroCount(st, run.squadId), run.depth)) {
+    const result = finishLiveRun(st, 'gate');
+    return { win: true, depth: d, next: 0, finished: true, gold: g, gate: true, result };
+  }
   return { win: true, depth: d, next: run.depth, finished: false, gold: g };
 }
 
@@ -389,6 +408,7 @@ export function finishLiveRun(st, reason = 'stop') {
   const run = liveRun(st);
   if (!run) return null;
   if (reason === 'stop' || reason === 'stale') run.log.push({ type: 'stop', depth: run.depth, why: reason });
+  if (reason === 'gate') run.log.push({ type: 'gate', depth: run.depth, heroN: squadHeroCount(st, run.squadId) });
   const out = {
     ok: true, reason: '', reached: run.reached, gold: run.gold, log: run.log.slice(),
     startDepth: run.startDepth, squadId: run.squadId, live: true, why: reason,

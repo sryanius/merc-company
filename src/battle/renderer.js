@@ -13,6 +13,7 @@ import { getSprite, drawSpriteFrame, spriteFootPx, SCALE } from '../art/spritege
  *   없는 것(몬스터·펫·옛 레시피)은 옆모습 도트 그대로. 한 무대에 두 화풍이 섞이는 건 알고 둔다 (적 그림은 다음 단계). */
 import { getPortrait, drawPortraitFrame } from '../art/portrait.js';
 import { hasIllustPng } from '../art/illustpng.js';
+import { heroColorOf } from '../data/heroes.js';
 import { createFxSystem } from '../art/fx.js';
 import { getSkill } from '../data/skills.js';
 
@@ -1762,7 +1763,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const ny = top;                               // 스프라이트 안에서의 베이스라인
     q.beginPath();
     q.arc(sx + 3 * us, ny - 4 * us, 3.2 * us, 0, TAU);
-    q.fillStyle = GRADE_COLOR[u.hero ? 'H' : u.grade] || '#8a8a96';   // §174 영웅은 S 위 색
+    q.fillStyle = (u.hero ? heroColorOf(u.hero) : GRADE_COLOR[u.grade]) || '#8a8a96';   // §177 영웅은 자기 색
     q.fill();
     q.strokeStyle = 'rgba(8,6,12,.9)';
     q.lineWidth = Math.max(1, us * 0.8);

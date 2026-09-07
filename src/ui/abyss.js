@@ -25,7 +25,7 @@ import * as Abyss from '../game/abyss.js';
 import * as Pet from '../game/pet.js';
 import {
   ABYSS_NAME, zoneOf, depthPower, depthGold, goldRange, depthEnemyCount, depthEnemyLevel,
-  REST_EVERY, VAULT_EVERY, VAULT_MULT, DEPTH_CAP,
+  REST_EVERY, VAULT_EVERY, VAULT_MULT, DEPTH_CAP, HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen,
 } from '../data/abyss.js';
 import { costRange, TOWER_FLOORS } from '../data/tower.js';
 import { rankNote } from './ranknote.js';
@@ -218,6 +218,10 @@ function runPanel(st, run, from) {
     return el('span', { class: down ? 'down' : '', text: `${m.name}${down ? ' (쓰러짐)' : hp != null ? ` ${num(hp)}` : ''}` });
   }).filter(Boolean);
   const nextRest = Math.ceil(run.depth / REST_EVERY) * REST_EVERY;
+  const heroN = Abyss.squadHeroCount(st, run.squadId);
+  const gateNote = run.depth + 20 > HERO_GATE_DEPTH && !heroGateOpen(heroN, HERO_GATE_DEPTH + 1)
+    ? el('div', { class: 'tiny', style: { color: '#ff9be0' }, text: `${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 있어야 내려간다 (지금 ${heroN}명).` })
+    : null;
 
   return el('div', { class: 'panel col ab-run', style: { gap: '10px' } },
     el('div', { class: 'row spread center', style: { gap: '10px', flexWrap: 'wrap' } },
@@ -228,6 +232,7 @@ function runPanel(st, run, from) {
           el('div', { class: 'faint tiny', text: `${sq ? sq.name : '부대'} · ${run.startDepth}심층부터 · 이번 잠수 ${num(run.gold)}G` }))),
       el('div', { class: 'faint tiny', text: `적 Lv${depthEnemyLevel(run.depth)} · ${depthEnemyCount(run.depth)}기 · 배율 ${depthPower(run.depth).toFixed(1)} / 다음 쉼터 ${nextRest}심층` })),
     chips.length ? el('div', { class: 'ab-carry' }, chips) : null,
+    gateNote,
     el('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
       el('button', { class: 'btn primary', onClick: () => enterDepth(from) }, `${run.depth}심층 전투`),
       el('button', { class: 'btn', onClick: () => autoFinish() }, '남은 심층 자동으로 마무리'),
@@ -278,6 +283,8 @@ function resultPanel(run) {
         return row('lose', `${e.depth}심층`, '더는 못 내려간다. 여기서 끝났다.');
       case 'stop':
         return row('stop', `${e.depth}심층`, e.why === 'stale' ? '주가 바뀌어 잠수가 닫혔다.' : '여기서 올라왔다.');
+      case 'gate':
+        return row('lose', `${e.depth}심층`, `갱도의 심장은 각성한 영웅이 여는 문이다 — ${HERO_GATE_DEPTH}심층 아래는 각성 영웅 ${HERO_GATE_NEED}명이 부대에 있어야 내려간다.`);
       default:
         return null;
     }
@@ -323,6 +330,9 @@ function rulesPanel() {
       ` ${REST_EVERY}심층마다 오는 쉼터에서만 전원 회복한다.`),
     el('div', { class: 'faint tiny', text: '· 쓰러진 단원은 다음 쉼터까지 나오지 못한다. 잠수가 끝나면 부상 없이 돌아온다.' }),
     el('div', { class: 'faint tiny', text: '· 장비·펫·경험치는 나오지 않는다. 여기서 가져가는 건 골드뿐이다.' }),
+    el('div', { class: 'tiny' },
+      '· ', el('b', { style: { color: '#ff9be0' }, text: `${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 연다.` }),
+      ` 부대에 각성 영웅이 ${HERO_GATE_NEED}명 이상 있어야 그 아래로 내려간다.`),
     el('div', { class: 'faint tiny', text: `· 바닥은 ${DEPTH_CAP}심층이다. 참고 — 100심층 배율 ${depthPower(100).toFixed(1)} / 200심층 ${depthPower(200).toFixed(1)} / 300심층 ${depthPower(300).toFixed(1)} / ${DEPTH_CAP}심층 ${depthPower(DEPTH_CAP).toFixed(1)} (적 Lv${depthEnemyLevel(DEPTH_CAP)} · ${depthEnemyCount(DEPTH_CAP)}기)` }));
 }
 
@@ -342,7 +352,9 @@ function doDive(squadId) {
   save();
   if (b.done) {
     lastRun = b.result;
-    toast(`이미 바닥(${DEPTH_CAP}심층)이다. 소탕으로 ${num(b.gold)}G 를 캤다.`, 'good');
+    toast(b.gate
+      ? `${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 있어야 내려간다. 소탕으로 ${num(b.gold)}G 를 캤다.`
+      : `이미 바닥(${DEPTH_CAP}심층)이다. 소탕으로 ${num(b.gold)}G 를 캤다.`, 'good');
     refresh();
     return;
   }
