@@ -4958,7 +4958,7 @@ section('황금 나락');
       if (Math.abs(AD.depthPower(d) - p) > 1e-9) bad.push(`앵커 ${d}심층 ${p} 를 안 지난다 (${AD.depthPower(d)})`);
     }
     if (Math.abs(AD.depthForPower(14.01) - 200) > 2) bad.push(`배율 14.01 → ${AD.depthForPower(14.01)}심층 (기대 200)`);
-    if (Math.abs(AD.depthForPower(20.17) - 300) > 2) bad.push(`배율 20.17 → ${AD.depthForPower(20.17)}심층 (기대 300)`);
+    if (Math.abs(AD.depthForPower(24.3) - 300) > 2) bad.push(`배율 24.3 → ${AD.depthForPower(24.3)}심층 (기대 300 — §180 세트 강화 뒤 3단 A 가 버티는 배율)`);
     if (AD.depthPower(AD.DEPTH_CAP) <= AD.depthPower(300)) bad.push('300 너머 배율이 안 오른다');
     if (AD.zoneOf(500) === AD.zoneOf(140) || AD.zoneOf(250) === AD.zoneOf(350)) bad.push('200 너머 구역 이름이 안 갈린다');
     if (AD.sweepLimit(0) !== 0 || AD.sweepLimit(96) !== 96 || AD.sweepLimit(9999) !== AD.DEPTH_CAP) bad.push('sweepLimit 이 기록/상한을 안 따른다');
@@ -7312,8 +7312,8 @@ section('순위표 치트 — 부대 전력·S용병 상한');
      *   검사가 보는 것은 «천장을 얼마나 넘었나» 이므로 **천장에 대한 비율**(x1.364 · x1.152)을 그대로 두고 값만 새 천장에 맞췄다.
      *   (Lv37 천장 ≈ 253,600 · Lv80 천장 293,055 · 여유 1.05) */
     const CHEATS = [
-      { nm: '숨단', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 345900 },
-      { nm: '삶이…빛난다', day: 120, questsDone: 300, rosterN: 7, sMercs: 7, topLevel: 80, topPower: 337600 },
+      { nm: '숨단', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 466100 },
+      { nm: '삶이…빛난다', day: 120, questsDone: 300, rosterN: 7, sMercs: 7, topLevel: 80, topPower: 454900 },
     ];
     const CHEAT = CHEATS[0];
     /* 실제 정상 등재 — 계량기가 0 인 옛 세이브까지 포함해 가장 빡빡한 조건으로 본다 */

@@ -607,7 +607,8 @@ export const SPEC_HIRES_PER_DAY = 6;
 export const POWER_LEVEL_STOPS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 /* ★ §172 세트 3단(예산 1.69배)이 생기면서 다시 떴다 — Lv80 190,470 → 293,055 (node tools/powerceiling.mjs)
  * ★ §174 90·100 은 각성 영웅 기준 — stormcaller_apex/starseeker3 · Lv90 302,233 / Lv100 311,411 (node tools/powerceiling.mjs) */
-export const POWER_BY_LEVEL = [220760, 228859, 238023, 247194, 256379, 265528, 274721, 283899, 293055, 302233, 311411];
+/* ★ §180 세트 2단 1.6배·3단 2.4배 — Lv80 293,055 → 394,903 (node tools/powerceiling.mjs) */
+export const POWER_BY_LEVEL = [320320, 328600, 338028, 347502, 356984, 366451, 375940, 385421, 394903, 404385, 413874];
 
 /**
  * 천장 대비 여유. 걸려도 «표시» 라 게임은 그대로 돌아간다.
@@ -655,7 +656,7 @@ export const POWER_SLACK = 1.05;
  */
 export const ABYSS_POWER_CURVE = [
   [5_000, 23], [10_000, 38], [20_000, 66], [30_000, 86],
-  [50_000, 160], [75_000, 301], [100_000, 500], [190_470, 500],
+  [50_000, 160], [75_000, 267], [100_000, 394], [190_470, 500],
 ];
 
 /** 무한의 탑 — 실측 (`tools/towerpower.mjs`, 월 5회 누적 최댓값) */
@@ -716,7 +717,8 @@ export function powerCeiling(level) {
  * ★ 표시(flag)선은 `powerCeiling × POWER_SLACK` 이고, 이건 그보다 훨씬 위다.
  *   측정이 틀렸을 때 정상 플레이어를 거절하는 쪽이 제일 나쁘므로 만렙 천장의 5배로 둔다.
  */
-export const POWER_CAP = 1_000_000;
+/* ★ §180 세트 강화로 천장이 Lv100 413,874 — 스모크의 «천장 3배 초과 · 2,000,000 미만» 띠 안에서 다시 잡았다 */
+export const POWER_CAP = 1_500_000;
 
 /**
  * 증가폭이 게임 규칙으로 설명되는가.

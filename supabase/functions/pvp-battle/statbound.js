@@ -59,7 +59,7 @@ export const HERO_MAX_LEVEL = 100;
  *   최악은 언제나 최저 등급 쪽에 있다.
  */
 export const MAX_RATIO = {
-  hp: 13.38, atk: 113.73, def: 47.30, res: 51.65, spd: 11.51, crit: 14.26, critDmg: 8.40, eva: 4.07,
+  hp: 19.04, atk: 166.79, def: 69.33, res: 75.81, spd: 16.02, crit: 14.26, critDmg: 8.40, eva: 5.28,   // §180 재측정
 };
 /** 앞으로의 밸런스 변화를 위한 여유 */
 export const SLACK = 2.0;
@@ -70,7 +70,7 @@ export const SLACK = 2.0;
  * (전 클래스 × 착용 가능 세트 × 12진형 × 7슬롯 × 7등급, 굴림 전부 최대, 버퍼 펫 3마리 최대)
  */
 export const MEASURED_MAX = {
-  hp: 100_249, atk: 28_954, def: 10_003, res: 5_088, spd: 6_184, crit: 120, critDmg: 432, eva: 37,
+  hp: 124_675, atk: 40_296, def: 12_967, res: 6_777, spd: 7_485, crit: 120, critDmg: 432, eva: 38,   // §180 세트 강화 재측정
 };
 
 /**

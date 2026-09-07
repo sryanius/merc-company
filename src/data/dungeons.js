@@ -54,9 +54,9 @@ export const DIFFICULTY_POWER = {
   normal: { early: 1.00, wall: 1.00 },
   /* 실측(계열 합산 뒤, tools/dungeon.mjs --diff=hard --settier=2 --basetier=1):
    *   입장(1단 풀세트) 평균 6.7웨 · 2단 조각 3/5/7/8개 → 8.3/8.3/8.7/8.7 · 2단 풀세트 완주 wall 1.28 → 52%, 1.32 → 19% */
-  hard: { early: 1.52, wall: 1.30 },
+  hard: { early: 1.65, wall: 1.56 },
   /* 실측(--diff=elite --settier=3 --basetier=2): 입장(2단 풀세트) 4.4웨 · 3단 조각 3/5/7/8개 → 7.6/8.0/8.4/8.5 · 3단 풀세트 완주 wall 1.75 → 40%, 1.82 → 4% */
-  elite: { early: 2.05, wall: 1.78 },
+  elite: { early: 2.60, wall: 2.55 },
 };
 /** 계측 도구용 — 실행 중에 난이도 배율을 바꿔 격자로 잰다 (게임은 부르지 않는다) */
 export function setDifficultyPower(diff, v) {

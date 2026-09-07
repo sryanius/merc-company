@@ -13,13 +13,13 @@
  *   · 단판 벽  : **만피로** 그 심층 하나만 쳤을 때의 승률. 소탕 뒤에는 «기록+1» 부터 만피로 서므로
  *               주마다 여기까지 기어 올라간다. 25% 이하로 떨어지는 첫 심층을 벽으로 본다.
  *
- * 실행: node tools/abysswall.mjs [--n=4] [--from=40] [--step=10] [--only=t2]
+ * 실행: node tools/abysswall.mjs [--n=4] [--from=40] [--step=10] [--only=t2] [--p500=60]
  */
 import * as Abyss from '../src/game/abyss.js';
 import * as Sets from '../src/data/sets.js';
 import { getClass } from '../src/data/classes.js';
 import { setup, powerOf, DEEP_ROSTER, DEEP_FID } from './abysspower.mjs';
-import { depthPower, DEPTH_CAP } from '../src/data/abyss.js';
+import { depthPower, DEPTH_CAP, POWER_ANCHORS, setPowerAnchors } from '../src/data/abyss.js';
 
 const arg = (k, d) => {
   const a = process.argv.find((x) => x.startsWith(`--${k}=`));
@@ -29,6 +29,9 @@ const N = parseInt(arg('n', '4'), 10);
 const FROM = parseInt(arg('from', '40'), 10);
 const STEP = parseInt(arg('step', '10'), 10);
 const ONLY = arg('only', '');
+/* --p500=60  500 앵커를 실행 중에 바꿔 벽이 500 을 넘는 부대의 «버티는 배율» 을 잰다 (§180) */
+const P500 = Number(arg('p500', '0'));
+if (P500 > 0) setPowerAnchors(POWER_ANCHORS.map(([d, p]) => (d === DEPTH_CAP ? [d, P500] : [d, p])));
 
 const SQUAD4 = [
   'bulwark_abyss', 'swordgod_apex', 'dragoonlord_apex', 'shadowblade_apex',

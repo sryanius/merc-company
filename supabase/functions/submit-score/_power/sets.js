@@ -456,8 +456,8 @@ const WEAPON_VARIANT = {
  *   · 풀세트 고유 효과는 **같은 방식에 더 센 수치** (`SET_TIER_SPECIAL`) — 엔진은 id 별칭으로 같은 훅을 탄다
  * 이름·설명·조각 이름은 `SET_TIER_TEXT` 가 준다. 텍스트가 없으면 기본 이름에 단을 붙여 낸다 (누락 방어).
  * ★ id 는 `<기본id><단>` (ironrampart2). `parseSetBaseId` 의 [a-z0-9]+ 규약 안이다. */
-export const SET_TIER_POWER = { 1: 1.00, 2: 1.30, 3: 1.69 };
-export const SET_TIER_MOD = { 1: 1.00, 2: 1.20, 3: 1.45 };
+export const SET_TIER_POWER = { 1: 1.00, 2: 1.60, 3: 2.40 };
+export const SET_TIER_MOD = { 1: 1.00, 2: 1.30, 3: 1.65 };
 const TIER_WORD = { 2: '상급', 3: '최상급' };
 /** 단별 풀세트 고유 효과 파라미터 덮어쓰기 — 키는 기본 special 의 params 와 같다 */
 const SET_TIER_SPECIAL = {
