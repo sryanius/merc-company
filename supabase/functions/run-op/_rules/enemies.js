@@ -391,7 +391,9 @@ const ENEMY_DEFS = [
     range: 'ranged', basicFx: 'arrow', skills: ['e_crossbow_bolt'], tier: 3, biome: ['desert', 'plains', 'coast'],
     expMul: 1.2, goldMul: 1.5,
     sprite: sp({ body: 'body_normal', head: 'head_human', hair: 'hair_short', helm: 'helm_hood', armor: 'armor_leather',
-      cape: 'cape_short', weapon: 'wpn_crossbow',
+      /* ★ 석궁 → 활 (§163.3). 그림 모델이 석궁을 **총으로 그린다** — Danbooru 에 석궁 자료가 거의 없다.
+       *   sprite.weapon 은 옆모습 도트에만 쓰이고 엔진·판정은 안 본다 (스킬은 e_crossbow_bolt 그대로). */
+      cape: 'cape_short', weapon: 'wpn_bow',
       palette: { skin: 'tan', hair: 'black', cloth: 'ash', leather: 'dark', accent: 'steel' } }),
     desc: '대상(隊商)만 골라 터는 노련한 사수.' },
   { id: 'rogue_mage', name: '탈주 마법사', arch: 'mage', mods: { hp: 0.98, atk: 1.32, res: 1.26 },

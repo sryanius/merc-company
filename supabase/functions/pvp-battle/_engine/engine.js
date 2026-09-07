@@ -1020,11 +1020,17 @@ export function createBattle(cfg = {}) {
     const e = aliveFighters('enemy');
     if (a > 0 && e > 0) {
       // 승부가 갈렸으면 전멸까지 안 간다 — 남은 사람은 살아 나온다
+      /* ★★ 패주는 **아군만** 한다 (제작자 결정 2026-09-07: 「패주는 적에게는 적용 안하는게 좋을것같아」).
+       *
+       *   패주의 목적은 «지는 판에서 단원이 전멸하지 않게» 다 (§24·§25). 적에게는 그럴 이유가 없고,
+       *   오히려 **적이 두 명 서 있는데 승리** 로 끝나 「이게 왜 승리지」 가 된다 — 제작자가 탑 4/10 웨이브에서 짚었다.
+       *   적 가지를 빼면 아군 승리 = **적 전멸**로 한 가지 뜻만 남는다.
+       *   ★ PvP 는 애초에 양쪽 다 꺼져 있다 (tagmatch.js `rout: false`) — 여기 손대도 PvP 는 안 바뀐다.
+       *   ★ 패주 판정은 난수를 안 쓴다 — 이 가지를 빼도 rng 소비가 안 바뀌고 전개는 그대로다. */
       if (routEnabled && B.time >= ROUT_AFTER) {
         const sa = strengthOf('ally');
         const se = strengthOf('enemy');
         if (sa < ROUT_FLOOR && se > sa * ROUT_LEAD) { routed = 'ally'; finish('enemy'); return; }
-        if (se < ROUT_FLOOR && sa > se * ROUT_LEAD) { routed = 'enemy'; finish('ally'); return; }
       }
       if (B.time >= TIME_LIMIT) {
         const ra = hpRatioOf('ally');

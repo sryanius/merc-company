@@ -373,6 +373,11 @@ if (fixture) {
   if (arg('alpha', 'hard') === 'hard') {
     /* 도트는 반투명이 없다 — 가장자리를 딱 자른다 */
     for (let i = 3; i < src.rgba.length; i += 4) src.rgba[i] = src.rgba[i] >= 128 ? 255 : 0;
+    /* ★ §170.5 발을 바닥에 다시 붙인다.
+     * frameToAspect 가 붙여 놓은 발이, 줄이기(평균) + 위 문턱(128) 때문에 다시 뜬다 —
+     * 구두코처럼 아래가 가늘어지면 그 줄들의 평균 알파가 문턱을 못 넘어 사라진다.
+     * 실측: 도적왕 공격본이 7줄 떴다 (끝 줄 232/239). 뜬 만큼 위가 비어 있을 때만 내리므로 위가 잘리지 않는다. */
+    if (fit !== 'none') sinkToFloor(src.w, src.h, src.rgba);
   }
   /* 색 줄이기 — 부드럽게 줄어든 그림을 «도트» 로 보이게 한다. 표식 픽셀은 건드리지 않는다 (게임이 다시 칠한다). */
   const colors = Number(arg('colors', 0)) || 0;
@@ -699,6 +704,23 @@ function keyBackground(w, h, rgba, kh, tol = 14, sMin = 0.30) {
 }
 
 /** 그림 상자를 잘라 목표 비율 캔버스에 **발은 바닥, 가로는 가운데** 로 놓는다. 여백은 투명. */
+/** 마지막 불투명 행이 바닥보다 위면, 위의 빈 줄만큼만 아래로 내려 발을 바닥에 붙인다. 제자리에서 바꾼다. */
+function sinkToFloor(w, h, rgba) {
+  let top = -1, bottom = -1;
+  for (let y = 0; y < h; y++) {
+    let any = false;
+    for (let x = 0; x < w; x++) if (rgba[(y * w + x) * 4 + 3] >= 8) { any = true; break; }
+    if (any) { if (top < 0) top = y; bottom = y; }
+  }
+  if (bottom < 0) return 0;
+  const dy = Math.min(h - 1 - bottom, top);       // 위에 빈 줄이 있는 만큼만 — 잘리지 않는다
+  if (dy <= 0) return 0;
+  rgba.copyWithin(dy * w * 4, 0, (h - dy) * w * 4);
+  rgba.fill(0, 0, dy * w * 4);
+  console.error(`  발 붙이기: ${dy}줄 내렸다 (끝 줄 ${bottom} → ${bottom + dy})`);
+  return dy;
+}
+
 function frameToAspect(w, h, rgba, aw, ah) {
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

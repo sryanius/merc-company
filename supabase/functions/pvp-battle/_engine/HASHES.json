@@ -1,13 +1,13 @@
 {
   "src/battle/ai.js": "626e6044",
-  "src/battle/engine.js": "f356d182",
+  "src/battle/engine.js": "7273cee0",
   "src/core/rng.js": "6a88c568",
   "src/core/util.js": "863340d8",
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
-  "src/data/enginever.js": "cd79a503",
+  "src/data/enginever.js": "57d16fed",
   "src/data/formations.js": "a767f504",
   "src/data/skills.js": "f3c5abd6",
-  "tests/fixtures/battle-golden.json": "a65cb864",
+  "tests/fixtures/battle-golden.json": "34e9c03e",
   "src/battle/tagmatch.js": "3770305f"
 }
