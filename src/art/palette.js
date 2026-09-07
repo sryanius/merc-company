@@ -235,8 +235,8 @@ export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW, EYE };
 /** 등급 색 (F~S). ★ §174 H = 영웅 (등급 글자가 아니라 표식이다 — GRADES 에는 없다) */
 export const GRADE_COLOR = {
   F: '#8a8a96', E: '#9fb08a', D: '#6fae7a', C: '#5b95d6', B: '#9a6fd6', A: '#e0913a', S: '#f0d24a',
-  /* §180.2 영웅 = 금빛 액자·글자 (#ffe9a8). 상아(§179)는 「더 없어 보인다」 — 제작자. 테두리는 css 의 금 그라데이션이 맡는다. */
-  H: '#ffe9a8',
+  /* §180.4 영웅 = 주황 (#ff8a4a). 상아(§179)·금(§180.2)은 「눈에 잘 안 띈다」 — 제작자. 테두리는 css 의 주황 그라데이션이 맡는다. A(#e0913a 호박)보다 붉고 밝다. */
+  H: '#ff8a4a',
 };
 
 /** 화면용 등급 키 — 영웅이면 'H', 아니면 등급 글자. 색을 찾을 때 `GRADE_COLOR[gradeKeyOf(m)]` */

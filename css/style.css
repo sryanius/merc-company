@@ -183,30 +183,30 @@ img { max-width: 100%; }
 .card.gr-a::before { background: linear-gradient(135deg, #9a7fdd 0 50%, transparent 50%); }
 .card.gr-s::before { background: linear-gradient(135deg, #f0d24a 0 50%, transparent 50%); }
 /* §174 영웅 — S 카드 위에 분홍빛 표식 (gr-s 와 같이 붙는다, 뒤에 와서 이긴다) */
-/* §180.2 영웅 — 배경은 그대로 두고 **금 그라데이션 액자**로만 강조한다 (S 의 얇은 단색 금테와 갈린다).
+/* §180.4 영웅 — 배경은 그대로 두고 **주황 그라데이션 액자**로만 강조한다 (금·상아는 눈에 안 띄었다) (S 의 얇은 단색 금테와 갈린다).
  *   테두리는 두 겹 배경(padding-box / border-box) 기법 — 그라데이션 테두리에 border-image 를 안 쓰는 이유는 radius 가 죽기 때문이다. */
 .card.gr-hero {
   border: 2px solid transparent;
   background:
     linear-gradient(180deg, var(--bg-2), var(--bg-1)) padding-box,
-    linear-gradient(135deg, #f7e7b0 0%, #b8862b 30%, #fff4cf 50%, #b8862b 70%, #f7e7b0 100%) border-box;
-  box-shadow: 0 0 16px -5px rgba(247,231,176,.55), inset 0 0 0 1px rgba(0,0,0,.35);
+    linear-gradient(135deg, #ffb27a 0%, #ff6a1f 30%, #ffd9b8 50%, #ff6a1f 70%, #ffb27a 100%) border-box;
+  box-shadow: 0 0 16px -5px rgba(255,122,58,.6), inset 0 0 0 1px rgba(0,0,0,.35);
 }
-.card.gr-hero:hover { box-shadow: 0 0 22px -4px rgba(247,231,176,.8), inset 0 0 0 1px rgba(0,0,0,.35); }
-.card.gr-hero::before { background: linear-gradient(135deg, #fff4cf 0 50%, transparent 50%); }
-.card.gr-hero.selected { box-shadow: 0 0 0 1px var(--gold-dim) inset, 0 0 16px -5px rgba(247,231,176,.55); }
+.card.gr-hero:hover { box-shadow: 0 0 22px -4px rgba(255,122,58,.85), inset 0 0 0 1px rgba(0,0,0,.35); }
+.card.gr-hero::before { background: linear-gradient(135deg, #ffd9b8 0 50%, transparent 50%); }
+.card.gr-hero.selected { box-shadow: 0 0 0 1px var(--gold-dim) inset, 0 0 16px -5px rgba(255,122,58,.6); }
 /* ♛ 영웅 표식 — 금 배경에 짙은 글자 (등급 글자 태그와 결이 다르다) */
 .tag.hero-tag {
-  background: linear-gradient(135deg, #f7e7b0, #c9a447 60%, #b8862b);
-  color: #2a1d05; font-weight: 800; border: 0; padding: 1px 8px; letter-spacing: .02em;
+  background: linear-gradient(135deg, #ffb27a, #ff6a1f 60%, #d9501a);
+  color: #2a1205; font-weight: 800; border: 0; padding: 1px 8px; letter-spacing: .02em;
 }
 /* 상세 초상 액자 */
 .co-hero-frame {
   border: 2px solid transparent; border-radius: var(--radius);
   background:
     linear-gradient(180deg, var(--bg-2), var(--bg-1)) padding-box,
-    linear-gradient(135deg, #f7e7b0 0%, #b8862b 30%, #fff4cf 50%, #b8862b 70%, #f7e7b0 100%) border-box;
-  box-shadow: 0 0 18px -6px rgba(247,231,176,.6);
+    linear-gradient(135deg, #ffb27a 0%, #ff6a1f 30%, #ffd9b8 50%, #ff6a1f 70%, #ffb27a 100%) border-box;
+  box-shadow: 0 0 18px -6px rgba(255,122,58,.65);
 }
 /* 선택·표시 상태가 등급보다 우선 */
 .card.gr-a.selected, .card.gr-s.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }

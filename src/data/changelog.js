@@ -31,6 +31,13 @@
 /** @type {Entry[]} */
 export const CHANGELOG = [
   {
+    id: '2026-09-08-hero-orange',
+    date: '2026-09-08',
+    rev: 210,
+    title: '영웅 — 주황 액자',
+    items: ['영웅의 액자·표식·이름 색을 **주황**으로 바꿨다 — 금빛은 눈에 잘 안 띄었다.'],
+  },
+  {
     id: '2026-09-08-hero-gold',
     date: '2026-09-08',
     rev: 209,
