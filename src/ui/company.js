@@ -2244,7 +2244,10 @@ function filteredRoster() {
     promote: (a, b) => (promotable(b) ? 1 : 0) - (promotable(a) ? 1 : 0)
       || (b.level || 1) - (a.level || 1) || mercPower(b, state) - mercPower(a, state),
   };
-  list = list.slice().sort(by[rosterFilter.sort] || by.power);
+  /* §180.2 영웅은 어떤 정렬에서든 맨 위 (이름순만 예외) — 「기본 정렬이 S 랑 섞인다」 */
+  const cmp = by[rosterFilter.sort] || by.power;
+  const heroFirst = rosterFilter.sort === 'name' ? cmp : (a, b) => ((b.hero ? 1 : 0) - (a.hero ? 1 : 0)) || cmp(a, b);
+  list = list.slice().sort(heroFirst);
   return list;
 }
 
@@ -2347,7 +2350,7 @@ function rosterCard(m) {
       el('div', { class: 'col', style: { gap: '1px', minWidth: '0', flex: '1' } },
         el('div', { class: 'row spread center', style: { gap: '6px' } },
           el('b', { style: { color: gradeColor(m), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, text: m.name }),
-          el('span', { class: 'tag', style: { color: gradeColor(m) }, text: m.hero ? '영웅' : m.grade })),
+          m.hero ? el('span', { class: 'tag hero-tag', text: '♛ 영웅' }) : el('span', { class: 'tag', style: { color: gradeColor(m) }, text: m.grade })),
         // 소속 부대 — 이름 바로 아래. 아래 태그 줄에 묻어 두면 40명 명부에서 안 읽힌다.
         el('div', { style: { marginTop: '3px' } }, squadBadge(m)),
         el('div', { class: 'tiny muted', style: { marginTop: '3px' }, text: `${c.name} · Lv${m.level || 1} · ${c.role || ''}` }),
@@ -2463,7 +2466,7 @@ export function openMercDetail(mercUid) {
       el('b', { style: { color: gradeColor(m), fontSize: '16px' }, text: m.name }),
       el('div', { class: 'tiny muted', text: `${c.name || m.classId} · ${c.tier || 1}차 · ${c.role || ''}` }),
       el('div', { class: 'row center', style: { gap: '6px', justifyContent: 'center' } },
-        el('span', { class: 'tag', style: { color: gradeColor(m) }, text: m.hero ? '영웅' : `${m.grade} 등급` }),
+        m.hero ? el('span', { class: 'tag hero-tag', text: '♛ 영웅' }) : el('span', { class: 'tag', style: { color: gradeColor(m) }, text: `${m.grade} 등급` }),
         el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: `Lv ${m.level || 1}` }))),
     el('div', { class: 'col', style: { width: '100%', gap: '3px' } },
       el('div', { class: 'row spread tiny faint' },
@@ -3209,7 +3212,7 @@ function askDismissMany(mercs) {
     const c = getClass(m.classId) || {};
     const sq = m.squadId ? state.squads.find((s) => s.id === m.squadId) : null;
     names.appendChild(el('div', { class: 'row center tiny', style: { gap: '6px' } },
-      el('span', { class: 'tag', style: { color: gradeColor(m), flex: '0 0 auto' }, text: m.hero ? '영웅' : m.grade }),
+      m.hero ? el('span', { class: 'tag hero-tag', style: { flex: '0 0 auto' }, text: '♛ 영웅' }) : el('span', { class: 'tag', style: { color: gradeColor(m), flex: '0 0 auto' }, text: m.grade }),
       el('b', { style: { color: gradeColor(m), flex: '0 0 auto' }, text: m.name }),
       el('span', { class: 'muted', style: { flex: '1 1 auto', minWidth: '0' }, text: `${c.name || m.classId} · Lv${m.level || 1}` }),
       sq

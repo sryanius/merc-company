@@ -12138,3 +12138,7 @@ activate (갱신일 때만)
 - `npx supabase functions deploy submit-score / run-op / pvp-battle` — 세 함수 ACTIVE (submit-score v41 · run-op v22 · pvp-battle v16). §172.3 부터 밀린 사본 전부(_shared·_power·_rules·_engine·statbound 손사본) 포함. ENGINE_HASH 82a9fb4a 가 서버에 올라갔으므로 PvP 등록은 전원 재빌드 대상. 배포 직후 `GET pvp-battle?selftest=1` 로 골든 픽스처 자가검사를 확인했다: `{"ok":true,"total":60,"bad":[],"engineHash":"82a9fb4a"}`.
 - 이 세션의 배포 경로: `npx -y supabase link --project-ref peilvwrqgauwlaqojttq` (자격은 CLI 가 이미 갖고 있었다 — Windows 자격 저장소) → `npx supabase db query --linked -f db/026_hero_level.sql` · `db/027_abyss_500.sql` → `npx supabase functions deploy <함수>`. bash 에서는 `node`/`npx` 가 PATH 에 없다 — `export PATH="/c/Program Files/nodejs:$PATH"` 를 앞에 둔다. `supabase/.temp` 는 gitignore.
 - ★ bash 의 `node -e "..."` 안에 백틱을 쓰면 명령 치환으로 사라진다 — 이 절의 첫 판이 그렇게 깨졌다. 문서·패치는 파일(cjs)로 써서 돌려라.
+
+### 180.2 영웅 강조 — 금 그라데이션 액자 · 정렬 (제작자 「하얀색이 더 없어 보인다 · 기본 정렬이 S 랑 섞인다」)
+- 상아(§178.1) → **금 그라데이션 2px 액자** (padding-box/border-box 두 겹 배경 — border-image 는 radius 를 죽인다) + 은은한 바깥 광채. S 의 얇은 단색 금테와 갈린다. 표식은 금 배경 «♛ 영웅»(`.tag.hero-tag`), GRADE_COLOR.H = #ffe9a8(글자). 도감 `.cdx-hero` · 상세 `.co-hero-frame` 도 같은 액자. 배경·개별 색 강조는 여전히 없다.
+- 명부 정렬: `filteredRoster` 가 어떤 정렬 키든 `(b.hero - a.hero) || cmp` 로 영웅을 먼저 둔다 (이름순만 예외). 기본 정렬(전투력)에서 Lv46 영웅이 Lv80 S 아래로 내려가던 것.
