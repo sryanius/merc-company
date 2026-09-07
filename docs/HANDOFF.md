@@ -12142,3 +12142,4 @@ activate (갱신일 때만)
 ### 180.2 영웅 강조 — 금 그라데이션 액자 · 정렬 (제작자 「하얀색이 더 없어 보인다 · 기본 정렬이 S 랑 섞인다」)
 - 상아(§178.1) → **금 그라데이션 2px 액자** (padding-box/border-box 두 겹 배경 — border-image 는 radius 를 죽인다) + 은은한 바깥 광채. S 의 얇은 단색 금테와 갈린다. 표식은 금 배경 «♛ 영웅»(`.tag.hero-tag`), GRADE_COLOR.H = #ffe9a8(글자). 도감 `.cdx-hero` · 상세 `.co-hero-frame` 도 같은 액자. 배경·개별 색 강조는 여전히 없다.
 - 명부 정렬: `filteredRoster` 가 어떤 정렬 키든 `(b.hero - a.hero) || cmp` 로 영웅을 먼저 둔다 (이름순만 예외). 기본 정렬(전투력)에서 Lv46 영웅이 Lv80 S 아래로 내려가던 것.
+- §180.3 (제작자 「용병단 화면 테두리는 영웅만, A·S 는 빼」): 명부 카드 class 가 `gr-hero` 만 붙는다. css 의 `.card.gr-a/.gr-s` 규칙은 남겨 뒀지만(다른 화면은 안 쓴다 — grep 0) `position/::before` 기본 규칙에 `.card.gr-hero` 를 더해 gr-s 없이도 액자가 선다. rev 209.

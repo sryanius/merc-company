@@ -164,7 +164,7 @@ img { max-width: 100%; }
  * 초상 뒤에 깔던 광선(§167 이전)은 세밀한 일러스트와 싸웠다. 그림은 안 건드리고 **카드**가 등급을 말한다:
  *   테두리 색 + 위쪽 모서리에서 흘러내리는 아주 옅은 빛 + 왼쪽 위 삼각 표식.
  * `.selected`(금색 테두리)와 겹치면 선택이 이겨야 하므로 그 규칙을 아래에 다시 둔다. */
-.card.gr-a, .card.gr-s { position: relative; }
+.card.gr-a, .card.gr-s, .card.gr-hero { position: relative; }   /* §180.3 명부는 gr-hero 만 쓴다 (gr-a/gr-s 규칙은 남겨 둔다) */
 .card.gr-a {
   border-color: #7b62b8;
   background: linear-gradient(180deg, rgba(146,110,220,.10), rgba(0,0,0,0) 42%), linear-gradient(180deg, var(--bg-2), var(--bg-1));
@@ -176,7 +176,7 @@ img { max-width: 100%; }
 .card.gr-a:hover { border-color: #9a7fdd; }
 .card.gr-s:hover { border-color: #f0d24a; }
 /* 왼쪽 위 삼각 — 작게, 한 번에 등급이 읽히도록 */
-.card.gr-a::before, .card.gr-s::before {
+.card.gr-a::before, .card.gr-s::before, .card.gr-hero::before {
   content: ''; position: absolute; top: 0; left: 0; width: 16px; height: 16px;
   border-top-left-radius: var(--radius); pointer-events: none;
 }

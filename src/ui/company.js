@@ -2332,7 +2332,8 @@ function rosterCard(m) {
 
   const card = el('div', {
     /* ★ 등급 테두리 (§167.1) — S·A 만. 카드 테두리·모서리로 등급을 알리고, 그림 위에는 아무것도 안 얹는다. */
-    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}${m.hero ? ' gr-s gr-hero' : m.grade === 'S' ? ' gr-s' : m.grade === 'A' ? ' gr-a' : ''}`,
+    /* §180.3 등급 테두리는 영웅만 (제작자: 「A 랑 S 는 빼버려」) — S·A 는 등급 태그로만 읽힌다 */
+    class: `card co-rcard${isPicked ? ' picked' : ''}${slotWaiting ? ' can' : ''}${isMarked ? ' marked' : ''}${m.hero ? ' gr-hero' : ''}`,
     draggable: dragEnabled() ? 'true' : false,
     title: '클릭하면 선택 — 그다음 편성판의 칸을 누르세요',
     onDragStart: (e) => {
