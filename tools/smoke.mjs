@@ -3883,16 +3883,20 @@ if (Items && Gear) {
   ok(SLOTS.every((sl) => emptyEq[sl] === null), 'equipment 필드가 아예 없어도 빈 10칸으로 정규화');
 }
 
-section('신화 세트 4종 x 10슬롯 = 40개 (설계 B)');
+section('신화 세트 4계열 x 3단 x 10슬롯 = 120개 (설계 B · §172)');
 if (Sets && Items && Gear && Dungeons && Classes && Merc && RngMod) {
-  ok(Sets.SET_IDS.length === 4, '세트가 정확히 4종', Sets.SET_IDS.join(','));
+  /* ★ §172 — 계열 4 × 단 3. 기본(1단) 4종은 예전 그대로고, 2단·3단은 기본에서 파생한다 */
+  ok(Sets.SET_IDS.length === 12, '세트가 정확히 12종 (4계열 × 3단)', Sets.SET_IDS.join(','));
+  ok(Array.isArray(Sets.BASE_SET_IDS) && Sets.BASE_SET_IDS.length === 4, '기본(1단) 세트가 정확히 4종', (Sets.BASE_SET_IDS || []).join(','));
+  ok(JSON.stringify(Sets.SET_ORDER) === JSON.stringify(Sets.BASE_SET_IDS.slice().sort((a, b) => Sets.getSet(a).order - Sets.getSet(b).order)),
+    '주차 → 세트 매핑(SET_ORDER)은 1단 세트만 본다', Sets.SET_ORDER.join(','));
   ok(Items.MYTHIC_RARITY === 5 && Items.RARITY_NAME[5] === '신화', '희귀도 5 = 신화',
     `${Items.MYTHIC_RARITY}/${Items.RARITY_NAME[5]}`);
   ok(Items.RARITY_COLOR.length === 6 && Items.RARITY_COLOR[5] !== Items.RARITY_COLOR[4],
     '신화 색이 전설과 다르다', `${Items.RARITY_COLOR[4]} vs ${Items.RARITY_COLOR[5]}`);
 
   const pieces = Sets.allSetPieceItems(80);
-  ok(pieces.length === 40, '세트 파츠 총 40개', `실제 ${pieces.length}`);
+  ok(pieces.length === 120, '세트 파츠 총 120개', `실제 ${pieces.length}`);
   const ARCHS = new Set(Object.keys(Classes.ARCHETYPES));
   const STATS = new Set(Merc.STAT_KEYS);
   const sbad = [];
@@ -3916,13 +3920,13 @@ if (Sets && Items && Gear && Dungeons && Classes && Merc && RngMod) {
     }
     if (!isNum(it.value) || it.value <= 0) sbad.push(`${tag}: value=${it.value}`);
   }
-  okAll(sbad, '세트 파츠 40개 스키마(slot·rarity·archs·stats)', pieces.length);
+  okAll(sbad, '세트 파츠 120개 스키마(slot·rarity·archs·stats)', pieces.length);
 
   const cbad = [];
   for (const id of Sets.SET_IDS) {
     for (const sl of Items.SLOTS) if (!Sets.setPieceDef(id, sl)) cbad.push(`${id}: ${sl} 파츠 없음`);
   }
-  okAll(cbad, '세트마다 10슬롯 파츠가 전부 있다', 40);
+  okAll(cbad, '세트마다 10슬롯 파츠가 전부 있다', 120);
 
   const mbad = Dungeons.DUNGEON_LIST.filter((d) => !Sets.getSet(d.setId))
     .map((d) => `${d.id}.setId='${d.setId}' 가 sets.js 에 없음`);
@@ -4028,6 +4032,38 @@ if (Sets && Items && Gear && Dungeons && Classes && Merc && RngMod) {
     }
   }
   okAll(gbad, 'gear.rollSetItem 이 40개 조합을 전부 만든다', 40);
+
+  /* ── §172 상위 단 세트 — 기본에서 파생됐고, 단이 오를수록 확실히 세다 ── */
+  {
+    const tbad = [];
+    for (const baseId of Sets.BASE_SET_IDS) {
+      const s1 = Sets.getSet(baseId), s2 = Sets.getSet(Sets.setIdAtTier(baseId, 2)), s3 = Sets.getSet(Sets.setIdAtTier(baseId, 3));
+      if (!s2 || !s3) { tbad.push(`${baseId}: 2단/3단 없음`); continue; }
+      if (s2.tier !== 2 || s3.tier !== 3 || s1.tier !== 1) tbad.push(`${baseId}: tier 표식 ${s1.tier}/${s2.tier}/${s3.tier}`);
+      if (s2.baseId !== baseId || s3.baseId !== baseId) tbad.push(`${baseId}: baseId 어긋남`);
+      if (JSON.stringify(s2.archs) !== JSON.stringify(s1.archs) || JSON.stringify(s3.archs) !== JSON.stringify(s1.archs)) tbad.push(`${baseId}: archs 가 단마다 다르다`);
+      if (s2.name === s1.name || s3.name === s1.name || s2.name === s3.name) tbad.push(`${baseId}: 단 이름이 겹친다 (${s1.name}/${s2.name}/${s3.name})`);
+      if (/\(상급\)|\(최상급\)/.test(s2.name + s3.name)) tbad.push(`${baseId}: 이름 텍스트가 채워지지 않았다 (${s2.name}/${s3.name})`);
+      const pw = (id) => Sets.SET_SLOTS.reduce((a, sl) => { const st = Sets.setPieceStats(id, sl, 80); return a + Object.values(st).reduce((x, y) => x + Math.abs(y), 0); }, 0);
+      const p1 = pw(s1.id), p2 = pw(s2.id), p3 = pw(s3.id);
+      if (!(p2 > p1 * 1.15 && p3 > p2 * 1.15)) tbad.push(`${baseId}: 조각 총량이 단마다 15% 이상 안 오른다 (${Math.round(p1)}/${Math.round(p2)}/${Math.round(p3)})`);
+      const f = (id) => Sets.setBonusAt(id, 10, 10, 80);
+      const f1 = f(s1.id), f2 = f(s2.id), f3 = f(s3.id);
+      const sum = (b) => Object.values(b.stats).reduce((x, y) => x + Math.abs(y), 0);
+      if (!(sum(f2) > sum(f1) && sum(f3) > sum(f2))) tbad.push(`${baseId}: 풀세트 효과 절대값이 단마다 안 오른다`);
+      if (!(f1.specials.length === 1 && f2.specials.length === 1 && f3.specials.length === 1)) tbad.push(`${baseId}: 풀세트 고유 효과가 단마다 하나가 아니다`);
+      else {
+        const [a, b, c] = [f1, f2, f3].map((x) => x.specials[0]);
+        if (!(b.id === a.id + '2' && c.id === a.id + '3')) tbad.push(`${baseId}: 고유 효과 id 규약 (${a.id}/${b.id}/${c.id})`);
+        if (a.name === b.name || b.name === c.name) tbad.push(`${baseId}: 고유 효과 이름이 단마다 같다`);
+        if (JSON.stringify(a.params) === JSON.stringify(b.params) || JSON.stringify(b.params) === JSON.stringify(c.params)) tbad.push(`${baseId}: 고유 효과 수치가 단마다 같다`);
+        if (a.params.buffId && (b.params.buffId === a.params.buffId || c.params.buffId === b.params.buffId)) tbad.push(`${baseId}: buffId 가 단마다 같다 (중첩 충돌)`);
+      }
+      const names = new Set();
+      for (const id of [s1.id, s2.id, s3.id]) for (const sl of Sets.SET_SLOTS) { const n = Sets.setPieceDef(id, sl).name; if (names.has(n)) tbad.push(`${id}/${sl}: 조각 이름 중복 '${n}'`); names.add(n); }
+    }
+    okAll(tbad, '★ 2단·3단 세트가 기본에서 제대로 파생됐다 (단·계열·이름·총량·고유 효과·조각 이름)', Sets.BASE_SET_IDS.length * 3);
+  }
 }
 
 section('던전 4개 · 주차 개방 (설계 C)');
@@ -4098,6 +4134,76 @@ if (Dungeons && Dungeon && World && State && Items && RngMod) {
     }
   }
   okAll(wbad, '웨이브 편성·배율·적 스탯이 전부 유효하고 배율이 단조 증가', list.length * 10);
+
+  /* ══ §172 난이도 3단 — 보통·어려움·정예 ══
+   * 제작자: 「어려움·정예 난이도를 추가해서 … 각 난이도는 이전 난이도의 10웨이브를 클리어 한 적이
+   *   있으면 해금 되고 각 부대는 난이도 한가지만 진행할 수 있어」 */
+  ok(JSON.stringify(Dungeons.DIFFICULTIES) === JSON.stringify(['normal', 'hard', 'elite']), '난이도가 보통·어려움·정예 셋', (Dungeons.DIFFICULTIES || []).join(','));
+  const dfbad = [];
+  for (const d of list) {
+    for (const diff of Dungeons.DIFFICULTIES) {
+      const sid = Dungeons.setIdForDifficulty(d, diff);
+      const st = Sets.getSet(sid);
+      if (!st) { dfbad.push(`${d.id}/${diff}: 세트 '${sid}' 없음`); continue; }
+      if (st.tier !== Dungeons.DIFFICULTY_TIER[diff]) dfbad.push(`${d.id}/${diff}: 세트 단 ${st.tier} ≠ ${Dungeons.DIFFICULTY_TIER[diff]}`);
+      if (st.baseId !== d.setId) dfbad.push(`${d.id}/${diff}: 다른 계열 세트 '${sid}'`);
+      if (JSON.stringify(st.archs.slice().sort()) !== JSON.stringify(d.archs.slice().sort())) dfbad.push(`${d.id}/${diff}: archs 어긋남`);
+    }
+    // 배율: 같은 웨이브에서 보통 < 어려움 < 정예, 그리고 난이도 안에서 웨이브 단조
+    for (let wi = 0; wi < d.waves; wi++) {
+      const n = Dungeon.wavePower(d.id, wi, 'normal'), h = Dungeon.wavePower(d.id, wi, 'hard'), e = Dungeon.wavePower(d.id, wi, 'elite');
+      if (!(n < h && h < e)) dfbad.push(`${d.id} ${wi + 1}웨: 배율 ${n.toFixed(2)}/${h.toFixed(2)}/${e.toFixed(2)} 가 보통<어려움<정예 가 아니다`);
+      if (wi > 0) for (const diff of ['hard', 'elite']) if (Dungeon.wavePower(d.id, wi, diff) < Dungeon.wavePower(d.id, wi - 1, diff) - 1e-9) dfbad.push(`${d.id}/${diff} ${wi + 1}웨: 배율이 앞 웨이브보다 낮다`);
+    }
+    if (Dungeon.wavePower(d.id, 0, 'normal') !== Dungeon.wavePower(d.id, 0)) dfbad.push(`${d.id}: 난이도 생략이 보통과 다르다`);
+    // 드랍: 난이도별로 그 단의 세트가 나온다
+    for (const diff of Dungeons.DIFFICULTIES) {
+      /* ★ 시드마다 새 RNG 를 만들어 첫 뽑기만 보면 안 된다 — 이 RNG 는 첫 출력이 시드에 묶여 7000번대 60개가 전부 거짓이었다(실측). 하나로 연속해서 굴린다. */
+      let it = null;
+      const rr = new RngMod.RNG(7000 + list.indexOf(d) * 31 + Dungeons.DIFFICULTIES.indexOf(diff));
+      for (let i = 0; i < 60 && !it; i++) it = Dungeon.dropForWave(d.id, 0, rr, diff);
+      if (!it) { dfbad.push(`${d.id}/${diff}: 60번 굴려도 드랍 없음`); continue; }
+      if (it.setId !== Dungeons.setIdForDifficulty(d, diff)) dfbad.push(`${d.id}/${diff}: 드랍 세트 '${it.setId}'`);
+      if (it.rarity !== 5) dfbad.push(`${d.id}/${diff}: rarity=${it.rarity}`);
+    }
+    // 적 정의가 난이도에 따라 실제로 세진다 (1웨이브 첫 적 hp)
+    const hp = (diff) => { const u = Dungeon.dungeonEnemyDefs(d.id, 0, null, diff)[0]; return u && u.stats ? u.stats.hp : 0; };
+    if (!(hp('normal') < hp('hard') && hp('hard') < hp('elite'))) dfbad.push(`${d.id}: 적 hp 가 난이도로 안 오른다 (${hp('normal')}/${hp('hard')}/${hp('elite')})`);
+  }
+  okAll(dfbad, '★ 난이도마다 그 던전 계열의 다음 단 세트가 나오고, 배율·적 스탯이 보통<어려움<정예 로 오른다', list.length * 3);
+
+  // 해금·진행도 키·부대별 난이도 — 상태만 있는 가짜 세이브로 판정부를 직접 부른다
+  {
+    const st = { day: 40, dungeons: {}, dungeonRuns: {}, dungeonRunDiff: {} };
+    const d = list[0];
+    const ub = [];
+    if (Dungeon.difficultyUnlocked(st, d.id, 'normal').ok !== true) ub.push('보통이 잠겨 있다');
+    if (Dungeon.difficultyUnlocked(st, d.id, 'hard').ok !== false) ub.push('보통 미완주인데 어려움이 열렸다');
+    if (Dungeon.difficultyUnlocked(st, d.id, 'elite').ok !== false) ub.push('어려움 미완주인데 정예가 열렸다');
+    st.dungeons[d.id] = { bestWave: 9, clearedAt: null };
+    if (Dungeon.difficultyUnlocked(st, d.id, 'hard').ok !== false) ub.push('보통 9웨이브(미완주)인데 어려움이 열렸다');
+    st.dungeons[d.id] = { bestWave: 10, clearedAt: 30 };
+    if (Dungeon.difficultyUnlocked(st, d.id, 'hard').ok !== true) ub.push('보통 완주했는데 어려움이 안 열린다');
+    if (Dungeon.difficultyUnlocked(st, d.id, 'elite').ok !== false) ub.push('어려움 미완주인데 정예가 열렸다 (보통 완주 뒤)');
+    if (JSON.stringify(Dungeon.unlockedDifficulties(st, d.id)) !== JSON.stringify(['normal', 'hard'])) ub.push('열린 목록이 [보통, 어려움] 이 아니다');
+    st.dungeons[Dungeon.progressKey(d.id, 'hard')] = { bestWave: 10, clearedAt: 35 };
+    if (Dungeon.difficultyUnlocked(st, d.id, 'elite').ok !== true) ub.push('어려움 완주했는데 정예가 안 열린다');
+    // 진행도 키 — 보통은 옛 키 그대로(옛 세이브 호환), 나머지는 id@난이도
+    if (Dungeon.progressKey(d.id, 'normal') !== d.id) ub.push('보통 진행도 키가 던전 id 가 아니다 (옛 세이브가 끊긴다)');
+    if (Dungeon.progressKey(d.id, 'hard') !== `${d.id}@hard`) ub.push('어려움 진행도 키 규약');
+    if (Dungeon.dungeonProgress(st, d.id, 'hard').bestWave !== 10 || Dungeon.dungeonProgress(st, d.id, 'normal').bestWave !== 10) ub.push('난이도별 진행도 조회');
+    if (Dungeon.dungeonProgress(st, d.id, 'elite').bestWave !== 0) ub.push('정예 진행도가 0 이 아니다');
+    // 부대 하나에 난이도 하나 — 오늘 들어간 난이도가 남는다
+    Dungeon.markSquadRun(st, 'sq1', 'hard');
+    if (Dungeon.squadRunDifficulty(st, 'sq1') !== 'hard') ub.push('오늘 들어간 난이도가 안 남는다');
+    if (Dungeon.squadUsedToday(st, 'sq1') !== true) ub.push('오늘 몫이 안 찍힌다');
+    st.day = 41;
+    if (Dungeon.squadRunDifficulty(st, 'sq1') !== null) ub.push('날이 바뀌었는데 난이도 기록이 남아 있다');
+    // 옛 세이브 — dungeonRunDiff 가 없어도 죽지 않는다
+    const old = { day: 5, dungeons: {}, dungeonRuns: { sq9: 5 } };
+    if (Dungeon.squadRunDifficulty(old, 'sq9') !== 'normal') ub.push('옛 세이브(난이도 기록 없음)가 보통으로 안 읽힌다');
+    okAll(ub, '★ 해금(보통 완주 → 어려움, 어려움 완주 → 정예) · 진행도 키 · 부대별 난이도 기록', 14);
+  }
 }
 
 section('년/월/주 달력 (설계 D)');
@@ -6762,9 +6868,12 @@ section('순위표 치트 — 부대 전력·S용병 상한');
      * ★★ 두 번째가 중요하다 — 259,803 을 막은 **뒤에** 219,474 가 통과했다.
      *   천장(190,470) 위인데 그때 여유가 1.25 라 199,994 가 아니라 238,088 이 선이었다.
      *   「막았다」 가 아니라 «얼마나 위까지 열어 뒀나» 를 봐야 한다. */
+    /* ★ §172 — 세트 3단으로 천장이 190,470 → 293,055 로 올라 옛 조작값(259,803 · 219,474)이 «가능한 값» 이 됐다.
+     *   검사가 보는 것은 «천장을 얼마나 넘었나» 이므로 **천장에 대한 비율**(x1.364 · x1.152)을 그대로 두고 값만 새 천장에 맞췄다.
+     *   (Lv37 천장 ≈ 253,600 · Lv80 천장 293,055 · 여유 1.05) */
     const CHEATS = [
-      { nm: '숨단', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 259803 },
-      { nm: '삶이…빛난다', day: 120, questsDone: 300, rosterN: 7, sMercs: 7, topLevel: 80, topPower: 219474 },
+      { nm: '숨단', day: 1, questsDone: 1, rosterN: 7, sMercs: 7, topLevel: 37, topPower: 345900 },
+      { nm: '삶이…빛난다', day: 120, questsDone: 300, rosterN: 7, sMercs: 7, topLevel: 80, topPower: 337600 },
     ];
     const CHEAT = CHEATS[0];
     /* 실제 정상 등재 — 계량기가 0 인 옛 세이브까지 포함해 가장 빡빡한 조건으로 본다 */

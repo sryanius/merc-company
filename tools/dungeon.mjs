@@ -49,6 +49,21 @@ const GRADE = optStr('grade', 'A');
 const LEVEL = optNum('level', 80);
 /** `--nospecial` — 세트 고유 효과를 빼고 잰다 (9차 이전 측정과의 A/B 비교용) */
 const NO_SPECIAL = ARGV.includes('--nospecial');
+/* ★ §172 난이도·세트 단.
+ *   --diff=normal|hard|elite   적 배율에 DIFFICULTY_POWER 를 곱한다 (game/dungeon.js 와 같은 경로)
+ *   --settier=1|2|3            아군 세트 조각을 그 단으로 (1단 = 보통 드랍, 2단 = 어려움, 3단 = 정예)
+ *   설계: 「1단 풀세트가 어려움 10웨이브를 30% 완주 · 2단 풀세트가 정예를 30% 완주」 */
+const DIFF = optStr('diff', 'normal');
+const SET_TIER = optNum('settier', 1);
+/* --basetier=N  세트 조각이 없는 칸을 전설 대신 **N단 세트** 로 채운다 — 「아래 단 풀세트를 입고 위 단을 모으는」 실제 파밍 상태.
+ * --early= --wall=  난이도 배율을 실행 중에 덮어써 격자로 잰다 */
+const BASE_TIER = optNum('basetier', 0);
+import { setDifficultyPower } from '../src/data/dungeons.js';
+if (ARGV.some((a) => a.startsWith('--early=') || a.startsWith('--wall='))) {
+  const { DIFFICULTY_POWER } = await import('../src/data/dungeons.js');
+  const cur = DIFFICULTY_POWER[DIFF] || { early: 1, wall: 1 };
+  setDifficultyPower(DIFF, { early: optNum('early', cur.early), wall: optNum('wall', cur.wall) });
+}
 
 /* ────────────────────────────── 출력 헬퍼 ────────────────────────────── */
 
@@ -101,9 +116,13 @@ const SQUAD4 = [
 ];
 
 /** 그 아키타입이 입을 수 있는 세트 (계열 세트 우선, 없으면 성좌) */
-function setForArch(arch) {
-  const hit = Sets.SET_LIST.find((s) => s.archs.includes(arch) && s.archs.length < Sets.ALL_ARCHS.length);
-  return (hit || Sets.getSet('constellation')).id;
+function baseSetForArch(arch) {
+  const base = (Sets.BASE_SET_LIST || Sets.SET_LIST).find((s) => s.archs.includes(arch) && s.archs.length < Sets.ALL_ARCHS.length);
+  return (base || Sets.getSet('constellation')).id;
+}
+function setForArch(arch, tier = SET_TIER) {
+  const baseId = baseSetForArch(arch);
+  return (typeof Sets.setIdAtTier === 'function' && Sets.setIdAtTier(baseId, tier)) || baseId;
 }
 
 /** 세트를 채우는 순서 — 던전 드랍 순서(방어구 → 장신구 → 무기)와 같게 둔다 */
@@ -130,6 +149,7 @@ function buildLoadout(classId, nSet, fillLegend, rng) {
     const slot = FILL_ORDER[i];
     let it = null;
     if (i < nSet) it = Sets.setPieceItem(setId, slot, 80);
+    else if (BASE_TIER > 0) it = Sets.setPieceItem(setForArch(cls.arch, BASE_TIER), slot, 80);   // 아래 단 풀세트 위에서 모은다
     else if (fillLegend) it = legendaryFor(slot, rng);
     if (!it) continue;
     items.push(it);
@@ -211,7 +231,7 @@ function sim(cfg, seed) {
 const ENEMY_CACHE = new Map();
 function enemiesOf(dungeonId, wi) {
   const k = `${dungeonId}#${wi}`;
-  if (!ENEMY_CACHE.has(k)) ENEMY_CACHE.set(k, dungeonEnemyDefs(dungeonId, wi));
+  if (!ENEMY_CACHE.has(k)) ENEMY_CACHE.set(k, dungeonEnemyDefs(dungeonId, wi, null, DIFF));
   return ENEMY_CACHE.get(k);
 }
 function enemyFormationOf(dungeonId) {
@@ -363,7 +383,7 @@ if (wants('run')) {
  * 4. 목표 판정
  * ══════════════════════════════════════════════════════════════════════ */
 
-header('4. 설계 C 목표 판정');
+header(`4. 설계 C 목표 판정 (난이도 ${DIFF} · 세트 ${SET_TIER}단${BASE_TIER ? ` · 나머지 ${BASE_TIER}단` : ''})`);
 
 // ★ 판정은 전부 **런(HP 인계)** 기준이다. 만피 단일 웨이브 승률은 편성이 고정이라
 //   거의 계단(100%↔0%)이라서 "50%/30%" 같은 값에 맞출 수 없다 — 진단표로만 쓴다.

@@ -370,6 +370,8 @@ function normSetDef(d) {
     desc: d.desc || '',
     archs: Array.isArray(d.archs) ? d.archs.slice() : null,
     color: d.color || MYTHIC_COLOR,
+    tier: d.tier || 1,           // §172 세트 단 (1·2·3)
+    baseId: d.baseId || d.id || '',   // §172 계열 (던전 연결은 계열로 찾는다)
     steps,
   };
 }
@@ -383,7 +385,8 @@ const stepLabel = (key, full) => (key === 'full' ? `풀세트(${full})` : `${key
 function dungeonForSet(def) {
   const list = Array.isArray(DungeonAPI.DUNGEON_LIST) ? DungeonAPI.DUNGEON_LIST : [];
   if (!def || !list.length) return null;
-  return list.find((d) => d && (d.setId === def.id || d.setName === def.name)) || null;
+  /* §172 상위 단 세트는 계열(baseId)로 던전을 찾는다 */
+  return list.find((d) => d && (d.setId === def.id || d.setId === def.baseId || d.setName === def.name)) || null;
 }
 
 /** 이번 주에 열리는 던전 번호 (1~4). 알 수 없으면 0 */
@@ -919,6 +922,7 @@ function setPanel() {
       el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
         el('div', { class: 'row center wrap', style: { gap: '6px' } },
           el('b', { style: { color: d.color }, text: d.name }),
+          el('span', { class: 'tag', style: { color: 'var(--gold)' }, text: `${d.tier || 1}단` }),
           el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: archs }),
           dg ? el('span', { class: 'tag', style: { color: isOpen ? 'var(--gold)' : 'var(--ink-faint)' }, text: `${dg.week}주차 · ${dg.name}` }) : null,
           isOpen ? el('span', { class: 'iv-myth-tag', text: '지금 입장 가능' }) : null),

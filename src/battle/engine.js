@@ -104,7 +104,12 @@ export function setSkillResolver(fn) { SKILL_RESOLVER = typeof fn === 'function'
  */
 
 /** 엔진이 실제로 구현한 고유 효과 id (data/sets.js 의 `special` 값과 1:1) */
-export const SPECIAL_IDS = ['rampart_aegis', 'bloodoath_frenzy', 'starseeker_starfall', 'constellation_grace'];
+/** 기본 4종 — 훅 표(SPECIAL_HOOKS)의 실제 구현체 */
+const SPECIAL_BASE_IDS = ['rampart_aegis', 'bloodoath_frenzy', 'starseeker_starfall', 'constellation_grace'];
+/* ★ §172 상위 단 세트(2단·3단)의 고유 효과는 **같은 방식에 더 센 수치**다 (data/sets.js SET_TIER_SPECIAL).
+ *   id 는 `<기본id>2` / `<기본id>3` 이고 훅 표에서 기본 구현체의 별칭으로 같은 함수를 탄다.
+ *   수치는 전부 params 에서 읽으므로 구현체를 나눌 이유가 없다. 스모크가 «sets.js 의 id 집합 == 엔진 id 집합» 을 본다. */
+export const SPECIAL_IDS = SPECIAL_BASE_IDS.flatMap((id) => [id, `${id}2`, `${id}3`]);
 
 /**
  * `UnitDef.specials` 정규화. 문자열 id 와 `{id,label,params}` 둘 다 받고 같은 id 는 하나로 합친다.
@@ -764,6 +769,14 @@ export function createBattle(cfg = {}) {
       },
     },
   };
+
+  /* §172 — 2단·3단 별칭. 같은 훅 함수 객체를 공유한다 (spState 키는 구현체 id 라 단이 달라도 같은 상태를 쓴다 —
+   *   한 용병은 같은 계열의 한 단만 풀세트로 낄 수 있으므로 충돌하지 않는다). */
+  for (const id of SPECIAL_BASE_IDS) {
+    if (!SPECIAL_HOOKS[id]) continue;
+    SPECIAL_HOOKS[`${id}2`] = SPECIAL_HOOKS[id];
+    SPECIAL_HOOKS[`${id}3`] = SPECIAL_HOOKS[id];
+  }
 
   /**
    * ★ 고유 효과 단일 진입점. 훅 표에 없는 id 는 조용히 무시한다.

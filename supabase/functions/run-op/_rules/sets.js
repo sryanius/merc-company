@@ -447,6 +447,282 @@ const WEAPON_VARIANT = {
   },
 };
 
+/* ═══════════════════ §172 상위 단 세트 (2단 · 3단) — 기본 세트에서 파생 ═══════════════════
+ *
+ * 제작자: 「보통 난이도로 셋트 맞추고 → 어려움에서 두번째 셋트 → 정예에서 세번째 셋트」.
+ * 던전 하나에 세트 세 단. 같은 계열·같은 착용 제한·같은 프로필이고, 다른 것은 셋뿐이다:
+ *   · 조각 예산 `power` (2단 1.30 · 3단 1.69 — 곱셈으로 한 단이 «전설 → 신화» 만큼)
+ *   · 세트 효과 절대값은 같은 배율, 비율(mods)은 완만하게 (`SET_TIER_MOD`)
+ *   · 풀세트 고유 효과는 **같은 방식에 더 센 수치** (`SET_TIER_SPECIAL`) — 엔진은 id 별칭으로 같은 훅을 탄다
+ * 이름·설명·조각 이름은 `SET_TIER_TEXT` 가 준다. 텍스트가 없으면 기본 이름에 단을 붙여 낸다 (누락 방어).
+ * ★ id 는 `<기본id><단>` (ironrampart2). `parseSetBaseId` 의 [a-z0-9]+ 규약 안이다. */
+export const SET_TIER_POWER = { 1: 1.00, 2: 1.30, 3: 1.69 };
+export const SET_TIER_MOD = { 1: 1.00, 2: 1.20, 3: 1.45 };
+const TIER_WORD = { 2: '상급', 3: '최상급' };
+/** 단별 풀세트 고유 효과 파라미터 덮어쓰기 — 키는 기본 special 의 params 와 같다 */
+const SET_TIER_SPECIAL = {
+  ironrampart: {
+    2: { shieldRatio: 0.33, shieldDur: 14, allyDefMod: 0.20, allyDur: 10 },
+    3: { shieldRatio: 0.42, shieldDur: 16, allyDefMod: 0.26, allyDur: 12 },
+  },
+  bloodoath: {
+    2: { cdReduce: 3.2, atkMod: 0.15, stacks: 3, lifesteal: 0.15 },
+    3: { cdReduce: 4.0, atkMod: 0.19, stacks: 4, lifesteal: 0.19 },
+  },
+  starseeker: {
+    2: { splashCount: 1, splashPower: 0.58, killGauge: 0.50 },
+    3: { splashCount: 2, splashPower: 0.72, killGauge: 0.60 },
+  },
+  constellation: {
+    2: { reviveHp: 0.45, allyHeal: 0.16 },
+    3: { reviveHp: 0.55, allyHeal: 0.20 },
+  },
+};
+/** 단별 텍스트 — { <기본id>: { 2: {name, desc, color, colorDeep, pieces:{slot:[name,desc]}, weapon:{}, offhand:{}, bonus:{3,5,7}, specialLabel, specialDesc}, 3: {...} } } */
+const SET_TIER_TEXT = {
+  ironrampart: {
+    2: {
+      name: "불락의 성벽", color: "#6d93c9", colorDeep: "#324b73",
+      desc: "함락된 요새에서 끝내 무너지지 않은 마지막 벽의 강철을 뜯어 다시 벼린 한 벌. 걸친 자는 닫힌 문이 된다.",
+      pieces: {
+        weapon: ["불락 수문장의 철추", "성문을 열려던 자들의 투구 자국이 머리에 남아 있다."],
+        offhand: ["불락의 내성문", "바깥 문이 뚫린 뒤에도 이 문은 한 번도 열리지 않았다."],
+        head: ["불락 성루의 철투구", "투석이 그친 뒤에도 망루에서 내려오지 않았다."],
+        body: ["불락 성벽의 흉갑", "겹쳐 댄 강철판 사이에 앞선 수비대의 이름이 있다."],
+        legs: ["성채 기단의 경갑", "다진 기단 위에서는 어떤 밀침도 발을 떼지 못한다."],
+        hands: ["겹빗장 건틀릿", "빗장을 둘 걸어, 놓으라는 명령도 듣지 않는다."],
+        feet: ["불락 요새의 발판", "밑창의 쇠못이 자라서 돌바닥까지 파고들었다."],
+        neck: ["불락 서약의 목걸이", "서약 아래 문이 열리면 우리가 문이라는 한 줄이 더 붙었다."],
+        ring1: ["굳은 초석의 반지", "첫 돌을 놓은 자리에 아직 벽이 서 있다."],
+        ring2: ["감시탑의 반지", "가장 높은 탑에서 적을 먼저 본 자에게 주어졌다."],
+      },
+      weapon: { sword: "불락 수문장의 장검", mace: "불락 수문장의 철추", axe: "불락 수문장의 전부", spear: "불락 수문장의 장창" },
+      offhand: { shield: "불락의 내성문", sword: "불락 수문장의 부검" },
+      bonus: { 3: "다진 기초 — 체력·방어가 크게 오른다.", 5: "겹겹이 두른 벽 — 방어와 저항이 더 큰 비율로 오른다.", 7: "무너지지 않는 성채 — 받는 피해가 한층 더 줄어든다." },
+      specialLabel: "철벽 불락의 가호",
+      specialDesc: "전투를 시작할 때 더 두꺼운 방어막을 더 오래 두른다. 그 방어막이 피해로 깨지면 아군 전체의 방어가 더 크게, 더 오래 오른다.",
+    },
+    3: {
+      name: "영겁의 성채", color: "#a4cbff", colorDeep: "#1e3a66",
+      desc: "함락된 기록이 없는 전설의 성채에서 성벽을 통째로 사람의 몸에 옮겨 놓은 한 벌. 걸친 자 뒤로는 아무것도 넘지 못한다.",
+      pieces: {
+        weapon: ["영겁 성주의 대철추", "성주가 마지막까지 놓지 않았기에 문은 끝내 열리지 않았다."],
+        offhand: ["영원히 닫힌 성문", "이 문 너머를 본 자는 아직 아무도 없다."],
+        head: ["천년 성루의 투구", "천 년 동안 눈을 감은 적이 없는 자의 투구."],
+        body: ["영겁 성벽의 흉갑", "벽이 너무 두꺼워 두드려도 아무 소리도 나지 않는다."],
+        legs: ["불멸의 반석 경갑", "반석 위에 선 자는 세상이 흔들려도 서 있다."],
+        hands: ["영겁의 빗장 건틀릿", "한번 쥔 것은 죽은 뒤에도 놓지 않는다."],
+        feet: ["영겁 성채의 발판", "뿌리가 성채의 지하까지 닿아 있다."],
+        neck: ["최후 서약의 목걸이", "최후의 수비대장이 숨을 거두며 새긴 문구."],
+        ring1: ["영겁 초석의 반지", "이 돌이 놓인 이후로 시간은 성벽을 비껴간다."],
+        ring2: ["천년 망루의 반지", "천 년 전에 본 적군이 아직 지평선에 서 있다."],
+      },
+      weapon: { sword: "영겁 성주의 장검", mace: "영겁 성주의 대철추", axe: "영겁 성주의 전부", spear: "영겁 성주의 장창" },
+      offhand: { shield: "영원히 닫힌 성문", sword: "영겁 성주의 부검" },
+      bonus: { 3: "영겁의 기초 — 체력·방어가 아득히 오른다.", 5: "끝없이 쌓은 벽 — 방어와 저항이 압도적인 비율로 오른다.", 7: "영원한 성채 — 받는 피해가 극적으로 줄어든다." },
+      specialLabel: "영겁 불락의 가호",
+      specialDesc: "전투를 시작할 때 성벽 같은 방어막을 오래도록 두른다. 그 방어막이 피해로 깨지는 순간 아군 전체의 방어가 성채처럼 솟구쳐 한참을 버틴다.",
+    },
+  },
+  bloodoath: {
+    2: {
+      name: "선혈의 맹약", color: "#d64545", colorDeep: "#5f1519",
+      desc: "피로 서명한 계약이 두 번째 피로 굳었다. 이제 착용자는 베지 않고는 갈증을 달랠 수 없다.",
+      pieces: {
+        weapon: ["선혈의 맹약검", "날에 새긴 이름이 지워지지 않도록 피로 한 번 더 덧썼다."],
+        offhand: ["변절자의 혈단검", "서약을 두 번 어긴 자에게서 두 번 되찾아 왔다."],
+        head: ["선혈의 맹약 투구", "안쪽이 마르지 않다 못해 목덜미로 흘러내린다."],
+        body: ["맹약의 혈갑", "심장 위의 손도장이 안감까지 배어들었다."],
+        legs: ["학살자의 혈각반", "물러선 흔적 대신 밟고 지나간 흔적만 남는다."],
+        hands: ["피에 절은 손아귀", "쥐면 힘이 붙고, 놓으려 하면 더 붙는다."],
+        feet: ["살육의 행군화", "발소리가 두 박자 늦게, 더 가까이서 들린다."],
+        neck: ["심장의 맹약", "착용자의 맥박보다 반 박자 빠르게 뛴다."],
+        ring1: ["혈맹의 반지", "이제는 빼려 해도 빠지지 않는다."],
+        ring2: ["선혈의 반지", "보석 안의 피가 밖으로 새어 나오려 한다."],
+      },
+      weapon: { sword: "선혈의 맹약검", greatsword: "선혈의 맹약대검", katana: "선혈의 맹약도", axe: "선혈의 맹약부", dagger: "선혈의 맹약단검", claw: "선혈의 맹약발톱" },
+      offhand: { dagger: "변절자의 혈단검", shield: "변절자의 혈방패" },
+      bonus: { 3: "맹약의 둘째 줄 — 공격력과 치명타가 더 오른다.", 5: "선혈의 대가 — 공격력이 비율로 크게 오른다.", 7: "광란의 맹약 — 치명타 피해가 더욱 폭발적으로 커진다." },
+      specialLabel: "선혈의 갈증",
+      specialDesc: "적을 처치하면 스킬의 재사용 대기가 더 많이 줄고, 공격력 중첩이 더 강하게 더 오래 남는다. 직접 가한 피해가 더 많은 체력으로 돌아온다.",
+    },
+    3: {
+      name: "영원한 갈증", color: "#ff3b4e", colorDeep: "#3a0a12",
+      desc: "피로만 지울 수 있다던 계약이 끝내 지워지지 않게 됐다. 착용자의 갈증은 이제 죽어서도 마르지 않는다.",
+      pieces: {
+        weapon: ["마르지 않는 서약검", "벤 자리의 피를 착용자보다 날이 먼저 마신다."],
+        offhand: ["서약을 지우는 단검", "이것으로 흘린 피만이 서약을 지울 수 있다."],
+        head: ["영원한 갈증의 투구", "안쪽이 비어 있는데도 계속 흘러내린다."],
+        body: ["불멸의 혈갑", "손도장이 안에서 밖으로 찍혀 있다."],
+        legs: ["학살왕의 다리보호구", "지나간 자리에서 물러선 것은 상대뿐이다."],
+        hands: ["피를 마시는 손아귀", "쥔 것이 무엇이든 마를 때까지 놓지 않는다."],
+        feet: ["멸절의 발걸음", "발소리가 들릴 때는 이미 늦었다."],
+        neck: ["마르지 않는 심장", "착용자의 심장이 멎어도 홀로 뛴다."],
+        ring1: ["혈서의 반지", "손가락이 아니라 뼈에 끼워져 있다."],
+        ring2: ["영원한 갈증의 반지", "보석 안의 피가 바깥의 피를 부른다."],
+      },
+      weapon: { sword: "마르지 않는 서약검", greatsword: "마르지 않는 서약대검", katana: "마르지 않는 서약도", axe: "마르지 않는 서약부", dagger: "마르지 않는 서약단검", claw: "마르지 않는 서약발톱" },
+      offhand: { dagger: "서약을 지우는 단검", shield: "서약을 지우는 방패" },
+      bonus: { 3: "서약의 마지막 줄 — 공격력과 치명타가 크게 오른다.", 5: "영원한 대가 — 공격력이 비율로 극한까지 오른다.", 7: "최후의 광란 — 치명타 피해가 한계 없이 커진다." },
+      specialLabel: "끝없는 갈증",
+      specialDesc: "적을 처치할 때마다 재사용 대기가 크게 줄고, 공격력이 더 높게 더 많이 쌓여 더 오래 남는다. 가한 피해의 상당 부분이 체력으로 돌아온다.",
+    },
+  },
+  starseeker: {
+    2: {
+      name: "극야의 사수", color: "#9b8cf0", colorDeep: "#2e2464",
+      desc: "밤이 끝나지 않는 극야에서 관측자가 다시 맞춘 한 벌. 어둠이 깊어질수록 더 먼 별까지 겨눈다.",
+      pieces: {
+        weapon: ["별을 떨구는 활", "시위를 당기면 겨눈 별이 한 칸 내려온다."],
+        offhand: ["극야의 화살통", "밤이 깊을수록 화살이 하나씩 늘어 있다."],
+        head: ["천문대장의 관", "눈금 사이로 아직 이름 없는 별이 보인다."],
+        body: ["성운의 외투", "옷자락 안쪽에서 옅은 안개가 소용돌이친다."],
+        legs: ["혜성의 각반", "달리고 나면 흰 선이 한참 동안 지워지지 않는다."],
+        hands: ["궤도를 잡는 손", "손끝이 그린 궤도대로 화살이 휘어 간다."],
+        feet: ["은하를 건너는 신발", "디딘 자리의 잔별이 꺼지지 않고 남는다."],
+        neck: ["길잡이별의 목걸이", "길을 잃은 쪽이 오히려 먼저 보인다."],
+        ring1: ["별비의 반지", "낮에도 손등 위로 빛이 떨어진다."],
+        ring2: ["천체의 반지", "안쪽의 별자리가 주인의 눈길을 따라 돈다."],
+      },
+      weapon: { bow: "별을 떨구는 활", crossbow: "별을 떨구는 석궁", staff: "별을 떨구는 지팡이", wand: "별을 떨구는 완드", tome: "별을 떨구는 성도서" },
+      offhand: { tome: "극야의 성도서", shield: "극야의 보주" },
+      bonus: { 3: "극야의 조준선 — 공격력과 행동 속도가 더 오른다.", 5: "혜성 궤도 정렬 — 공격력과 속도가 큰 비율로 오른다.", 7: "심야 관측 — 사격과 시전이 한층 빨라진다." },
+      specialLabel: "혜성 낙하",
+      specialDesc: "원거리 공격이 명중하면 더 큰 파편이 다른 적에게 떨어지고, 적을 처치하면 행동 게이지가 더 많이 찬다.",
+    },
+    3: {
+      name: "초신성의 사수", color: "#c3b4ff", colorDeep: "#1e1652",
+      desc: "관측자가 마지막으로 본 별이 터지던 밤에 완성된 한 벌. 이제 겨눈 별은 흔들리는 대신 떨어진다.",
+      pieces: {
+        weapon: ["별을 터뜨리는 활", "시위를 놓는 순간 겨눈 별이 잠깐 낮처럼 밝아진다."],
+        offhand: ["초신성의 화살통", "안을 들여다보면 죽은 별의 빛이 아직 남아 있다."],
+        head: ["마지막 관측자의 관", "쓴 사람은 하늘이 끝나는 자리를 본 적이 있다."],
+        body: ["천궁의 외투", "옷자락이 떠오르다 못해 별빛을 뿌리며 흩날린다."],
+        legs: ["낙성의 각반", "달린 길 위로 별이 하나 떨어졌다는 말이 돈다."],
+        hands: ["별을 거두는 손", "손끝이 그린 궤도에서 별이 벗어나지 못한다."],
+        feet: ["은하를 넘는 신발", "디딘 자리마다 작은 은하가 하나씩 생긴다."],
+        neck: ["하늘축의 목걸이", "밤하늘 전체가 이 목걸이를 중심으로 돈다."],
+        ring1: ["별폭풍의 반지", "밤이 오면 주변의 빛이 전부 이쪽으로 쏠린다."],
+        ring2: ["온 하늘의 반지", "안쪽을 도는 별자리가 밖의 하늘과 같은 속도로 돈다."],
+      },
+      weapon: { bow: "별을 터뜨리는 활", crossbow: "별을 터뜨리는 석궁", staff: "별을 터뜨리는 지팡이", wand: "별을 터뜨리는 완드", tome: "별을 터뜨리는 성도서" },
+      offhand: { tome: "초신성의 성도서", shield: "초신성의 보주" },
+      bonus: { 3: "초신성의 조준선 — 공격력과 행동 속도가 크게 오른다.", 5: "은하 정렬 — 공격력과 속도가 가장 큰 비율로 오른다.", 7: "천궁 관측 — 사격과 시전이 눈으로 좇기 어려울 만큼 빨라진다." },
+      specialLabel: "초신성 낙하",
+      specialDesc: "원거리 공격이 명중하면 별이 통째로 떨어져 다른 적에게 훨씬 큰 파편 피해를 주고, 적을 처치하면 행동 게이지가 거의 가득 찬다.",
+    },
+  },
+  constellation: {
+    2: {
+      name: "성좌의 계시", color: "#f2d45f", colorDeep: "#9c7420",
+      desc: "열두 별자리가 한 번 더 손을 대어 벼린 한 벌로, 쓰러진 사제를 되세운 뒤에야 계시라 불렸다.",
+      pieces: {
+        weapon: ["계시의 무구", "들어 올리면 손잡이 안쪽에서 별자리 하나가 답한다."],
+        offhand: ["열두 가호의 성표", "등 뒤만이 아니라 앞까지 든든하게 막아 준다."],
+        head: ["깨어난 별관", "테두리를 돌던 빛이 멈추지 않고 점점 빨라진다."],
+        body: ["성좌가 깃든 성의", "실밥이 아니라 별 자체가 상처를 대신 받는다."],
+        legs: ["하늘길의 각반", "하늘길을 걸어도 무릎이 상하지 않는다."],
+        hands: ["계시받은 손길", "쥔 것을 지키다 못해 다시 세우게 만든다."],
+        feet: ["대순례자의 신발", "열두 성소를 두 번째 도는 자만 신을 수 있다."],
+        neck: ["서약한 별의 목걸이", "별 하나가 꺼지면 그 자리에 둘이 켜진다."],
+        ring1: ["계시의 반지", "주인이 쓰러지기 전에 먼저 뜨거워진다."],
+        ring2: ["성좌 궤도의 반지", "밤하늘을 한 바퀴 더 감아 궤도를 넓혔다."],
+      },
+      weapon: { sword: "계시의 성검", greatsword: "계시의 성대검", spear: "계시의 성창", mace: "계시의 성추", bow: "계시의 성궁", staff: "계시의 성장", wand: "계시의 성완드", tome: "계시의 성전" },
+      offhand: { shield: "열두 가호의 성표", tome: "열두 가호의 성전" },
+      bonus: { 3: "별의 응답 — 모든 능력이 고르게 오른다.", 5: "계시의 시작 — 체력과 공격력이 비율로 크게 오른다.", 7: "열두 별의 맹약 — 공격·방어·저항이 함께 더 오른다." },
+      specialLabel: "성좌의 계시",
+      specialDesc: "전투 불능이 될 피해를 받으면 더 많은 체력으로 다시 일어나고, 그때 아군 전체가 더 크게 회복한다.",
+    },
+    3: {
+      name: "성좌의 강림", color: "#ffe88f", colorDeep: "#c2932a",
+      desc: "열두 별자리가 하늘을 비우고 직접 내려와 걸쳤다는 한 벌로, 이것을 입은 사제는 죽음이 먼저 물러선다.",
+      pieces: {
+        weapon: ["강림의 무구", "별 하나가 내려와 손잡이 노릇을 한다."],
+        offhand: ["강림한 가호의 성표", "앞뒤만이 아니라 사방을 빈틈없이 막아 준다."],
+        head: ["열두 별의 왕관", "테두리를 돌던 빛이 전부 멈춰 서서 착용자를 본다."],
+        body: ["성좌가 내려앉은 성의", "베인 자리마다 별이 하나씩 내려앉는다."],
+        legs: ["천상 너머의 각반", "무릎이 상할 길은 애초에 밟지 않게 된다."],
+        hands: ["강림한 축복의 손길", "쥔 것을 지키고, 놓친 것까지 되돌려 세운다."],
+        feet: ["순례를 마친 신발", "더 돌 성소가 없어서 이제는 하늘을 밟는다."],
+        neck: ["열두 별이 모인 목걸이", "꺼질 별이 하나도 남지 않고 전부 켜져 있다."],
+        ring1: ["강림의 반지", "주인이 쓰러질 일을 먼저 알고 뜨거워진다."],
+        ring2: ["온 하늘의 반지", "밤하늘이 아니라 하늘 전체를 담았다."],
+      },
+      weapon: { sword: "강림의 성검", greatsword: "강림의 성대검", spear: "강림의 성창", mace: "강림의 성추", bow: "강림의 성궁", staff: "강림의 성장", wand: "강림의 성완드", tome: "강림의 성전" },
+      offhand: { shield: "강림한 가호의 성표", tome: "강림한 가호의 성전" },
+      bonus: { 3: "하늘의 응답 — 모든 능력이 고르게 오른다.", 5: "강림의 시작 — 체력과 공격력이 비율로 크게 오른다.", 7: "열두 별의 강림 — 공격·방어·저항이 함께 크게 오른다." },
+      specialLabel: "성좌의 강림",
+      specialDesc: "전투 불능이 될 피해를 받으면 훨씬 많은 체력으로 다시 일어나고, 그때 아군 전체가 훨씬 크게 회복한다.",
+    },
+  },
+};
+export function setTierText(baseId, tier) { return (SET_TIER_TEXT[baseId] && SET_TIER_TEXT[baseId][tier]) || null; }
+
+function deriveTierSet(baseId, tier) {
+  const base = RAW_SETS[baseId];
+  if (!base) return null;
+  const t = setTierText(baseId, tier) || {};
+  const id = `${baseId}${tier}`;
+  const word = TIER_WORD[tier] || `${tier}단`;
+  const pow = SET_TIER_POWER[tier] || 1;
+  const modk = SET_TIER_MOD[tier] || 1;
+  const spOver = (SET_TIER_SPECIAL[baseId] && SET_TIER_SPECIAL[baseId][tier]) || {};
+  const bonuses = {};
+  for (const step of Object.keys(base.bonuses || {})) {
+    const b = base.bonuses[step];
+    const nb = { ...b };
+    if (b.stats) { nb.stats = {}; for (const k of Object.keys(b.stats)) nb.stats[k] = k === 'hp' ? Math.round(b.stats[k] * pow / 10) * 10 : Math.round(b.stats[k] * pow); }
+    if (b.mods) { nb.mods = {}; for (const k of Object.keys(b.mods)) nb.mods[k] = Math.round(b.mods[k] * modk * 1000) / 1000; }
+    if (t.bonus && t.bonus[step]) nb.desc = t.bonus[step];
+    if (b.special) {
+      nb.special = `${b.special}${tier}`;
+      nb.specialLabel = t.specialLabel || `${b.specialLabel} (${word})`;
+      nb.specialParams = { ...(b.specialParams || {}), ...spOver };
+      if (b.specialParams && b.specialParams.buffId) nb.specialParams.buffId = `${b.specialParams.buffId}${tier}`;
+      if (t.specialDesc) nb.desc = t.specialDesc;
+    }
+    bonuses[step] = nb;
+  }
+  const pieces = {};
+  for (const slot of SET_SLOTS) {
+    const baseText = (PIECE_TEXT[baseId] && PIECE_TEXT[baseId][slot]) || [`${base.name} 장비`, ''];
+    const mine = t.pieces && t.pieces[slot];
+    pieces[slot] = mine ? [mine[0], mine[1] || baseText[1]] : [`${baseText[0]} (${word})`, baseText[1]];
+  }
+  PIECE_TEXT[id] = pieces;
+  const wv = WEAPON_VARIANT[baseId] || {};
+  const suffix = (n) => `${n} (${word})`;
+  WEAPON_VARIANT[id] = {
+    weapon: Object.fromEntries(Object.entries(wv.weapon || {}).map(([k, v]) => [k, (t.weapon && t.weapon[k]) || suffix(v)])),
+    offhand: Object.fromEntries(Object.entries(wv.offhand || {}).map(([k, v]) => [k, (t.offhand && t.offhand[k]) || suffix(v)])),
+  };
+  return {
+    ...base,
+    id,
+    name: t.name || `${base.name} (${word})`,
+    desc: t.desc || base.desc,
+    color: t.color || base.color,
+    colorDeep: t.colorDeep || base.colorDeep,
+    order: base.order,
+    tier,
+    baseId,
+    power: pow,
+    archs: base.archs.slice(),
+    prefer: Array.isArray(base.prefer) ? base.prefer.slice() : base.prefer,
+    palette: { ...base.palette },
+    profile: base.profile,
+    bonuses,
+  };
+}
+for (const baseId of Object.keys(RAW_SETS)) {
+  if (RAW_SETS[baseId].tier && RAW_SETS[baseId].tier !== 1) continue;
+  RAW_SETS[baseId].tier = 1;
+  RAW_SETS[baseId].baseId = baseId;
+  RAW_SETS[baseId].power = 1;
+  for (const tier of [2, 3]) { const d = deriveTierSet(baseId, tier); if (d) RAW_SETS[d.id] = d; }
+}
+
 /* ─────────────────────────── 스탯 산출 ─────────────────────────── */
 
 function profileFor(set, slot) {
@@ -464,7 +740,9 @@ function refPieceStats(set, slot) {
   const prof = profileFor(set, slot);
   const mix = prof.mix || {};
   const coef = SLOT_COEF[slot] || 0;
-  const budget = slotBudget(slot);
+  /* ★ §172 상위 단 세트는 같은 프로필에 예산만 `power` 배다 (2단 1.30 · 3단 1.69) */
+  const tierPow = Number.isFinite(set.power) && set.power > 0 ? set.power : 1;
+  const budget = slotBudget(slot) * tierPow;
 
   // mix 합이 1 이 아니어도 되도록 정규화한다 (튜닝할 때 실수를 흡수)
   let total = 0;
@@ -480,7 +758,7 @@ function refPieceStats(set, slot) {
   }
   const flat = prof.flat || {};
   for (const k of FLAT_KEYS) {
-    const v = (flat[k] || 0) * coef * LEGEND_MULT * SET_TUNE;
+    const v = (flat[k] || 0) * coef * LEGEND_MULT * SET_TUNE * tierPow;
     if (v) out[k] = Math.round(v * 10) / 10;
   }
   return out;
@@ -542,9 +820,19 @@ export const SETS = (() => {
 })();
 
 export const SET_IDS = Object.keys(SETS);
-export const SET_LIST = SET_IDS.map((id) => SETS[id]);
-/** 던전 주차(1~4) -> 세트 id */
-export const SET_ORDER = SET_LIST.slice().sort((a, b) => a.order - b.order).map((s) => s.id);
+/** 12종 — 기본 4 + 2단 4 + 3단 4. 계열(order) → 단(tier) 순 */
+export const SET_LIST = SET_IDS.map((id) => SETS[id]).sort((a, b) => (a.order - b.order) || ((a.tier || 1) - (b.tier || 1)));
+/** 기본(1단) 세트 4종 — 주차 매핑·«세트 4종» 을 전제로 한 화면은 이걸 쓴다 */
+export const BASE_SET_LIST = SET_LIST.filter((s) => (s.tier || 1) === 1);
+export const BASE_SET_IDS = BASE_SET_LIST.map((s) => s.id);
+/** 던전 주차(1~4) -> 세트 id (1단만) */
+export const SET_ORDER = BASE_SET_LIST.slice().sort((a, b) => a.order - b.order).map((s) => s.id);
+/** 기본 세트 id + 단(1~3) → 세트 id (없으면 null) */
+export function setIdAtTier(baseId, tier = 1) {
+  const t = Math.max(1, Math.min(3, Math.round(tier || 1)));
+  const id = t === 1 ? baseId : `${baseId}${t}`;
+  return SETS[id] ? id : null;
+}
 
 /* ─────────────────────────── 조회 API ─────────────────────────── */
 
@@ -648,6 +936,7 @@ export function setPieceItem(setId, slot, ilvl = SET_REF_ILVL, opts = {}) {
     // ── 세트 식별
     setId: set.id,
     setName: set.name,
+    setTier: set.tier || 1,
     setSlot: slot,
     archs: set.archs.slice(),
     mythic: true,

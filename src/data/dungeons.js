@@ -25,6 +25,60 @@ export const DUNGEON_LEVEL = 80;
 /** 개방 주차 수 (= 던전 수). 1주차 → 1번 던전 … 4주차 → 4번 던전 */
 export const DUNGEON_WEEKS = 4;
 
+/* ── 난이도 (§172) ──────────────────────────────────────────────────────
+ * 제작자: 「던전을 현재꺼는 보통 난이도로 하고 어려움, 정예 난이도를 추가해서 보통 난이도로 셋트
+ *   아이템 맞추고 어느정도 거의 맞추면 어려움 난이도에서 두번째 셋트 아이템을 파밍하고 두번째
+ *   셋트도 거의 파밍하면 정예 난이도에서 세번째 셋트를 파밍 하는 식이면 좋을것같아」
+ *
+ * · 던전 하나에 난이도 셋. 난이도마다 **그 던전 계열의 세트가 한 단계씩** 올라간다
+ *   (보통 = 1단 세트 · 어려움 = 2단 · 정예 = 3단). 착용 제한(archs)은 세 단 모두 같다.
+ * · 해금: 어려움은 보통을 **한 번이라도 완주**(10웨이브)했을 때, 정예는 어려움을 완주했을 때.
+ * · 진행도는 난이도마다 따로 적는다 (`progressKey`). 보통은 예전 키(던전 id) 그대로라
+ *   옛 세이브의 기록이 그대로 보통 난이도 기록이 된다.
+ * · 난이도 배율은 `WAVE_POWER`(game/dungeon.js) 에 곱한다. 값은 실측으로 정한다 —
+ *   목표는 「1단 풀세트가 어려움 10웨이브를 30% 완주 · 2단 풀세트가 정예 10웨이브를 30% 완주」.
+ *   (보통이 「전설 10칸 → 1단 풀세트 30% 완주」 인 것과 같은 계단이다.) */
+export const DIFFICULTIES = ['normal', 'hard', 'elite'];
+export const DIFFICULTY_LABEL = { normal: '보통', hard: '어려움', elite: '정예' };
+/** 난이도 → 그 난이도가 떨어뜨리는 세트 단 (1~3) */
+export const DIFFICULTY_TIER = { normal: 1, hard: 2, elite: 3 };
+/**
+ * 난이도 → 적 배율. **둘로 나눈다** — 1~9웨이브(`early`)와 10웨이브 벽(`wall`).
+ *
+ * ★ 왜 둘인가 (실측 §172): 배율 하나(1.32)로는 계단이 안 만들어졌다. 어려움의 입장 부대는
+ *   «1단 풀세트» 인데 그 부대가 8.8웨이브까지 가 버려 2단 조각을 다 모으기도 전에 벽만 남았고,
+ *   반대로 2단 풀세트의 완주는 16% 였다. 초반을 세게, 벽은 덜 세게 해야
+ *   「입장 부대는 5~7웨이브 · 다음 단 풀세트만 완주」 가 된다 — 보통 난이도의 계단과 같은 모양이다.
+ * ★ 값은 tools/dungeon.mjs --diff= --settier= --basetier= 로 잰다. 세트를 만지면 다시 재라. */
+export const DIFFICULTY_POWER = {
+  normal: { early: 1.00, wall: 1.00 },
+  /* 실측(계열 합산 뒤, tools/dungeon.mjs --diff=hard --settier=2 --basetier=1):
+   *   입장(1단 풀세트) 평균 6.7웨 · 2단 조각 3/5/7/8개 → 8.3/8.3/8.7/8.7 · 2단 풀세트 완주 wall 1.28 → 52%, 1.32 → 19% */
+  hard: { early: 1.52, wall: 1.30 },
+  /* 실측(--diff=elite --settier=3 --basetier=2): 입장(2단 풀세트) 4.4웨 · 3단 조각 3/5/7/8개 → 7.6/8.0/8.4/8.5 · 3단 풀세트 완주 wall 1.75 → 40%, 1.82 → 4% */
+  elite: { early: 2.05, wall: 1.78 },
+};
+/** 계측 도구용 — 실행 중에 난이도 배율을 바꿔 격자로 잰다 (게임은 부르지 않는다) */
+export function setDifficultyPower(diff, v) {
+  const k = normDifficulty(diff);
+  if (v && typeof v === 'object') DIFFICULTY_POWER[k] = { early: Number(v.early) || 1, wall: Number(v.wall) || 1 };
+}
+
+/** 난이도 문자열 정규화 (모르는 값이면 보통) */
+export function normDifficulty(diff) {
+  return DIFFICULTIES.includes(diff) ? diff : 'normal';
+}
+/** 진행도 저장 키 — 보통은 예전 그대로 던전 id, 나머지는 `id@난이도` */
+export function progressKey(dungeonId, diff = 'normal') {
+  const d = normDifficulty(diff);
+  return d === 'normal' ? dungeonId : `${dungeonId}@${d}`;
+}
+/** 이 난이도의 바로 아래 난이도 (보통이면 null) */
+export function prevDifficulty(diff) {
+  const i = DIFFICULTIES.indexOf(normDifficulty(diff));
+  return i > 0 ? DIFFICULTIES[i - 1] : null;
+}
+
 /** 아키타입 7종 — 던전4처럼 제한이 없는 세트가 그대로 쓴다 */
 export const ALL_ARCHS = ['tank', 'lancer', 'fighter', 'rogue', 'archer', 'mage', 'healer'];
 
@@ -57,6 +111,7 @@ const DUNGEON_DEFS = [
     week: 1,
     setId: 'ironrampart',
     setName: '강철 성벽',
+    sets: { normal: 'ironrampart', hard: 'ironrampart2', elite: 'ironrampart3' },
     archs: ['tank', 'lancer'],
     biome: 'tundra',
     x: 80, y: 60,
@@ -75,6 +130,7 @@ const DUNGEON_DEFS = [
     week: 2,
     setId: 'bloodoath',
     setName: '피의 서약',
+    sets: { normal: 'bloodoath', hard: 'bloodoath2', elite: 'bloodoath3' },
     archs: ['fighter', 'rogue'],
     biome: 'cave',
     x: 65, y: 430,
@@ -93,6 +149,7 @@ const DUNGEON_DEFS = [
     week: 3,
     setId: 'starseeker',
     setName: '별의 사수',
+    sets: { normal: 'starseeker', hard: 'starseeker2', elite: 'starseeker3' },
     archs: ['archer', 'mage'],
     biome: 'mountain',
     x: 930, y: 240,
@@ -111,6 +168,7 @@ const DUNGEON_DEFS = [
     week: 4,
     setId: 'constellation',
     setName: '성좌의 은총',
+    sets: { normal: 'constellation', hard: 'constellation2', elite: 'constellation3' },
     /* ★ 세트가 사제 전용이 되면서 여기도 같이 바꿨다 (sets.js constellation 주석 참고).
      *   던전의 archs 와 세트의 archs 는 **반드시 같아야 한다** — 스모크가 그걸 본다.
      *   어긋나면 던전은 «누구나 쓴다» 고 안내하는데 정작 못 끼는 상황이 된다. */
@@ -147,7 +205,17 @@ for (const d of DUNGEON_DEFS) {
     archs: Array.isArray(d.archs) ? d.archs.slice() : ALL_ARCHS.slice(),
     lineup: Array.isArray(d.lineup) ? d.lineup.slice() : [],
     bosses: Array.isArray(d.bosses) ? d.bosses.slice() : [],
+    /* 난이도별 세트. 데이터에 없으면 세 난이도가 전부 기본 세트를 가리킨다 (누락 방어) */
+    sets: { normal: d.setId, hard: d.setId, elite: d.setId, ...(d.sets || {}) },
   };
+}
+
+/** 이 던전이 이 난이도에서 떨어뜨리는 세트 id */
+export function setIdForDifficulty(dungeon, diff = 'normal') {
+  const d = typeof dungeon === 'string' ? DUNGEONS[dungeon] : dungeon;
+  if (!d) return null;
+  const k = normDifficulty(diff);
+  return (d.sets && d.sets[k]) || d.setId || null;
 }
 
 /** 순회용 배열 (DUNGEONS 와 동일 객체 참조). 주차 오름차순 */

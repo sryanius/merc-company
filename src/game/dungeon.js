@@ -16,6 +16,8 @@ import { RNG, rng as globalRng } from '../core/rng.js';
 import {
   DUNGEONS, DUNGEON_LIST, DUNGEON_IDS, DUNGEON_WAVES, DUNGEON_WEEKS,
   getDungeon, dungeonForWeek, dungeonBySet,
+  DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_TIER, DIFFICULTY_POWER,
+  normDifficulty, progressKey, prevDifficulty, setIdForDifficulty,
 } from '../data/dungeons.js';
 import { buildEnemySquad, getEnemy } from '../data/enemies.js';
 import { getFormation } from '../data/formations.js';
@@ -26,6 +28,7 @@ import * as Merc from './merc.js';
 import * as Gear from './gear.js';
 
 export { DUNGEONS, DUNGEON_LIST, DUNGEON_IDS, getDungeon, dungeonForWeek, dungeonBySet };
+export { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_TIER, DIFFICULTY_POWER, normDifficulty, progressKey, prevDifficulty, setIdForDifficulty };
 
 /* ════════════════════════════════════════════════════════════════════════
  *  난이도 노브 (설계 C)
@@ -218,6 +221,29 @@ export function canEnter(state = State.state, dungeonId = null) {
   return { ok: true, reason: '', week, dungeonId: d.id, openId };
 }
 
+/* ─────────────────── 난이도 해금 (§172) ───────────────────
+ * 어려움은 보통을 완주(10웨이브)한 적이 있어야, 정예는 어려움을 완주한 적이 있어야 열린다.
+ * 「이전 난이도의 10웨이브를 클리어 한 적이 있으면 해금」 — 제작자. */
+
+/** 이 난이도가 열려 있는가 */
+export function difficultyUnlocked(state = State.state, dungeonId = null, difficulty = 'normal') {
+  const st = state || State.state;
+  const diff = normDifficulty(difficulty);
+  const prev = prevDifficulty(diff);
+  if (!prev) return { ok: true, reason: '' };
+  const p = dungeonProgress(st, dungeonId, prev);
+  if (p.clearedAt != null) return { ok: true, reason: '' };
+  const d = getDungeon(dungeonId);
+  const lb = DIFFICULTY_LABEL[diff];
+  const ga = /[가-힣]$/.test(lb) && (lb.charCodeAt(lb.length - 1) - 0xac00) % 28 === 0 ? '가' : '이';   // 정예가 · 어려움이
+  return { ok: false, reason: `${DIFFICULTY_LABEL[prev]} 난이도를 한 번 완주(${d ? d.waves : DUNGEON_WAVES}웨이브)해야 ${lb}${ga} 열린다.` };
+}
+
+/** 열려 있는 난이도 목록 (보통은 항상) */
+export function unlockedDifficulties(state = State.state, dungeonId = null) {
+  return DIFFICULTIES.filter((diff) => difficultyUnlocked(state, dungeonId, diff).ok);
+}
+
 /* ─────────────────── 부대별 «오늘 몫» ───────────────────
  *
  * ★★ 제작자 지적: 「던전이 안 죽고 그만두고 다시 1웨이브부터 할 수 있는데,
@@ -246,20 +272,33 @@ export function squadUsedToday(state = State.state, squadId = null) {
 }
 
 /** 이 부대가 오늘 몫을 썼다고 남긴다 (**1웨이브 진입** 시점에만 부른다 — 물러나도 남는다) */
-export function markSquadRun(state = State.state, squadId = null) {
+export function markSquadRun(state = State.state, squadId = null, difficulty = 'normal') {
   const st = state || State.state;
   if (!st || !squadId) return;
   if (!st.dungeonRuns || typeof st.dungeonRuns !== 'object' || Array.isArray(st.dungeonRuns)) st.dungeonRuns = {};
   st.dungeonRuns[squadId] = st.day || 1;
+  /* ★ §172 「각 부대는 난이도 한가지만 진행할 수 있어」 — 오늘 들어간 난이도를 남긴다.
+   *   같은 판을 이어 갈 때(2웨이브~) 다른 난이도로 새지 않게 UI 가 이 값을 본다. */
+  if (!st.dungeonRunDiff || typeof st.dungeonRunDiff !== 'object' || Array.isArray(st.dungeonRunDiff)) st.dungeonRunDiff = {};
+  st.dungeonRunDiff[squadId] = normDifficulty(difficulty);
+}
+
+/** 이 부대가 오늘 들어간 난이도 (오늘 몫을 안 썼으면 null) */
+export function squadRunDifficulty(state = State.state, squadId = null) {
+  const st = state || State.state;
+  if (!squadUsedToday(st, squadId)) return null;
+  const v = st.dungeonRunDiff && st.dungeonRunDiff[squadId];
+  return normDifficulty(v);
 }
 
 /** 던전 진행도 조회 `{bestWave, clearedAt}` (기록이 없으면 0/null) */
-export function dungeonProgress(state = State.state, dungeonId = null) {
+export function dungeonProgress(state = State.state, dungeonId = null, difficulty = 'normal') {
   const st = state || State.state;
+  const key = dungeonId ? progressKey(dungeonId, difficulty) : dungeonId;
   try {
-    if (typeof State.getDungeonProgress === 'function') return State.getDungeonProgress(dungeonId, st);
+    if (typeof State.getDungeonProgress === 'function') return State.getDungeonProgress(key, st);
   } catch { /* 아래 폴백 */ }
-  const e = dungeonId && st && st.dungeons ? st.dungeons[dungeonId] : null;
+  const e = key && st && st.dungeons ? st.dungeons[key] : null;
   const best = Math.floor(Number(e && e.bestWave));
   const cleared = Math.floor(Number(e && e.clearedAt));
   return {
@@ -271,12 +310,16 @@ export function dungeonProgress(state = State.state, dungeonId = null) {
 /* ------------------------------------------------------------------ 웨이브 */
 
 /** 이 웨이브의 적 스탯 배율 = WAVE_POWER × 던전별 배율 */
-export function wavePower(dungeonId, waveIndex = 0) {
+export function wavePower(dungeonId, waveIndex = 0, difficulty = 'normal') {
   const d = getDungeon(dungeonId);
   const wi = normWaveIndex(waveIndex, d ? d.waves : WAVES);
   const base = WAVE_POWER[clamp(wi, 0, WAVE_POWER.length - 1)] || 1;
   const mul = d && Number.isFinite(d.power) ? d.power : 1;
-  return base * mul;
+  /* ★ §172 난이도 배율 — 1~9웨이브는 early, 10웨이브 벽은 wall (data/dungeons.js DIFFICULTY_POWER, 실측값) */
+  const dp = DIFFICULTY_POWER[normDifficulty(difficulty)] || { early: 1, wall: 1 };
+  const total = d ? d.waves : WAVES;
+  const dm = (wi >= total - 1) ? (dp.wall || 1) : (dp.early || 1);
+  return base * mul * dm;
 }
 
 /** enemies.js 가 돌려준 부대 정의를 안전한 형태로 다듬는다 (quest.js normalizeWave 와 같은 규칙) */
@@ -368,10 +411,11 @@ function fixedWave(d, wi) {
  * @returns {{units:Array, formationId:string, power:number, boss:boolean, level:number,
  *            waveIndex:number, waveNo:number, dungeonId:string}|null}
  */
-export function dungeonWave(dungeonId, waveIndex = 0, rng = null) {
+export function dungeonWave(dungeonId, waveIndex = 0, rng = null, difficulty = 'normal') {
   const d = getDungeon(dungeonId);
   if (!d) return null;
   const wi = normWaveIndex(waveIndex, d.waves);
+  const diff = normDifficulty(difficulty);
 
   let wave = fixedWave(d, wi);
   if (!wave) {
@@ -391,12 +435,13 @@ export function dungeonWave(dungeonId, waveIndex = 0, rng = null) {
     wave = normalizeUnits(sq, d.level);
   }
 
-  wave.power = wavePower(d.id, wi);
+  wave.power = wavePower(d.id, wi, diff);
   wave.boss = true;
   wave.level = d.level;
   wave.waveIndex = wi;
   wave.waveNo = wi + 1;
   wave.dungeonId = d.id;
+  wave.difficulty = diff;
   return wave;
 }
 
@@ -407,15 +452,17 @@ export function dungeonWave(dungeonId, waveIndex = 0, rng = null) {
  * (밸런스 도구가 던전 전투를 잴 때도 이 객체를 쓰면 된다.)
  * @returns {object|null}
  */
-export function dungeonQuest(dungeonId, waveIndex = 0, rng = null) {
+export function dungeonQuest(dungeonId, waveIndex = 0, rng = null, difficulty = 'normal') {
   const d = getDungeon(dungeonId);
   if (!d) return null;
   const wi = normWaveIndex(waveIndex, d.waves);
-  const wave = dungeonWave(d.id, wi, rng);
+  const diff = normDifficulty(difficulty);
+  const wave = dungeonWave(d.id, wi, rng, diff);
   if (!wave || !wave.units.length) return null;
+  const tag = diff === 'normal' ? '' : ` (${DIFFICULTY_LABEL[diff]})`;
   return {
-    id: `dg_${d.id}_w${wi}`,
-    name: `${d.name} ${wi + 1}웨이브`,
+    id: diff === 'normal' ? `dg_${d.id}_w${wi}` : `dg_${d.id}_${diff}_w${wi}`,
+    name: `${d.name}${tag} ${wi + 1}웨이브`,
     type: '섬멸',
     cityId: null,                 // 도시가 아니다 → 평판 경로를 타지 않는다
     biome: d.biome,
@@ -432,6 +479,7 @@ export function dungeonQuest(dungeonId, waveIndex = 0, rng = null) {
     dungeonId: d.id,
     waveIndex: wi,
     waveCount: d.waves,
+    difficulty: diff,
   };
 }
 
@@ -439,8 +487,8 @@ export function dungeonQuest(dungeonId, waveIndex = 0, rng = null) {
  * 적 유닛 정의만 뽑는다 (부대 없이 재는 밸런스 도구용).
  * @returns {Array} UnitDef[]
  */
-export function dungeonEnemyDefs(dungeonId, waveIndex = 0, rng = null) {
-  const q = dungeonQuest(dungeonId, waveIndex, rng);
+export function dungeonEnemyDefs(dungeonId, waveIndex = 0, rng = null, difficulty = 'normal') {
+  const q = dungeonQuest(dungeonId, waveIndex, rng, difficulty);
   if (!q) return [];
   try {
     return Quest.enemyUnitDefs(q.waves[0], q, q.waveIndex) || [];
@@ -459,12 +507,13 @@ export function dungeonEnemyDefs(dungeonId, waveIndex = 0, rng = null) {
  * @param {string} [squadId]
  * @returns {object} createBattle cfg (+ dungeonId/waveIndex/waveCount)
  */
-export function dungeonBattleDefs(state = State.state, dungeonId = null, waveIndex = 0, squadId = null) {
+export function dungeonBattleDefs(state = State.state, dungeonId = null, waveIndex = 0, squadId = null, difficulty = 'normal') {
   const st = state || State.state;
   const d = getDungeon(dungeonId);
   if (!d) throw new Error('그런 던전은 없다.');
   const wi = normWaveIndex(waveIndex, d.waves);
-  const q = dungeonQuest(d.id, wi);
+  const diff = normDifficulty(difficulty);
+  const q = dungeonQuest(d.id, wi, null, diff);
   if (!q) throw new Error('던전 웨이브를 만들지 못했다.');
 
   const cfg = Quest.questBattleDefs(q, 0, st, squadId);
@@ -473,15 +522,16 @@ export function dungeonBattleDefs(state = State.state, dungeonId = null, waveInd
   cfg.waveCount = d.waves;
   cfg.dungeonId = d.id;
   cfg.dungeon = true;
+  cfg.difficulty = diff;
   cfg.questId = q.id;
   cfg.biome = d.biome;
-  cfg.title = `${d.name} ${wi + 1}/${d.waves}웨이브`;
+  cfg.title = `${d.name}${diff === 'normal' ? '' : ` (${DIFFICULTY_LABEL[diff]})`} ${wi + 1}/${d.waves}웨이브`;
   // 전투 시드에 **날짜**를 섞는다.
   // questBattleDefs 의 기본 시드는 (의뢰 id + 웨이브 + 부대)라 던전처럼 id 가 고정된 콘텐츠는
   // 같은 부대로 몇 번을 들어와도 **완전히 똑같은 전투**가 된다. 편성까지 고정이라 한 번 진
   // 웨이브는 장비를 바꾸기 전까지 영원히 진다. 날짜를 섞으면 그날 안에서는 결과가 고정이라
   // (저장·재시도로 굴리기 방지) 하루에 한 번은 다시 도전해 볼 값어치가 생긴다.
-  cfg.seed = (hashStr(`dg#${d.id}#${wi}#${cfg.squadId || ''}#${st.day || 0}`) ^ ((st.seed || 0) >>> 0)) >>> 0;
+  cfg.seed = (hashStr(`dg#${d.id}#${diff === 'normal' ? '' : diff + '#'}${wi}#${cfg.squadId || ''}#${st.day || 0}`) ^ ((st.seed || 0) >>> 0)) >>> 0;
   return cfg;
 }
 
@@ -575,11 +625,16 @@ function setPieceBaseId(setId, slot) {
  * @param {RNG} [rng]
  * @returns {object|null} 아이템 (세트 데이터가 아직 없으면 null)
  */
-export function dropForWave(dungeonId, waveIndex = 0, rng = null) {
+export function dropForWave(dungeonId, waveIndex = 0, rng = null, difficulty = 'normal') {
   const d = getDungeon(dungeonId);
   if (!d) return null;
   const wi = normWaveIndex(waveIndex, d.waves);
   const r = rng || globalRng;
+  /* ★ §172 난이도가 세트 단을 정한다 — 보통 1단, 어려움 2단, 정예 3단 (data/dungeons.js sets) */
+  const diff = normDifficulty(difficulty);
+  const setId = setIdForDifficulty(d, diff) || d.setId;
+  const setName = (Items.setNameOf && Items.setNameOf(setId)) || d.setName;
+  const dd = { ...d, setId, setName };
 
   /* ★ 드랍 확률.
    * 원래 설계는 **확정 드랍**이었다(SPEC §521 "보스를 잡을 때마다 세트 아이템 1개").
@@ -596,14 +651,14 @@ export function dropForWave(dungeonId, waveIndex = 0, rng = null) {
   const slot = dropSlotForWave(wi, r);
   const ilvl = dropIlvl(wi);
   const ctx = {
-    setId: d.setId, setName: d.setName, slot, ilvl, rarity: MYTHIC_RARITY,
-    rng: r, dungeonId: d.id, waveIndex: wi, waveNo: wi + 1, archs: d.archs.slice(),
+    setId, setName, slot, ilvl, rarity: MYTHIC_RARITY,
+    rng: r, dungeonId: d.id, waveIndex: wi, waveNo: wi + 1, archs: d.archs.slice(), difficulty: diff,
   };
 
   if (dropFactory) {
     try {
       const it = dropFactory(ctx);
-      if (it) return tagSet(it, d, slot, ilvl);
+      if (it) return tagSet(it, dd, slot, ilvl);
     } catch (e) { console.warn('[dungeon] 주입된 드랍 팩토리 실패', e); }
   }
 
@@ -611,20 +666,20 @@ export function dropForWave(dungeonId, waveIndex = 0, rng = null) {
   if (roll) {
     try {
       const it = roll(ctx);
-      if (it) return tagSet(it, d, slot, ilvl);
+      if (it) return tagSet(it, dd, slot, ilvl);
     } catch (e) { console.warn('[dungeon] 세트 롤러 실패', e); }
   }
 
-  const baseId = setPieceBaseId(d.setId, slot);
+  const baseId = setPieceBaseId(setId, slot);
   if (baseId && typeof Gear.rollItem === 'function') {
     try {
       const it = Gear.rollItem({ baseId, slot, ilvl, rarity: MYTHIC_RARITY, rng: r });
-      if (it) return tagSet(it, d, slot, ilvl);
+      if (it) return tagSet(it, dd, slot, ilvl);
     } catch (e) { console.warn('[dungeon] rollItem(세트 베이스) 실패', e); }
   }
 
-  warnOnce(`drop:${d.setId}`,
-    `[dungeon] 세트 '${d.setId}'(${d.setName})의 ${slot} 조각을 만들 수 없다. `
+  warnOnce(`drop:${setId}`,
+    `[dungeon] 세트 '${setId}'(${setName})의 ${slot} 조각을 만들 수 없다. `
     + 'data/items.js 에 세트 베이스가 있는지, gear.js 에 세트 롤러가 있는지 확인해라.');
   return null;
 }
@@ -755,6 +810,7 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 
   const wi = normWaveIndex(waveIndex, d.waves);
   const waveNo = wi + 1;
+  const diff = normDifficulty(opts.difficulty);
   const { list, squadId: resSquad } = normalizeResults(result);
   const win = list.length > 0 && list.every((r) => winnerOf(r) === 'ally');
   const runOver = !win || waveNo >= d.waves;
@@ -792,11 +848,11 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 
   // 진행도 + 드랍
   let item = null;
-  let progress = dungeonProgress(st, d.id);
+  let progress = dungeonProgress(st, d.id, diff);
   const before = progress.bestWave;
   if (win) {
-    progress = recordWave(st, d, waveNo);
-    item = dropForWave(d.id, wi, opts.rng || null);
+    progress = recordWave(st, d, waveNo, diff);
+    item = dropForWave(d.id, wi, opts.rng || null, diff);
     if (item) {
       try { State.addItem(item); } catch (e) { console.warn('[dungeon] 드랍 지급 실패', e); }
     }
@@ -804,12 +860,16 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 
   // 로그
   try {
-    const label = `${d.name} ${waveNo}/${d.waves}웨이브`;
+    const dl = diff === 'normal' ? '' : ` (${DIFFICULTY_LABEL[diff]})`;
+    const label = `${d.name}${dl} ${waveNo}/${d.waves}웨이브`;
+    const setName = (item && item.setName) || d.setName;
     if (win) {
       State.addLog(`[던전] ${label} 돌파! 층의 주인을 쓰러뜨렸다.`);
-      if (item) State.addLog(`[던전] ${d.setName} 세트 획득: ${item.name || '이름 없는 유물'}`);
+      if (item) State.addLog(`[던전] ${setName} 세트 획득: ${item.name || '이름 없는 유물'}`);
       if (waveNo >= d.waves && progress.clearedAt === (st.day || 0) && before < d.waves) {
-        State.addLog(`[던전] ${d.name} — 끝까지 밀어냈다. ${d.setName} 세트의 주인이 바뀌었다.`);
+        State.addLog(`[던전] ${d.name}${dl} — 끝까지 밀어냈다. ${setName} 세트의 주인이 바뀌었다.`);
+        const nx = DIFFICULTIES[DIFFICULTIES.indexOf(diff) + 1];
+        if (nx) State.addLog(`[던전] ${d.name} ${DIFFICULTY_LABEL[nx]} 난이도가 열렸다.`);
       }
     } else {
       State.addLog(`[던전] ${label}에서 부대가 물러났다.`);
@@ -836,19 +896,20 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 }
 
 /** 진행도 기록 — state.js 가 열어 준 API 를 쓰고, 없으면 직접 쓴다 */
-function recordWave(st, dungeon, waveNo) {
+function recordWave(st, dungeon, waveNo, difficulty = 'normal') {
+  const key = progressKey(dungeon.id, difficulty);
   try {
     if (typeof State.recordDungeonWave === 'function') {
-      return State.recordDungeonWave(dungeon.id, waveNo, { total: dungeon.waves }, st);
+      return State.recordDungeonWave(key, waveNo, { total: dungeon.waves }, st);
     }
   } catch (e) { console.warn('[dungeon] 진행도 기록 실패', e); }
   if (!st.dungeons || typeof st.dungeons !== 'object' || Array.isArray(st.dungeons)) st.dungeons = {};
-  const cur = dungeonProgress(st, dungeon.id);
+  const cur = dungeonProgress(st, dungeon.id, difficulty);
   const next = {
     bestWave: Math.max(cur.bestWave, waveNo),
     clearedAt: cur.clearedAt,
   };
   if (next.clearedAt == null && next.bestWave >= dungeon.waves) next.clearedAt = st.day || 0;
-  st.dungeons[dungeon.id] = next;
+  st.dungeons[key] = next;
   return next;
 }

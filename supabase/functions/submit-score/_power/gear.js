@@ -1026,17 +1026,34 @@ export function setProgress(merc, itemsById = null) {
   const worn = Array.isArray(merc) ? merc.filter(Boolean) : wornItems(merc, itemsById);
   const max = Array.isArray(merc) ? SLOTS.length : equippableSlotCount(merc, itemsById);
   const count = new Map();
+  const lowTier = new Map();
+  const tierMix = new Map();
   for (const it of worn) {
     const sid = setIdOf(it);
-    if (sid) count.set(sid, (count.get(sid) || 0) + 1);
+    if (!sid) continue;
+    const key = setLineageOf(sid);            // §172.1 계열 합산
+    count.set(key, (count.get(key) || 0) + 1);
+    const d = SETS_DATA.getSet(sid);
+    if (d) {
+      const t = d.tier || 1;
+      const cur = lowTier.get(key);
+      if (!cur || t < cur.tier) lowTier.set(key, { tier: t, setId: sid });
+      const mix = tierMix.get(key) || {};
+      mix[t] = (mix[t] || 0) + 1;
+      tierMix.set(key, mix);
+    }
   }
   const out = [];
-  for (const [setId, n] of count) {
+  for (const [key, n] of count) {
+    const low = lowTier.get(key);
+    const setId = low ? low.setId : key;
     const def = setDefOf(setId);
     const active = activeTiersOf(def, n, max);
     const next = def.tiers.find((t) => !active.includes(t)) ?? null;
     out.push({
       setId,
+      lineage: key,
+      tierMix: tierMix.get(key) || {},
       name: def.name,
       count: n,
       max,
@@ -1074,6 +1091,15 @@ export function setBonusStats(merc, itemsById = null) {
  * @param {object[]} worn 착용 중인 아이템
  * @param {number} maxSlots 풀세트 기준 칸 수 (양손무기면 9)
  */
+/**
+ * ★ §172.1 계열 키 — 던전 신화 세트는 1·2·3단이 **한 계열**이다 (sets.js `baseId`).
+ *   같은 계열이면 단이 달라도 같은 세트로 센다. 옛 items.js 세트는 id 그대로.
+ */
+export function setLineageOf(setId) {
+  const def = setId ? SETS_DATA.getSet(setId) : null;
+  return (def && def.baseId) || setId || null;
+}
+
 export function setBonusFromWorn(worn = [], maxSlots = SLOTS.length) {
   const stats = {}, mods = {}, specials = [], sets = [];
   const list = (worn || []).filter(Boolean);
@@ -1081,19 +1107,35 @@ export function setBonusFromWorn(worn = [], maxSlots = SLOTS.length) {
 
   const count = new Map();
   const ilvlSum = new Map();
+  const lowTier = new Map();     // 계열 → 낀 것 중 가장 낮은 단의 세트 id
+  const tierMix = new Map();     // 계열 → {단: 개수}
   for (const it of list) {
     const sid = setIdOf(it);
     if (!sid) continue;
-    count.set(sid, (count.get(sid) || 0) + 1);
-    ilvlSum.set(sid, (ilvlSum.get(sid) || 0) + (it.ilvl || 1));
+    const key = setLineageOf(sid);
+    count.set(key, (count.get(key) || 0) + 1);
+    ilvlSum.set(key, (ilvlSum.get(key) || 0) + (it.ilvl || 1));
+    const def = SETS_DATA.getSet(sid);
+    if (def) {
+      const t = def.tier || 1;
+      const cur = lowTier.get(key);
+      if (!cur || t < cur.tier) lowTier.set(key, { tier: t, setId: sid });
+      const mix = tierMix.get(key) || {};
+      mix[t] = (mix[t] || 0) + 1;
+      tierMix.set(key, mix);
+    }
   }
   if (!count.size) return { stats, mods, specials, sets };
 
   const max = Math.max(1, Math.round(maxSlots || SLOTS.length));
-  for (const [setId, n] of count) {
-    // 던전 신화 세트는 sets.js 가 직접 계산한다 (stats/mods/specials 형태가 그쪽 계약이다).
+  for (const [key, n] of count) {
+    /* 던전 신화 세트는 sets.js 가 직접 계산한다 (stats/mods/specials 형태가 그쪽 계약이다).
+     * ★ 계열로 센 칸 수(n)에, 효과는 **낀 것 중 가장 낮은 단** 세트의 것을 준다 —
+     *   1단 위에 2단을 갈아 끼우는 동안 풀세트 효과가 끊기지 않고, 2단 효과는 2단을 다 갖춰야 나온다. */
+    const low = lowTier.get(key);
+    const setId = low ? low.setId : key;
     if (SETS_DATA.getSet(setId)) {
-      const ilvl = Math.max(1, Math.round(ilvlSum.get(setId) / n));
+      const ilvl = Math.max(1, Math.round(ilvlSum.get(key) / n));
       const b = SETS_DATA.setBonusAt(setId, n, max, ilvl);
       for (const k of STAT_KEYS) if (b.stats && b.stats[k]) stats[k] = (stats[k] || 0) + b.stats[k] * SET_POWER;
       for (const k of STAT_KEYS) if (b.mods && b.mods[k]) mods[k] = (mods[k] || 0) + b.mods[k] * SET_POWER;
@@ -1103,7 +1145,7 @@ export function setBonusFromWorn(worn = [], maxSlots = SLOTS.length) {
         const norm = normSpecial(sp, { setId, step: sp && (sp.step ?? sp.tier) });
         if (norm) specials.push(norm);
       }
-      sets.push({ setId, name: SETS_DATA.getSet(setId).name, count: n, max, active: b.steps.slice() });
+      sets.push({ setId, lineage: key, tiers: tierMix.get(key) || {}, name: SETS_DATA.getSet(setId).name, count: n, max, active: b.steps.slice() });
       continue;
     }
     const def = setDefOf(setId);

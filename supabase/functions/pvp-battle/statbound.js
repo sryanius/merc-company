@@ -57,17 +57,18 @@ export const MAX_LEVEL = 80;
  *   최악은 언제나 최저 등급 쪽에 있다.
  */
 export const MAX_RATIO = {
-  hp: 7.82, atk: 62.31, def: 25.83, res: 28.09, spd: 7.02, crit: 10.71, critDmg: 5.90, eva: 2.90,
+  hp: 13.38, atk: 113.73, def: 47.30, res: 51.65, spd: 11.51, crit: 14.26, critDmg: 8.40, eva: 4.07,
 };
 /** 앞으로의 밸런스 변화를 위한 여유 */
 export const SLACK = 2.0;
 
 /**
  * 게임이 실제로 만들 수 있는 **최대 절대값** — `node tools/statceiling.mjs` 실측.
+ * ★ §172 세트 3단(예산 1.69배)이 생기면서 다시 떴다 — hp 74k → 100k, atk 17.6k → 29k.
  * (전 클래스 × 착용 가능 세트 × 12진형 × 7슬롯 × 7등급, 굴림 전부 최대, 버퍼 펫 3마리 최대)
  */
 export const MEASURED_MAX = {
-  hp: 74_408, atk: 17_633, def: 6_826, res: 3_490, spd: 4_733, crit: 114, critDmg: 364, eva: 37,
+  hp: 100_249, atk: 28_954, def: 10_003, res: 5_088, spd: 6_184, crit: 120, critDmg: 432, eva: 37,
 };
 
 /**

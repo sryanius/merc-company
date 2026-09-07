@@ -105,6 +105,23 @@ let squadId = null;
 let RUN = null;
 /** 방금 끝난 웨이브 결과 배너 */
 let LAST = null;
+/* ★ §172 지금 보고 있는 난이도. 탭으로 바꾼다. 전투에서 돌아올 때는 params.difficulty 가 덮어쓴다. */
+let diffId = 'normal';
+const DIFFS = Array.isArray(DungeonData.DIFFICULTIES) ? DungeonData.DIFFICULTIES : ['normal', 'hard', 'elite'];
+const DIFF_LABEL = DungeonData.DIFFICULTY_LABEL || { normal: '보통', hard: '어려움', elite: '정예' };
+const diffLabel = (d) => DIFF_LABEL[d] || d;
+/** 난이도 꼬리표 — 보통은 빈 문자열 (제목·로그가 옛 모양 그대로 남게) */
+const diffTag = (d = diffId) => (d && d !== 'normal' ? ` (${diffLabel(d)})` : '');
+/** 이 난이도가 열려 있는가 */
+function diffEntry(d, diff = diffId) {
+  try {
+    if (typeof Dungeon.difficultyUnlocked === 'function') {
+      const r = Dungeon.difficultyUnlocked(state, d.id, diff);
+      if (r && typeof r === 'object') return { ok: !!r.ok, reason: r.reason || '' };
+    }
+  } catch (e) { /* 폴백 */ }
+  return { ok: diff === 'normal', reason: diff === 'normal' ? '' : '아직 열리지 않았다.' };
+}
 
 const CSS = `
 .dg-head { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; }
@@ -114,6 +131,8 @@ const CSS = `
 .dg-tab .gem { width:10px; height:10px; transform:rotate(45deg); border-radius:2px; border:1px solid rgba(0,0,0,.5); }
 .dg-tab.on { color:var(--ink); border-color:var(--gold-dim); background:linear-gradient(180deg, rgba(224,180,74,.12), var(--bg-2)); }
 .dg-tab.locked { opacity:.55; }
+.dg-diffs .dg-tab { padding:4px 9px; }
+.dg-diffs .dg-tab .tiny { margin-left:2px; }
 .dg-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; align-items:start; }
 .dg-note { border-left:3px solid var(--gold-dim); background:rgba(224,180,74,.07); padding:8px 10px; border-radius:0 4px 4px 0; }
 .dg-note.bad { border-left-color:var(--bad); background:rgba(207,90,90,.08); }
@@ -241,15 +260,16 @@ function daysUntilOpen(d) {
   for (let i = 1; i <= 28; i++) if (openWeek(state.day + i) === d.week) return i;
   return 0;
 }
-function progressOf(d) {
+function progressOf(d, diff = diffId) {
   if (!d) return { bestWave: 0, clearedAt: null };
   try {
-    if (typeof Dungeon.dungeonProgress === 'function') return Dungeon.dungeonProgress(state, d.id);
+    if (typeof Dungeon.dungeonProgress === 'function') return Dungeon.dungeonProgress(state, d.id, diff);
   } catch (e) { /* 폴백 */ }
+  const key = typeof Dungeon.progressKey === 'function' ? Dungeon.progressKey(d.id, diff) : d.id;
   try {
-    if (typeof GameState.getDungeonProgress === 'function') return GameState.getDungeonProgress(d.id, state);
+    if (typeof GameState.getDungeonProgress === 'function') return GameState.getDungeonProgress(key, state);
   } catch (e) { /* 폴백 */ }
-  const e = state.dungeons ? state.dungeons[d.id] : null;
+  const e = state.dungeons ? state.dungeons[key] : null;
   const best = Math.floor(Number(e && e.bestWave));
   return { bestWave: Number.isFinite(best) && best > 0 ? best : 0, clearedAt: (e && e.clearedAt) || null };
 }
@@ -263,7 +283,9 @@ function setOf(d) {
   if (!d) return null;
   try {
     if (typeof Sets.getSet === 'function') {
-      const s = Sets.getSet(d.setId);
+      /* ★ §172 난이도별 세트 — 보통 1단 · 어려움 2단 · 정예 3단 */
+      const sid = typeof DungeonData.setIdForDifficulty === 'function' ? DungeonData.setIdForDifficulty(d, diffId) : d.setId;
+      const s = Sets.getSet(sid) || Sets.getSet(d.setId);
       if (s) return s;
     }
     if (typeof Sets.setForWeek === 'function') return Sets.setForWeek(d.week) || null;
@@ -355,17 +377,18 @@ function statPower(s) {
 const foeCache = new Map();
 function foePowers(d) {
   if (!d) return [];
-  if (foeCache.has(d.id)) return foeCache.get(d.id);
+  const fk = `${d.id}@${diffId}`;
+  if (foeCache.has(fk)) return foeCache.get(fk);
   const out = [];
   for (let i = 0; i < wavesOf(d); i++) {
     let p = 0;
     try {
-      const defs = typeof Dungeon.dungeonEnemyDefs === 'function' ? Dungeon.dungeonEnemyDefs(d.id, i) : [];
+      const defs = typeof Dungeon.dungeonEnemyDefs === 'function' ? Dungeon.dungeonEnemyDefs(d.id, i, null, diffId) : [];
       p = (defs || []).reduce((a, u) => a + statPower(u && u.stats), 0);
     } catch (e) { p = 0; }
     out.push(Math.round(p));
   }
-  foeCache.set(d.id, out);
+  foeCache.set(fk, out);
   return out;
 }
 
@@ -395,7 +418,7 @@ const dryCache = new Map();
 function dryKey(d, id) {
   const ms = squadMembers(state, id) || [];
   const sig = ms.map((m) => `${m.uid}:${m.hp}:${m.status}:${Object.values(m.equipment || {}).filter(Boolean).length}`).join(',');
-  return `${d.id}|${id}|${state.day}|${allyPower(id)}|${sig}`;
+  return `${d.id}@${diffId}|${id}|${state.day}|${allyPower(id)}|${sig}`;
 }
 
 /**
@@ -429,7 +452,7 @@ function forecast(d, id) {
     for (let t = 0; t < DRY_TRIALS; t++) {
       restore();                       // 매 시행은 지금 이 순간의 부대 상태에서 출발한다
       for (let i = 0; i < total; i++) {
-        const cfg = Dungeon.dungeonBattleDefs(state, d.id, i, id);
+        const cfg = Dungeon.dungeonBattleDefs(state, d.id, i, id, diffId);
         // ★ 실제 전투 시드를 그대로 쓰면 오늘 들어갈 전투의 답을 미리 보여 주는 꼴이다. 어긋나게 굴린다.
         cfg.seed = (((cfg.seed >>> 0) ^ Math.imul(t + 1, 2654435761)) >>> 0);
         cfg.record = false;
@@ -487,6 +510,19 @@ function deployInfo(id, opt = {}) {
    *   출전 자체를 여기서 막는다 — 이 함수가 카드의 «출전 가능/불가» 와 돌입 버튼을 함께 정한다. */
   let usedToday = false;
   try { usedToday = !opt.resuming && Dungeon.squadUsedToday(state, id); } catch (e) { usedToday = false; }
+  /* ★ §172 「각 부대는 난이도 한가지만」 — 이어 가는 판도 오늘 들어간 난이도여야 한다 */
+  if (opt.resuming) {
+    let ran = null;
+    try { ran = typeof Dungeon.squadRunDifficulty === 'function' ? Dungeon.squadRunDifficulty(state, id) : null; } catch (e) { ran = null; }
+    if (ran && ran !== diffId) {
+      return {
+        ok: false,
+        reason: `이 부대는 오늘 ${diffLabel(ran)} 난이도로 들어갔다. 부대 하나는 하루에 난이도 하나만 간다.`,
+        members, benched: Array.isArray(res.benched) ? res.benched : hurt,
+        fit: list ? list.length : Math.max(0, members.length - hurt.length), usedToday: true,
+      };
+    }
+  }
   if (usedToday) {
     return {
       ok: false,
@@ -508,7 +544,7 @@ function deployInfo(id, opt = {}) {
 
 /** 이 부대가 낀 이 세트의 평균 조각 수 (설계 B — 풀세트 기준은 용병별 최대 칸) */
 function setWorn(d, id) {
-  const sid = setIdOf(d);
+  const sid = setIdOf(d);   // 난이도별 세트 (setOf 가 diffId 를 본다)
   const ms = squadMembers(state, id) || [];
   if (!sid || !ms.length) return { avg: 0, best: 0, max: 10 };
   let total = 0;
@@ -517,7 +553,9 @@ function setWorn(d, id) {
   for (const m of ms) {
     let rows = [];
     try { rows = typeof Gear.setProgress === 'function' ? Gear.setProgress(m, state) || [] : []; } catch (e) { rows = []; }
-    const hit = rows.find((r) => r.setId === sid);
+    /* §172.1 계열 합산 — 1단·2단·3단이 섞여 있어도 같은 계열이면 한 세트로 센다 */
+    const want = (setOf(d) || {}).baseId || sid;
+    const hit = rows.find((r) => r.setId === sid || r.lineage === want);
     const n = hit ? hit.count : 0;
     if (hit && Number.isFinite(hit.max)) max = hit.max;
     total += n;
@@ -542,6 +580,7 @@ function setWorn(d, id) {
 function resumeOwner() {
   if (!LAST || !LAST.win || !LAST.next) return null;
   if (viewId && LAST.dungeonId !== viewId) return null;
+  if (LAST.difficulty && LAST.difficulty !== diffId) return null;   // 다른 난이도의 판은 이어 가지 못한다
   return LAST.squadId || null;
 }
 
@@ -580,15 +619,16 @@ function beginRun(d, id, waveIndex) {
    *
    * ★★ **1웨이브일 때만** 남긴다. 2·3웨이브는 같은 판을 이어 가는 것이라 새 도전이 아니다. */
   if (waveIndex === 0) {
-    try { Dungeon.markSquadRun(state, id); save(); } catch (e) { console.warn('[dungeon] 기록 실패', e); }
+    try { Dungeon.markSquadRun(state, id, diffId); save(); } catch (e) { console.warn('[dungeon] 기록 실패', e); }
   }
   RUN = {
     dungeonId: d.id,
+    difficulty: diffId,
     squadId: id,
     waveIndex,
     waveNo: waveIndex + 1,
     total: wavesOf(d),
-    title: `${d.name} ${waveIndex + 1}/${wavesOf(d)}웨이브`,
+    title: `${d.name}${diffTag()} ${waveIndex + 1}/${wavesOf(d)}웨이브`,
     day: state.day,
     bestBefore: progressOf(d).bestWave,
     itemsBefore: new Set((state.items || []).map((it) => it && it.uid)),
@@ -651,8 +691,9 @@ function settleRun() {
 
   const d = getDungeon(run.dungeonId);
   if (!d) return null;
+  const rdiff = run.difficulty || 'normal';
 
-  const after = progressOf(d);
+  const after = progressOf(d, rdiff);
   const fresh = (state.items || []).filter((it) => it && !run.itemsBefore.has(it.uid));
   const freshSet = fresh.filter((it) => it && it.setId);
   const handled = !!run.reported || after.bestWave > run.bestBefore || freshSet.length > 0;
@@ -682,7 +723,7 @@ function settleRun() {
       const res = Dungeon.applyDungeonResult(
         state, d.id, run.waveIndex,
         { winner: win ? 'ally' : 'enemy', survivors, squadId: run.squadId },
-        { settleMercs: false, squadId: run.squadId, rng },
+        { settleMercs: false, squadId: run.squadId, rng, difficulty: rdiff },
       );
       if (res && res.ok) item = res.item || null;
     } catch (e) {
@@ -690,7 +731,7 @@ function settleRun() {
     }
   }
 
-  const progress = progressOf(d);
+  const progress = progressOf(d, rdiff);
   // ★ 방금 치른 웨이브 번호는 **넘길 때 정한 값**이다. 최고 기록(bestWave)으로 덮으면
   //   예전에 7층까지 갔던 던전에서 1웨이브를 깨자마자 "8웨이브로 계속"이 뜬다.
   //   전투 화면이 여러 웨이브를 이어 돌린 빌드에서만 그쪽이 보고한 번호를 믿는다.
@@ -699,6 +740,7 @@ function settleRun() {
   const waveNo = reportedNo || run.waveNo;
   const out = {
     dungeonId: d.id,
+    difficulty: rdiff,
     waveNo,
     total: run.total,
     win,
@@ -825,7 +867,12 @@ export function render(root, params = {}) {
   const wanted = params.dungeonId || (LAST && LAST.dungeonId) || viewId;
   const d = getDungeon(wanted) || list.find((x) => entry(x).ok) || list[0];
   viewId = d.id;
+  /* ★ §172 전투 화면이 돌려준 난이도(returnParams/continueParams)가 최우선, 다음은 방금 정산한 판의 난이도 */
+  if (params.difficulty && DIFFS.includes(params.difficulty)) diffId = params.difficulty;
+  else if (settled && settled.difficulty) diffId = settled.difficulty;
+  if (!diffEntry(d, diffId).ok) diffId = 'normal';
   if (LAST && LAST.dungeonId !== d.id) LAST = null;
+  if (LAST && LAST.difficulty && LAST.difficulty !== diffId) LAST = null;
 
   const sq = pickSquad();
   squadId = sq ? sq.id : null;
@@ -904,11 +951,32 @@ function headerPanel(d, root) {
         open ? el('span', { style: { color: 'var(--gold)' }, text: '●' }) : el('span', { class: 'faint', text: '🔒' }));
     }));
 
+  /* ★ §172 난이도 탭 — 잠긴 난이도는 이유를 툴팁으로. 이어 가는 판이 있으면 탭을 바꿀 때 그 판을 접는다 */
+  const diffTabs = el('div', { class: 'dg-tabs dg-diffs' }, DIFFS.map((k) => {
+    const de = diffEntry(d, k);
+    const p = progressOf(d, k);
+    const on = k === diffId;
+    const setK = (() => { try { return Sets.getSet(DungeonData.setIdForDifficulty(d, k)); } catch (e) { return null; } })();
+    return el('button', {
+      class: `dg-tab ${on ? 'on' : ''} ${de.ok ? '' : 'locked'}`,
+      title: de.ok ? `${diffLabel(k)} — ${setK ? setK.name : ''} · 최고 ${p.bestWave}/${total}` : de.reason,
+      onClick: () => {
+        if (!de.ok) { toast(de.reason, 'bad'); return; }
+        if (diffId === k) return;
+        diffId = k; LAST = null; rerender(root);
+      },
+    },
+      el('i', { class: 'gem', style: { background: setK ? setK.color : color } }),
+      diffLabel(k),
+      el('span', { class: 'tiny', style: { color: p.clearedAt ? 'var(--gold)' : 'var(--ink-faint)' }, text: p.clearedAt ? '완주' : (de.ok ? `${p.bestWave}/${total}` : '🔒') }));
+  }));
+
   return el('div', { class: 'panel col' },
     el('div', { class: 'dg-head' },
       el('div', { class: 'col', style: { gap: '4px', minWidth: '260px' } },
         el('h3', { style: { margin: '0' } },
-          el('span', { style: { color }, text: '◆ ' }), d.name),
+          el('span', { style: { color }, text: '◆ ' }), d.name,
+          diffId !== 'normal' ? el('span', { class: 'tag', style: { marginLeft: '8px', color }, text: diffLabel(diffId) }) : null),
         el('div', { class: 'faint tiny', text: `${BIOME_NAME[d.biome] || ''} · ${total}웨이브 · 웨이브마다 보스가 버틴다` }),
         el('div', { class: 'muted tiny', style: { maxWidth: '640px' }, text: d.desc || '' })),
       el('div', { class: 'col', style: { gap: '4px', alignItems: 'flex-end' } },
@@ -917,9 +985,13 @@ function headerPanel(d, root) {
           style: { fontWeight: '800', color: e.ok ? 'var(--gold)' : 'var(--bad)' },
           text: e.ok ? `개방 중 — ${d.week}주차` : `잠김 — ${d.week}주차에 열림${wait ? ` (${wait}일 뒤)` : ''}`,
         }),
-        el('div', { class: 'tiny muted', text: `최고 도달 ${prog.bestWave}/${total}${prog.clearedAt ? ` · ${num(prog.clearedAt)}일차 완주` : ''}` }),
+        el('div', { class: 'tiny muted', text: `${diffLabel(diffId)} 최고 도달 ${prog.bestWave}/${total}${prog.clearedAt ? ` · ${num(prog.clearedAt)}일차 완주` : ''}` }),
         el('button', { class: 'btn sm ghost', style: { marginTop: '4px' }, onClick: () => go('world') }, '월드맵으로'))),
     tabs,
+    el('div', { class: 'row center wrap', style: { gap: '8px' } },
+      el('span', { class: 'tiny faint', text: '난이도' }),
+      diffTabs,
+      el('span', { class: 'tiny faint', text: '보통을 완주하면 어려움이, 어려움을 완주하면 정예가 열린다. 난이도마다 그 던전 세트의 다음 단이 나온다. 부대 하나는 하루에 난이도 하나만 간다.' })),
     e.ok ? null : el('div', { class: 'dg-note bad tiny' }, e.reason || `${d.week}주차에만 들어갈 수 있다.`));
 }
 
@@ -931,7 +1003,7 @@ function outcomePanel(d, root) {
   const body = el('div', { class: 'col', style: { gap: '6px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
       el('div', { style: { fontWeight: '800', fontSize: '16px', color: o.win ? 'var(--gold)' : 'var(--bad)' },
-        text: o.win ? `${o.waveNo}웨이브 돌파` : `${o.waveNo}웨이브에서 물러났다` }),
+        text: `${o.difficulty && o.difficulty !== 'normal' ? diffLabel(o.difficulty) + ' · ' : ''}${o.win ? `${o.waveNo}웨이브 돌파` : `${o.waveNo}웨이브에서 물러났다`}` }),
       el('div', { class: 'tiny muted', text: `최고 도달 ${o.bestWave}/${total}${o.cleared ? ' · 완주' : ''}` })),
     o.item
       ? el('div', { class: 'tiny' },
@@ -974,9 +1046,11 @@ function setPanel(d) {
         text: b.desc || b.specialLabel || '스탯이 오른다.' })));
   }
 
+  const tierNo = (set && set.tier) || 1;
   return el('div', { class: 'panel col' },
     el('h3', {}, el('span', { style: { color }, text: setNameOf(d) }),
-      el('span', { class: 'tag', style: { marginLeft: '8px', color: MYTHIC_COLOR }, text: MYTHIC_NAME })),
+      el('span', { class: 'tag', style: { marginLeft: '8px', color: MYTHIC_COLOR }, text: MYTHIC_NAME }),
+      el('span', { class: 'tag', style: { marginLeft: '6px', color: 'var(--gold)' }, text: `${tierNo}단 · ${diffLabel(diffId)}` })),
     set && set.desc ? el('div', { class: 'muted tiny', text: set.desc }) : null,
     el('div', { class: 'row spread center tiny' },
       el('span', { class: 'faint', text: '착용 가능' }),
@@ -1249,8 +1323,10 @@ function askEnter(d, sq, waveIndex, root) {
   const w = f.waves[waveIndex] || { pct: 0, band: BANDS[BANDS.length - 1], foe: 0 };
   const band = bandOf(waveIndex + 1);
 
+  const de = diffEntry(d);
+  if (!de.ok) { toast(de.reason || '이 난이도는 아직 열리지 않았다.', 'bad'); return; }
   modal({
-    title: `${d.name} — ${waveIndex + 1}/${total}웨이브`,
+    title: `${d.name}${diffTag()} — ${waveIndex + 1}/${total}웨이브`,
     body: el('div', { class: 'col', style: { gap: '10px', minWidth: 'min(420px, 76vw)' } },
       row('출전 부대', `${sq.name} (${dep.fit}명)`),
       row('층의 주인', bossName(d, waveIndex)),
@@ -1286,7 +1362,7 @@ async function enterWave(d, id, waveIndex, root) {
   const wi = clamp(Math.round(waveIndex || 0), 0, total - 1);
   let cfg = null;
   try {
-    cfg = Dungeon.dungeonBattleDefs(state, d.id, wi, id);
+    cfg = Dungeon.dungeonBattleDefs(state, d.id, wi, id, diffId);
   } catch (e) {
     console.error('[dungeon] 던전 전투 구성 실패', e);
     toast('던전 전투를 구성하지 못했습니다.', 'bad');
@@ -1298,24 +1374,26 @@ async function enterWave(d, id, waveIndex, root) {
   beginRun(d, id, wi);
   LAST = null;
 
+  const diffNow = diffId;
   await go('battle', {
     battleCfg: cfg,
-    title: `${d.name} ${wi + 1}/${total}웨이브`,
+    title: `${d.name}${diffTag(diffNow)} ${wi + 1}/${total}웨이브`,
     rank: 'S',
     biome: d.biome,
     squadId: id,
     days: 0,
     reward: { gold: 0, exp: 0, renown: 0 },   // 던전 보상은 세트 조각뿐이다 (의뢰 경제와 분리)
     returnTo: 'dungeon',
-    returnParams: { dungeonId: d.id },
+    returnParams: { dungeonId: d.id, difficulty: diffNow },
     // ★ 승리하면 결과 화면에 "다음 웨이브" 가 뜬다. 누르면 던전 화면을 **거쳐서** 넘어간다 —
     //   정산(진행도·세트 조각)이 이 화면에서만 일어나기 때문에 건너뛰면 보상이 날아간다.
     //   던전 화면은 autoNext 를 보면 정산 직후 다음 웨이브로 바로 들어간다.
     continueLabel: wi + 1 < total ? `${wi + 2}웨이브로 계속` : null,
-    continueParams: { dungeonId: d.id, autoNext: true },
+    continueParams: { dungeonId: d.id, autoNext: true, difficulty: diffNow },
     // ── 던전 정보 (전투 화면이 던전을 아는 빌드용)
     dungeon: true,
     dungeonId: d.id,
+    difficulty: diffNow,
     setId: setIdOf(d),
     setName: setNameOf(d),
     waveIndex: wi,
@@ -1363,7 +1441,7 @@ function showBattleBrief(d, wi, total) {
       borderColor: color, background: 'linear-gradient(90deg, rgba(255,95,58,.10), var(--bg-1))',
     },
   },
-    el('span', { style: { color, fontWeight: '800' }, text: `◆ ${d.name}` }),
+    el('span', { style: { color, fontWeight: '800' }, text: `◆ ${d.name}${diffTag()}` }),
     el('span', { class: 'tag', style: { color: 'var(--gold)' }, text: `${wi + 1} / ${total} 웨이브` }),
     el('span', { class: 'tiny' },
       el('span', { class: 'faint', text: '층의 주인 ' }),
