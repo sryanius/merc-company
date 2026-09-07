@@ -14,7 +14,7 @@ import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME, gradeKeyOf } from '../art/palette.js';
 import { levelCapOf, heroSkillIds, awakenIssue } from '../game/merc.js';
-import { getHero, heroTheme, heroColorOf, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
+import { getHero, heroTheme, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -536,10 +536,8 @@ function redraw() {
 /* ─────────────────────────── 공용 소도구 ─────────────────────────── */
 
 /** 등급 색 — 용병 객체를 주면 영웅(H)을 안다 (§174). 글자를 주면 예전 그대로. */
-const gradeColor = (g) => {
-  if (g && typeof g === 'object') return g.hero ? heroColorOf(g.hero) : (GRADE_COLOR[g.grade] || GRADE_COLOR.F);   // §177 영웅은 자기 색
-  return GRADE_COLOR[g] || GRADE_COLOR.F;
-};
+/** 등급 색 — 용병 객체를 주면 영웅(H = 액자 상아색, §179)을 안다. 글자를 주면 예전 그대로. */
+const gradeColor = (g) => GRADE_COLOR[g && typeof g === 'object' ? gradeKeyOf(g) : g] || GRADE_COLOR.F;
 
 /**
  * 확인 모달. `app.js confirmDlg` 와 동작은 같지만 본문에 `co-mbody` 를 달아
@@ -1375,6 +1373,7 @@ function askAddSquad() {
  * 이름은 순수 표시용이다 — 세이브·전투 결과 키는 전부 `uid` 를 쓰므로 바꿔도 안전하다.
  */
 function renameMerc(m) {
+  if (m && m.hero) { toast('영웅의 이름은 바꿀 수 없다 — 그 이름이 곧 그 사람이다.', 'bad'); return; }   // §179
   const input = el('input', { class: 'co-in', value: m.name || '', maxlength: '16' });
   const orig = m.name;
   modal({
@@ -2365,7 +2364,6 @@ function rosterCard(m) {
     el('div', { class: 'row', style: { gap: '5px', marginTop: '8px' } },
       mainBtn,
       el('button', { class: 'btn sm ghost', onClick: stop(() => openMercDetail(m.uid)) }, '상세')));
-  if (m.hero) card.style.setProperty('--hc', gradeColor(m));   // §177 카드 테두리·광채가 영웅 색을 따른다 (css .card.gr-hero)
   return card;
 }
 
@@ -2449,7 +2447,7 @@ export function openMercDetail(mercUid) {
   const m = state.roster.find((x) => x.uid === mercUid);
   if (!m) { toast('용병을 찾을 수 없습니다.', 'bad'); return; }
   const c = getClass(m.classId) || {};
-  const anim = animatedSprite(mercRecipe(m, state), 3);
+  const anim = animatedSprite(mercRecipe(m, state), m.hero ? 4.5 : 3);   // §179 영웅은 큰 일러스트
 
   const base = baseStatsOf(m);
   const gear = mercStats(m, state);
@@ -2460,7 +2458,7 @@ export function openMercDetail(mercUid) {
 
   /* 좌측 — 초상 / 신상 */
   const left = el('div', { class: 'col co-dl', style: { flex: '0 0 210px', alignItems: 'center', gap: '8px' } },
-    el('div', { class: 'sprite-box', style: { width: '100%', height: '132px', padding: '6px' } }, anim.canvas),
+    el('div', { class: `sprite-box${m.hero ? ' co-hero-frame' : ''}`, style: { width: '100%', height: m.hero ? '196px' : '132px', padding: '6px' } }, anim.canvas),
     el('div', { class: 'col center', style: { gap: '2px', textAlign: 'center' } },
       el('b', { style: { color: gradeColor(m), fontSize: '16px' }, text: m.name }),
       el('div', { class: 'tiny muted', text: `${c.name || m.classId} · ${c.tier || 1}차 · ${c.role || ''}` }),
@@ -2494,7 +2492,8 @@ export function openMercDetail(mercUid) {
      * 예전에는 하단 액션에 «이름 변경» 이 있었는데, 이름을 고치러 모달 끝까지 내려가야 했다. */
     title: el('span', { class: 'row center', style: { gap: '8px', flexWrap: 'wrap' } },
       el('span', { text: `${m.name} — ${c.name || m.classId}` }),
-      el('button', {
+      /* §179 영웅의 이름은 고유하다 — 바꿀 수 없다 */
+      m.hero ? el('span', { class: 'tiny faint', title: '영웅의 이름은 바꿀 수 없다', text: '고유한 이름' }) : el('button', {
         class: 'btn sm ghost co-rename',
         title: '이름 변경',
         'aria-label': '이름 변경',
@@ -2544,8 +2543,8 @@ function heroBlock(m) {
   const th = heroTheme(h);
   return el('div', { class: 'col co-hero', style: { gap: '4px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '6px' } },
-      el('h3', { class: 'panel-title', style: { margin: '0', color: th.color }, text: `${th.crest} 영웅 — «${h.title}»` }),
-      el('span', { class: 'tiny', style: { color: th.element.color }, text: `${th.element.name} · ${th.kit}${m.awakened ? ' · 각성' : ''}` })),
+      el('h3', { class: 'panel-title', style: { margin: '0', color: GRADE_COLOR.H }, text: `${th.crest} 영웅 — «${h.title}»` }),
+      el('span', { class: 'tiny faint', text: `${th.element.name} · ${th.kit}${m.awakened ? ' · 각성' : ''}` })),
     el('div', { class: 'tiny muted', style: { lineHeight: '1.55' }, text: h.story }));
 }
 

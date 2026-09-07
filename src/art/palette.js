@@ -235,7 +235,8 @@ export const PALETTE_SETS = { SKIN, HAIR, METAL, CLOTH, LEATHER, GLOW, EYE };
 /** 등급 색 (F~S). ★ §174 H = 영웅 (등급 글자가 아니라 표식이다 — GRADES 에는 없다) */
 export const GRADE_COLOR = {
   F: '#8a8a96', E: '#9fb08a', D: '#6fae7a', C: '#5b95d6', B: '#9a6fd6', A: '#e0913a', S: '#f0d24a',
-  H: '#ff7fd8',
+  /* §179 영웅 = 액자(테두리) 색 «상아». 제작자: 「색으로 강조하지 말고 테두리로만, 일러스트로 승부」 */
+  H: '#f3ead2',
 };
 
 /** 화면용 등급 키 — 영웅이면 'H', 아니면 등급 글자. 색을 찾을 때 `GRADE_COLOR[gradeKeyOf(m)]` */

@@ -2,7 +2,6 @@
 // params: { questId, squadId }  또는  { battleCfg, ... } (랜덤 인카운터용)
 import { el, num, clamp } from '../core/util.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
-import { heroColorOf } from '../data/heroes.js';
 // 세트(신화) 등급 표기용 — RARITY_* 는 전설(4)까지라 세트템 rarity 5 를 못 담는다
 import { MYTHIC_COLOR, MYTHIC_NAME, getSet } from '../data/sets.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
@@ -1184,7 +1183,7 @@ function renderResult(win) {
           r.uid === mvp ? el('span', { class: 'tag', style: { color: 'var(--gold)', marginLeft: '6px' }, text: 'MVP' }) : null,
           el('div', { class: 'tiny faint' },
             `${cls ? cls.name : '용병'} Lv${r.info.level} · `,
-            el('span', { style: { color: (r.info.hero ? heroColorOf(r.info.hero) : GRADE_COLOR[r.info.grade]) || '#999' }, text: r.info.hero ? '영웅' : `${r.info.grade}등급` }))),
+            el('span', { style: { color: GRADE_COLOR[r.info.hero ? 'H' : r.info.grade] || '#999' }, text: r.info.hero ? '영웅' : `${r.info.grade}등급` }))),
         el('td', { class: 'num', text: num(r.dealt) }),
         el('td', { class: 'num muted', text: num(r.taken) }),
         el('td', { class: 'num muted', text: r.healed ? num(r.healed) : '—' }),

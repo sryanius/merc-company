@@ -6,7 +6,7 @@
  *   · 도시 아래 갱도. **주당 1회** 내려간다 (요일은 안 가린다).
  *   · 심층 n 을 지날 때마다 n × 40G 를 캔다. 10심층마다 금고가 있어 3배.
  *   · 입장료도 통행료도 없다 — 여기는 **버는 곳**이다.
- *   · 층 사이에 **체력이 이월된다.** 20심층마다 회복 지점이 있다.
+ *   · 심층마다 **만피·전원 생존**으로 선다 (§178 — 이월·쉼터 폐지. 소탕 뒤 첫 심층만 만피이던 미묘함을 없앴다).
  *   · 장비도 펫도 경험치도 안 나온다. 오직 골드다.
  *
  * ── 소탕 (§173)
@@ -180,22 +180,11 @@ export function dive(st, squadId, opts = {}) {
     maxDepth: opts.maxDepth,
     allyFormationId: sq.formationId,
     log,
-    onWin: (d, r, carry) => {
+    onWin: (d) => {
       const g = depthGold(d);
       gold += g;
       if (isVaultDepth(d)) log.push({ type: 'vault', depth: d, gold: g });
-
-      /* 이번 심층에서 쓰러진 단원을 로그에 남긴다.
-       * 쓰러진 단원은 다음 회복 지점까지 편성에서 빠지는데, 알려 주지 않으면
-       * "사람이 조용히 사라진다"로 읽힌다. */
-      const fell = [];
-      for (const [uid, hp] of Object.entries(r.carry)) {
-        if (hp !== 0) continue;
-        if (carry && carry[uid] === 0) continue;          // 앞 심층에서 이미 빠진 사람
-        const m = (st.roster || []).find((x) => x && x.uid === uid);
-        if (m) fell.push(m.name);
-      }
-      if (fell.length) log.push({ type: 'fall', depth: d, names: fell });
+      /* §178 쓰러진 단원 로그는 없다 — 다음 심층에 전원 만피로 다시 선다 */
     },
     after: (d, r) => { if (typeof opts.onDepth === 'function') opts.onDepth(d, r); },
   });
@@ -220,7 +209,7 @@ export function dive(st, squadId, opts = {}) {
  * 소탕 뒤 심층을 **전투 화면에서 한 판씩** 본다. 상태 기계는 `st.abyss.run` 하나다:
  *   { squadId, day, startDepth, depth, reached, carry, gold, log }
  *   · depth   = 다음에 싸울 심층        · reached = 이번 잠수에서 이긴 마지막 심층
- *   · carry   = 이월 체력 (null = 만피)  · gold    = 이번 잠수에서 캔 골드 (소탕 포함, 이미 지급됨)
+ *   · carry   = 항상 null (§178 — 옛 세이브 호환 필드)  · gold = 이번 잠수에서 캔 골드 (소탕 포함, 이미 지급됨)
  * 골드는 심층을 이길 때마다 **바로** 준다 — 화면을 오가며 저장되는 흐름이라 «한 번에» 가 불가능하다.
  * 기록(best)도 이길 때마다 올린다 — 도중에 그만둬도 이긴 만큼은 기록이다.
  */
@@ -294,7 +283,7 @@ export function beginLiveRun(st, squadId) {
 export function liveBattleDefs(st = State.state) {
   const run = liveRun(st);
   if (!run) return null;
-  return abyssBattleDefs(st, run.depth, run.squadId, { carry: run.carry });
+  return abyssBattleDefs(st, run.depth, run.squadId, { carry: null });   // §178 만피
 }
 
 /**
@@ -317,32 +306,13 @@ export function settleLiveDepth(st, res = {}) {
   run.gold += g;
   if (isVaultDepth(d)) run.log.push({ type: 'vault', depth: d, gold: g });
 
-  /* 이월 체력 — 쓰러진 사람은 0 을 **명시적으로** 남긴다 (runverify.nextCarry 와 같은 규칙:
-   * 키가 없으면 다음 심층에 만피로 서고, 0 은 다음 쉼터까지 편성에서 빠진다). */
-  const carry = {};
-  if (run.carry) for (const [uid, hp] of Object.entries(run.carry)) if (hp === 0) carry[uid] = 0;
-  const fell = [];
-  for (const [uid, hp] of Object.entries(res.finalHp || {})) {
-    const v = Math.max(0, Math.round(Number(hp) || 0));
-    carry[uid] = v;
-    if (v === 0 && !(run.carry && run.carry[uid] === 0)) {
-      const m = (st.roster || []).find((x) => x && x.uid === uid);
-      if (m) fell.push(m.name);
-    }
-  }
-  if (fell.length) run.log.push({ type: 'fall', depth: d, names: fell });
-
+  /* §178 이월 없음 — 다음 심층은 전원 만피로 선다 (finalHp 는 받되 쓰지 않는다) */
   run.reached = d;
   if (d > (st.abyss.best || 0)) { st.abyss.best = d; st.abyss.bestDay = st.day || 0; }
   st.abyss.lastRunDepth = d;
   st.abyss.lastGold = run.gold;
 
-  if (isRestDepth(d)) {
-    run.carry = null;
-    run.log.push({ type: 'rest', depth: d });
-  } else {
-    run.carry = carry;
-  }
+  run.carry = null;
   run.depth = d + 1;
   if (run.depth > DEPTH_CAP) {
     const result = finishLiveRun(st, 'cap');
@@ -375,18 +345,10 @@ export function autoFinishLiveRun(st = State.state) {
     carry: run.carry,
     allyFormationId: sq.formationId,
     log: run.log,
-    onWin: (d, r, carry) => {
+    onWin: (d) => {
       const g = depthGold(d);
       gold += g;
       if (isVaultDepth(d)) run.log.push({ type: 'vault', depth: d, gold: g });
-      const fell = [];
-      for (const [uid, hp] of Object.entries(r.carry)) {
-        if (hp !== 0) continue;
-        if (carry && carry[uid] === 0) continue;
-        const m = (st.roster || []).find((x) => x && x.uid === uid);
-        if (m) fell.push(m.name);
-      }
-      if (fell.length) run.log.push({ type: 'fall', depth: d, names: fell });
     },
   });
   st.gold = (st.gold || 0) + gold;

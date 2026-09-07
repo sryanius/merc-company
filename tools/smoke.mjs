@@ -4895,7 +4895,7 @@ section('영웅 일러스트 (§176)');
   const hero = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1, hero: 'madgeneral_apex' });
   const rec = M.mercRecipe(hero, {});
   if (rec.illustHero !== 'illust_hero_madgeneral_apex') bad.push(`영웅 레시피 illustHero = ${rec.illustHero}`);
-  if (rec.gradeBg !== 'H' || rec.aura !== H.heroColorOf('madgeneral_apex') || rec.heroColor !== rec.aura) bad.push('영웅 레시피 후광/오라가 영웅 색이 아니다 (§177)');
+  if (rec.gradeBg || rec.aura || rec.heroColor) bad.push('§179 영웅 레시피에 후광/오라가 남아 있다 (배경 없이 액자만)');
   if (H.HERO_IDS.some((id) => !/^#[0-9a-f]{6}$/i.test(H.HEROES[id].color || '') || !H.HEROES[id].hair)) bad.push('영웅 색/머리색이 비었다');
   if (new Set(H.HERO_IDS.map((id) => H.HEROES[id].color)).size < 12) bad.push('영웅 색이 너무 적게 갈린다');
   const plain = M.mercRecipe(M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1 }), {});
@@ -5063,16 +5063,16 @@ section('황금 나락');
     if (st.gold !== AD.goldRange(10) + AD.depthGold(11)) bad.push('11심층 골드가 안 들어왔다');
     if (st.abyss.best !== 11 || st.abyss.bestDay !== 15) bad.push(`best ${st.abyss.best}/${st.abyss.bestDay} (기대 11/15)`);
     const r2 = Abyss.liveRun(st);
-    if (!r2 || !r2.carry || r2.carry[uids[0]] !== 0 || r2.carry[uids[1]] !== 50) bad.push('이월 체력이 안 넘어간다');
-    if (!r2 || !r2.log.some((e) => e.type === 'fall')) bad.push('쓰러진 사람 로그가 없다');
+    if (!r2 || r2.carry !== null) bad.push('§178 심층마다 만피 — carry 가 남아 있다');
+    if (r2 && r2.log.some((e) => e.type === 'fall')) bad.push('§178 쓰러짐 로그가 남는다');
     const cfg2 = Abyss.liveBattleDefs(st);
     if (!cfg2 || cfg2.abyssDepth !== 12) bad.push('다음 심층 편성이 12 가 아니다');
-    if (cfg2 && cfg2.allies.some((a) => a.uid === uids[0])) bad.push('쓰러진 단원이 다음 심층에 선다');
+    if (cfg2 && !cfg2.allies.some((a) => a.uid === uids[0])) bad.push('§178 쓰러졌던 단원도 다음 심층에 서야 한다');
     const a1 = cfg2 && cfg2.allies.find((a) => a.uid === uids[1]);
-    if (!a1 || a1.hp !== 50) bad.push(`이월 체력 50 이 편성에 안 실렸다 (${a1 && a1.hp})`);
+    if (!a1 || a1.hp !== Math.round(a1.stats.hp)) bad.push(`§178 다음 심층이 만피가 아니다 (${a1 && a1.hp})`);
     // 세이브 왕복 — normalizeAbyssRun 이 run 을 보존하고, 쓰레기는 null
     const back = State.normalizeAbyssRun(JSON.parse(JSON.stringify(st.abyss.run)));
-    if (!back || back.depth !== 12 || back.carry[uids[0]] !== 0 || back.carry[uids[1]] !== 50 || back.gold !== st.abyss.lastGold) bad.push('run 이 정규화를 왕복하지 못한다');
+    if (!back || back.depth !== 12 || back.carry !== null || back.gold !== st.abyss.lastGold) bad.push('run 이 정규화를 왕복하지 못한다');
     if (State.normalizeAbyssRun({ depth: 3 }) !== null || State.normalizeAbyssRun('x') !== null) bad.push('꼴이 안 맞는 run 이 null 이 아니다');
     // 패배 → 런이 닫힌다
     const s2 = Abyss.settleLiveDepth(st, { win: false, finalHp: {} });
@@ -5081,13 +5081,13 @@ section('황금 나락');
     if (st.abyss.lastRunDepth !== 11 || st.abyss.lastGold !== AD.goldRange(10) + AD.depthGold(11)) bad.push('마지막 잠수 기록이 틀리다');
     if (!s2.result || !s2.result.log.some((e) => e.type === 'lose' && e.depth === 12)) bad.push('패배 로그가 없다');
     if (Abyss.settleLiveDepth(st, { win: true, finalHp: {} }) !== null) bad.push('런이 없는데 정산이 된다');
-    // 쉼터: 20심층을 이기면 carry 가 비워진다
+    // §178 쉼터가 없다 — 20 을 이겨도 rest/fall 로그가 없고 carry 는 null
     st.day = 22; st.abyss.best = 19; st.abyss.lastRunDay = 0;
     const b2 = Abyss.beginLiveRun(st, sq.id);
     if (!b2.ok) bad.push(`두 번째 begin 실패: ${b2.reason}`);
     Abyss.settleLiveDepth(st, { win: true, finalHp: { [uids[1]]: 5 } });
     const r3 = Abyss.liveRun(st);
-    if (!r3 || r3.carry !== null || !r3.log.some((e) => e.type === 'rest')) bad.push('쉼터(20)에서 체력이 안 채워진다');
+    if (!r3 || r3.carry !== null || r3.log.some((e) => e.type === 'rest' || e.type === 'fall')) bad.push('§178 쉼터/쓰러짐 로그가 남는다');
     // 자동 마무리: run 이 닫히고 요약이 온다 (21 부터 계산으로)
     const goldBefore = st.gold;
     const fin = Abyss.autoFinishLiveRun(st);
@@ -5111,7 +5111,7 @@ section('황금 나락');
     const b3 = Abyss.beginLiveRun(st, sq.id);
     if (!b3.ok || !b3.done || Abyss.liveRun(st)) bad.push('기록이 상한인데 런이 열린다');
     if (st.gold !== AD.goldRange(AD.DEPTH_CAP)) bad.push(`바닥 소탕 골드 ${st.gold} ≠ ${AD.goldRange(AD.DEPTH_CAP)}`);
-    okAll(bad, '§173 관전 잠수 — 시작·정산·이월·쉼터·자동 마무리·패배·주 경과·그만·바닥', 30);
+    okAll(bad, '§173 관전 잠수 — 시작·정산·만피(§178)·자동 마무리·패배·주 경과·그만·바닥', 30);
   }
 
   // 4) '주 1회' 판정 — 요일이 아니라 주 번호로 세는지. (탑은 dayOfWeek 만 보다가

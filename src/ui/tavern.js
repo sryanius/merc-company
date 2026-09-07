@@ -11,7 +11,7 @@
 import { el, num, clamp } from '../core/util.js';
 import { rng } from '../core/rng.js';
 import { GRADE_COLOR, gradeKeyOf, gradeNameOf } from '../art/palette.js';
-import { getHero, heroColorOf } from '../data/heroes.js';
+import { getHero } from '../data/heroes.js';
 /* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
  *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
@@ -405,7 +405,7 @@ function statMaxima(classes) {
 
 const gradeTag = (g) => el('span', { class: 'tag', style: { color: GRADE_COLOR[g] || '#999' }, text: `${g}등급` });
 /** §174 영웅이면 «영웅» 표식 (S 위), 아니면 등급 */
-const gradeTagOf = (m) => el('span', { class: 'tag', style: { color: (m && m.hero ? heroColorOf(m.hero) : GRADE_COLOR[gradeKeyOf(m)]) || '#999' }, text: gradeNameOf(m) });
+const gradeTagOf = (m) => el('span', { class: 'tag', style: { color: GRADE_COLOR[gradeKeyOf(m)] || '#999' }, text: gradeNameOf(m) });
 
 /* ─────────────────────────── 렌더 ─────────────────────────── */
 
@@ -852,7 +852,7 @@ function openHireModal(cls, merc, city, isSpec) {
       toast(`${merc.grade}등급! ${merc.name}${josa(merc.name, '이/가')} 용병단에 합류했다.`, 'good');
       /* ★ A 이상은 오래 데리고 갈 사람이라 이름을 그 자리에서 정하게 한다.
        *   나중에 용병 상세에서도 바꿀 수 있지만, **뽑은 순간**이 정하고 싶은 순간이다. */
-      detail.appendChild(nameRow(merc));
+      if (!merc.hero) detail.appendChild(nameRow(merc));   // §179 영웅의 이름은 고유하다 — 바꾸지 못한다
       /* §174 S 위 — 글자가 S 에 멈춘 뒤 한 박자 있다가 «영웅» 으로 한 번 더 뒤집힌다 */
       if (merc.hero) later(() => heroReveal(gradeNode, msgNode, detail, merc), 650);
     } else {
@@ -865,7 +865,7 @@ function openHireModal(cls, merc, city, isSpec) {
 function heroReveal(gradeNode, msgNode, detail, merc) {
   const h = getHero(merc.hero);
   if (!h) return;
-  const hc = heroColorOf(merc.hero);
+  const hc = GRADE_COLOR.H;
   gradeNode.textContent = '영웅';
   gradeNode.style.color = hc;
   gradeNode.classList.remove('hit');
@@ -996,7 +996,7 @@ function revealBlock(merc, cls, spriteBox) {
     spriteBox,
     el('div', { class: 'col', style: { gap: '2px', flex: '1' } },
       el('div', { style: { fontWeight: '700', fontSize: '15px' } }, merc.name, ' ', gradeTagOf(merc)),
-      hero ? el('div', { class: 'tiny', style: { color: heroColorOf(hero.id) }, text: `«${hero.title}» — Lv1 부터 4차. Lv80 에 각성석 30개로 각성한다.` }) : null,
+      hero ? el('div', { class: 'tiny', style: { color: GRADE_COLOR.H }, text: `«${hero.title}» — Lv1 부터 4차. Lv80 에 각성석 30개로 각성한다. 이름은 고유하다.` }) : null,
       el('div', { class: 'tiny muted', text: `${cls2.name} · Lv${merc.level} · ${cls2.role || ''}` }),
       el('div', { class: 'sep', style: { margin: '6px 0' } }),
       el('div', { class: 'tv-kv' }, el('span', { class: 'faint', text: '체력 / 공격' }), el('span', { class: 'num', text: `${num(st.hp)} / ${num(st.atk)}` })),

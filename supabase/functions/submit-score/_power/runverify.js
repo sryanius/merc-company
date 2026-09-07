@@ -329,6 +329,8 @@ export function abyssBattleDefs(o) {
   const q = abyssQuest(o.ctx, d, o.squadId);
   if (!q) throw new Error('나락 편성을 만들지 못했다.');
   const cfg = battleCfg(q, [], o.allies, depthSeed(o.ctx, d, o.squadId), o);
+  /* ★ §178 심층마다 **만피** — 단원의 현재 체력(다친 채 들어온 사람)과 무관하게 최대 체력으로 선다. 서버 재현도 같다. */
+  cfg.allies = cfg.allies.map((a) => (a && a.stats && a.stats.hp > 0 ? { ...a, hp: Math.max(1, Math.round(a.stats.hp)) } : a));
   cfg.abyssDepth = d;
   cfg.abyss = true;
   cfg.title = `${ABYSS_NAME} ${d}심층 — ${abyssZone(d)}`;
@@ -393,7 +395,7 @@ export function runOneFloor(o) {
  * 나락 자동 잠수. 패배할 때까지 한 심층씩 내려간다.
  * @param {object} o `{allies, ctx, squadId, startDepth, carry, maxDepth, allyFormationId, log, before, onWin, after}`
  *   · `startDepth` — §173 소탕 뒤 첫 전투 심층 (없으면 1). `maxDepth` 는 **절대 심층** 상한이다.
- *   · `carry` — 관전 잠수를 이어 받을 때의 이월 체력 (없으면 만피)
+ *   · `carry` — (§178 이후 무시) 심층마다 만피로 선다
  * @returns {{reached:number, log:Array}} reached 는 시작 전이면 `startDepth − 1`
  */
 export function runAbyss(o) {
@@ -403,7 +405,10 @@ export function runAbyss(o) {
   const start = Math.max(1, Math.round(o.startDepth || 1));
   const log = o.log || [];
   let reached = start - 1;
-  let carry = o.carry || null;  // null = 만피에서 시작
+  /* ★ §178 심층마다 **만피·전원 생존**으로 선다 — 이월도 쉼터도 없다.
+   *   소탕(§173)이 생기면서 «지난주 기록 + 1 은 만피, 그 다음부터는 이월» 이 되어 미묘해졌다
+   *   (제작자: 「각 층마다 hp 랑 용병 상태를 최적의 상태로 시작하게 할까?」). 벽은 오직 힘이다.
+   *   `o.carry` 는 호환용으로 받되 쓰지 않는다 (탑은 그대로 이월한다 — runTower). */
   /* ★ §177 영웅 관문 — HERO_GATE_DEPTH 아래는 각성한 영웅이 있어야 한다. 아군 표식으로 센다 (서버도 같은 표식을 받는다). */
   const heroN = countAwakenedHeroes(o.allies);
 
@@ -413,18 +418,13 @@ export function runAbyss(o) {
       break;
     }
     if (o.before && o.before(d) === false) break;
-    const r = runOneDepth({ ...o, depth: d, carry });
+    const r = runOneDepth({ ...o, depth: d, carry: null });
     if (!r.win) {
       log.push({ type: 'lose', depth: d, time: r.time });
       break;
     }
     reached = d;
-    if (o.onWin) o.onWin(d, r, carry);
-    carry = r.carry;
-    if (isRestDepth(d)) {
-      carry = null;
-      log.push({ type: 'rest', depth: d });
-    }
+    if (o.onWin) o.onWin(d, r, null);
     if (o.after) o.after(d, r);
   }
   return { reached, log };

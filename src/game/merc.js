@@ -1197,10 +1197,10 @@ export function mercRecipe(merc, itemsById) {
   /* ★ §174 영웅 — S 위. 테두리 오라를 영웅색으로, 후광도 영웅색(portrait BG.H). 파츠는 S 그대로. */
   const hero = heroOf(merc);
   if (hero) {
-    /* §177 영웅마다 자기 색 (= 일러스트 머리색). 옆모습 오라·정면 후광이 그 색을 쓴다. */
-    rec.aura = heroColorOf(hero.id);
-    rec.gradeBg = 'H';
-    rec.heroColor = rec.aura;
+    /* §179 영웅은 **배경도 오라도 없다** — 일러스트가 전부다 (제작자: 「배경도 빼버리자, 테두리로만」). S 치장(후광·오라)을 걷는다. */
+    rec.aura = null;
+    rec.gradeBg = null;
+    rec.heroColor = null;
   }
 
   const arch = c && c.arch;

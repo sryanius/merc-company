@@ -3,7 +3,7 @@
   "src/battle/engine.js": "9114dc96",
   "src/core/rng.js": "6a88c568",
   "src/core/util.js": "863340d8",
-  "src/data/abyss.js": "6a035d70",
+  "src/data/abyss.js": "b8eb8938",
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
   "src/data/enemies.js": "b034a81e",
@@ -22,11 +22,11 @@
   "src/game/enemygen.js": "d36e8f39",
   "src/game/gear.js": "fa18cbe2",
   "src/game/itembound.js": "b415e751",
-  "src/game/merc.js": "cfc73392",
+  "src/game/merc.js": "44e2df2a",
   "src/game/pet.js": "ddfb1568",
   "src/game/questbattle.js": "0e54a1d9",
   "src/game/runrows.js": "880d355d",
-  "src/game/runverify.js": "d8fdef47",
+  "src/game/runverify.js": "5451c134",
   "src/game/squad.js": "4fe2f1e2",
   "src/game/tavern.js": "c8ed8f66"
 }

@@ -232,8 +232,8 @@ export function depthEnemyCount(depth) {
 }
 
 /**
- * 회복 지점. 이 심층을 **지난 직후** 부대가 전원 만피로 돌아온다.
- * 탑과 같은 이유로 둔다 — 체력 이월만 있으면 후반에 재도전 자체가 불가능해진다.
+ * (§178 이후 **안 쓴다**) 회복 지점. 심층마다 만피·전원 생존으로 서므로 쉼터가 필요 없다.
+ * 옛 결과 로그(rest)와 import 호환을 위해 상수와 판정만 남겨 둔다.
  */
 export const REST_EVERY = 20;
 export function isRestDepth(depth) {

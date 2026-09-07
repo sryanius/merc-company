@@ -566,7 +566,7 @@ export function normalizeRoster(st) {
   for (const m of st.roster || []) {
     if (!m) continue;
     const h = m.hero ? Merc.heroOf(m) : null;
-    if (!h) { m.hero = null; m.awakened = false; } else { m.hero = h.id; m.grade = 'S'; m.awakened = !!m.awakened; }
+    if (!h) { m.hero = null; m.awakened = false; } else { m.hero = h.id; m.grade = 'S'; m.awakened = !!m.awakened; m.name = h.name; }   // §179 이름 고정
     const cap = Merc.levelCapOf(m);
     const lv = Math.round(Number(m.level) || 1);
     m.level = Math.max(1, Math.min(cap, lv));

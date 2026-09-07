@@ -15,7 +15,7 @@
  * 실행: node tools/abyss.mjs [--n=6]
  *
  * ★ §173 — 500심층·앵커 곡선·소탕. 표에 2단·3단 풀세트 행이 있다 (`Sets.setIdAtTier`).
- *   여기 «도달심층» 은 **1심층부터의 이월 잠수**다 (best=0 으로 재므로 소탕이 안 걸린다).
+ *   여기 «도달심층» 은 **1심층부터의 연속 잠수**다 (§178 부터 심층마다 만피 · best=0 으로 재므로 소탕이 안 걸린다).
  *   소탕 뒤 매주 기어오르는 벽(만피 단판)은 `tools/abysswall.mjs` 가 잰다.
  */
 import * as State from '../src/game/state.js';
@@ -142,7 +142,7 @@ const NEED = [
   ['정원70 Lv80 S', 151055],
 ];
 
-console.log(`황금 나락 — 잠수 ${RUNS}회 평균 (체력 이월 포함, 1심층부터)`);
+console.log(`황금 나락 — 잠수 ${RUNS}회 평균 (심층마다 만피 · 1심층부터)`);
 console.log('='.repeat(78));
 console.log('구성                        도달심층   최저~최고    주간 수입');
 console.log('-'.repeat(78));

@@ -212,10 +212,10 @@ function squadLine(squad) {
     row.appendChild(el('span', {
       class: 'rk-mem',
       style: { color: GRADE_COLOR[m.h ? 'H' : m.g] || 'var(--ink-dim)' },
-      title: `${m.nm ? `${m.nm} · ` : ''}${cls.name} · ${m.g || '?'}등급 · Lv${m.l || 1}`,
+      title: `${m.nm ? `${m.nm} · ` : ''}${cls.name} · ${m.h ? '영웅' : `${m.g || '?'}등급`} · Lv${m.l || 1}`,
     }, m.nm || cls.name,
     m.nm ? el('i', { text: ` (${cls.name})` }) : null,
-    el('i', { text: ` ${m.g || ''}${m.l || ''}` })));
+    el('i', { text: ` ${m.h ? '영웅' : (m.g || '')}${m.l || ''}` })));
   }
   if (!row.childNodes.length) return null;
   return row;
@@ -274,7 +274,7 @@ async function openSquads(kind, rank, name) {
         el('div', {},
           el('b', { style: { color: GRADE_COLOR[m.h ? 'H' : m.g] || 'var(--ink)' }, text: m.nm || cls.name }),
           m.nm ? el('span', { class: 'faint', text: ` (${cls.name})` }) : null,
-          el('span', { class: 'faint', text: ` ${m.g || ''}${m.l || ''}` })),
+          el('span', { class: 'faint', text: ` ${m.h ? '영웅' : (m.g || '')}${m.l || ''}` })),
         el('div', { class: 'faint tiny' },
           m.e ? `장비 ${m.e}칸` : '장비 없음',
           sets.length ? ` · ${sets.join(' · ')}` : '')));

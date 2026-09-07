@@ -208,16 +208,6 @@ function divePanel(st, entry) {
  */
 function runPanel(st, run, from) {
   const sq = (st.squads || []).find((s) => s.id === run.squadId);
-  const members = sq ? (sq.memberUids || []).filter(Boolean) : [];
-  const carry = run.carry || {};
-  const chips = members.map((uid) => {
-    const m = (st.roster || []).find((x) => x && x.uid === uid);
-    if (!m) return null;
-    const hp = Object.prototype.hasOwnProperty.call(carry, uid) ? carry[uid] : null;
-    const down = hp === 0;
-    return el('span', { class: down ? 'down' : '', text: `${m.name}${down ? ' (쓰러짐)' : hp != null ? ` ${num(hp)}` : ''}` });
-  }).filter(Boolean);
-  const nextRest = Math.ceil(run.depth / REST_EVERY) * REST_EVERY;
   const heroN = Abyss.squadHeroCount(st, run.squadId);
   const gateNote = run.depth + 20 > HERO_GATE_DEPTH && !heroGateOpen(heroN, HERO_GATE_DEPTH + 1)
     ? el('div', { class: 'tiny', style: { color: '#ff9be0' }, text: `${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 있어야 내려간다 (지금 ${heroN}명).` })
@@ -230,15 +220,14 @@ function runPanel(st, run, from) {
         el('div', { class: 'col', style: { gap: '2px' } },
           el('div', { style: { fontWeight: '700' }, text: `잠수 중 — ${zoneOf(run.depth)}` }),
           el('div', { class: 'faint tiny', text: `${sq ? sq.name : '부대'} · ${run.startDepth}심층부터 · 이번 잠수 ${num(run.gold)}G` }))),
-      el('div', { class: 'faint tiny', text: `적 Lv${depthEnemyLevel(run.depth)} · ${depthEnemyCount(run.depth)}기 · 배율 ${depthPower(run.depth).toFixed(1)} / 다음 쉼터 ${nextRest}심층` })),
-    chips.length ? el('div', { class: 'ab-carry' }, chips) : null,
+      el('div', { class: 'faint tiny', text: `적 Lv${depthEnemyLevel(run.depth)} · ${depthEnemyCount(run.depth)}기 · 배율 ${depthPower(run.depth).toFixed(1)}` })),
     gateNote,
     el('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
       el('button', { class: 'btn primary', onClick: () => enterDepth(from) }, `${run.depth}심층 전투`),
       el('button', { class: 'btn', onClick: () => autoFinish() }, '남은 심층 자동으로 마무리'),
       el('button', { class: 'btn sm', onClick: () => stopRun() }, '여기서 그만')),
     el('div', { class: 'faint tiny' },
-      '체력은 심층을 넘어도 그대로다. 쓰러진 단원은 다음 쉼터까지 나오지 못한다. '
+      '심층마다 부대는 만피·전원 생존으로 선다 — 벽은 오직 힘이다. '
       + '「자동으로 마무리」 는 남은 심층을 계산으로 돌려 패배할 때까지 내려간다 — 결과는 같은 규칙으로 정산된다.'));
 }
 
@@ -326,9 +315,8 @@ function rulesPanel() {
       '· ', el('b', { style: { color: '#f0c05a' }, text: '깊이 내려갈수록 많이 캔다.' }),
       ` 심층 n 에서 ${num(depthGold(1))}G × n, ${VAULT_EVERY}심층마다 금고 ${VAULT_MULT}배.`),
     el('div', { class: 'tiny' },
-      '· ', el('b', { style: { color: 'var(--gold)' }, text: '심층을 넘어도 체력이 안 채워진다.' }),
-      ` ${REST_EVERY}심층마다 오는 쉼터에서만 전원 회복한다.`),
-    el('div', { class: 'faint tiny', text: '· 쓰러진 단원은 다음 쉼터까지 나오지 못한다. 잠수가 끝나면 부상 없이 돌아온다.' }),
+      '· ', el('b', { style: { color: 'var(--gold)' }, text: '심층마다 만피·전원 생존으로 선다.' }),
+      ' 쓰러져도 부상은 없다 — 벽은 오직 부대의 힘이다.'),
     el('div', { class: 'faint tiny', text: '· 장비·펫·경험치는 나오지 않는다. 여기서 가져가는 건 골드뿐이다.' }),
     el('div', { class: 'tiny' },
       '· ', el('b', { style: { color: '#ff9be0' }, text: `${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 연다.` }),
@@ -413,7 +401,9 @@ function enterDepth(from) {
     returnTo: 'abyss',
     returnParams: retParams,
     // 이기면 결과 화면에 「다음 심층으로」 가 뜬다 — 이 화면을 거쳐(autoNext) 곧바로 다음 전투로 들어간다.
-    continueLabel: depth < DEPTH_CAP ? `다음 심층으로 (${depth + 1})` : null,
+    // ★ 바닥이거나 다음 심층이 영웅 관문(§177) 아래인데 각성 영웅이 없으면 버튼을 안 띄운다 (검수: 죽은 버튼이 떴다).
+    continueLabel: depth < DEPTH_CAP && heroGateOpen(Abyss.squadHeroCount(state, squadId), depth + 1)
+      ? `다음 심층으로 (${depth + 1})` : null,
     continueParams: { ...retParams, autoNext: true },
     /* ★ 전투 화면이 결과를 확정한 **그 자리에서** 정산한다 (던전과 같다). 도시로 나가 버려도
      *   골드·기록·이월 체력이 남고, 졌으면 그 자리에서 잠수가 닫힌다 (되감기 여지를 줄인다). */
@@ -431,7 +421,7 @@ function enterDepth(from) {
       if (!res) return {};
       const note = res.win
         ? `${res.depth}심층 돌파 — ${num(res.gold)}G (이번 잠수 ${num((Abyss.liveRun(state) || res.result || {}).gold || 0)}G)`
-          + (res.finished ? ` · 바닥이다` : '')
+          + (res.gate ? ` · ${HERO_GATE_DEPTH}심층 아래는 각성한 영웅이 있어야 내려간다` : res.finished ? ` · 바닥이다` : '')
         : `${res.depth}심층에서 막혔다 — 이번 잠수는 ${res.result ? res.result.reached : res.depth - 1}심층까지, ${num(res.result ? res.result.gold : 0)}G`;
       return { note };
     },

@@ -9,7 +9,7 @@
  *   «단 N 부대가 버티는 배율» 만 재면 심층은 앵커로 옮길 수 있다.
  *
  * ★ 두 가지 벽을 잰다 — 소탕(§173)이 생기면서 둘이 갈라졌다
- *   · 이월 벽  : 1심층부터 체력을 이월하며 내려가 멈추는 심층 (옛 방식 · tools/abyss.mjs 와 같다)
+ *   · 연속 벽  : 1심층부터 (심층마다 만피 · §178) 연속으로 이겨 내려가다 처음 지는 심층 (tools/abyss.mjs 와 같다)
  *   · 단판 벽  : **만피로** 그 심층 하나만 쳤을 때의 승률. 소탕 뒤에는 «기록+1» 부터 만피로 서므로
  *               주마다 여기까지 기어 올라간다. 25% 이하로 떨어지는 첫 심층을 벽으로 본다.
  *
@@ -66,7 +66,7 @@ const CONFIGS = [
   { key: 'h80', label: '영웅(미각성) 3단 Lv80 +중급펫', o: { roster: rosterAt(3), level: 80, grade: 'S', gear: 'sets', setIlvl: 80, pets: 'mid', hero: true, unawakened: true } },
 ];
 
-/** 1심층부터 이월 잠수 — 도달 심층 (N회) */
+/** 1심층부터 연속 잠수(심층마다 만피) — 첫 패배 심층 (N회) */
 function carryDive(o) {
   const st = setup(o);
   const sq = st.squads[0];
@@ -114,7 +114,7 @@ const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 
 console.log(`황금 나락 벽 계측 — 각 ${N}회 · 단판은 ${FROM}심층부터 ${STEP}씩 (DEPTH_CAP ${DEPTH_CAP})`);
 console.log('='.repeat(100));
-console.log('구성                          전력    이월평균  최저~최고   단판벽25%  (배율)   단판벽0%  (배율)');
+console.log('구성                          전력    연속평균  최저~최고   단판벽25%  (배율)   단판벽0%  (배율)');
 console.log('-'.repeat(100));
 for (const c of CONFIGS) {
   if (ONLY && !ONLY.split(',').includes(c.key)) continue;
