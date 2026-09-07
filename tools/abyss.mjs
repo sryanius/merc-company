@@ -13,6 +13,10 @@
  *   빠뜨려 "풀세트를 반쪽 성능으로 재던" 사고가 있었다(9차 세션).
  *
  * 실행: node tools/abyss.mjs [--n=6]
+ *
+ * ★ §173 — 500심층·앵커 곡선·소탕. 표에 2단·3단 풀세트 행이 있다 (`Sets.setIdAtTier`).
+ *   여기 «도달심층» 은 **1심층부터의 이월 잠수**다 (best=0 으로 재므로 소탕이 안 걸린다).
+ *   소탕 뒤 매주 기어오르는 벽(만피 단판)은 `tools/abysswall.mjs` 가 잰다.
  */
 import * as State from '../src/game/state.js';
 import * as Abyss from '../src/game/abyss.js';
@@ -24,7 +28,7 @@ import '../src/data/classes_t4.js';
 import { setSkillResolver } from '../src/battle/engine.js';
 import { getSkill } from '../src/data/skills.js';
 import { RNG } from '../src/core/rng.js';
-import { depthPower, depthEnemyCount, goldRange } from '../src/data/abyss.js';
+import { depthPower, depthEnemyCount, goldRange, DEPTH_CAP } from '../src/data/abyss.js';
 
 // ★ 이걸 빼먹으면 스킬이 전부 사라져 승률이 통째로 틀린다 (6차 세션 사고)
 setSkillResolver(getSkill);
@@ -47,9 +51,10 @@ const SQUAD2 = ['knight', 'berserker', 'dragoon', 'assassin', 'sniper', 'element
 
 const FILL_ORDER = ['body', 'head', 'legs', 'hands', 'feet', 'neck', 'ring1', 'ring2', 'weapon', 'offhand'];
 
-function setForArch(arch) {
-  const hit = Sets.SET_LIST.find((s) => s.archs.includes(arch) && s.archs.length < Sets.ALL_ARCHS.length);
-  return (hit || Sets.getSet('constellation')).id;
+function setForArch(arch, tier = 1) {
+  const hit = Sets.BASE_SET_LIST.find((s) => s.archs.includes(arch) && s.archs.length < Sets.ALL_ARCHS.length);
+  const base = (hit || Sets.getSet('constellation')).id;
+  return Sets.setIdAtTier(base, tier) || base;
 }
 
 /**
@@ -75,7 +80,7 @@ function setup(o = {}) {
       equipment: {}, hp: 0, status: 'idle', woundUntil: 0, exp: 0,
     };
     if (o.gear === 'sets') {
-      const setId = setForArch(cls.arch);
+      const setId = setForArch(cls.arch, o.setTier || 1);
       for (const slot of FILL_ORDER) {
         const it = Sets.setPieceItem(setId, slot, level, { uid: `ab_it_${i}_${slot}` });
         if (!it) continue;
@@ -123,6 +128,10 @@ const CONFIGS = [
   { key: '후반 Lv80 4차 풀세트', o: { classes: SQUAD4, level: 80, grade: 'A', gear: 'sets' } },
   { key: '   〃  + 저급펫     ', o: { classes: SQUAD4, level: 80, grade: 'A', gear: 'sets', pets: 'low' } },
   { key: '   〃  + 중급펫     ', o: { classes: SQUAD4, level: 80, grade: 'A', gear: 'sets', pets: 'mid' } },
+  /* §173 — 어려움·정예 던전의 2단·3단 세트 (목표: 소탕 벽이 200·300 근처 — abysswall.mjs) */
+  { key: '후반 Lv80 4차 2단세트', o: { classes: SQUAD4, level: 80, grade: 'A', gear: 'sets', setTier: 2 } },
+  { key: '후반 Lv80 4차 3단세트', o: { classes: SQUAD4, level: 80, grade: 'A', gear: 'sets', setTier: 3 } },
+  { key: '   〃  S등급 + 중급펫', o: { classes: SQUAD4, level: 80, grade: 'S', gear: 'sets', setTier: 3, pets: 'mid' } },
 ];
 
 // 주간 필요 골드 (state 기반 실측값 — tools/.econ 참조)
@@ -145,7 +154,7 @@ for (const cfg of CONFIGS) {
   const golds = [];
   for (let i = 0; i < RUNS; i++) {
     st.day = 1 + i * 337;
-    st.abyss = { best: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 };
+    st.abyss = { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
     st.gold = 0;
     const r = Abyss.dive(st, sq.id, { force: true });
     reached.push(r.reached);
@@ -161,11 +170,11 @@ console.log('\n주간 필요 골드 (임금 7일 + 탑/4주)');
 for (const [k, v] of NEED) console.log(`  ${k.padEnd(16)} ${v.toLocaleString().padStart(9)}G  → 필요 심층 ≈ ${neededDepth(v)}`);
 
 function neededDepth(g) {
-  for (let d = 1; d <= 300; d++) if (goldRange(d) >= g) return d;
-  return '300+';
+  for (let d = 1; d <= DEPTH_CAP; d++) if (goldRange(d) >= g) return d;
+  return `${DEPTH_CAP}+`;
 }
 
 console.log('\n곡선 참고');
-for (const d of [1, 10, 20, 30, 40, 50, 60, 70, 80, 100]) {
+for (const d of [1, 10, 20, 30, 40, 50, 60, 70, 80, 100, 150, 200, 300, 400, 500]) {
   console.log(`  ${String(d).padStart(3)}심층  배율 ${depthPower(d).toFixed(2)}  적 ${depthEnemyCount(d)}  누적 ${goldRange(d).toLocaleString().padStart(9)}G`);
 }

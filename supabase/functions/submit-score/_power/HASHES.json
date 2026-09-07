@@ -3,7 +3,7 @@
   "src/battle/engine.js": "9114dc96",
   "src/core/rng.js": "6a88c568",
   "src/core/util.js": "863340d8",
-  "src/data/abyss.js": "c1c3d00f",
+  "src/data/abyss.js": "17266592",
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
   "src/data/enemies.js": "b034a81e",
@@ -25,7 +25,7 @@
   "src/game/pet.js": "ddfb1568",
   "src/game/questbattle.js": "1a62ecba",
   "src/game/runrows.js": "880d355d",
-  "src/game/runverify.js": "d969f3ba",
+  "src/game/runverify.js": "17a86274",
   "src/game/squad.js": "78330605",
   "src/game/tavern.js": "c8ed8f66"
 }

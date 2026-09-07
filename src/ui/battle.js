@@ -1241,6 +1241,7 @@ function renderResult(win) {
   const canContinue = win && S && S.continueLabel;
   const leaveLabel = canContinue ? '여기서 그만'
     : S && S.returnTo === 'dungeon' ? '던전으로 돌아가기'
+    : S && S.returnTo === 'abyss' ? '갱도로 돌아가기'
       : (S && S.mode === 'quest' && hasReadySquad()) ? '의뢰소로 돌아가기'
         : '도시로 돌아가기';
   /* 단축키 `d`/`f` 가 부르는 것은 **이 버튼들과 똑같은 함수**다 —

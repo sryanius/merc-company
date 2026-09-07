@@ -391,16 +391,21 @@ export function runOneFloor(o) {
 
 /**
  * 나락 자동 잠수. 패배할 때까지 한 심층씩 내려간다.
- * @param {object} o `{allies, ctx, squadId, maxDepth, allyFormationId, log, before, onWin, after}`
- * @returns {{reached:number, log:Array}}
+ * @param {object} o `{allies, ctx, squadId, startDepth, carry, maxDepth, allyFormationId, log, before, onWin, after}`
+ *   · `startDepth` — §173 소탕 뒤 첫 전투 심층 (없으면 1). `maxDepth` 는 **절대 심층** 상한이다.
+ *   · `carry` — 관전 잠수를 이어 받을 때의 이월 체력 (없으면 만피)
+ * @returns {{reached:number, log:Array}} reached 는 시작 전이면 `startDepth − 1`
  */
 export function runAbyss(o) {
   const maxDepth = clamp(o.maxDepth || DEPTH_CAP, 1, DEPTH_CAP);
+  /* ★ 위로 clamp 하지 않는다 (탑의 startFloor 와 같다) — 기록이 DEPTH_CAP 이면 start = CAP+1 이고
+   *   **한 판도 안 싸우는 게 맞다.** 눌러 버리면 마지막 심층을 한 번 더 싸운다. */
+  const start = Math.max(1, Math.round(o.startDepth || 1));
   const log = o.log || [];
-  let reached = 0;
-  let carry = null;             // null = 만피에서 시작
+  let reached = start - 1;
+  let carry = o.carry || null;  // null = 만피에서 시작
 
-  for (let d = 1; d <= maxDepth; d++) {
+  for (let d = start; d <= maxDepth; d++) {
     if (o.before && o.before(d) === false) break;
     const r = runOneDepth({ ...o, depth: d, carry });
     if (!r.win) {
@@ -461,7 +466,9 @@ export function runTower(o) {
  * 서버가 부르는 자리다 — `state` 를 안 받는다. 아군 편성(UnitDef 배열)과
  * 스칼라 셋만 있으면 클라이언트가 실제로 돌린 것과 **같은 판**이 나온다.
  *
- * @param {object} o `{allies, seed, day, squadId, maxDepth, allyFormationId}`
+ * @param {object} o `{allies, seed, day, squadId, startDepth, carry, maxDepth, allyFormationId}`
+ *   ★ §173 소탕 — 잠수는 «지난 기록 + 1» 부터 만피로 시작한다. 서버는 `startDepth` 에 그걸 넣어야
+ *     클라이언트가 실제로 돌린 판이 나온다 (1 부터 돌리면 상한이 낮게 나와 정상 기록이 «넘었다» 로 찍힌다).
  * @returns {{reached:number, log:Array}}
  */
 export function verifyAbyss(o = {}) {
@@ -469,6 +476,8 @@ export function verifyAbyss(o = {}) {
     allies: o.allies || [],
     ctx: { seed: o.seed, day: o.day },
     squadId: o.squadId,
+    startDepth: o.startDepth,
+    carry: o.carry,
     maxDepth: o.maxDepth,
     allyFormationId: o.allyFormationId,
   });

@@ -4674,6 +4674,140 @@ section('황금 나락');
   if (AD.depthEnemyLevel(AD.DEPTH_CAP) !== 80) curveBad.push('깊은 곳 적 레벨이 80 에 안 닿는다');
   okAll(curveBad, '나락 난이도 축 3개가 전부 단조 증가', AD.DEPTH_CAP);
 
+  /* ★ §173 — 500심층 · 앵커 곡선. 100심층까지는 옛 곡선 그대로(초반 경제·기존 기록 보존),
+   *   2단 부대가 버티는 배율(14.01)이 200, 3단(20.17)이 300 에 놓인다 (tools/abysswall.mjs 실측). */
+  {
+    const bad = [];
+    if (AD.DEPTH_CAP !== 500) bad.push(`DEPTH_CAP ${AD.DEPTH_CAP} (기대 500)`);
+    for (const d of [1, 10, 50, 100]) {
+      const old = AD.POWER_BASE * Math.pow(AD.POWER_RATE, d - 1);
+      if (Math.abs(AD.depthPower(d) - old) > 0.02) bad.push(`${d}심층 배율 ${AD.depthPower(d).toFixed(3)} ≠ 옛 곡선 ${old.toFixed(3)}`);
+    }
+    for (const [d, p] of AD.POWER_ANCHORS) {
+      if (Math.abs(AD.depthPower(d) - p) > 1e-9) bad.push(`앵커 ${d}심층 ${p} 를 안 지난다 (${AD.depthPower(d)})`);
+    }
+    if (Math.abs(AD.depthForPower(14.01) - 200) > 2) bad.push(`배율 14.01 → ${AD.depthForPower(14.01)}심층 (기대 200)`);
+    if (Math.abs(AD.depthForPower(20.17) - 300) > 2) bad.push(`배율 20.17 → ${AD.depthForPower(20.17)}심층 (기대 300)`);
+    if (AD.depthPower(AD.DEPTH_CAP) <= AD.depthPower(300)) bad.push('300 너머 배율이 안 오른다');
+    if (AD.zoneOf(500) === AD.zoneOf(140) || AD.zoneOf(250) === AD.zoneOf(350)) bad.push('200 너머 구역 이름이 안 갈린다');
+    if (AD.sweepLimit(0) !== 0 || AD.sweepLimit(96) !== 96 || AD.sweepLimit(9999) !== AD.DEPTH_CAP) bad.push('sweepLimit 이 기록/상한을 안 따른다');
+    // 앵커를 바꾸면 곡선이 따라오고, null 이면 원래대로 (계측 도구 손잡이)
+    AD.setPowerAnchors([[1, 1], [500, 2]]);
+    const mid = AD.depthPower(250);
+    AD.setPowerAnchors(null);
+    if (Math.abs(mid - Math.pow(2, 249 / 499)) > 1e-9) bad.push(`setPowerAnchors 가 안 먹는다 (${mid})`);
+    if (Math.abs(AD.depthPower(200) - 14.01) > 1e-9) bad.push('setPowerAnchors(null) 이 원래 곡선으로 안 돌아온다');
+    okAll(bad, '§173 나락 500심층 · 앵커 곡선 · 소탕 한계 · 도구 손잡이', 14);
+  }
+
+  /* ★ §173 소탕 — runAbyss startDepth / dive 소탕 골드 */
+  {
+    const RVm = await import('../src/game/runverify.js');
+    const bad = [];
+    let fights = 0;
+    const r0 = RVm.runAbyss({ allies: [], ctx: { seed: 1, day: 1 }, squadId: 'x', startDepth: AD.DEPTH_CAP + 1, before: () => { fights++; return true; } });
+    if (r0.reached !== AD.DEPTH_CAP || fights !== 0) bad.push(`start=CAP+1 인데 reached ${r0.reached} · 전투 ${fights}`);
+    State.newGame(779, '소탕스모크');
+    const st = State.state;
+    const sq = st.squads[0];
+    const seen = [];
+    RVm.runAbyss({ allies: Quest.allyUnitDefs(st, sq), ctx: st, squadId: sq.id, startDepth: 5, maxDepth: 6, allyFormationId: sq.formationId, before: (d) => { seen.push(d); return true; } });
+    if (seen[0] !== 5) bad.push(`startDepth 5 인데 첫 전투 ${seen[0]}`);
+    if (seen.some((d) => d > 6)) bad.push('maxDepth(절대 심층)를 넘어 싸운다');
+    // 기록 30 → 1~30 골드를 전투 없이 받고 31부터 싸운다 (31 에서 지든 이기든 reached ≥ 30)
+    st.abyss = { best: 30, bestDay: 1, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
+    st.gold = 0; st.day = 8;
+    const dv = Abyss.dive(st, sq.id, { force: true, maxDepth: 31 });
+    const sweep = dv.log.find((e) => e.type === 'sweep');
+    if (!sweep || sweep.to !== 30 || sweep.gold !== AD.goldRange(30)) bad.push('소탕 로그/골드가 틀리다');
+    if (dv.gold < AD.goldRange(30) || st.gold !== dv.gold) bad.push(`소탕 골드 ${dv.gold} / 지갑 ${st.gold}`);
+    if (dv.reached < 30 || dv.sweepTo !== 30) bad.push(`소탕 뒤 reached ${dv.reached} · sweepTo ${dv.sweepTo}`);
+    const lost = dv.log.find((e) => e.type === 'lose');
+    if (lost && lost.depth < 31) bad.push(`소탕 구간(${lost.depth})에서 싸웠다`);
+    // noSweep 이면 1 부터 (계측 도구)
+    st.abyss = { best: 30, bestDay: 1, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
+    const first = [];
+    Abyss.dive(st, sq.id, { force: true, maxDepth: 2, noSweep: true, onDepth: (d) => first.push(d) });
+    if (first.length && first[0] !== 1) bad.push(`noSweep 인데 ${first[0]} 부터 싸운다`);
+    okAll(bad, '§173 소탕 — 기록까지 전투 없이 골드, 그 다음 심층부터 전투', 9);
+  }
+
+  /* ★ §173 관전 잠수 — 시작 → 정산(승) → 이월 → 쉼터 → 자동 마무리 → 패배 → 주 경과 → 바닥 */
+  {
+    const bad = [];
+    State.newGame(780, '관전스모크');
+    const st = State.state;
+    const sq = st.squads[0];
+    st.day = 15; st.gold = 0;
+    st.abyss = { best: 10, bestDay: 1, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
+    const b = Abyss.beginLiveRun(st, sq.id);
+    if (!b.ok) bad.push(`begin 실패: ${b.reason}`);
+    const run = Abyss.liveRun(st);
+    if (!run || run.depth !== 11 || run.startDepth !== 11 || run.reached !== 10) bad.push(`run ${JSON.stringify(run && { depth: run.depth, startDepth: run.startDepth, reached: run.reached })} (기대 11/11/10)`);
+    if (st.gold !== AD.goldRange(10)) bad.push(`소탕 골드 ${st.gold} ≠ ${AD.goldRange(10)}`);
+    if (!Abyss.alreadyRanThisWeek(st)) bad.push('관전 잠수를 시작했는데 이번 주 몫이 안 쓰였다');
+    if (Abyss.beginLiveRun(st, sq.id).ok) bad.push('진행 중인데 또 시작된다');
+    const cfg = Abyss.liveBattleDefs(st);
+    if (!cfg || cfg.abyssDepth !== 11) bad.push('liveBattleDefs 가 11심층이 아니다');
+    const uids = cfg.allies.map((a) => a.uid);
+    const finalHp = {};
+    uids.forEach((u, i) => { finalHp[u] = i === 0 ? 0 : 50; });
+    const s1 = Abyss.settleLiveDepth(st, { win: true, finalHp });
+    if (!s1 || !s1.win || s1.next !== 12 || s1.finished) bad.push('승리 정산 뒤 다음 심층이 12 가 아니다');
+    if (st.gold !== AD.goldRange(10) + AD.depthGold(11)) bad.push('11심층 골드가 안 들어왔다');
+    if (st.abyss.best !== 11 || st.abyss.bestDay !== 15) bad.push(`best ${st.abyss.best}/${st.abyss.bestDay} (기대 11/15)`);
+    const r2 = Abyss.liveRun(st);
+    if (!r2 || !r2.carry || r2.carry[uids[0]] !== 0 || r2.carry[uids[1]] !== 50) bad.push('이월 체력이 안 넘어간다');
+    if (!r2 || !r2.log.some((e) => e.type === 'fall')) bad.push('쓰러진 사람 로그가 없다');
+    const cfg2 = Abyss.liveBattleDefs(st);
+    if (!cfg2 || cfg2.abyssDepth !== 12) bad.push('다음 심층 편성이 12 가 아니다');
+    if (cfg2 && cfg2.allies.some((a) => a.uid === uids[0])) bad.push('쓰러진 단원이 다음 심층에 선다');
+    const a1 = cfg2 && cfg2.allies.find((a) => a.uid === uids[1]);
+    if (!a1 || a1.hp !== 50) bad.push(`이월 체력 50 이 편성에 안 실렸다 (${a1 && a1.hp})`);
+    // 세이브 왕복 — normalizeAbyssRun 이 run 을 보존하고, 쓰레기는 null
+    const back = State.normalizeAbyssRun(JSON.parse(JSON.stringify(st.abyss.run)));
+    if (!back || back.depth !== 12 || back.carry[uids[0]] !== 0 || back.carry[uids[1]] !== 50 || back.gold !== st.abyss.lastGold) bad.push('run 이 정규화를 왕복하지 못한다');
+    if (State.normalizeAbyssRun({ depth: 3 }) !== null || State.normalizeAbyssRun('x') !== null) bad.push('꼴이 안 맞는 run 이 null 이 아니다');
+    // 패배 → 런이 닫힌다
+    const s2 = Abyss.settleLiveDepth(st, { win: false, finalHp: {} });
+    if (!s2 || s2.win || !s2.finished || !s2.result) bad.push('패배 정산이 런을 안 닫는다');
+    if (Abyss.liveRun(st)) bad.push('패배 뒤에도 run 이 남아 있다');
+    if (st.abyss.lastRunDepth !== 11 || st.abyss.lastGold !== AD.goldRange(10) + AD.depthGold(11)) bad.push('마지막 잠수 기록이 틀리다');
+    if (!s2.result || !s2.result.log.some((e) => e.type === 'lose' && e.depth === 12)) bad.push('패배 로그가 없다');
+    if (Abyss.settleLiveDepth(st, { win: true, finalHp: {} }) !== null) bad.push('런이 없는데 정산이 된다');
+    // 쉼터: 20심층을 이기면 carry 가 비워진다
+    st.day = 22; st.abyss.best = 19; st.abyss.lastRunDay = 0;
+    const b2 = Abyss.beginLiveRun(st, sq.id);
+    if (!b2.ok) bad.push(`두 번째 begin 실패: ${b2.reason}`);
+    Abyss.settleLiveDepth(st, { win: true, finalHp: { [uids[1]]: 5 } });
+    const r3 = Abyss.liveRun(st);
+    if (!r3 || r3.carry !== null || !r3.log.some((e) => e.type === 'rest')) bad.push('쉼터(20)에서 체력이 안 채워진다');
+    // 자동 마무리: run 이 닫히고 요약이 온다 (21 부터 계산으로)
+    const goldBefore = st.gold;
+    const fin = Abyss.autoFinishLiveRun(st);
+    if (!fin || !fin.ok || Abyss.liveRun(st)) bad.push('자동 마무리가 런을 안 닫는다');
+    if (fin && fin.reached < 20) bad.push(`자동 마무리 reached ${fin.reached} < 20`);
+    if (fin && fin.reached > 20 && st.gold <= goldBefore) bad.push('자동 마무리로 내려갔는데 골드가 안 늘었다');
+    if (fin && st.abyss.best !== Math.max(20, fin.reached)) bad.push(`자동 마무리 뒤 best ${st.abyss.best} ≠ ${fin.reached}`);
+    // 주가 바뀐 채 남은 런은 닫힌다 (이긴 만큼은 기록)
+    st.day = 29; st.abyss.lastRunDay = 0;
+    Abyss.beginLiveRun(st, sq.id); st.day = 40;
+    const stale = Abyss.closeStaleRun(st);
+    if (!stale || stale.why !== 'stale' || Abyss.liveRun(st)) bad.push('지난 주 런이 안 닫힌다');
+    // 「여기서 그만」 — 이긴 만큼 남기고 닫는다
+    st.day = 43; st.abyss.lastRunDay = 0;
+    Abyss.beginLiveRun(st, sq.id);
+    Abyss.settleLiveDepth(st, { win: true, finalHp: {} });
+    const stop = Abyss.finishLiveRun(st, 'stop');
+    if (!stop || stop.reached !== st.abyss.best || Abyss.liveRun(st)) bad.push('여기서 그만 이 기록을 안 남긴다');
+    // 기록이 상한이면 시작 즉시 끝난다 (한 판도 없이, 소탕 골드는 받는다)
+    st.day = 50; st.abyss.lastRunDay = 0; st.abyss.best = AD.DEPTH_CAP; st.gold = 0;
+    const b3 = Abyss.beginLiveRun(st, sq.id);
+    if (!b3.ok || !b3.done || Abyss.liveRun(st)) bad.push('기록이 상한인데 런이 열린다');
+    if (st.gold !== AD.goldRange(AD.DEPTH_CAP)) bad.push(`바닥 소탕 골드 ${st.gold} ≠ ${AD.goldRange(AD.DEPTH_CAP)}`);
+    okAll(bad, '§173 관전 잠수 — 시작·정산·이월·쉼터·자동 마무리·패배·주 경과·그만·바닥', 30);
+  }
+
   // 4) '주 1회' 판정 — 요일이 아니라 주 번호로 세는지. (탑은 dayOfWeek 만 보다가
   //    한 달에 4번 열리는 함정을 밟은 전례가 있다.)
   const weekBad = [];

@@ -644,14 +644,28 @@ function sanitizeSquad(raw: unknown) {
         let bestAbyss = 0;
         let bestTower = 0;
         let ran = 0;
+        /* ★ §173 소탕 — 잠수는 «지난 기록 + 1» 부터 **만피로** 시작한다. 1 부터 돌리면 상한이 낮게 나와
+         *   정상 기록이 «넘었다» 로 찍힌다. 지난 제출 이후 지난 주 수만큼(최대 8) 이어 간 것으로 본다. */
+        const prevAbyss = Number(prev?.abyssBest) || 0;
+        const weeksBetween = prev
+          ? Math.max(1, Math.min(8, Math.floor((Number(st.day) - Number(prev.day)) / 7) + 1))
+          : 1;
         for (const q of st.squads || []) {
           if (Date.now() - t0 > BUDGET_MS) break;
           const allies = squadUnitDefs(st, q.id) || [];
           if (!allies.length) continue;
           ran++;
           try {
-            const a = verifyAbyss({ allies, seed: st.seed, day: st.day, squadId: q.id, allyFormationId: q.formationId });
-            if ((a?.reached || 0) > bestAbyss) bestAbyss = a.reached;
+            let bound = prevAbyss;
+            for (let w = 0; w < weeksBetween; w++) {
+              const day = Number(st.day) - 7 * (weeksBetween - 1 - w);
+              const a = verifyAbyss({ allies, seed: st.seed, day, squadId: q.id, allyFormationId: q.formationId, startDepth: bound + 1 });
+              const r = a?.reached || 0;
+              if (r <= bound) break;
+              bound = r;
+              if (Date.now() - t0 > BUDGET_MS) break;
+            }
+            if (bound > bestAbyss) bestAbyss = bound;
           } catch (e) { console.error('[그림자] verifyAbyss 실패', q.id, String((e as Error)?.message || e)); }
           if (Date.now() - t0 > BUDGET_MS) break;
           try {

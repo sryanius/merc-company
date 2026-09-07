@@ -269,7 +269,7 @@ function defaultState() {
      */
     tower: { best: 0, bestDay: 0, lastRunDay: 0, lastRunFloor: 0 },
     /** 황금 나락 진행. `{ best, lastRunDay, lastRunDepth, lastGold }` — 주당 1회 판정에 lastRunDay 를 쓴다 */
-    abyss: { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 },
+    abyss: { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null },
     quests: {},
     tavern: {},
     shop: {},
@@ -561,6 +561,28 @@ function normalizeAbyss(st) {
     lastRunDay: clampInt(a.lastRunDay, 0, 1e9),
     lastRunDepth: clampInt(a.lastRunDepth, 0, DEPTH_CAP),
     lastGold: clampInt(a.lastGold, 0, 1e12),
+    run: normalizeAbyssRun(a.run),
+  };
+}
+
+/** §173 관전 잠수 진행 상태 — 세이브를 왕복한다. 꼴이 안 맞으면 null (= 진행 중인 잠수 없음). */
+export function normalizeAbyssRun(r) {
+  if (!r || typeof r !== 'object' || !r.squadId) return null;
+  const depth = clampInt(r.depth, 1, DEPTH_CAP + 1);
+  let carry = null;
+  if (r.carry && typeof r.carry === 'object') {
+    carry = {};
+    for (const [uid, hp] of Object.entries(r.carry)) carry[String(uid)] = clampInt(hp, 0, 1e9);
+  }
+  return {
+    squadId: String(r.squadId),
+    day: clampInt(r.day, 0, 1e9),
+    startDepth: clampInt(r.startDepth, 1, DEPTH_CAP + 1),
+    depth,
+    reached: clampInt(r.reached, 0, DEPTH_CAP),
+    carry,
+    gold: clampInt(r.gold, 0, 1e12),
+    log: Array.isArray(r.log) ? r.log.filter((e) => e && typeof e === 'object').slice(-2000) : [],
   };
 }
 

@@ -9,15 +9,22 @@
  *   · 층 사이에 **체력이 이월된다.** 20심층마다 회복 지점이 있다.
  *   · 장비도 펫도 경험치도 안 나온다. 오직 골드다.
  *
- * ── 왜 소탕이 없나
- * 탑에는 "최고 기록 −100층까지 건너뛰기"가 있다. 저기는 층마다 **골드를 내는** 구조라
- * 건너뛰기가 곧 시간 절약이었다. 여기는 층마다 **버는** 구조라, 건너뛰면 그만큼 못 번다.
- * 매주 1심층부터 다시 내려가는 게 곧 보상이다.
+ * ── 소탕 (§173)
+ * 처음엔 소탕을 안 뒀다 — 여기는 층마다 **버는** 구조라 건너뛰면 그만큼 못 벌었다.
+ * 제작자가 「이미 등반한 층은 소탕, 아직 못 간 곳은 전투를 보며」 를 요구해 **골드를 주는 소탕**으로 넣었다:
+ * 최고 기록까지는 전투 없이 지나되 골드는 그대로 캔다. 그 다음 심층부터 만피로 싸운다.
+ * (매주 «기록 + 1» 에서 만피로 서므로 기록이 조금씩 기어오른다 — 벽은 만피 단판 승률이 0 이 되는 심층이다.)
  *
- * ── 왜 전투 화면을 안 쓰나
- * 탑과 같은 이유다. `ui/battle.js` 에는 자동 진행 경로가 **의도적으로 없고**(플레이어와의 계약),
+ * ── 두 가지 잠수
+ *   · `dive()` — 헤드리스 전체 잠수. 소탕 뒤 남은 심층을 계산으로 끝낸다. 도구·서버 검증이 쓴다.
+ *   · 관전 잠수 (`beginLiveRun` → `liveBattleDefs` → `settleLiveDepth` … → `finishLiveRun`) —
+ *     소탕 뒤 심층을 **전투 화면에서 한 판씩** 본다. 진행 상태는 `state.abyss.run` 에 남아
+ *     화면을 나갔다 와도, 새로고침해도 이어진다. 남은 심층은 `autoFinishLiveRun` 으로 계산 마무리할 수 있다.
+ *
+ * ── 왜 전투 화면을 «전체 잠수» 에는 안 쓰나
+ * `ui/battle.js` 에는 자동 진행 경로가 **의도적으로 없고**(플레이어와의 계약),
  * `fastForward()` 의 12웨이브 하드 캡 때문에 13층째에 런 전체가 조용히 패배 처리된다.
- * 그래서 헤드리스 시뮬로 돌리고, 보고 싶은 심층만 전투 화면으로 띄운다.
+ * 그래서 관전 잠수도 던전처럼 **한 심층 = 전투 한 판** 으로 보내고 돌아와서 정산한다.
  *
  * ── 아군 편성은 반드시 allyUnitDefs 를 지난다
  * 이 프로젝트는 아군 UnitDef 조립 경로가 갈려서 진형과 세트 효과가 각각 한 번씩
@@ -33,7 +40,7 @@
  */
 
 import {
-  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower,
+  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, sweepLimit,
   isRestDepth, isVaultDepth, zoneOf, weekIndex, REST_EVERY, VAULT_EVERY, VAULT_MULT,
 } from '../data/abyss.js';
 import * as State from './state.js';
@@ -41,7 +48,7 @@ import * as Quest from './quest.js';
 import * as RV from './runverify.js';
 
 export {
-  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, zoneOf,
+  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, zoneOf, sweepLimit,
   isRestDepth, isVaultDepth, REST_EVERY, VAULT_EVERY, VAULT_MULT,
 };
 
@@ -146,12 +153,21 @@ export function dive(st, squadId, opts = {}) {
   const log = [];
   let gold = 0;
 
+  /* ★ §173 소탕 — 최고 기록까지는 전투 없이 지난다. **골드는 그대로 캔다.** 그 다음 심층부터 만피로 싸운다.
+   *   `noSweep` 은 계측 도구용 (1심층부터 이월 잠수를 재고 싶을 때). */
+  const to = opts.noSweep ? 0 : sweepLimit(st.abyss?.best || 0);
+  if (to >= 1) {
+    gold += goldRange(to);
+    log.push({ type: 'sweep', from: 1, to, gold: goldRange(to) });
+  }
+
   /* ★ 심층 루프 자체는 `runverify.js` 한 벌뿐이다 (서버가 그대로 다시 돌린다).
    *   여기서는 **상태를 만지는 것**만 훅으로 얹는다. */
-  const { reached } = RV.runAbyss({
+  const { reached: fought } = RV.runAbyss({
     allies: Quest.allyUnitDefs(st, sq),
     ctx: st,
     squadId,
+    startDepth: to + 1,
     maxDepth: opts.maxDepth,
     allyFormationId: sq.formationId,
     log,
@@ -174,12 +190,13 @@ export function dive(st, squadId, opts = {}) {
     },
     after: (d, r) => { if (typeof opts.onDepth === 'function') opts.onDepth(d, r); },
   });
+  const reached = Math.max(to, fought);
 
   // ★ 골드는 여기서 **한 번에** 준다. 심층마다 st.gold 를 건드리면
   //   중간에 예외가 나올 때 절반만 지급된 상태가 남는다.
   st.gold = (st.gold || 0) + gold;
 
-  if (!st.abyss) st.abyss = { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0 };
+  if (!st.abyss) st.abyss = { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
   // ★ bestDay = 기록을 세운 날 (lastRunDay = 마지막 입장일과 다르다). 랭킹 동점 판정용.
   if (reached > (st.abyss.best || 0)) st.abyss.bestDay = st.day || 0;
   st.abyss.best = Math.max(st.abyss.best || 0, reached);
@@ -187,5 +204,197 @@ export function dive(st, squadId, opts = {}) {
   st.abyss.lastRunDepth = reached;
   st.abyss.lastGold = gold;
 
-  return { ok: true, reason: '', reached, gold, log };
+  return { ok: true, reason: '', reached, gold, log, sweepTo: to };
+}
+
+/* ─────────────────────────── 관전 잠수 (§173) ───────────────────────────
+ * 소탕 뒤 심층을 **전투 화면에서 한 판씩** 본다. 상태 기계는 `st.abyss.run` 하나다:
+ *   { squadId, day, startDepth, depth, reached, carry, gold, log }
+ *   · depth   = 다음에 싸울 심층        · reached = 이번 잠수에서 이긴 마지막 심층
+ *   · carry   = 이월 체력 (null = 만피)  · gold    = 이번 잠수에서 캔 골드 (소탕 포함, 이미 지급됨)
+ * 골드는 심층을 이길 때마다 **바로** 준다 — 화면을 오가며 저장되는 흐름이라 «한 번에» 가 불가능하다.
+ * 기록(best)도 이길 때마다 올린다 — 도중에 그만둬도 이긴 만큼은 기록이다.
+ */
+
+/** 이번 잠수에서 소탕할 마지막 심층 (= 최고 기록) */
+export function sweepDepth(st = State.state) {
+  return sweepLimit(st.abyss?.best || 0);
+}
+
+/** 진행 중인 관전 잠수 (없으면 null) */
+export function liveRun(st = State.state) {
+  const r = st.abyss && st.abyss.run;
+  return r && typeof r === 'object' && r.squadId ? r : null;
+}
+
+/** 주가 바뀌었는데 안 끝난 잠수는 그 자리에서 닫는다 (기록·골드는 이미 반영돼 있다) */
+export function closeStaleRun(st = State.state) {
+  const run = liveRun(st);
+  if (!run) return null;
+  if (weekIndex(run.day || 1) === weekIndex(st.day || 1)) return null;
+  return finishLiveRun(st, 'stale');
+}
+
+/**
+ * 관전 잠수 시작 — 소탕(골드 지급)까지 하고 «기록 + 1» 심층 앞에 선다. 이번 주 몫을 여기서 쓴다.
+ * @returns {{ok:boolean, reason:string, run?:object, sweepTo?:number, gold?:number, done?:boolean, result?:object}}
+ *   기록이 이미 상한이면 `done:true` 와 결과 요약을 돌려주고 런은 열지 않는다.
+ */
+export function beginLiveRun(st, squadId) {
+  const fail = (reason) => ({ ok: false, reason });
+  closeStaleRun(st);
+  if (liveRun(st)) return fail('진행 중인 잠수가 있다. 먼저 그 잠수를 끝내라.');
+  const chk = canEnter(st);
+  if (!chk.ok) return fail(chk.reason);
+  const sq = (st.squads || []).find((s) => s.id === squadId);
+  if (!sq) return fail('부대를 찾을 수 없습니다.');
+  if (!(sq.memberUids || []).filter(Boolean).length) return fail('부대에 단원이 없다.');
+
+  const to = sweepDepth(st);
+  const log = [];
+  let gold = 0;
+  if (to >= 1) {
+    gold = goldRange(to);
+    log.push({ type: 'sweep', from: 1, to, gold });
+  }
+  st.gold = (st.gold || 0) + gold;
+
+  if (!st.abyss) st.abyss = { best: 0, bestDay: 0, lastRunDay: 0, lastRunDepth: 0, lastGold: 0, run: null };
+  st.abyss.lastRunDay = st.day || 0;         // 이번 주 몫을 쓴다
+  st.abyss.lastRunDepth = to;
+  st.abyss.lastGold = gold;
+  st.abyss.run = {
+    squadId, day: st.day || 0,
+    startDepth: to + 1, depth: to + 1, reached: to,
+    carry: null, gold, log,
+  };
+  if (to >= DEPTH_CAP) {
+    // 이미 바닥이다 — 싸울 심층이 없다. 소탕 골드만 받고 끝.
+    const result = finishLiveRun(st, 'cap');
+    return { ok: true, reason: '', done: true, sweepTo: to, gold, result };
+  }
+  return { ok: true, reason: '', run: st.abyss.run, sweepTo: to, gold };
+}
+
+/** 지금 싸울 심층의 전투 설정 (이월 체력 반영). 런이 없으면 null. */
+export function liveBattleDefs(st = State.state) {
+  const run = liveRun(st);
+  if (!run) return null;
+  return abyssBattleDefs(st, run.depth, run.squadId, { carry: run.carry });
+}
+
+/**
+ * 전투 화면이 끝낸 한 심층을 정산한다.
+ * @param {object} res `{win, finalHp}` — finalHp 는 아군 uid → 남은 체력 (0 = 쓰러짐)
+ * @returns {{win:boolean, depth:number, next:number, finished:boolean, gold:number, result?:object}|null}
+ */
+export function settleLiveDepth(st, res = {}) {
+  const run = liveRun(st);
+  if (!run) return null;
+  const d = run.depth;
+  if (!res.win) {
+    run.log.push({ type: 'lose', depth: d });
+    const result = finishLiveRun(st, 'lose');
+    return { win: false, depth: d, next: 0, finished: true, gold: 0, result };
+  }
+
+  const g = depthGold(d);
+  st.gold = (st.gold || 0) + g;
+  run.gold += g;
+  if (isVaultDepth(d)) run.log.push({ type: 'vault', depth: d, gold: g });
+
+  /* 이월 체력 — 쓰러진 사람은 0 을 **명시적으로** 남긴다 (runverify.nextCarry 와 같은 규칙:
+   * 키가 없으면 다음 심층에 만피로 서고, 0 은 다음 쉼터까지 편성에서 빠진다). */
+  const carry = {};
+  if (run.carry) for (const [uid, hp] of Object.entries(run.carry)) if (hp === 0) carry[uid] = 0;
+  const fell = [];
+  for (const [uid, hp] of Object.entries(res.finalHp || {})) {
+    const v = Math.max(0, Math.round(Number(hp) || 0));
+    carry[uid] = v;
+    if (v === 0 && !(run.carry && run.carry[uid] === 0)) {
+      const m = (st.roster || []).find((x) => x && x.uid === uid);
+      if (m) fell.push(m.name);
+    }
+  }
+  if (fell.length) run.log.push({ type: 'fall', depth: d, names: fell });
+
+  run.reached = d;
+  if (d > (st.abyss.best || 0)) { st.abyss.best = d; st.abyss.bestDay = st.day || 0; }
+  st.abyss.lastRunDepth = d;
+  st.abyss.lastGold = run.gold;
+
+  if (isRestDepth(d)) {
+    run.carry = null;
+    run.log.push({ type: 'rest', depth: d });
+  } else {
+    run.carry = carry;
+  }
+  run.depth = d + 1;
+  if (run.depth > DEPTH_CAP) {
+    const result = finishLiveRun(st, 'cap');
+    return { win: true, depth: d, next: 0, finished: true, gold: g, result };
+  }
+  return { win: true, depth: d, next: run.depth, finished: false, gold: g };
+}
+
+/**
+ * 남은 심층을 계산으로 끝낸다 (이월 체력을 이어 받는다). 실력 차가 커서 눈으로 볼 이유가 없을 때.
+ * @returns {object|null} 결과 요약 (finishLiveRun 과 같은 꼴)
+ */
+export function autoFinishLiveRun(st = State.state) {
+  const run = liveRun(st);
+  if (!run) return null;
+  const sq = (st.squads || []).find((s) => s.id === run.squadId);
+  if (!sq) return finishLiveRun(st, 'stop');
+
+  let gold = 0;
+  const { reached } = RV.runAbyss({
+    allies: Quest.allyUnitDefs(st, sq),
+    ctx: st,
+    squadId: run.squadId,
+    startDepth: run.depth,
+    carry: run.carry,
+    allyFormationId: sq.formationId,
+    log: run.log,
+    onWin: (d, r, carry) => {
+      const g = depthGold(d);
+      gold += g;
+      if (isVaultDepth(d)) run.log.push({ type: 'vault', depth: d, gold: g });
+      const fell = [];
+      for (const [uid, hp] of Object.entries(r.carry)) {
+        if (hp !== 0) continue;
+        if (carry && carry[uid] === 0) continue;
+        const m = (st.roster || []).find((x) => x && x.uid === uid);
+        if (m) fell.push(m.name);
+      }
+      if (fell.length) run.log.push({ type: 'fall', depth: d, names: fell });
+    },
+  });
+  st.gold = (st.gold || 0) + gold;
+  run.gold += gold;
+  if (reached >= run.depth) {
+    run.reached = reached;
+    if (reached > (st.abyss.best || 0)) { st.abyss.best = reached; st.abyss.bestDay = st.day || 0; }
+  }
+  run.depth = Math.max(run.depth, reached + 1);
+  return finishLiveRun(st, 'auto');
+}
+
+/**
+ * 관전 잠수를 닫는다. 기록·골드는 이미 반영돼 있으므로 마지막 잠수 값만 적고 run 을 지운다.
+ * @param {'lose'|'cap'|'auto'|'stop'|'stale'} reason
+ * @returns {{ok:true, reason:'', reached:number, gold:number, log:Array, startDepth:number, squadId:string, live:true, why:string}|null}
+ */
+export function finishLiveRun(st, reason = 'stop') {
+  const run = liveRun(st);
+  if (!run) return null;
+  if (reason === 'stop' || reason === 'stale') run.log.push({ type: 'stop', depth: run.depth, why: reason });
+  const out = {
+    ok: true, reason: '', reached: run.reached, gold: run.gold, log: run.log.slice(),
+    startDepth: run.startDepth, squadId: run.squadId, live: true, why: reason,
+  };
+  st.abyss.lastRunDepth = run.reached;
+  st.abyss.lastGold = run.gold;
+  st.abyss.run = null;
+  return out;
 }
