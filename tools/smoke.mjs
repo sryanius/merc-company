@@ -4928,6 +4928,62 @@ section('제출 실패에 백오프가 있나 (정상 플레이어를 문 자리
     '옛 갈래를 지우면 캐시된 클라의 기록이 그날부터 통째로 사라진다');
 }
 
+/* ─────────── 잘라내기: 연한 배경 위의 연한 맨살 (HANDOFF §171.1) ─────────── */
+{
+  section('잘라내기 — 연한 배경에서 맨살이 안 먹히나');
+  /* ★ 실제로 물었던 사고다. 애니 옅은 살색 rgb(246,230,222) 은 채도 0.098 이고,
+   *   살색 보호 문턱이 max(0.10, 배경채도+0.04) 이라 살색이 문턱 «바로 아래» 였다.
+   *   지시 편집이 내놓는 배경(채도 0.09~0.11)에서는 보호가 통째로 풀렸고,
+   *   다리를 벌린 자세는 가랑이 사이 배경이 아래 테두리와 이어져 있어
+   *   flood 가 거기로 들어와 **허벅지가 사라졌다** (거벽·창기병·수호기사 동시 발생).
+   *   지금은 «배경 색상이 살색대에서 25° 이상 떨어져 있으면» 문턱을 0.05 로 낮춘다.
+   *   고치기 전 이 검사로 재면 속살 0/4484 였다 — 검사가 실제로 문다. */
+  const { execFileSync: exSkin } = await import('node:child_process');
+  const fsSkin = await import('node:fs');
+  const osSkin = await import('node:os');
+  const pathSkin = await import('node:path');
+  const png = await import('../tools/lib/png.mjs');
+  const W = 256, H = 320;
+  const BG = [238, 245, 222];      // 연한 황록 (색상 84°·채도 0.094)
+  const SKIN = [246, 230, 222];    // 애니 옅은 살색 (색상 19°·채도 0.098)
+  const CLOTH = [40, 40, 52], HAIR = [120, 40, 170];
+  const px = new Uint8ClampedArray(W * H * 4);
+  const put = (x, y, c) => { const o = (y * W + x) * 4; px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, BG);
+  for (let y = 40; y < 80; y++) for (let x = 108; x < 148; x++) put(x, y, HAIR);
+  for (let y = 80; y < 170; y++) for (let x = 100; x < 156; x++) put(x, y, CLOTH);
+  const legs = [];
+  for (let y = 170; y < 285; y++) {
+    const spread = Math.round((y - 170) * 0.45);
+    for (const [x0, x1] of [[96 - spread, 122 - spread], [134 + spread, 160 + spread]]) {
+      for (let x = x0; x < x1; x++) if (x >= 0 && x < W) { put(x, y, SKIN); legs.push(y * W + x); }
+    }
+  }
+  for (let y = 285; y < 310; y++) for (const [x0, x1] of [[42, 74], [182, 214]]) for (let x = x0; x < x1; x++) put(x, y, CLOTH);
+  const dir = fsSkin.mkdtempSync(pathSkin.join(osSkin.tmpdir(), 'skinkey-'));
+  const srcF = pathSkin.join(dir, 'src.png'), outF = pathSkin.join(dir, 'out.png');
+  let crashed = '';
+  try {
+    fsSkin.writeFileSync(srcF, png.encodePng(W, H, Buffer.from(px.buffer)));
+    exSkin(process.execPath, ['tools/illustpng.mjs', srcF, '--name=illust_skinprobe', '--bg=auto', '--fit=none', `--out=${outF}`], { stdio: 'pipe' });
+  } catch (e) { crashed = String(e.stdout || e.message).slice(-160); }
+  if (!ok(!crashed, '시험 그림을 잘라낼 수 있다', crashed)) {
+    // 아래 검사는 결과 파일이 있어야 한다
+  } else {
+    const d = png.decodePng(fsSkin.readFileSync(outF));
+    /* 바깥 2줄은 «배경과 외곽선 사이» 를 지우는 단계의 몫이다 — 속살만 센다 */
+    const set = new Set(legs);
+    const inner = legs.filter((p) => { const x = p % W, y = (p / W) | 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (!set.has((y + dy) * W + (x + dx))) return false;
+      return true; });
+    let kept = 0; for (const p of inner) if (d.rgba[p * 4 + 3] >= 128) kept++;
+    let clear = 0; for (let i = 0; i < W * H; i++) if (d.rgba[i * 4 + 3] < 128) clear++;
+    ok(kept >= inner.length * 0.98, '연한 배경 위의 맨살이 살아남는다', `허벅지 속살 ${kept}/${inner.length}`);
+    ok(clear >= W * H * 0.4, '그래도 배경은 빠진다', `빠짐 ${(100 * clear / (W * H)).toFixed(1)}%`);
+  }
+  try { fsSkin.rmSync(dir, { recursive: true, force: true }); } catch { /* 임시 폴더는 남아도 된다 */ }
+}
+
 section('서버 공유 규칙');
 {
   /* ★ 검증 규칙은 Edge Function 쪽에 **복사본**으로 산다 (supabase/functions/_shared/).

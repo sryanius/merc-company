@@ -323,7 +323,7 @@ if (fixture) {
     const pale = est && (est.achromatic || est.sat < 0.08 || (est.sat < 0.16 && est.val >= 0.7));
     if (pale) {
       /* 채도 0.12 미만은 «흰빛 도는 거의 흰색» — 색상대로 빼면 노이즈만 점점이 빠진다 (사제 46%). 밝기로 뺀다 */
-      keyed = keyAchromatic(src.w, src.h, src.rgba, est.val, Math.max(0.12, est.sat + 0.05), true, est.sat);
+      keyed = keyAchromatic(src.w, src.h, src.rgba, est.val, Math.max(0.12, est.sat + 0.05), true, est.sat, est.hue);
       console.error(`  배경 키잉 무채색(명도 ${est.val.toFixed(2)}±0.10, 평탄): ${keyed}칸 투명 (${(100 * keyed / (src.w * src.h)).toFixed(1)}%)`);
     } else {
       /* 채도 하한은 잰 배경의 절반 — 모델이 «라임» 을 파스텔(채도 0.2)로 그리면 고정 0.3 으로는 하나도 안 빠진다 */
@@ -344,7 +344,7 @@ if (fixture) {
         if (s2 < 0.15 && v2 > 0.75) { bright++; sv += v2; }
       }
       const bgV = bright ? sv / bright : Math.max(est.val, 0.9);
-      const k2 = keyAchromatic(src.w, src.h, src.rgba, bgV, 0.12, false);   // 2nd pass: fixed sMax, NO enclosed removal (est.sat+0.08 let flat skin in and the face got keyed)
+      const k2 = keyAchromatic(src.w, src.h, src.rgba, bgV, 0.12, false, est.sat, est.hue);   // 2nd pass: fixed sMax, NO enclosed removal (est.sat+0.08 let flat skin in and the face got keyed)
       if (k2) { keyed += k2; console.error(`  배경 키잉 2차(무채색 명도 ${bgV.toFixed(2)}): +${k2}칸 → 합계 ${(100 * keyed / (src.w * src.h)).toFixed(1)}%`); }
     }
     /* 3차: 바닥 그림자 — 검수에서 가장 많이 남은 것. 아래 15% 행의 회색·평탄 영역을 아래 테두리에서 flood 로 뺀다 */
@@ -600,7 +600,7 @@ function keyEnclosed(w, h, rgba, cand, seen, minArea) {
  * 테두리에서 이어진 성분만 뺀다. 흰 옷·강철 갑옷은 음영과 외곽선이 있어 평탄하지 않다 — 거기서 멈춘다.
  * 바닥 그림자(회색, 아래 30%)는 밝기 조건을 넓혀 후보에 넣는다.
  */
-function keyAchromatic(w, h, rgba, bgV, sMax = 0.12, enclosed = true, bgS = 0) {
+function keyAchromatic(w, h, rgba, bgV, sMax = 0.12, enclosed = true, bgS = 0, bgH = -1) {
   const V = new Float32Array(w * h), S = new Float32Array(w * h), Hh = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) { const o = i * 4; const [hh, s, v] = hsv(rgba[o], rgba[o + 1], rgba[o + 2]); Hh[i] = hh; S[i] = s; V[i] = rgba[o + 3] < 8 ? -1 : v; }
   const cand = new Uint8Array(w * h);
@@ -609,7 +609,12 @@ function keyAchromatic(w, h, rgba, bgV, sMax = 0.12, enclosed = true, bgS = 0) {
     if (V[i] < 0 || S[i] >= sMax) continue;
     /* ★ 살색 보호 (§164 공격 포즈에서 얼굴이 또 검게 빠졌다): 따뜻한 색상(5~50°)에 채도가 조금이라도 있고 밝으면 — 옅은 피부 — 후보에서 뺀다.
      *   흰 옷·흰 배경은 채도 0.06 미만이라 그대로 빠진다. 크림색 배경(60~90°)은 범위 밖. */
-    if (S[i] >= Math.max(0.10, bgS + 0.04) && Hh[i] >= 5 && Hh[i] <= 45 && V[i] >= 0.55) continue;   // 배경보다 확실히 진해야 살색 — 크림색 배경(채도 0.08, 40°)이 통째로 보호된 사고
+    /* ★ §171.1 배경 색상이 살색대에서 멀면(25° 이상) 채도 문턱을 0.05 로 낮춘다.
+     *   애니 옅은 살색은 채도 0.098 로 기존 문턱 0.10 바로 아래였다 — 배경이 조금만 진해지면 허벅지가 통째로 빠졌다.
+     *   배경이 크림색(40°)처럼 살색대 안이면 이 완화를 안 쓴다 (그때는 배경까지 보호돼 하나도 안 빠진다). */
+    let skinSMin = Math.max(0.10, bgS + 0.04);
+    if (bgH >= 0 && bgS >= 0.04) { let dh = Math.abs(Hh[i] - bgH) % 360; if (dh > 180) dh = 360 - dh; if (dh >= 25) skinSMin = 0.05; }
+    if (S[i] >= skinSMin && Hh[i] >= 5 && Hh[i] <= 45 && V[i] >= 0.55) continue;   // 배경보다 확실히 진해야 살색 — 크림색 배경(채도 0.08, 40°)이 통째로 보호된 사고
     const floor = y >= h * 0.70;
     if (!(Math.abs(V[i] - bgV) <= 0.14 || (floor && V[i] >= 0.35 && V[i] <= bgV))) continue;
     let mn = 1, mx = 0;
