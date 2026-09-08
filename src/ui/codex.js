@@ -60,12 +60,13 @@ function injectStyle() {
 .cdx-sk-meta { color:var(--ink-faint); font-size:10px; }
 .cdx-sk-desc { font-size:10px; color:var(--ink-faint); line-height:1.45; }
 .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
-/* §180.4 영웅 카드 — 주황 그라데이션 액자 + 큰 일러스트 (배경·색 강조는 없다). 미보유는 채도만 뺀다. */
+/* §180.4 영웅 카드 — 주황 그라데이션 액자 + 큰 일러스트 (배경·색 강조는 없다). 미보유도 음영 없음. */
 .cdx-hero { position:relative; padding-top:10px; border:2px solid transparent;
   background: var(--bg-2) padding-box, linear-gradient(135deg, #ffb27a 0%, #ff6a1f 30%, #ffd9b8 50%, #ff6a1f 70%, #ffb27a 100%) border-box;
   box-shadow: 0 0 16px -6px rgba(255,122,58,.55); }
 .cdx-hero.owned { box-shadow: 0 0 22px -4px rgba(255,122,58,.8); }
-.cdx-hero.unowned { filter: saturate(.35) opacity(.6); }
+/* §180.5 미보유도 음영 없이 그대로 (제작자) — 보유 여부는 배지(✔ 보유/각성 · 미보유)로만 */
+.cdx-hero.unowned { }
 .cdx-hero-band { width:100%; display:flex; justify-content:space-between; gap:6px; font-size:10px; letter-spacing:.04em; color:var(--ink-faint); }
 .cdx-hero-nm { font-size:15px; color:#ff8a4a; }
 .cdx-hero-title { color: var(--ink-dim); font-style: italic; }
