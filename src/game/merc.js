@@ -419,8 +419,18 @@ export function levelCapOf(merc) {
   return merc && merc.hero && merc.awakened ? HERO_MAX_LEVEL : MAX_LEVEL;
 }
 
+/**
+ * ★ §181 각성 영웅의 꼬리 — Lv80 부터는 레벨마다 필요량이 **가팔라진다** (일반 용병은 80 이 상한이라 안 탄다).
+ *   제작자: 「5급 도시에서 의뢰 몇 번이면 80 인데, 80 → 100 은 시간이 좀 걸렸으면」.
+ *   5급 도시 S 의뢰 하나가 Lv80 기준 ≈ 193,000 경험치(정예 486,000)라, 같은 곡선(53,449/레벨)이면 20레벨이 S 의뢰 7건(≈50일)이었다.
+ *   배수 = 1 + HERO_EXP_STEP × (lv − 79): Lv80 ×1.35 · Lv90 ×4.85 · Lv99 ×8.0 → 80→100 누적 6.21M (1→80 의 3.8배).
+ *   각성 직후 몇 레벨은 빨리 오르고 뒤로 갈수록 벽이 된다 — S 의뢰 32건 ≈ 부대당 220일 (정예 S 만이면 13건 ≈ 90일). 실측 §181.
+ */
+export const HERO_EXP_STEP = 0.35;
+const heroTail = (lv) => (lv >= MAX_LEVEL ? 1 + HERO_EXP_STEP * (lv - MAX_LEVEL + 1) : 1);
+
 /** 레벨 곡선 그 자체 (상한 무시) — 만렙에 묶어 두는 경험치 상한 계산에 쓴다 */
-const expCurve = (lv) => Math.round(EXP_BASE * Math.pow(Math.max(1, lv), EXP_POW));
+const expCurve = (lv) => Math.round(EXP_BASE * Math.pow(Math.max(1, lv), EXP_POW) * heroTail(lv));
 
 /** 다음 레벨까지 필요한 경험치 (SPEC §2.4). 상한이면 Infinity. `cap` = 그 용병의 레벨 상한 (levelCapOf) */
 export function expToNext(level, cap = MAX_LEVEL) {

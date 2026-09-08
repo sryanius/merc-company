@@ -4723,6 +4723,13 @@ section('영웅 (§174)');
     if (!Number.isFinite(M.expToNext(79)) || Number.isFinite(M.expToNext(80))) bad.push('expToNext 80 상한');
     if (!Number.isFinite(M.expToNext(80, LIM.HERO_MAX_LEVEL)) || Number.isFinite(M.expToNext(100, LIM.HERO_MAX_LEVEL))) bad.push('expToNext 100 상한');
     if (M.expTotalTo(80) !== M.expTotalTo(80, LIM.HERO_MAX_LEVEL)) bad.push('expTotalTo 가 상한에 따라 달라진다 (80 까지는 같아야)');
+    /* §181 각성 꼬리 — 80 부터 가팔라지고, 80→100 누적이 1→80 의 3~5배, 79 까지는 옛 곡선 그대로 */
+    if (!(M.expToNext(80, 100) > M.expToNext(79) * 1.3)) bad.push('Lv80 필요량이 꼬리를 안 탄다');
+    for (let lv = 80; lv < 99; lv++) if (!(M.expToNext(lv + 1, 100) > M.expToNext(lv, 100))) bad.push(`Lv${lv + 1} 필요량이 안 오른다`);
+    const tail = M.expTotalTo(100, 100) - M.expTotalTo(80);
+    const head = M.expTotalTo(80);
+    if (!(tail > head * 3 && tail < head * 5)) bad.push(`80→100 누적 ${tail} 이 1→80 ${head} 의 3~5배가 아니다`);
+    if (M.expToNext(79) !== 52417) bad.push(`Lv79 필요량이 바뀌었다 (${M.expToNext(79)})`);
     // Lv80 에서 경험치가 한 레벨치까지 묶인다 (각성 전 벌어 둔 경험치)
     m.level = 79; m.exp = 0;
     M.gainExp(m, 10 ** 9);
@@ -4747,7 +4754,7 @@ section('영웅 (§174)');
     const plain = M.createMerc({ classId: 'madgeneral_apex', grade: 'S', level: 1, rng });
     M.gainExp(plain, 10 ** 10);
     if (plain.level !== LIM.MAX_LEVEL) bad.push(`일반 S 4차가 ${plain.level} 까지 큰다`);
-    okAll(bad, '영웅 생성 · 상한 80/100 · 경험치 묶어 두기 · 각성 조건 · Lv100 스탯/임금', 20);
+    okAll(bad, '영웅 생성 · 상한 80/100 · 경험치 묶어 두기 · 각성 꼬리(§181) · 각성 조건 · Lv100 스탯/임금', 24);
   }
 
   /* 4) 편성 — 고유 스킬이 실제 아군 UnitDef 에 실린다 (questbattle · squad 두 경로) */
