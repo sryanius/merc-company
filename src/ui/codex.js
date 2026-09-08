@@ -60,18 +60,18 @@ function injectStyle() {
 .cdx-sk-meta { color:var(--ink-faint); font-size:10px; }
 .cdx-sk-desc { font-size:10px; color:var(--ink-faint); line-height:1.45; }
 .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
-/* §180.4 영웅 카드 — 주황 그라데이션 액자 + 큰 일러스트 (배경·색 강조는 없다). 미보유도 음영 없음. */
+/* §182 영웅 카드 — 자홍 그라데이션 액자 + 큰 일러스트 (배경·색 강조는 없다). 미보유도 음영 없음. */
 .cdx-hero { position:relative; padding-top:10px; border:2px solid transparent;
-  background: var(--bg-2) padding-box, linear-gradient(135deg, #ffb27a 0%, #ff6a1f 30%, #ffd9b8 50%, #ff6a1f 70%, #ffb27a 100%) border-box;
-  box-shadow: 0 0 16px -6px rgba(255,122,58,.55); }
-.cdx-hero.owned { box-shadow: 0 0 22px -4px rgba(255,122,58,.8); }
+  background: var(--bg-2) padding-box, linear-gradient(135deg, #ffc4ee 0%, #ff3fb8 30%, #ffe1f6 50%, #ff3fb8 70%, #ffc4ee 100%) border-box;
+  box-shadow: 0 0 16px -6px rgba(255,110,210,.55); }
+.cdx-hero.owned { box-shadow: 0 0 22px -4px rgba(255,110,210,.8); }
 /* §180.5 미보유도 음영 없이 그대로 (제작자) — 보유 여부는 배지(✔ 보유/각성 · 미보유)로만 */
 .cdx-hero.unowned { }
 .cdx-hero-band { width:100%; display:flex; justify-content:space-between; gap:6px; font-size:10px; letter-spacing:.04em; color:var(--ink-faint); }
-.cdx-hero-nm { font-size:15px; color:#ff8a4a; }
+.cdx-hero-nm { font-size:15px; color:#ff7fd8; }
 .cdx-hero-title { color: var(--ink-dim); font-style: italic; }
 .cdx-own { display:inline-block; padding:0 7px; border-radius:999px; font-size:10px; font-weight:700; background:var(--bg-4); color:var(--ink-faint); margin-left:5px; vertical-align:middle; }
-.cdx-own.on { background: linear-gradient(135deg, #ffb27a, #ff6a1f); color:#2a1205; }
+.cdx-own.on { background: linear-gradient(135deg, #ffc4ee, #ff3fb8); color:#3d0a2c; }
 .cdx-story { font-size:11px; color:var(--ink-dim); line-height:1.5; width:100%; text-align:left; }
 @media (max-width: 767px) { .cdx-hero-band { font-size:11px; } }
 @media (max-width: 767px) { .cdx-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); } .cdx-sub { font-size:12px; } }

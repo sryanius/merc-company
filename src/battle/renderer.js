@@ -1762,7 +1762,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
     const ny = top;                               // 스프라이트 안에서의 베이스라인
     q.beginPath();
     q.arc(sx + 3 * us, ny - 4 * us, 3.2 * us, 0, TAU);
-    q.fillStyle = GRADE_COLOR[u.hero ? 'H' : u.grade] || '#8a8a96';   // §179 영웅은 액자 상아색
+    q.fillStyle = GRADE_COLOR[u.hero ? 'H' : u.grade] || '#8a8a96';   // §182 영웅은 자홍
     q.fill();
     q.strokeStyle = 'rgba(8,6,12,.9)';
     q.lineWidth = Math.max(1, us * 0.8);
