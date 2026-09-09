@@ -1,0 +1,2515 @@
+[
+ {
+  "id": "goblin_grunt",
+  "name": "고블린 병졸",
+  "tier": 1,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "cave",
+   "plains"
+  ],
+  "desc": "수는 많고 겁은 더 많다. 그래도 칼은 쥐고 있다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_dagger",
+   "offhand": "shd_buckler",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "bronze",
+    "cloth": "forest",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "goblin_archer",
+  "name": "고블린 궁수",
+  "tier": 1,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "cave",
+   "plains"
+  ],
+  "desc": "나무 위에서 조잡한 화살을 날린다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_bow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "bronze",
+    "cloth": "sand",
+    "leather": "tan",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "goblin_shaman",
+  "name": "고블린 주술사",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "cave",
+   "swamp"
+  ],
+  "desc": "뼈 지팡이를 흔들며 부족의 상처를 꿰맨다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_none",
+   "weapon": "wpn_staff",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "violet",
+    "leather": "brown",
+    "accent": "bone",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "goblin_rider",
+  "name": "고블린 늑대기수",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "forest",
+   "cave"
+  ],
+  "desc": "늑대를 몰고 다니며 후열까지 파고든다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_iron",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_spear",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "crimson",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "goblin_bomber",
+  "name": "고블린 폭탄병",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "mountain",
+   "forest"
+  ],
+  "desc": "자기 폭탄에 먼저 죽는 일도 흔하다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_none",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ember",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "hobgoblin",
+  "name": "홉고블린",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "mountain",
+   "forest"
+  ],
+  "desc": "고블린 무리를 통솔하는 덩치 큰 사촌.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_iron",
+   "armor": "armor_mail",
+   "cape": "cape_none",
+   "weapon": "wpn_axe",
+   "offhand": "shd_round",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "gray_wolf",
+  "name": "회색 늑대",
+  "tier": 1,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "plains",
+   "tundra",
+   "coast"
+  ],
+  "desc": "굶주린 눈으로 대열의 빈틈을 노린다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "grey",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "wild_boar",
+  "name": "멧돼지",
+  "tier": 1,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "plains",
+   "mountain"
+  ],
+  "desc": "한 번 돌진하면 멈출 줄을 모른다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "brown",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "dire_wolf",
+  "name": "다이어 울프",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "tundra",
+   "mountain"
+  ],
+  "desc": "말만 한 덩치의 늑대. 무리로만 움직인다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "cave_spider",
+  "name": "동굴 거미",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "forest",
+   "swamp"
+  ],
+  "desc": "천장에서 소리 없이 내려온다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_lizard",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "nature"
+   },
+   "battleSheet": "bt_spider"
+  }
+ },
+ {
+  "id": "cave_bear",
+  "name": "동굴 곰",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "mountain",
+   "forest"
+  ],
+  "desc": "동굴 하나를 통째로 자기 굴로 삼은 짐승.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "dark",
+    "hair": "brown",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "harpy",
+  "name": "하피",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "coast",
+   "desert"
+  ],
+  "desc": "절벽 위에서 급강하해 대열을 흩는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_long",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_wing",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "teal",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_harpy"
+  }
+ },
+ {
+  "id": "saber_cat",
+  "name": "검치호",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "tundra",
+   "mountain",
+   "forest"
+  ],
+  "desc": "눈보라 속에서 후열만 골라 덮친다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "bone",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "tan",
+    "accent": "bronze",
+    "glow": "none"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "bandit_thug",
+  "name": "산적 졸개",
+  "tier": 1,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "forest",
+   "coast",
+   "desert"
+  ],
+  "desc": "길목을 막고 통행세를 뜯는 잡배.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_short",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_axe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "brown",
+    "metal": "iron",
+    "cloth": "sand",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "bandit_archer",
+  "name": "산적 궁수",
+  "tier": 1,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "plains",
+   "forest",
+   "coast",
+   "desert"
+  ],
+  "desc": "수풀에 숨어 먼저 쏘고 도망친다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_bow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "brown",
+    "metal": "iron",
+    "cloth": "forest",
+    "leather": "green",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "cutthroat",
+  "name": "노상강도",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "coast",
+   "forest"
+  ],
+  "desc": "목을 노리는 데 익숙한 손놀림.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_twindagger",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "silver",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "bandit_brute",
+  "name": "산적 파수꾼",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "forest",
+   "mountain"
+  ],
+  "desc": "두목의 천막 앞을 지키는 덩치.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_iron",
+   "armor": "armor_mail",
+   "cape": "cape_none",
+   "weapon": "wpn_mace",
+   "offhand": "shd_kite",
+   "palette": {
+    "skin": "tan",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "highwayman",
+  "name": "노상 습격자",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "desert",
+   "plains",
+   "coast"
+  ],
+  "desc": "대상(隊商)만 골라 터는 노련한 사수.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_short",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_short",
+   "weapon": "wpn_bow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "steel",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "rogue_mage",
+  "name": "탈주 마법사",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "plains",
+   "coast"
+  ],
+  "desc": "탑에서 쫓겨나 산적에게 몸을 의탁했다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_long",
+   "helm": "helm_wizard",
+   "armor": "armor_robe",
+   "cape": "cape_none",
+   "weapon": "wpn_staff",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "arcane"
+   }
+  }
+ },
+ {
+  "id": "orc_warrior",
+  "name": "오크 전사",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "plains",
+   "cave"
+  ],
+  "desc": "전투 그 자체를 즐기는 종족의 표준.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_axe",
+   "offhand": "shd_round",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ember",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "orc_archer",
+  "name": "오크 사수",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "mountain",
+   "plains",
+   "cave"
+  ],
+  "desc": "사람 키만 한 활을 힘으로 당긴다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_longbow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "sand",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "orc_berserker",
+  "name": "오크 광전사",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "plains",
+   "cave",
+   "tundra"
+  ],
+  "desc": "갑옷 대신 상처를 두르고 달려든다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_mohawk",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_greataxe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "red",
+    "metal": "iron",
+    "cloth": "crimson",
+    "leather": "dark",
+    "accent": "blood",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "orc_shaman",
+  "name": "오크 주술사",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "mountain",
+   "plains",
+   "swamp"
+  ],
+  "desc": "조상의 영을 불러 전사들을 일으켜 세운다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_none",
+   "weapon": "wpn_staff",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "forest",
+    "leather": "brown",
+    "accent": "bone",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "orc_shieldbearer",
+  "name": "오크 방패병",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "cave",
+   "plains"
+  ],
+  "desc": "문짝만 한 방패로 길목을 통째로 막는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_great",
+   "armor": "armor_plate",
+   "cape": "cape_none",
+   "weapon": "wpn_mace",
+   "offhand": "shd_tower",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "skeleton_soldier",
+  "name": "해골 병사",
+  "tier": 1,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "swamp",
+   "desert"
+  ],
+  "desc": "수백 년 전 전장의 잔해가 다시 일어섰다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bone",
+   "cape": "cape_none",
+   "weapon": "wpn_sword",
+   "offhand": "shd_buckler",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "bone",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "skeleton_archer",
+  "name": "해골 궁수",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "swamp",
+   "desert"
+  ],
+  "desc": "눈구멍에서 푸른 불이 조준을 대신한다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bone",
+   "cape": "cape_none",
+   "weapon": "wpn_bow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "bone",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "plague_zombie",
+  "name": "역병 시체",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "cave",
+   "coast"
+  ],
+  "desc": "느리지만 좀처럼 쓰러지지 않는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "forest",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "ghoul",
+  "name": "구울",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "cave",
+   "tundra"
+  ],
+  "desc": "시체를 파먹다 산 자의 냄새를 맡았다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "wight",
+  "name": "망령",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "swamp",
+   "tundra",
+   "cave"
+  ],
+  "desc": "원한만 남아 떠도는 형체.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_robe",
+   "cape": "cape_tattered",
+   "weapon": "wpn_wand",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "violet",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "bone_knight",
+  "name": "해골 기사",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "desert",
+   "coast",
+   "tundra"
+  ],
+  "desc": "맹세를 지키느라 죽어서도 갑주를 벗지 못했다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_great",
+   "armor": "armor_plate",
+   "cape": "cape_tattered",
+   "weapon": "wpn_greatsword",
+   "offhand": "shd_kite",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "blood",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "necromancer",
+  "name": "강령술사",
+  "tier": 4,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "swamp",
+   "cave",
+   "desert"
+  ],
+  "desc": "무덤을 파헤쳐 병사를 모으는 자.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "black",
+    "metal": "bone",
+    "cloth": "violet",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "swamp_troll",
+  "name": "늪지 트롤",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "forest",
+   "coast"
+  ],
+  "desc": "베어도 붙는다. 태워야 죽는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_mace",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "green",
+    "metal": "iron",
+    "cloth": "forest",
+    "leather": "green",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "cave_troll",
+  "name": "동굴 트롤",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "mountain"
+  ],
+  "desc": "햇빛을 피해 깊은 굴에 사는 거구.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_hammer",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "grey",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "ogre_bruiser",
+  "name": "오우거 파괴자",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "cave",
+   "plains",
+   "swamp"
+  ],
+  "desc": "한 방에 대열이 무너진다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_mask",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_hammer",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "brown",
+    "metal": "iron",
+    "cloth": "sand",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "frost_ogre",
+  "name": "서리 오우거",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "tundra",
+   "mountain"
+  ],
+  "desc": "숨결마다 서리가 내려앉는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_heavy",
+   "cape": "cape_none",
+   "weapon": "wpn_greataxe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "grey",
+    "hair": "white",
+    "metal": "silver",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "frost"
+   }
+  }
+ },
+ {
+  "id": "darkelf_blade",
+  "name": "다크엘프 검무사",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "cave",
+   "mountain"
+  ],
+  "desc": "춤추듯 파고들어 목을 그어 놓는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_elf",
+   "hair": "hair_long",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_twindagger",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "violet",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "darkelf_ranger",
+  "name": "다크엘프 사수",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "cave",
+   "swamp"
+  ],
+  "desc": "어둠 속에서도 후열의 심장을 맞춘다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_elf",
+   "hair": "hair_pony",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_longbow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "teal",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "darkelf_warlock",
+  "name": "다크엘프 흑마도사",
+  "tier": 4,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "cave",
+   "swamp"
+  ],
+  "desc": "심연과 계약해 그림자를 부린다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_elf",
+   "hair": "hair_long",
+   "helm": "helm_circlet",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_wand",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "white",
+    "metal": "silver",
+    "cloth": "violet",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "cultist_acolyte",
+  "name": "사교도 신도",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "plains",
+   "swamp",
+   "cave",
+   "desert"
+  ],
+  "desc": "얼굴을 가린 채 금서의 구절을 읊는다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_none",
+   "weapon": "wpn_dagger",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "blood"
+   }
+  }
+ },
+ {
+  "id": "cultist_zealot",
+  "name": "광신도",
+  "tier": 3,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "swamp",
+   "cave",
+   "desert"
+  ],
+  "desc": "죽음을 축복이라 믿기에 멈추지 않는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_cloth",
+   "cape": "cape_tattered",
+   "weapon": "wpn_scythe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "pale",
+    "hair": "black",
+    "metal": "blood",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "bronze",
+    "glow": "blood"
+   }
+  }
+ },
+ {
+  "id": "cult_priest",
+  "name": "사교 사제",
+  "tier": 4,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "swamp",
+   "cave",
+   "desert",
+   "plains"
+  ],
+  "desc": "제단의 피로 신도들의 상처를 덮는다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_torch",
+   "palette": {
+    "skin": "pale",
+    "hair": "black",
+    "metal": "gold",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "blood"
+   }
+  }
+ },
+ {
+  "id": "lizardman_scout",
+  "name": "리자드맨 정찰병",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "coast",
+   "forest"
+  ],
+  "desc": "늪 수면 아래로 소리 없이 다가온다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_lizard",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_dagger",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "teal",
+    "leather": "green",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "lizardman_spear",
+  "name": "리자드맨 창병",
+  "tier": 2,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "coast"
+  ],
+  "desc": "진흙 속에 창을 세우고 대열을 이룬다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_lizard",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_leather",
+   "cape": "cape_none",
+   "weapon": "wpn_spear",
+   "offhand": "shd_round",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "bronze",
+    "cloth": "sand",
+    "leather": "green",
+    "accent": "bronze",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "lizardman_shaman",
+  "name": "리자드맨 주술사",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "swamp",
+   "coast"
+  ],
+  "desc": "늪의 정령에게 부족의 상처를 맡긴다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_lizard",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_none",
+   "weapon": "wpn_staff",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "teal",
+    "leather": "brown",
+    "accent": "bone",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "lizardman_bruiser",
+  "name": "리자드맨 파괴자",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "coast",
+   "cave"
+  ],
+  "desc": "꼬리 한 번에 전열이 날아간다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_lizard",
+   "hair": "hair_none",
+   "helm": "helm_horned",
+   "armor": "armor_mail",
+   "cape": "cape_none",
+   "weapon": "wpn_halberd",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "bronze",
+    "cloth": "ember",
+    "leather": "dark",
+    "accent": "gold",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "flame_wisp",
+  "name": "화염 정령",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "desert",
+   "mountain",
+   "cave"
+  ],
+  "desc": "형체 없이 타오르며 떠다닌다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_mohawk",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_tattered",
+   "weapon": "wpn_none",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "red",
+    "hair": "red",
+    "metal": "gold",
+    "cloth": "ember",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "fire"
+   },
+   "battleSheet": "bt_spirit"
+  }
+ },
+ {
+  "id": "frost_spirit",
+  "name": "서리 정령",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "tundra",
+   "mountain",
+   "coast"
+  ],
+  "desc": "지나간 자리마다 얼음꽃이 핀다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_long",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_short",
+   "weapon": "wpn_none",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "grey",
+    "hair": "white",
+    "metal": "silver",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "frost"
+   },
+   "battleSheet": "bt_spirit"
+  }
+ },
+ {
+  "id": "hoarfrost_seer",
+  "name": "서리 예언자",
+  "tier": 3,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "tundra",
+   "coast",
+   "mountain"
+  ],
+  "desc": "얼음에 비친 앞날을 읽고 부족의 상처를 덮는다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_long",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_short",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "pale",
+    "hair": "white",
+    "metal": "silver",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "frost"
+   }
+  }
+ },
+ {
+  "id": "stone_golem",
+  "name": "바위 골렘",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "cave",
+   "desert"
+  ],
+  "desc": "고대의 문지기. 명령이 끝났음을 모른다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_heavy",
+   "cape": "cape_none",
+   "weapon": "wpn_none",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "grey",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "silver",
+    "glow": "arcane"
+   },
+   "battleSheet": "bt_golem"
+  }
+ },
+ {
+  "id": "storm_wisp",
+  "name": "폭풍 정령",
+  "tier": 4,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "coast",
+   "plains",
+   "tundra",
+   "mountain"
+  ],
+  "desc": "벼락을 몸에 두르고 해안을 떠돈다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_human",
+   "hair": "hair_mohawk",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_wing",
+   "weapon": "wpn_none",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "blue",
+    "metal": "silver",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "arcane"
+   },
+   "battleSheet": "bt_spirit"
+  }
+ },
+ {
+  "id": "imp",
+  "name": "임프",
+  "tier": 2,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "desert",
+   "swamp"
+  ],
+  "desc": "낄낄거리며 불씨를 던지고 도망간다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_wing",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "ember",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "hellhound",
+  "name": "지옥견",
+  "tier": 4,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "desert",
+   "cave",
+   "mountain"
+  ],
+  "desc": "숨을 쉴 때마다 재가 흩날린다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "red",
+    "metal": "iron",
+    "cloth": "ember",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "fire"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "succubus",
+  "name": "서큐버스",
+  "tier": 4,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "swamp",
+   "plains"
+  ],
+  "desc": "눈을 마주치는 순간 이미 늦었다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_demon",
+   "hair": "hair_long",
+   "helm": "helm_none",
+   "armor": "armor_cloth",
+   "cape": "cape_wing",
+   "weapon": "wpn_wand",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "iron",
+    "cloth": "rose",
+    "leather": "brown",
+    "accent": "violet",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "demon_warrior",
+  "name": "악마 전사",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "desert",
+   "swamp",
+   "mountain"
+  ],
+  "desc": "심연의 군세에서 가장 흔한 병졸. 그래도 인간보다 강하다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_horned",
+   "armor": "armor_heavy",
+   "cape": "cape_tattered",
+   "weapon": "wpn_greatsword",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "blood",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "abyss_reaper",
+  "name": "심연의 사신",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "swamp",
+   "tundra",
+   "desert"
+  ],
+  "desc": "낫이 지나간 자리에는 이름조차 남지 않는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_cloth",
+   "cape": "cape_long",
+   "weapon": "wpn_scythe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "violet",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "abyss_hierophant",
+  "name": "심연의 대사제",
+  "tier": 5,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "swamp",
+   "desert",
+   "plains",
+   "mountain"
+  ],
+  "desc": "쓰러진 군세를 다시 일으켜 세운다. 먼저 이쪽을 끊어야 한다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "gold",
+    "cloth": "violet",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "blight_druid",
+  "name": "역병의 드루이드",
+  "tier": 5,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "swamp",
+   "coast",
+   "tundra"
+  ],
+  "desc": "숲을 썩혀 아군의 상처와 바꿔 먹는 자.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_long",
+   "helm": "helm_hood",
+   "armor": "armor_robe",
+   "cape": "cape_tattered",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "green",
+    "metal": "bone",
+    "cloth": "forest",
+    "leather": "brown",
+    "accent": "bone",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "void_sentinel",
+  "name": "공허의 파수병",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "cave",
+   "tundra",
+   "coast"
+  ],
+  "desc": "문을 지키라는 명령만 남은 갑주. 전열이 통째로 막힌다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_great",
+   "armor": "armor_heavy",
+   "cape": "cape_none",
+   "weapon": "wpn_hammer",
+   "offhand": "shd_tower",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "violet",
+    "glow": "arcane"
+   }
+  }
+ },
+ {
+  "id": "iron_juggernaut",
+  "name": "강철 거상",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "desert",
+   "mountain",
+   "coast"
+  ],
+  "desc": "움직일 때마다 땅이 눌린다. 뚫으려 하지 말고 돌아가야 한다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_great",
+   "armor": "armor_plate",
+   "cape": "cape_none",
+   "weapon": "wpn_mace",
+   "offhand": "shd_tower",
+   "palette": {
+    "skin": "grey",
+    "hair": "black",
+    "metal": "steel",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "silver",
+    "glow": "arcane"
+   }
+  }
+ },
+ {
+  "id": "storm_herald",
+  "name": "폭풍의 전령",
+  "tier": 5,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "coast",
+   "plains",
+   "tundra",
+   "mountain"
+  ],
+  "desc": "구름을 끌고 다니며 가장 강한 자에게 벼락을 내린다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_elf",
+   "hair": "hair_long",
+   "helm": "helm_circlet",
+   "armor": "armor_robe",
+   "cape": "cape_wing",
+   "weapon": "wpn_wand",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "blue",
+    "metal": "silver",
+    "cloth": "azure",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "arcane"
+   }
+  }
+ },
+ {
+  "id": "abyss_marksman",
+  "name": "심연의 저격수",
+  "tier": 5,
+  "boss": false,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "plains",
+   "desert",
+   "coast"
+  ],
+  "desc": "후열의 마법사부터 지운다. 시야에 들어가면 이미 늦었다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_hood",
+   "armor": "armor_leather",
+   "cape": "cape_short",
+   "weapon": "wpn_crossbow",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "blood",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "blood",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "blood_captain",
+  "name": "피의 백부장",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "mountain",
+   "forest",
+   "tundra"
+  ],
+  "desc": "함성 한 번에 군세가 달라진다. 빈사의 적은 반드시 끝낸다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_human",
+   "hair": "hair_beard",
+   "helm": "helm_horned",
+   "armor": "armor_heavy",
+   "cape": "cape_long",
+   "weapon": "wpn_greatsword",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "red",
+    "metal": "blood",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "nightmare_stalker",
+  "name": "악몽의 추적자",
+  "tier": 5,
+  "boss": false,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "swamp",
+   "tundra",
+   "cave"
+  ],
+  "desc": "전열을 넘어 후열로 곧장 뛰어든다. 진형이 의미를 잃는다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_mask",
+   "armor": "armor_leather",
+   "cape": "cape_tattered",
+   "weapon": "wpn_twindagger",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "ash",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "violet",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "goblin_chief",
+  "name": "고블린 족장",
+  "tier": 1,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "cave",
+   "plains"
+  ],
+  "desc": "해골 왕관을 쓴 고블린 무리의 우두머리.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_goblin",
+   "hair": "hair_none",
+   "helm": "helm_crown",
+   "armor": "armor_mail",
+   "cape": "cape_long",
+   "weapon": "wpn_greataxe",
+   "offhand": "shd_round",
+   "palette": {
+    "skin": "green",
+    "hair": "red",
+    "metal": "bronze",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "bone",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "alpha_wolf",
+  "name": "늑대 군주",
+  "tier": 2,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "forest",
+   "tundra",
+   "plains"
+  ],
+  "desc": "숲의 모든 늑대가 이 울음에 따른다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_wolf",
+   "hair": "hair_none",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_none",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "grey",
+    "hair": "white",
+    "metal": "iron",
+    "cloth": "ash",
+    "leather": "dark",
+    "accent": "bronze",
+    "glow": "frost"
+   },
+   "battleSheet": "bt_beast"
+  }
+ },
+ {
+  "id": "bandit_lord",
+  "name": "산적 두목",
+  "tier": 2,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "forest",
+   "coast",
+   "desert"
+  ],
+  "desc": "현상금이 웬만한 기사보다 비싸다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_heavy",
+   "head": "head_human",
+   "hair": "hair_beard",
+   "helm": "helm_plume",
+   "armor": "armor_mail",
+   "cape": "cape_long",
+   "weapon": "wpn_greatsword",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "tan",
+    "hair": "black",
+    "metal": "steel",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "cult_hierarch",
+  "name": "사교 대주교",
+  "tier": 3,
+  "boss": true,
+  "range": "ranged",
+  "biome": [
+   "swamp",
+   "plains",
+   "desert",
+   "cave"
+  ],
+  "desc": "피의 제단 앞에서 세상의 끝을 노래한다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_human",
+   "hair": "hair_none",
+   "helm": "helm_crown",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "pale",
+    "hair": "white",
+    "metal": "gold",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "blood"
+   }
+  }
+ },
+ {
+  "id": "orc_warlord",
+  "name": "오크 워로드",
+  "tier": 3,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "plains",
+   "cave",
+   "tundra"
+  ],
+  "desc": "부족 전체를 하나의 군대로 묶은 전쟁군주.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_none",
+   "helm": "helm_horned",
+   "armor": "armor_plate",
+   "cape": "cape_long",
+   "weapon": "wpn_greataxe",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "crimson",
+    "leather": "brown",
+    "accent": "blood",
+    "glow": "none"
+   }
+  }
+ },
+ {
+  "id": "ancient_troll",
+  "name": "고대 트롤",
+  "tier": 4,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "swamp",
+   "mountain",
+   "cave",
+   "forest"
+  ],
+  "desc": "늪보다 오래 살았고, 늪보다 끈질기다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_orc",
+   "hair": "hair_long",
+   "helm": "helm_none",
+   "armor": "armor_bare",
+   "cape": "cape_tattered",
+   "weapon": "wpn_hammer",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "green",
+    "hair": "green",
+    "metal": "iron",
+    "cloth": "forest",
+    "leather": "green",
+    "accent": "bronze",
+    "glow": "nature"
+   }
+  }
+ },
+ {
+  "id": "darkelf_priestess",
+  "name": "다크엘프 여사제",
+  "tier": 4,
+  "boss": true,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "cave",
+   "swamp"
+  ],
+  "desc": "거미 여신의 이름으로 어둠을 집행한다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_elf",
+   "hair": "hair_long",
+   "helm": "helm_crown",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "white",
+    "metal": "silver",
+    "cloth": "violet",
+    "leather": "brown",
+    "accent": "silver",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "lich",
+  "name": "리치",
+  "tier": 5,
+  "boss": true,
+  "range": "ranged",
+  "biome": [
+   "cave",
+   "swamp",
+   "tundra",
+   "desert"
+  ],
+  "desc": "죽음을 거래해 영생을 산 대마법사의 잔재.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_slim",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_crown",
+   "armor": "armor_robe",
+   "cape": "cape_long",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "gold",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "violet",
+    "glow": "shadow"
+   }
+  }
+ },
+ {
+  "id": "demon_lord",
+  "name": "악마 군주",
+  "tier": 5,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "cave",
+   "desert",
+   "swamp"
+  ],
+  "desc": "군단 하나를 혼자 상대할 수 있는 존재.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_horned",
+   "armor": "armor_heavy",
+   "cape": "cape_wing",
+   "weapon": "wpn_greatsword",
+   "offhand": "shd_torch",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "brown",
+    "accent": "blood",
+    "glow": "fire"
+   }
+  }
+ },
+ {
+  "id": "flame_dragon",
+  "name": "화염룡",
+  "tier": 5,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "mountain",
+   "cave",
+   "desert"
+  ],
+  "desc": "산 하나를 둥지로 삼은 늙은 용. 도망칠 수 있다면 도망쳐라.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_demon",
+   "hair": "hair_none",
+   "helm": "helm_horned",
+   "armor": "armor_heavy",
+   "cape": "cape_wing",
+   "weapon": "wpn_claw",
+   "offhand": "shd_none",
+   "palette": {
+    "skin": "red",
+    "hair": "black",
+    "metal": "blood",
+    "cloth": "ember",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "fire"
+   },
+   "battleSheet": "bt_dragon"
+  }
+ },
+ {
+  "id": "void_titan",
+  "name": "공허의 거신",
+  "tier": 5,
+  "boss": true,
+  "range": "melee",
+  "biome": [
+   "plains",
+   "coast",
+   "mountain",
+   "tundra"
+  ],
+  "desc": "별이 떨어진 자리에 남은 거신. 아군까지 암석으로 감싸며 걸어온다.",
+  "dmgType": "phys",
+  "sprite": {
+   "body": "body_hulk",
+   "head": "head_skull",
+   "hair": "hair_none",
+   "helm": "helm_crown",
+   "armor": "armor_heavy",
+   "cape": "cape_long",
+   "weapon": "wpn_hammer",
+   "offhand": "shd_tower",
+   "palette": {
+    "skin": "bone",
+    "hair": "black",
+    "metal": "dark",
+    "cloth": "night",
+    "leather": "dark",
+    "accent": "violet",
+    "glow": "arcane"
+   }
+  }
+ },
+ {
+  "id": "blight_archon",
+  "name": "역병의 아르콘",
+  "tier": 5,
+  "boss": true,
+  "range": "ranged",
+  "biome": [
+   "forest",
+   "swamp",
+   "coast",
+   "plains"
+  ],
+  "desc": "숲째로 썩혀 군세를 되살린다. 화력을 나누면 절대 못 죽인다.",
+  "dmgType": "magic",
+  "sprite": {
+   "body": "body_normal",
+   "head": "head_demon",
+   "hair": "hair_long",
+   "helm": "helm_crown",
+   "armor": "armor_robe",
+   "cape": "cape_wing",
+   "weapon": "wpn_staff",
+   "offhand": "shd_orb",
+   "palette": {
+    "skin": "ash",
+    "hair": "green",
+    "metal": "gold",
+    "cloth": "forest",
+    "leather": "brown",
+    "accent": "gold",
+    "glow": "nature"
+   }
+  }
+ }
+]

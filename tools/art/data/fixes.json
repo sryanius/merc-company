@@ -1,0 +1,559 @@
+{
+ "skysplitter_apex": {
+  "seed": 17,
+  "tags": "colossal greatsword, dark steel blade, greatsword planted point-down beside her, gold crossguard, one hand resting on pommel, red military coat worn open, gold epaulettes, gold-trimmed black bikini armor, bare midriff, red asymmetric high-slit skirt, bare thighs, black knee-high boots, gold circlet, imperial commander",
+  "hairStyle": "high topknot bun, long sidelocks",
+  "pose": "standing, facing viewer, feet apart, greatsword planted point-down beside her, one hand resting on the pommel, other hand on hip",
+  "extra": "no shadow",
+  "neg": "light rays, light streaks, white streaks, sparkles, particles, lens flare, glowing lines, cracks, fracture lines, shards, slash effect, energy slash, motion lines, speed lines, wind effect, floating objects, glow, aura, light effects, sun rays, backlighting, bloom, light burst, shadow, reflection, floor, ground, blue hair, indigo hair, navy hair, dark blue hair, magenta hair, pink hair, fuchsia hair, red-violet hair, red hair, crimson hair",
+  "round": 6,
+  "risk": "The mid-grey 'dark steel' greatsword blade is still achromatic and runs the full height of the silhouette edge; if the new seed renders it with flat, unshaded fill (sat < 0.12), the achromatic pass will eat part of the blade and the weapon becomes unrecognizable at 192x240 - the blade cannot be made black without disappearing on the game's dark background, so this remains a seed-dependent gamble.",
+  "edits": [
+   "extra: replaced 'no effects, no glow, no light rays, no shadow, clean flat colors' with just 'no shadow' (removed positive-prompt effect words and the flat-color inducer).",
+   "tags: restructured so the first tag is 'colossal greatsword', followed by 'dark steel blade'; changed 'planted point-down in front' to 'planted point-down beside her'; dropped 'huge blade fully visible'; 'one hand on pommel' -> 'one hand resting on pommel'.",
+   "tags: 'gold-trimmed steel bikini armor' -> 'gold-trimmed black bikini armor' (no near-white flat garment at the silhouette edge; red/gold/black outfit also guards against blue hair drift).",
+   "pose: 'in front' -> 'beside her', 'one hand on the pommel' -> 'one hand resting on the pommel' (plain standing / facing viewer / feet apart kept).",
+   "neg: added 'backlighting, bloom, light burst, dark blue hair'; kept all ray/streak/particle/shard/slash/glow/aura/shadow/floor negatives; still no face words and no sword/greatsword/katana.",
+   "seed kept at 16 (changed from round-5 seed 15); hairStyle kept 'high topknot bun, long sidelocks' to raise the 307-px purple hair count."
+  ],
+  "issues": [
+   "D: large fully opaque white/grey sword-slash streaks float detached around the figure (left of the sword hilt, right of the cape, crossing behind the legs) and read as leftover fill patches on a card; includes a 121px stray island at (7,109)-(17,129).",
+   "Otherwise fine: greatsword held point-down is clear, purple bun hair, face drawn, feet visible."
+  ]
+ },
+ "reaper": {
+  "seed": 15,
+  "extra": "Keep pose, purple hair and the spear-tipped scythe, but remove ALL purple from non-hair areas: hooded cape solid black w",
+  "issues": [
+   "HARD E: large purple areas on clothing and weapon - full-height purple cape lining and a wide purple stripe along the scythe blade; ~4300 saturated pixels below the hair rows sit in hue bins 240-260, the same bins as the hair (about 12% of the figure, several times the hair's own purple area) - a hair recolor would repaint the cape and blade",
+   "soft F: black bikini-style top with underboob is borderline; passes because cape and long slit skirt make it not underwear-only, but a less lingerie-like top would be safer",
+   "passes A/B/C/D: standing full body, heels visible, face drawn, purple hair, scythe blade clearly recognizable, background clean (0 chroma, 0 semi-alpha, only ~85 px of legitimate enclosed gaps at shaft/hand and blade tines)"
+  ]
+ },
+ "knight": {
+  "seed": 16,
+  "tags": "longsword, large longsword held upright, straight steel blade pointing up, crossguard, polished steel breastplate with cleavage cutout, steel pauldrons, steel gauntlets, short black split tabard with crimson trim, side slit, bare thighs, thigh-high steel greaves, steel kite shield strapped to left forearm, gold heraldic crest, plate armor",
+  "hairStyle": "long straight hair",
+  "pose": "standing, facing viewer, feet apart, holding sword upright, blade pointing up, shield on left arm",
+  "extra": "(purple hair:1.4), no shadow",
+  "neg": "blue hair, indigo hair, navy hair, dark blue hair, shadow, floor shadow, contact shadow, floor, ground, reflection, white clothes, white tabard, helmet, particles, sparkles, light rays, light streaks, lens flare, slash effect, motion lines, speed lines",
+  "round": 6,
+  "risk": "Floor shadow (D) survives again: Animagine paints a soft grey contact ellipse under almost any standing full-body figure on a flat background - the base prompt already carried 'drop shadow, cast shadow, ground shadow' negatives in rounds 4 and 5 and it still drew one both times - so even with the plain 'shadow, floor shadow, contact shadow, floor, ground' negatives, the blade lifted off the ground and a new seed, a grey-green blended rim of that ellipse between the spread sabatons (sat about 0.14, too chromatic for the achromatic pass and too soft for the bottom-15% band pass) can persist as a grey line in the 192px cut.",
+  "edits": [
+   "pose: replaced 'sword held upright at her side, shield on left arm' with 'holding sword upright, blade pointing up, shield on left arm' - removes the 'at her side' resting cue that produced the ground-planted blade in fix5, and repeats the blade-up instruction in the pose slot.",
+   "tags: 'steel kite shield on left arm' -> 'steel kite shield strapped to left forearm' so the shield cannot be drawn standing on the ground (floor anchor + blade occlusion seen in the applied image); word count 46 -> 47, still within 20-50.",
+   "Kept everything else as proposed: longsword-first tags, black tabard with crimson trim and gold crest (no flat white garment), mace and bascinet removed, '(purple hair:1.4), no shadow' in extra, the blue-hair/shadow/floor/ground/white-clothes/helmet/effect negatives, seed 16. Deliberately did NOT add 'flat color' (would make steel armour flat grey and get eaten by the achromatic pass) and did NOT add 'planted sword' to neg (contains an own weapon noun)."
+  ],
+  "issues": [
+   "D: large gray floor/contact-shadow ellipse retained under the feet (192-scale rows 227-235 span x=14..161 while the feet occupy only x=69..90) - a floor blob far bigger than a few pixels",
+   "Otherwise passes: one woman, full body, feet visible, standing, face drawn; greatsword resting point-down matches equip[0]=sword; hair purple (leans indigo, ~248 hue); no fringe/halo, no holes",
+   "Soft: lower body is a high-cut black bottom with garter under the open tabard - revealing but armored (pauldrons, gauntlets, plate greaves), so not underwear-only"
+  ]
+ },
+ "madgeneral_abyss": {
+  "seed": 15,
+  "extra": "Same character (horned helm, red cape, dark armor, huge red-bladed axe held at her side), but on a flat uniform backgrou",
+  "issues": [
+   "D: red blood splatter on the floor retained around both feet (wide red streaks across the bottom rows)",
+   "D: scattered red droplet fragments left as floating islands (77 separate alpha components; e.g. near the axe at (155,10), (148,24), and by the right boot (166-174, 207-226))",
+   "D: the gray cast shadow on the background wall behind/between the legs was kept as part of the silhouette (reads as a gray blob under the cape)",
+   "Otherwise passes: one woman, full body, feet visible, standing, face drawn; large red-and-black axe matches equip[0]=axe; hair purple and prominent",
+   "Soft: bikini-style top and shorts are revealing but paired with cape, pauldrons, vambraces and greaves, so not underwear-only"
+  ]
+ },
+ "spiritranger": {
+  "seed": 16,
+  "tags": "bow \\(weapon\\), holding bow \\(weapon\\), facing viewer, straight-on, longbow, wooden longbow, bowstring, quiver, archer, cleavage, bare midriff, brown leather crop top, sleeveless, short brown leather skirt, bare thighs, (reddish-brown knee boots:1.2), brown footwear, gold rune tattoos, antlers, gold bracelets",
+  "hairStyle": "wavy shoulder-length hair",
+  "pose": "standing, facing viewer, straight-on, feet apart, holding bow upright at side, hand on hip",
+  "extra": "facing viewer, straight-on, no shadow",
+  "neg": "from behind, back view, rear view, looking back, turned away, backless, wisps, spirit, ghost, slime, floating blob, particles, sparkles, light rays, light streaks, floating objects, grey boots, black boots, grey footwear, black footwear, dark grey, desaturated, white feathers, white clothes, olive clothes, khaki clothes, shadow, floor, ground, reflection, blue hair, indigo hair",
+  "round": 6,
+  "risk": "The far leg's boot/foot is again shaded as flat low-saturation dark grey inside the bottom-15% zone and eaten by the floor-shadow pass (raw5's surviving boot was only 0.01 above the 0.18 sat cutoff) - the prompt can bias boot colour but not how the model shades the far leg and sole.",
+  "edits": [
+   "tags: moved 'facing viewer' into TAGS positions 3-4 (right after the weapon tags) and added the Danbooru tag 'straight-on' so the front view is in the strong CLIP chunk, not only in pose/extra.",
+   "tags: replaced 'front view' with 'straight-on' everywhere (tags, pose, extra); kept 'facing viewer'.",
+   "tags: 'tan leather crop top' -> 'brown leather crop top' (avoids the tanned-skin reading and the near-white achromatic pass).",
+   "tags: 'short brown feather-trimmed skirt' -> 'short brown leather skirt' (feather trim removed entirely; neg 'white feathers' kept as a guard).",
+   "tags: removed 'arrow (projectile)'; 'quiver' retained.",
+   "tags: 'thigh-high reddish-brown leather boots' -> '(reddish-brown knee boots:1.2), brown footwear' - knee boots keep 'bare thighs' true, and the weight pushes boot saturation because raw5's surviving boot was at sat 0.19 vs the 0.18 shadow-band threshold.",
+   "tags: converted the prose bow description into tags 'longbow, wooden longbow, bowstring'.",
+   "pose: simplified to 'standing, facing viewer, straight-on, feet apart, holding bow upright at side, hand on hip'.",
+   "extra: 'facing viewer, straight-on, no shadow'.",
+   "Verified diagnosis by viewing raw5/cut5/applied and sampling pixels: far boot foot avgSat 0.08 / val 0.42 / 98% inside the floor-shadow band (sat<0.18, v 0.25-0.92) at y>=1000 -> deleted as shadow; near boot sat 0.19 (barely survived); olive top sat 0.20; feather hem sat 0.10. Rear view, detached blue blob, and round-4 no-bow applied image confirmed.",
+   "Final tags = 39 words; 'bow' is the first tag; exposure elements: cleavage, bare midriff, sleeveless, bare thighs; no staff anywhere; seed 16 kept."
+  ],
+  "issues": [
+   "Rule B fail: no bow anywhere in the image (raw confirms) - she is holding a white ribbon/sash in her outstretched hand; primary weapon must be a bow.",
+   "Rule D fail: grey-blue floor-shadow blob under and between the feet survived the cutout (clearly visible at 3x).",
+   "Rule F borderline: outfit is a white bikini top and bikini bottom with sheer ribbon panels - effectively swimwear/underwear-level coverage.",
+   "Purple hair, pose, face, and feet are otherwise fine."
+  ]
+ },
+ "rogue": {
+  "seed": 218,
+  "tags": "dagger, holding dagger, reverse grip, knife, flat color, short dark steel blade, brown leather grip, assassin rogue, black mouth mask, black hooded cloak, hood down, brown cropped vest, open vest, black bandeau, bare midriff, short black leather shorts, bare thighs, thigh strap, fingerless gloves, black knee boots",
+  "hairStyle": "messy short hair",
+  "pose": "standing relaxed, facing viewer, feet together, dagger held low in one hand, other hand loose at the side",
+  "extra": "flat color, no shadow, (purple hair:1.4)",
+  "neg": "(cast shadow:1.4), (floor shadow:1.4), (ground shadow:1.3), shadow under feet, shadow on ground, (shadow:1.2), floor, ground, ground plane, floor line, horizon, reflection, reflective floor, sheath, scabbard, sheathed weapon, blue hair, indigo hair, navy hair, dark blue hair, magenta hair, pink hair, fuchsia hair, red-violet hair, red hair, crimson hair, sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "round": 6,
+  "risk": "A greenish floor ellipse is still rendered under the boots: the fixed prefix 'standing straight ... both feet on the ground, full body' plus Danbooru's full-body-on-simple-background prior has produced a cast shadow at two different seeds already, and because the shadow is the lime background multiplied dark (sat ~0.10-0.20, speckled edge) it falls between the achromatic (<0.12) and floor-shadow (<0.18, flat) passes, so any residual shadow at seed 16 will again survive keying as a speckle band.",
+  "edits": [
+   "tags: moved 'flat color' from the end of the block to position 3 (immediately after 'dagger, holding dagger, reverse grip, knife') so it lands in the first CLIP chunk while keeping the weapon noun first.",
+   "tags: 'short steel blade' -> 'short dark steel blade' so the flat-coloured blade stays above the achromatic pass instead of being keyed out where it protrudes into the background.",
+   "tags: replaced prose 'cropped brown leather vest worn open over black bandeau' with tags 'brown cropped vest, open vest, black bandeau'; 'black half face mask' -> 'black mouth mask'. Word count 49 -> 47; dagger still first; exposure elements bare midriff, bare thighs, bandeau, open vest, short shorts retained.",
+   "extra: added '(purple hair:1.4)' (the allowed marker-colour exception) because hairPx=240 shows most of the bob fell outside the purple marker band.",
+   "neg: added 'sheath, scabbard, sheathed weapon' so the dagger is drawn held with the blade exposed rather than sheathed at the hip; neither is a class weapon noun.",
+   "neg: 'shadow' -> '(shadow:1.2)'.",
+   "Kept: hairStyle, pose (plain standing/facing viewer/feet apart, no secondary weapon), seed 16, all shadow/floor/ground/horizon/reflection and blue/indigo/navy-hair negatives."
+  ],
+  "issues": [
+   "D: large grey floor-shadow wedge left under and between the boots (~110px wide at 192), attached to the feet",
+   "Otherwise solid: dagger clearly held in extended hand, purple hair, face drawn, full body with feet at bottom, no strays or holes"
+  ]
+ },
+ "shadowarcher": {
+  "seed": 16,
+  "tags": "large crossbow, holding crossbow, medieval wooden crossbow, wide crossbow limbs, taut bowstring, crossbow held upright in one hand, fantasy hooded rogue, black hooded cloak, hood down, black half mask, black leather corset top, cleavage, bare shoulders, short black skirt, bare thighs, garter straps, thigh-high boots, red sash",
+  "hairStyle": "long low braid over shoulder",
+  "pose": "standing, facing viewer, feet apart, holding crossbow upright in one hand, other arm relaxed at side",
+  "extra": "(purple hair:1.4), (holding crossbow:1.2), wide crossbow limbs and bowstring visible, no shadow",
+  "neg": "gun, pistol, handgun, rifle, submachine gun, firearm, revolver, pistol grip, gun barrel, magazine, scope, quiver, arrow bundle, arrows on back, blue hair, indigo hair, navy hair, dark blue hair, blue clothes, navy clothes, blue cloak, shadow, cast shadow, drop shadow, floor, ground, reflection, particles, sparkles, light rays, light streaks, lens flare, floating objects, motion lines, speed lines, dark aura",
+  "round": 6,
+  "risk": "Weapon substitution again: the unchanged black-leather/mask/garter costume prior can still resolve the held object as a compact pistol-crossbow or gun at the hip (no visible limbs at 192px), because the firearm negatives sit at the tail of a ~200-token negative and only the positive crossbow block is in a strong position.",
+  "edits": [
+   "tags: 'wooden crossbow with wide recurve bow limbs' -> 'medieval wooden crossbow, wide crossbow limbs' (drops 'recurve'/'bow', adds period cue, keeps 'taut bowstring').",
+   "tags: 'crossbow held upright at side' -> 'crossbow held upright in one hand'.",
+   "tags: 'hooded rogue archer' -> 'fantasy hooded rogue' (drops 'archer').",
+   "tags: 'crimson sash' -> 'red sash'. Word count stays 47; 'crossbow' remains first and appears 5 times in tags.",
+   "hairStyle: 'low braid over shoulder' -> 'long low braid over shoulder' (more hair pixels for the marker; same identity).",
+   "pose: 'arms relaxed, crossbow held upright at side' -> 'holding crossbow upright in one hand, other arm relaxed at side'.",
+   "extra: prepended '(purple hair:1.4)' (allowed exception; hair measured as majority indigo); 'wide bow limbs and bowstring visible' -> 'wide crossbow limbs and bowstring visible'.",
+   "neg: removed 'trigger'; added 'blue cloak', 'lens flare', 'speed lines'. Verified: no face words, no crossbow/dagger/knife/bow.",
+   "seed: kept at 16."
+  ],
+  "issues": [
+   "D: floor-shadow blob under the feet with trapped greenish background pixels",
+   "D (holes): quiver and arrow bundle behind the left shoulder was chewed into fragments by the cutout, with transparent gaps through the arrows and a jagged quiver edge",
+   "~25 tiny 1-3px stray specks around hair and boots (soft)",
+   "Crossbow, purple hair, face and pose are all fine; blue-indigo jacket is not in the purple hue range so E is fine"
+  ]
+ },
+ "shadowblade": {
+  "seed": 16,
+  "tags": "holding dagger, dagger, holding knife, knife, dual wielding, dagger in each hand, reverse grip, crimson blade, assassin, black shinobi outfit, sleeveless top, side cutouts, bare midriff, short black slit skirt, bare thighs, black half mask, crimson trim, bare arms, slender, smirk",
+  "hairStyle": "short bob",
+  "pose": "standing straight, facing viewer, feet apart, arms slightly out from sides, dagger in each hand held away from body, blades pointing outward",
+  "extra": "(purple hair:1.4), no shadow, crimson-bladed daggers clearly visible in both hands",
+  "neg": "armored gloves, spiked gloves, long fingernails, empty hands, sheath, scabbard, ninjato, wakizashi, kodachi, twin swords, long blade, glowing blade, energy blade, long sash, trailing sash, sash tails, ribbons, streamers, tassels, floating cloth, tendrils, shadow, cast shadow, drop shadow, floor, ground, reflection, pink hair, gradient hair, multicolored hair, blue hair, indigo hair, dark blue hair, lunge, leaning, bent forward, dynamic pose, from side, profile",
+  "round": 6,
+  "risk": "Weapon substitution is still the most likely failure: katana is an own noun and cannot go in the negative, so 'dual wielding' + shinobi prior can still stretch the two crimson blades into twin short swords/ninjato despite the synonym negatives — at 192x240 a 60px red blade reads as 'sword', not 'dagger', and the reviewer fails B again.",
+  "edits": [
+   "tags: removed 'large dagger, wide steel blade'; replaced with 'dagger, knife, crimson blade' so the blade is saturated (survives keying), contrasts with black outfit, skin and the keyed background, and stays dagger-sized",
+   "tags: reordered so the first 8 slots are all small-blade tokens (holding dagger, dagger, holding knife, knife, dual wielding, dagger in each hand, reverse grip, crimson blade)",
+   "tags: 'lean, sly' -> 'slender, smirk' (removes the leaning trigger and uses real Danbooru tokens)",
+   "tags: 'crimson cord accents' -> 'crimson trim' (attached trim, nothing dangling)",
+   "pose: 'dagger in each hand' -> 'dagger in each hand held away from body' so blades overlap background/skin rather than black boots/skirt",
+   "extra: 'both steel daggers clearly visible' -> 'crimson-bladed daggers clearly visible in both hands' (consistent with blade colour, no grey blade)",
+   "neg: removed 'gauntlets' (own claw weapon noun); replaced with 'armored gloves, long fingernails' alongside 'spiked gloves'",
+   "neg: added 'ninjato, wakizashi, kodachi, twin swords, long blade' to block the unnegatable katana drift under dual wielding, and 'glowing blade, energy blade' so a crimson blade stays matte",
+   "neg: added 'tassels' (cord/tassel islands) and 'indigo hair, dark blue hair' (crown of the bob was indigo in raw5)",
+   "kept: hairStyle 'short bob', seed 16, '(purple hair:1.4)' in extra, all shadow negatives, exposure set (sleeveless, side cutouts, bare midriff, short slit skirt, bare thighs); final tags = 41 words, 'dagger' first"
+  ],
+  "issues": [
+   "B: primary weapon (dagger) not recognizable - both hands show only clawed gauntlets; the only dagger is a tiny sheathed knife at the hip that is an unreadable dark sliver at 192",
+   "Cutout clean, purple bob hair, face drawn, feet visible; sheer lavender ribbons are low saturation and do not trip E (soft note)"
+  ]
+ },
+ "shadowblade_apex": {
+  "seed": 16,
+  "tags": "holding dagger, dagger, knife, short blade, gold hilt, steel blade, dagger held in front of chest, blade pointing up, assassin, sleeveless black hooded long coat, gold trim, hood down, deep V neckline, cleavage, waist cutouts, bare shoulders, gold crown, black half face mask, gold crescent moon emblem, lean, sly",
+  "hairStyle": "slicked-back long hair",
+  "pose": "standing, facing viewer, feet apart, dagger held in front of chest, blade up",
+  "extra": "(holding knife:1.2), single short blade, no shadow",
+  "neg": "scabbard, sheath, sheathed, sheathed weapon, weapon at hip, hilt at hip, weapon on back, multiple weapons, long blade, huge blade, oversized weapon, particles, sparkles, light rays, light streaks, slash effect, motion lines, blue hair, indigo hair, dark blue hair",
+  "round": 6,
+  "risk": "The black-coat assassin prior still draws the blade at short-sword/wakizashi length (or a katana in hand, which cannot be negated because katana is in equip); anything longer than the forearm reads as a sword at 192x240 and the weapon check fails again.",
+  "edits": [
+   "tags: replaced 'ornate gold dagger with short broad blade raised at chest height, blade pointing up' with 'short blade, gold hilt, steel blade, dagger held in front of chest, blade pointing up' — steel blade gives maximum contrast against the black torso, and holding it in front of the chest keeps it inside the silhouette so the achromatic keying pass cannot eat a flat grey blade (49 words).",
+   "pose: 'dagger raised in front of chest' -> 'dagger held in front of chest, blade up' to match the tag wording exactly.",
+   "neg: added 'sheathed' and 'hilt at hip' (the precise raw5 failure look); everything else kept, seed stays 16."
+  ],
+  "issues": [
+   "E: bright violet cape and hand-held drape cover most of the lower body (thousands of purple pixels from row 60 to 220) - would be recolored as hair",
+   "B: no dagger anywhere; only a gold clawed gauntlet on the left hand, right hand holds fabric",
+   "Pose, face, hair and cutout are otherwise clean"
+  ]
+ },
+ "venomfang_apex": {
+  "seed": 216,
+  "tags": "dagger, knife, holding knife, reverse grip, short dagger, small knife, crimson blade, gold hilt, black scaled bikini armor, gold trim, cleavage, bare midriff, black high-slit skirt, bare thighs, thigh-high black boots, gold serpent pauldron, fanged gold crown, black fang half mask, assassin, smirk",
+  "hairStyle": "high bun with loose strands",
+  "pose": "standing relaxed, facing viewer, feet apart, both arms lowered, a dagger held loosely in each hand at the sides",
+  "extra": "(holding knife:1.2), short blade, small knife",
+  "neg": "huge sword, giant sword, oversized sword, big sword, buster sword, claymore, zweihander, two-handed sword, dual wielding, particles, sparkles, light rays, light streaks, lens flare, floating objects, slash effect, motion lines, speed lines, dripping, liquid drops, shadow, sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "round": 6,
+  "risk": "Animagine's full-body assassin prior still wins and she gets a sword-length blade (a dagger is a few pixels of text steering against a very strong sword/katana prior); second most likely, a real knife is drawn but overlaps the black top or hair so it is not recognizable at 192x240.",
+  "edits": [
+   "tags: removed 'dual wielding'; 'short curved dagger' -> 'short dagger, small knife'; 'sly' -> 'smirk'; all other tags kept (dagger first, exposure elements, black/gold/crimson palette unchanged).",
+   "pose: 'standing, facing viewer, feet apart, arms at sides, dagger held in reverse grip at hip, blade pointing down' -> 'standing, facing viewer, feet apart, one hand raised beside shoulder holding knife in reverse grip, other hand on hip' (forearm bounds blade length; blade silhouettes against keyed background instead of black skirt).",
+   "extra: '(holding knife:1.2), short blade, small weapon, no shadow' -> '(holding knife:1.2), short blade, small knife' (dropped the 'no shadow' negation and bare 'weapon').",
+   "neg: removed 'huge weapon, oversized weapon, huge blade, large blade, long blade, weapon taller than waist, gun, pistol, floor, ground, reflection'; added 'huge sword, giant sword, oversized sword, dual wielding'; kept buster sword/claymore/zweihander/two-handed sword, effect negatives, 'dripping, liquid drops, shadow'.",
+   "hairStyle and seed (16) unchanged; verified all fields with a mechanical forbidden-word / face-word / own-noun / word-count scan (0 hits, 43-45 words, first tag 'dagger')."
+  ],
+  "issues": [
+   "B: primary weapon is dagger but she holds a giant black-and-red greatsword; no dagger present (clawed gauntlet on the raised hand is fine as secondary)",
+   "Cutout clean, purple updo, face drawn with eyepatch, feet visible"
+  ]
+ },
+ "bladedancer_abyss": {
+  "seed": 15,
+  "extra": "Holding a clearly visible steel dagger in her extended hand, blade unobscured and pointed outward; no shadow tendrils or",
+  "issues": [
+   "B: the item in the extended hand is a small blade wrapped in black shadow tendrils that reads as a dark smudge at 192, not a recognizable dagger; the raised hand holds only black wisps; no katana either",
+   "3px stray speck near the blade tip at far right (soft)",
+   "Purple braid, face drawn behind veil, feet visible, clean cutout otherwise"
+  ]
+ },
+ "archmage": {
+  "seed": 15,
+  "extra": "Keep the same design (wide witch hat, gnarled wooden staff with a glowing star crest, dark navy slit gown with gold trim",
+  "issues": [
+   "E: sheer cape is a large purple-to-magenta gradient on both sides from shoulders to ankle, and the hat brim underside is magenta; these areas will be recolored along with the hair",
+   "E (minor): purple ribbon on the staff",
+   "Otherwise sound: staff clearly primary, full body, feet visible, purple hair, clean cutout"
+  ]
+ },
+ "stormcaller": {
+  "seed": 19,
+  "tags": "wand, holding wand, gold wand with large lightning bolt shaped tip, small gold lightning crackling at wand tip, wand raised in one hand, mage, gold circlet, sleeveless black high-collar dress with gold trim, high slit, side cutouts, bare thighs, black shorts, thigh-high black boots, crimson sash",
+  "hairStyle": "long twintails",
+  "pose": "standing, facing viewer, feet apart, wand raised in one hand, other arm relaxed at side",
+  "extra": "no shadow, feet fully visible",
+  "neg": "blue hair, indigo hair, navy hair, dark blue hair, blue clothes, navy clothes, sparkles, particles, lens flare, light rays, floating objects, shadow, cast shadow, drop shadow, floor, ground, reflection, magenta hair, pink hair, fuchsia hair, red-violet hair, orchid hair",
+  "round": 6,
+  "risk": "Hair shading still leaning indigo (hue below 255) — the model's default 'purple hair' shadows and twintail tips render blue-violet even with blue-hair negatives, so part of the hair mass could again miss the marker; secondary risk is the gold lightning fragmenting into detached opaque blobs after keying.",
+  "edits": [
+   "tags: removed 'short' from 'short gold wand' (fixed prefix already says short wand twice).",
+   "tags: 'large lightning bolt tip' -> 'large lightning bolt shaped tip' so the wand head is a solid gold ornament readable at 192px, not just an effect.",
+   "tags: 'gold lightning crackling at wand tip' -> 'small gold lightning crackling at wand tip' to keep the arc attached to the tip and limit stray branches (tags now 46 words).",
+   "hairStyle: 'long twintails, very long hair' -> 'long twintails'.",
+   "neg: appended 'feet out of frame' (Danbooru tag) to back up the weak 'feet fully visible' extra.",
+   "Kept pose, extra, seed 16 and all other negatives unchanged."
+  ],
+  "issues": [
+   "A: not roughly facing the viewer; body in profile bent 90 degrees at the waist with one leg kicked vertically behind (arabesque pose), only one foot on the ground",
+   "B: wand is a tiny star-tipped stick that is a few pixels at 192 and not recognizable as the primary weapon",
+   "F (borderline): bikini-cut bottom with buttocks exposed in a bent-over pose reads as suggestive, though a top and drape are worn",
+   "D (minor): thin light-gray floor-shadow sliver survived under the heel"
+  ]
+ },
+ "spiritranger_abyss": {
+  "seed": 16,
+  "tags": "holding bow, large wooden longbow held upright, thick taut dark bowstring, quiver of arrows on back, goddess, wooden antler headdress, scarlet and gold bikini top, cleavage, bare midriff, gold body tattoos, russet brown sarong, high slit, bare thighs, bark bracers, gold armlet, gladiator sandals",
+  "hairStyle": "long wavy hair",
+  "pose": "standing, facing viewer, feet apart, longbow held upright in one hand, other arm relaxed at side",
+  "extra": "(purple hair:1.4), curved bow limbs with taut bowstring, no shadow",
+  "neg": "white clothes, white bikini, white top, white sarong, white skirt, white dress, sheer fabric, see-through, leaves, falling leaves, floating leaves, petals, particles, sparkles, light rays, light streaks, lens flare, floating objects, butterfly, wings, feathers, walking stick, cane, aiming, blue hair, indigo hair, navy hair, dark blue hair, shadow, cast shadow, drop shadow",
+  "round": 6,
+  "risk": "The bowstring: even drawn dark and taut, a string beside a vertically held bow is a 1-2 px line against the key colour after the 896->192 downscale, so the chromatic flood fill can still break it into a dotted line (the same soft-D complaint as round 5) — the bow's curved limbs and quiver should keep it recognizable, but a reviewer may flag the string again.",
+  "edits": [
+   "tags: replaced 'forest deity' with 'goddess' (identity carried by antler headdress, bark bracers, gold body tattoos)",
+   "tags: removed 'leaf-embroidered'; top is now 'scarlet and gold bikini top'",
+   "tags: replaced 'nocked arrow' + 'leather quiver on back' with 'quiver of arrows on back' (archer identity without the aiming pose pull)",
+   "tags: 'thick taut bowstring' -> 'thick taut dark bowstring' so the string is not a pale line the keyer eats",
+   "tags: 'crimson' -> 'scarlet' to widen hue distance from the purple hair marker",
+   "tags: 'gold anklets' -> 'gold armlet' (anklets vanish at 192px; armlet is a real Danbooru tag)",
+   "neg: removed 'tree branch' (protects antlers and wooden bow) and 'floor, ground, reflection' (conflicted with 'both feet on the ground')",
+   "neg: added 'white bikini, white sarong, cane, aiming'; reordered so white-garment and effect negatives come first",
+   "tags now 44 words; 'bow' still first; 5 exposure elements (bikini top, cleavage, bare midriff, high slit, bare thighs); pose/extra/hairStyle/seed unchanged from proposal"
+  ],
+  "issues": [
+   "Rule B: primary weapon (bow) not recognizable. She holds a bare gnarled branch by its top; the bowstring is a hairline in the raw that disappears entirely at 192px, and the lower limb has no string attachment, so it reads as a branch-staff rather than a bow. The nocked arrow at her shoulder is too small to rescue it.",
+   "Borderline rule F: gold scale bikini top and bikini bottom with a sheer sarong; no nudity or nipples so not failed on F alone, but coverage is minimal.",
+   "Soft: several loose yellow leaves float around her as detached art elements."
+  ]
+ },
+ "necromancer": {
+  "seed": 16,
+  "tags": "wand, large gold skull wand, thick red wand, skull-topped wand, big gold skull head, holding wand, skull scepter, red gem, necromancer, off-shoulder black dress, wide sleeves, side cutouts, bare thighs, high slit, crimson sash, leather thigh strap, black heels",
+  "hairStyle": "wavy shoulder-length hair",
+  "pose": "standing, facing viewer, feet apart, arm bent at elbow, wand held upright beside shoulder, other arm relaxed at side",
+  "extra": "(purple hair:1.4), (large gold skull wand:1.3), no shadow",
+  "neg": "blue hair, indigo hair, navy hair, dark blue hair, black hair, dark hair, white skull, bone, ivory, particles, sparkles, light rays, light streaks, lens flare, floating objects, shadow, floor, ground, reflection, torn edges, frayed hem",
+  "round": 6,
+  "risk": "The fixed prefix '(holding short wand:1.3), short wand in hand' plus the Danbooru 'wand' prior still yields a thin ~1px shaft at 192x240 whose anti-aliased edges are keyed away, leaving the gold skull as a detached ~10-15px blob beside the hand (issue B again); the size/colour tags can enlarge the tip but cannot force shaft thickness.",
+  "edits": [
+   "tags: rewrote the weapon block into short Danbooru-style tags front-loaded in chunk 1: 'wand, large gold skull wand, thick red wand, skull-topped wand, big gold skull head, holding wand, skull scepter, red gem' (dropped 'chunky grip' and the prose phrase; 'dark red' -> 'red'; added 'skull scepter' as chunk-2 reinforcement for a chunky short rod). Outfit tags unchanged. 39 words, wand first, 4 exposure elements.",
+   "pose: 'elbow bent' -> 'arm bent at elbow' placed before the wand clause so the raised bent arm is set before the wand placement; otherwise unchanged.",
+   "extra: 'large skull wand clearly visible' -> '(large gold skull wand:1.3)' (weighted, colour-locked); kept '(purple hair:1.4)' first and 'no shadow'.",
+   "neg: removed 'thin stick, twig'; added 'black hair, dark hair' (raw5 crown is near-black, not blue); added 'white skull, bone, ivory' (keeps the tip saturated so the achromatic pass cannot eat it); added 'lens flare' and bare 'shadow' (also flattens hair shading for the marker). No face words, no wand/tome/grimoire/book/scythe.",
+   "hairStyle and seed kept as proposed (seed 16, changed from round-5 seed 15)."
+  ],
+  "issues": [
+   "E: large violet band covers roughly half of the scythe blade along its full length (secondary weapon, but it will recolor with hair)",
+   "Soft: wand is a very thin black rod; readable but marginal at 192px (its tip fragments into 1-3px specks)",
+   "Passes A/B/C/D/F: one woman, full body, bare feet visible, standing, face drawn; wand held up; purple hair; clean alpha, no halo/holes"
+  ]
+ },
+ "lichlord": {
+  "seed": 16,
+  "tags": "holding staff, tall ornate black staff, (gold skull staff head:1.2), (crimson lining:1.3), black cape, crimson cape lining, black gown, gold trim, lich queen, necromancer, gold spiked crown, plunging cleavage cutout, high slit, bare thighs, sheer black sleeves, crimson sleeve cuffs, ankle-length hem, barefoot",
+  "hairStyle": "long straight hair",
+  "pose": "standing, facing viewer, feet apart, staff held upright in one hand, hand on hip",
+  "extra": "(purple hair:1.4), no shadow",
+  "neg": "blue hair, indigo hair, navy hair, dark blue hair, black hair, purple flame, purple fire, violet fire, blue flame, fire, flame, glowing, glow, aura, energy effect, magic effect, particles, sparkles, light rays, light streaks, lens flare, floating skull, white skull, floating object, levitating, purple sleeves, purple cuffs, purple skirt, purple dress, purple accents, purple ribbon, shadow, floor, ground, reflection, tattered, torn, floor-length dress, long train, trailing hem",
+  "round": 6,
+  "risk": "Purple still bleeding into the cape/skirt lining or sleeve cuffs: the base carries three weighted purple-hair tags and extra adds (purple hair:1.4), so purple is the dominant colour token in the whole prompt and the lich/necromancer prior wants violet accents; if the crimson pins lose that fight again, the tool will once more count thousands of clothing pixels as hair and reject the image (hairPx warning), with the secondary risk that the hair crown stays near-black indigo against the black gown and cape and the marker only catches the inner strands.",
+  "edits": [
+   "Reordered tags: after a shortened staff block, the colour pins for the elements that bled violet in raw5 now sit inside the first CLIP chunk - '(crimson lining:1.3), black cape, crimson cape lining, black gown, gold trim' - instead of at position 15.",
+   "Shortened the staff block to 'holding staff, tall ornate black staff, (gold skull staff head:1.2)': dropped 'crimson gem' and 'staff held upright' (the latter is already in pose) to free chunk-1 tokens for the colour pins.",
+   "Weighted the skull head '(gold skull staff head:1.2)' so it renders as saturated gold rather than a keyable bone-white skull.",
+   "Added 'crimson sleeve cuffs' to pin the inner sleeve/cuff colour that was violet in raw5; added the generic '(crimson lining:1.3)' so the skirt lining under the slit is also pinned.",
+   "Split 'gold-trimmed long black gown' into Danbooru-native 'black gown, gold trim'.",
+   "Neg additions: 'glowing, glow' (source of the violet flame head), 'lens flare', 'white skull' (bone-white skull at the silhouette edge), 'floor-length dress, long train, trailing hem' (gown pooling / ragged hem).",
+   "Kept hairStyle, pose, extra '(purple hair:1.4), no shadow' and seed 16 unchanged. Tags now 43-44 words, 'staff' still first, exposure elements unchanged (cleavage cutout, high slit, bare thighs, sheer sleeves)."
+  ],
+  "issues": [
+   "B: equip[0] is staff but the only weapon is a single scythe (gnarled pole ending in a huge curved blade); no distinct staff is present",
+   "Soft: only one foot visible (other hidden under the gown) - acceptable",
+   "Passes A/C/D/E/F: purple hair, black/red outfit with no purple, clean cutout, face drawn"
+  ]
+ },
+ "plaguelord": {
+  "seed": 15,
+  "extra": "Keep the top-hat plague-doctor design and the scythe as the clearly held primary weapon, but remove ALL purple/violet fr",
+  "issues": [
+   "E: violet covers a large part of the outfit and weapon - coat lining, hat brim, gloves, boot soles and the inner half of the scythe blade (~20% of body pixels)",
+   "D-adjacent: the raised violet glove hand is a 46px island disconnected from the sleeve (floating body part after matting)",
+   "Soft: lower face covered by a plague-doctor beak mask; eyes visible so it counts as drawn",
+   "Passes A/B/C/F: scythe clearly held, purple hair, boots visible, standing, clean background with floor shadow removed"
+  ]
+ },
+ "lichlord_apex": {
+  "seed": 18,
+  "tags": "tall black and gold staff, large gold skull on staff top, crimson gem, holding staff upright, bare legs, bare thighs, gold high heels, black pelvic curtain, black bikini armor, gold trim, cleavage, bare midriff, gold skull crown, gold skull pauldrons, black wide sleeves, lich, necromancer",
+  "hairStyle": "hime cut",
+  "pose": "standing, facing viewer, feet apart, staff held upright in one hand, other hand on hip",
+  "extra": "feet visible, no shadow",
+  "neg": "blue hair, indigo hair, navy hair, dark blue hair, blue clothes, long dress, floor-length dress, gown, dress train, long skirt, trailing hem, tattered hem, torn cloth, robe, long robe, white clothes, white armor, cape, floating objects, floating rune, runes, glyph, magic symbol, particles, sparkles, light rays, light streaks, lens flare, aura, shadow, cast shadow, drop shadow, floor, ground, reflection, purple crystal, purple orb, purple gem, purple feathers, purple glow, purple energy, purple crystal, purple orb, purple gem, purple feathers, purple glow, purple energy",
+  "round": 6,
+  "risk": "The lower body still drifts to a long garment — the pelvic curtain rendered as an ankle-length black panel that pools on the floor (lich + wide-sleeve prior beating the long-dress/gown/robe negatives) — hiding the feet again (A) and fraying the hem into bottom debris after keying (D).",
+  "edits": [
+   "tags: 'tall bone staff' -> 'tall black and gold staff' (dark shaft cannot be keyed; gold skull top kept large).",
+   "tags: 'bone bikini armor' -> 'black bikini armor' (matches the black top that survived keying in round 5).",
+   "tags: removed 'pale skin'.",
+   "tags: moved 'bare legs, bare thighs, gold high heels, black pelvic curtain' directly after the staff block, ahead of chest/crown tags; 'lich sovereign' shortened to 'lich' and placed with 'necromancer' at the END of tags so the gown prior no longer opens chunk 2. Word count 45.",
+   "neg: added 'robe, long robe, white clothes, white armor, runes'.",
+   "pose, hairStyle, extra, seed left as proposed."
+  ],
+  "issues": [
+   "B: equip[0] is staff but the only weapon is a scythe (ornate pole with a large runed blade at the top); no distinct mage staff",
+   "E: violet covers a large part of the clothing - waist sash, sleeve ruffles, both cape interiors and the skirt lining",
+   "Passes A/C/D/F: purple hair, gold shoes visible, standing, face drawn, clean alpha; enclosed transparent areas are legitimate gaps between pole, blade and body"
+  ]
+ },
+ "fallenmonk": {
+  "seed": 15,
+  "extra": "Same character and outfit (black off-shoulder crop top, red sash, black skirt, orange clawed gauntlet as the primary wea",
+  "issues": [
+   "D (hard): grey ground-shadow band kept under and between the feet (~480 px, x 27-140, rows 221-239 of the 192x240); clearly visible at player size",
+   "D (soft): orange lava puddle on the ground at the mace base is a floor element retained in the cutout; reads as weapon VFX so not failed on its own",
+   "E (soft): inner skirt lining has a faint lavender tint; may pick up a small amount of hair recolor",
+   "B ok: orange clawed gauntlet on raised hand is clear; obsidian mace held as secondary",
+   "A/C/F ok: single woman, standing, full body, feet visible, face drawn, purple hair, not explicit; no transparent holes in the character"
+  ]
+ },
+ "arhat_abyss": {
+  "seed": 15,
+  "extra": "Same character and pose (orange halter top, black wrap skirt, giant gold clawed gauntlet as the primary weapon). Claws s",
+  "issues": [
+   "D (hard): grey ground-shadow band kept under and between the feet (~420 px, x 24-128, rows ~217-237); visible at player size",
+   "E (soft/borderline): the lower third of the gold gauntlet's claws fades to violet-blue (~25% of the weapon area, ~430 px loose-threshold); likely to partially recolor with the hair",
+   "B ok: oversized gold clawed gauntlet is unmistakable; second gauntlet and clawed foot armor also present",
+   "A/C/F ok: single woman, standing three-quarter stance facing viewer, feet visible, face drawn, purple hair, not explicit; no transparent holes in the character"
+  ]
+ },
+ "fallenmonk_apex": {
+  "seed": 15,
+  "extra": "Same character (purple bob, small oni mask on the side of the head, black turtleneck crop top, black mini skirt, black t",
+  "issues": [
+   "E (hard): both clawed gauntlets - the primary weapon - are dark purple with magenta highlights (~1,700 px loose-threshold in the gauntlet region); they will be recolored as hair",
+   "E (hard): large purple/magenta energy aura swirls plus purple belt, purple boot stripes, purple oni mask and purple toe claws; purple-ish pixels are ~36% of all opaque pixels (4,283 strict / 6,550 loose of 12,015)",
+   "D (hard): the detached aura swirls around the body and feet are background VFX that survived the cutout as large leftover patches",
+   "B (soft): gauntlets read as spiked/clawed only once you look closely; a mace is absent (acceptable since it is secondary)",
+   "A/C/F ok: single woman, standing with feet crossed, full body, face drawn, purple bob hair, not explicit; no transparent holes in the character"
+  ],
+  "pose": "clawed hands spread wide at sides",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "atkTags": "no cape, short chin-length bob, black halter crop top, bare midriff, sleeveless, black micro shorts, bare thighs, (red horned oni mask worn on the side of the head:1.35), black knee-high boots, black and dark grey outfit with crimson red accents, (black clawed gauntlets with long jagged red claws:1.3)",
+  "atkNeg": "long hair, cape, cloak, hood, helmet, white armor, sword, staff, blue hair, navy hair, indigo hair, dark blue hair"
+ },
+ "oathshield": {
+  "seed": 16,
+  "tags": "large spiked mace, morning star, big mace head, holding mace, arm up, mace held upright, mace head above shoulder, holy paladin, white bikini armor top, gold cross emblem, bare midriff, gold pauldrons, short white pleated skirt, bare thighs, black thigh-high armored boots, small round shield strapped to forearm",
+  "hairStyle": "long straight hair",
+  "pose": "standing, facing viewer, feet apart, one arm up holding mace upright, shield arm down at side",
+  "extra": "no shadow, large mace head fully visible",
+  "neg": "shadow, cast shadow, drop shadow, floor, ground, reflection, cape, cloak, mantle, flail, chain, ball and chain, pole, long shaft, quarterstaff, particles, sparkles, light rays, light streaks, lens flare, floating objects, glowing barrier, energy barrier, attacking, swinging, action pose, dynamic pose, dutch angle, from below, blue hair, indigo hair, navy hair, dark blue hair",
+  "round": 6,
+  "risk": "The model still draws the shield at kite size on the lowered arm and pushes the raised mace off toward the top corner, so the mace head comes out thin or partially cropped and at 192x240 the mace once again reads as a pole beside a dominant shield.",
+  "edits": [
+   "Tags: replaced 'large spiked mace, big flanged mace head, holding mace, mace raised high overhead, mace head visible' with 'large spiked mace, morning star, big mace head, holding mace, arm up, mace held upright, mace head above shoulder' (mace still first; no overhead/crop risk)",
+   "Tags: moved shield to the LAST position and rephrased 'small buckler on left forearm, arm lowered' -> 'small round shield strapped to forearm'",
+   "Tags: 'white thigh-high armored boots' -> 'black thigh-high armored boots' (matches what keyed cleanly in raw5, removes bottom-edge white)",
+   "Tags: dropped 'gauntlets' to keep under the 50-word cap (now 48 words)",
+   "Pose: 'standing, facing viewer, feet apart, right arm raised holding mace overhead, left arm lowered at side' -> 'standing, facing viewer, feet apart, one arm up holding mace upright, shield arm down at side'",
+   "Extra: 'no shadow, mace head large and clearly visible' -> 'no shadow, large mace head fully visible'",
+   "Neg: added 'ball and chain, attacking, swinging, action pose, dynamic pose, dutch angle, from below, navy hair, dark blue hair'; kept all proposed shadow/cape/effect/pole negatives; verified no face words and no mace/shield/tome nouns",
+   "Kept seed 16, hairStyle unchanged"
+  ],
+  "issues": [
+   "Rule B: primary weapon (mace) is absent. She holds only the large kite shield; the free hand is an empty gauntlet resting on her hip (verified in raw crop). Tome also absent, but the missing mace is the hard fail.",
+   "Soft: crop top with bare midriff and mini skirt - not explicit, but skimpier than the abyss variant.",
+   "Soft: 1-3 px stray specks along the cape edge (x 31-50, y 107-177 at 192 scale), well under the fringe threshold."
+  ]
+ },
+ "swordmaster": {
+  "name": "검성",
+  "style": "fighter",
+  "tier": 2,
+  "equip": [
+   "katana",
+   "sword"
+  ],
+  "tags": "fitted red military jacket, high collar, gold epaulettes, gold buttons, deep cleavage cutout, gold crescent moon emblem, white sash, white gloves, black high-slit long skirt, bare thigh, thigh-high brown leather boots, katana held upright in one hand, longsword sheathed at hip, calm focused expression",
+  "hairStyle": "high ponytail",
+  "pose": "standing relaxed, facing viewer, feet apart, katana held in one hand angled down and out to the side, blade fully visible, other arm loose at the side",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211
+ },
+ "blackknight": {
+  "name": "흑기사",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "greatsword",
+   "sword"
+  ],
+  "tags": "cropped red military jacket worn open over black plate bikini armor, gold epaulettes, black pauldrons, bare midriff, black tasset half-skirt, side slits, bare thighs, black knee-high greaves, crimson-lined tattered black cape, greatsword held point-down, both hands on pommel, longsword at hip, crimson aura wisps",
+  "hairStyle": "long straight hair",
+  "pose": "greatsword point-down, both hands on pommel",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 11,
+  "atkTags": "(floor-length cornflower blue cape:1.35), shoulder-length straight hair, blunt bangs, (black bikini armor:1.3), bare midriff, bare head, no helmet, gold pauldrons, asymmetrical arm armor, black draped skirt with red lining, bare thighs, black armored knee-high boots, black and gold armor, massive black greatsword with glowing red blade",
+  "atkNeg": "long hair, very long hair, helmet, hood, red cape, white armor, silver armor, thin sword, blue hair, navy hair, indigo hair, dark blue hair"
+ },
+ "dragoon": {
+  "name": "창기병",
+  "style": "lancer",
+  "tier": 2,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "tags": "spear warrior, polished steel breastplate with cleavage cutout over dark blue tunic, small steel spaulders, dark blue shorts, thigh-high brown riding boots, bare thighs above boots, cavalry spear held upright, round steel shield on back, open-faced steel helmet with red plume, red sash",
+  "hairStyle": "high ponytail",
+  "pose": "standing relaxed, facing viewer, feet apart, spear held in one hand across the front of the body, shaft diagonal with the tip up, other hand loose at the side",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211,
+  "atkTags": "no cape, short hair, high ponytail, (dark navy and slate grey halterneck leotard:1.3), bare midriff, dark navy short shorts, bare thighs, bare head, no helmet, black knee-high boots, navy and slate grey clothes, (red sash knotted on hip:1.35), long plain silver spear, large round dark grey shield",
+  "atkNeg": "long hair, very long hair, helmet, cape, cloak, plate armor, white armor, sword, blue hair, navy hair, indigo hair, dark blue hair, red hair, magenta hair, pink hair, maroon hair, brown hair"
+ },
+ "guardian": {
+  "name": "수호기사",
+  "style": "tank",
+  "tier": 2,
+  "equip": [
+   "mace",
+   "shield"
+  ],
+  "tags": "flanged mace, oversized steel tower shield with gold-trimmed rim, gold star emblem on shield, steel bikini-armor top, thick steel gorget, broad rounded pauldrons, bare midriff, steel hip tassets over navy shorts, full steel greaves, brown leather belt, partial plate armor, protective stance, stalwart",
+  "hairStyle": "short bob",
+  "pose": "tower shield raised in front, mace lowered at side",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 11,
+  "atkTags": "no cape, chin-length bob cut, (silver steel plate bikini armor:1.35), bare midriff, navy blue short shorts, bare head, no helmet, flat grey knee-high plate greaves, silver pauldrons, silver grey armor, gold trim, holding long-hafted flanged mace, (large brown gold-rimmed tower shield:1.3), gold star emblem on shield",
+  "atkNeg": "long hair, ponytail, helmet, cape, cloak, black plate armor, sword, spear, blue hair, navy hair, indigo hair, dark blue hair, amputee, severed leg, missing foot, cropped legs, cut off feet"
+ },
+ "gatewarden": {
+  "name": "관문수호자",
+  "style": "tank",
+  "tier": 3,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "tags": "gold-banded steel spear, rectangular pavise shield with engraved portcullis emblem, fluted steel breastplate with side cutouts, bare waist, steel pauldrons, navy cape, high-slit navy armored skirt, bare thigh, leather thigh straps, steel sabatons, open-faced steel sallet helm, gold chest chain, partial plate armor, stalwart",
+  "hairStyle": "wavy shoulder-length hair",
+  "pose": "standing relaxed, facing viewer, feet apart, spear held in one hand at the side with the shaft diagonal, tall shield lowered beside the other leg",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211,
+  "atkTags": "(dark navy split cape, ankle length:1.35), (short bob, chin length:1.3), navy blue armored bustier, bare midriff, navy pleated miniskirt, bare head, no helmet, knee-high black armored boots, gold trim, pale grey tattered tabard, double-ended gold spear, (holding large navy kite shield in the left hand:1.35)",
+  "atkNeg": "long hair, ponytail, twintails, helmet, hood, red armor, full plate armor, sword, blue hair, navy hair, indigo hair, dark blue hair, no shield, empty hand, weapon out of frame"
+ },
+ "bulwark_apex": {
+  "name": "분쇄의 거벽",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "axe",
+   "shield"
+  ],
+  "tags": "oversized flanged mace with battering-ram head, battle axe slung on back, bladed-edge tower shield, charcoal armored leotard with side cutouts, cracked copper breastplate, massive tower-like pauldrons, bare thighs, copper thigh-high greaves, red war paint on face, crimson glowing runes on mace, aggressive grin",
+  "hairStyle": "high bun",
+  "pose": "standing relaxed, facing viewer, feet apart, war maul held in one hand down at the side, shield lowered at the other side",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211,
+  "atkTags": "(large angular steel-grey pauldrons with dark red trim:1.35), (black high-cut leotard:1.3), no cape, short hair, high ponytail, covered midriff, bare head, no helmet, fully plated arm, long black gauntlets, gunmetal steel armor, dark crimson trim, bare thighs, knee-high black armored boots with red cuffs, holding heavy steel mace",
+  "atkNeg": "long hair, very long hair, cape, cloak, helmet, hood, white armor, greatsword, blue hair, navy hair, indigo hair, dark blue hair, bare shoulders, sleeveless, no pauldrons, unarmored arms"
+ },
+ "banditking": {
+  "name": "도적왕",
+  "style": "rogue",
+  "tier": 3,
+  "equip": [
+   "axe",
+   "sword"
+  ],
+  "tags": "assassin rogue, fur-trimmed dark hooded coat draped over shoulders, hood down, black leather strapless top, deep cleavage, bare shoulders, gold circlet, gold coin necklace, black half mask at neck, scarred cheek, dark leather pants, brass-bound battle axe held upright, longsword at hip, lean, sly smirk",
+  "hairStyle": "wavy shoulder-length hair",
+  "pose": "standing relaxed, facing viewer, feet apart, battle axe held in one hand at the side with the head clear of the ground, other arm loose",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211,
+  "atkTags": "(black off-shoulder open jacket:1.3), white fur collar, (chin length asymmetrical bob:1.3), side swept bangs, bare head, no helmet, black strapless leather bustier, bare midriff, black elbow gloves, black leather shorts, black thigh-high boots, black leather outfit, brown leather straps, huge double-bladed battle axe",
+  "atkNeg": "long hair, ponytail, helmet, hood, cape, white armor, covered midriff, greatsword, blue hair, navy hair, indigo hair, dark blue hair"
+ },
+ "reaper_apex": {
+  "name": "사신군주",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "scythe",
+   "dagger"
+  ],
+  "tags": "assassin rogue, long black hooded cloak, hood down, white skull half mask, black high-slit dress, bare leg, deep cleavage, dark pauldrons, bare shoulders, gold clasps, ornate black scythe with crimson blade held upright, dagger at thigh, black smoke wisps, glowing crimson accents, lean, sly",
+  "hairStyle": "hime cut",
+  "pose": "standing relaxed, facing viewer, feet apart, scythe held in one hand with the shaft vertical beside her, blade high above, other arm loose",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 211
+ },
+ "highpriest": {
+  "name": "대주교",
+  "style": "healer",
+  "tier": 3,
+  "equip": [
+   "staff",
+   "tome"
+  ],
+  "tags": "archbishop, tall white mitre with gold trim, strapless white and gold vestment gown, bare shoulders, backless, waist side cutouts, gold brocade mantle cape, white opera gloves, gold sun emblem pendant, ornate golden crozier staff, grimoire chained to belt, serene, prayer, falling golden light particles",
+  "hairStyle": "long straight hair",
+  "pose": "crozier staff held upright with both hands, head slightly bowed in prayer",
+  "neg": "sword planted in the ground, weapon planted in the ground, point down, tip on the ground, stuck in the ground, resting on the shoulder, weapon over the shoulder, hand on the pommel, kneeling, bowing, head bowed",
+  "seed": 11,
+  "atkTags": "(floor-length white veil trailing behind:1.35), very long straight hair past the hips, long sidelocks over the chest, (pure white sleeveless floor-length robe:1.3), covered midriff, dark navy panel down center front, bare shoulders, long white glove on one arm, (tall white and gold mitre bishop hat:1.4), feet hidden under long hem, white and gold color scheme, cloth robe not armor, ornate golden sunburst crozier staff",
+  "atkNeg": "short hair, bob cut, ponytail, helmet, colored cloak, black robe, plate armor, sword, blue hair, navy hair, indigo hair, dark blue hair, yellow robe, olive robe, brown robe, gold robe, amber, sepia, monochrome yellow"
+ }
+}

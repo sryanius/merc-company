@@ -1,0 +1,437 @@
+{
+ "goblin_shaman": {
+  "subject": "1boy",
+  "weapon": "staff",
+  "bg": "magenta",
+  "tags": "goblin, green skin, tattered charcoal grey robe, dark green trim, opaque solid dark robe, small stature, pointy ears, wrinkled, yellow eyes, dark charcoal hood, bone necklace, bone staff topped with animal skull, ochre yellowed bone, brown feathers tied to staff, ochre tribal face paint, cunning grin, bare green feet, flat even lighting, crisp silhouette, thick dark outlines",
+  "pose": "standing upright, slight hunch, facing viewer, feet apart, both feet on the ground, bone staff held vertically at his side, centered composition",
+  "neg": "human, orc, tall, muscular, chibi, cute, floating skulls, sparkles, wisps, fire, smoke, glow, outer glow, aura, halo, light bloom, glowing orb, glowing runes, magic light, backlight, rim light, brown robe, beige robe, pale robe, white robe, off-white cloth, translucent cloth, off-centre composition, empty left side",
+  "seed": 142,
+  "round": 4
+ },
+ "goblin_rider": {
+  "subject": "1boy",
+  "weapon": "spear",
+  "bg": "magenta",
+  "tags": "goblin, green skin, wolf skull helmet, grey wolf pelt cloak, wolf fang necklace, black studded leather armor, dark green cloth sash, thick wooden spear shaft with small iron tip, small stature, pointy ears, yellow eyes, sharp teeth, big nose, fierce grin, brown leather bracers, wiry, tribal raider, weathered",
+  "pose": "standing, feet apart, spear held upright vertically at his side, facing viewer",
+  "neg": "riding, mounted, horseback, horse, pony, furry, werewolf, wolf boy, anthro, live wolf, wolf companion, animal companion, second creature, dog, human, orc, tall, muscular, chibi, cute, oversized blade, huge blade, giant weapon head, cast shadow, shadow on ground, floor shadow",
+  "seed": 191,
+  "round": 3
+ },
+ "goblin_bomber": {
+  "subject": "1boy",
+  "weapon": "",
+  "bg": "magenta",
+  "tags": "goblin, solo, green skin, small stature, pointy ears, yellow eyes, sharp teeth, manic grin, holding large black iron bomb, lit fuse, smoldering fuse tip, dark olive leather hood, iron goggles on hood, dark brown leather armor, burnt dark orange cloth wrap, bandolier of round black bombs, soot-stained",
+  "pose": "standing, feet apart, bomb held up in one hand, other hand empty at side, facing viewer",
+  "neg": "explosion, smoke, sparks, embers, fire particles, fire in hand, holding fire, flame, spark burst, energy, gun, cannon, human, orc, tall, muscular, chibi, cute, beige background, white background, grey background, gradient background",
+  "seed": 22,
+  "keyingOnly": false
+ },
+ "hobgoblin": {
+  "subject": "1boy",
+  "weapon": "battle axe",
+  "bg": "magenta",
+  "tags": "hobgoblin, goblin, green skin, large, muscular, tall, broad shoulders, pointy ears, tusks, yellow eyes, scowl, iron helmet, chainmail armor, dark red tunic, brown leather belt, gold trim, dark oak round shield with iron rim, dark iron battle axe, red war paint, commanding, brutish",
+  "pose": "standing, feet apart, axe raised, shield held forward, chest out, facing viewer",
+  "neg": "small, short, skinny, chibi, cute, human, beige background, white background, grey background, gradient background",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "goblin_chief": {
+  "subject": "1boy",
+  "weapon": "great axe",
+  "bg": "magenta",
+  "tags": "goblin, solo, chieftain, green skin, stocky, muscular, pointy ears, tusks, yellow eyes, scarred, sneering grin, yellowed bone skull crown, bone necklace, dark iron chainmail, bronze pauldrons, dark red long cape, dark brown leather boots, dark wooden round shield with bone trim, huge great axe, holding great axe, imposing, tribal warlord",
+  "pose": "standing, feet apart, huge great axe held upright in one hand, shield at side, imposing, facing viewer",
+  "neg": "small, skinny, chibi, cute, human, gold crown, jeweled crown, floating skulls, 2boys, 3boys, multiple boys, multiple girls, goblin on shoulder, extra goblin, extra creature, minion, companion, imp, crowd, beige background, white background, grey background, gradient background",
+  "seed": 122,
+  "keyingOnly": false
+ },
+ "gray_wolf": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "lean gaunt wolf, ribs visible, matted scruffy fur, mouth closed, all four paws planted on the ground, opaque solid grey fur, flat even lighting, crisp clean silhouette, grey fur, shaded fur, lean body, gaunt, ribs showing, hungry, bared fangs, amber eyes, narrowed eyes, ears back, scruffy fur, matted fur, feral, wild animal, tense, menacing",
+  "pose": "standing on four legs, all four paws flat on the ground, three-quarter view, head turned toward viewer, mouth closed, snarling",
+  "neg": "human, humanoid, furry, anthro, wolf girl, monster girl, dog, collar, cute, chibi, fat, howling, head thrown back, side profile, pure side view, manga sound effect, japanese text, katakana, kanji, text, speech bubble, speed lines, motion lines, ink brush strokes, ink splatter, cast shadow, ground shadow, floor shadow, shadow on floor, ground, floor, dirt, open mouth, jaws open, roaring, gaping maw, mouth interior, tongue, howling, cast shadow, ground shadow, floor, ground, dirt, rock, grass",
+  "seed": 91,
+  "round": 4
+ },
+ "dire_wolf": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "wolf, dire wolf, opaque solid black fur, flat even lighting, crisp silhouette, all four paws planted on the ground, giant wolf, black fur, dark grey fur, shaggy fur, massive, muscular, thick neck, broad chest, huge fangs, bared teeth, red eyes, scarred muzzle, wild, menacing, hostile",
+  "pose": "standing on four legs, all four paws planted on the ground, three-quarter view facing viewer, snarling, hackles raised",
+  "neg": "human, humanoid, furry, anthro, wolf girl, monster girl, dog, collar, cute, chibi, small, raised paw, lifted paw, raised foreleg, walking, running, mid-stride, jumping, rim light, backlight, translucent fur, wispy fur, pink tint, cast shadow, ground shadow, floor shadow, shadow on floor, ground, floor",
+  "seed": 147,
+  "round": 4
+ },
+ "cave_spider": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "spider, giant spider, arachnid, eight legs, four pairs of thick bristly legs, compact cephalothorax, large round bulbous abdomen, dark grey carapace, black chitin, dull yellow markings on abdomen, chelicerae, venomous fangs, pedipalps, cluster of eight small glowing red eyes, thick blunt tarsal feet, opaque solid body, flat even lighting, crisp silhouette, monstrous, predatory, hostile",
+  "pose": "standing on eight legs, all eight feet planted on the ground, wide stance, body low, three-quarter view facing viewer, front pair of legs slightly raised, fangs bared",
+  "neg": "human, humanoid, biped, upright, standing upright, human torso, arms, hands, long thin spindly limbs, needle thin legs, tapering pointed legs, few legs, four legs, six legs, elongated head, lamprey, girl, arachne, monster girl, cute, chibi, spider web, web, silk thread, string, insect wings, dripping, drops, cast shadow, ground shadow, floor shadow, ground, floor",
+  "seed": 147,
+  "round": 4
+ },
+ "cave_bear": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "bear, brown bear, giant bear, solo, quadruped, feral, wild animal, dark brown fur, shaggy fur, huge, massive, hulking, thick limbs, long claws, bared fangs, roaring, small dark eyes, old scars, scarred snout, imposing, territorial",
+  "pose": "standing on four legs, three-quarter view, head turned toward viewer, open mouth, roaring",
+  "neg": "human, humanoid, (anthro:1.3), (werewolf:1.3), werebear, bipedal, standing upright, furry, humanoid chest, pectorals, bodybuilder, teddy bear, plush, panda, cute, chibi, clothes, shadow, cast shadow, ground shadow, grass, ground, floor, terrain, 2boys, multiple boys, multiple girls, extra creature, minion, companion, crowd",
+  "seed": 27,
+  "keyingOnly": false
+ },
+ "saber_cat": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "magenta",
+  "tags": "tiger, big cat, quadruped, four legs, thick striped fur, pale cream and dark brown stripes, muscular shoulders, long saber fangs hanging over the lower jaw, amber eyes, thick winter coat, short tail, feral, predatory, menacing, mouth closed",
+  "pose": "standing on four legs, all four paws flat on the ground, three-quarter view, head turned toward viewer, mouth closed, snarling",
+  "neg": "human, humanoid, anthro, werewolf, bipedal, furry, cat girl, monster girl, wolf, dog, hyena, canine, snout, house cat, kitten, open mouth, jaws open, roaring, tongue, cast shadow, ground shadow, floor, ground, grass, cute, chibi",
+  "seed": 101,
+  "round": 3,
+  "weaponNouns": []
+ },
+ "alpha_wolf": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "huge scarred alpha wolf, thick mane, mouth closed, floating in empty space, bared fangs over the closed lips, dire wolf, bare snout, open jaws, huge bared fangs visible, giant wolf, silver-grey fur, dark grey fur, shaded fur, thick shaggy mane, massive, towering, muscular, broad chest, glowing icy blue eyes, scarred snout, torn ear, battle scars, ancient, imposing, majestic, menacing",
+  "pose": "standing on four legs, all four paws flat, three-quarter view, head turned toward viewer, mouth closed, hackles raised",
+  "neg": "human, humanoid, furry, anthro, wolf girl, monster girl, dog, collar, cute, chibi, small, white fur, pure white, snow, frost, ice shards, snowflakes, multiple wolves, wolf pack, two wolves, wire muzzle, basket muzzle, dog muzzle, muzzle cage, muzzle strap, harness, bridle, halter, headgear, reins, leash, chain, tack, restraints, pet, open mouth, jaws open, roaring, gaping maw, mouth interior, tongue, howling, cast shadow, ground shadow, floor, ground, dirt, rock, grass, stone slab, rock platform, ground plane, pedestal, floor tiles, standing on rock, cliff edge, snow ground, grass, dirt, earth, terrain, horizon",
+  "seed": 93,
+  "round": 4
+ },
+ "hellhound": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "hellhound, demon dog, single head, one wolf head, solid opaque black fur, flames hugging the body outline, ember orange fur, glowing lava cracks in the skin, glowing orange eyes, flat even lighting, crisp silhouette, large hound, black fur, dark red fur, charred fur, cracked skin, glowing lava veins, bared fangs, open mouth, glowing orange mouth, small horns, muscular, demonic, menacing",
+  "pose": "standing on four legs, all four paws on the ground, three-quarter view facing viewer, head lowered, snarling, fangs bared",
+  "neg": "human, humanoid, furry, anthro, monster girl, dog girl, wolf girl, cute, chibi, leash, collar, second head, extra head, two heads, three heads, multiple heads, cerberus, detached flames, floating flames, flame wisps, fire trail, translucent fire, ghost fire, floating embers, ash particles, sparks, smoke, drool, saliva, lava pool, flames on floor, cast shadow, ground shadow, floor shadow, ground, floor",
+  "seed": 129,
+  "round": 4
+ },
+ "highwayman": {
+  "subject": "1boy",
+  "weapon": "bow",
+  "bg": "lime green",
+  "tags": "human bandit archer, drawing a longbow, wooden longbow with a taut bowstring, arrow nocked, quiver of arrows on the back, male, hood up, dark grey hood, bandana over mouth, short charcoal cape, black studded leather armor, leather bracers, tan skin, weathered, seasoned road bandit",
+  "pose": "standing, facing viewer, feet apart, drawing the bow, bowstring pulled back, bow held out in the front hand",
+  "neg": "gun, pistol, rifle, musket, firearm, barrel, scope, magazine, cartridge, modern weapon, crossbow, plate armor, knight, female, girl, cute, chibi",
+  "seed": 101,
+  "round": 4,
+  "pose_cn": "draw_bow",
+  "cn_strength": 1,
+  "weaponNouns": [
+   "bow",
+   "arrow",
+   "quiver",
+   "dagger",
+   "knife"
+  ]
+ },
+ "orc_warrior": {
+  "subject": "1boy",
+  "weapon": "battle axe",
+  "bg": "magenta",
+  "tags": "orc, green skin, colored skin, blackened studded leather armor, dark iron studs, iron battle axe with a dark iron haft, dark iron axe head, tusks, muscular, bald, pointy ears, scarred face, grin, orange loincloth, iron pauldron, bronze arm rings, brown fur trim, round wooden shield, iron rim, dark brown leather boots, opaque solid colors, flat even lighting, crisp silhouette, thick dark outlines, brutal, savage warrior, confident",
+  "pose": "standing, facing viewer, feet apart, both feet on the ground, battle axe held upright in one hand beside his head, haft vertical against the body, round shield held forward",
+  "neg": "goblin, small, skinny, cute, chibi, sword, helmet, cape, pale brown leather, tan leather, light brown leather, pale wooden haft, light brown wooden haft, translucent armor, rim light, backlight, white armor, pure white",
+  "seed": 142,
+  "round": 4
+ },
+ "orc_berserker": {
+  "subject": "1boy",
+  "weapon": "great axe",
+  "bg": "sky blue",
+  "tags": "orc, colored skin, green skin, tusks, extremely muscular, hulking, red hair, mohawk, pointy ears, shirtless, covered in scars, red war paint, dark red loincloth, dark leather belt, iron shackles, black leather boots, dark iron shin guards, huge double-bladed great axe, bloodstained axe, roaring, savage, frenzied berserker",
+  "pose": "standing, facing viewer, feet apart, great axe raised in both hands, roaring",
+  "neg": "goblin, small, skinny, cute, chibi, chest armor, breastplate, helmet, shield, sword, calm, blood splatter, blood drops, flying blood, fur boots, bare feet",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "orc_shieldbearer": {
+  "subject": "1boy",
+  "weapon": "mace",
+  "bg": "magenta",
+  "tags": "orc, colored skin, green skin, tusks, hulking, extremely muscular, dark iron great helm, open faced helmet, tusks visible, blackened iron plate armor, crude riveted plates, black trousers, black iron greaves, brown leather straps, bronze rivets, spiked mace, (massive rectangular tower shield:1.3), huge iron tower shield, dented, imposing",
+  "pose": "standing, facing viewer, feet apart, tower shield held in front, mace raised",
+  "neg": "goblin, small, skinny, cute, chibi, sword, axe, buckler, cape, door",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "orc_warlord": {
+  "subject": "1boy",
+  "weapon": "great axe",
+  "bg": "magenta",
+  "tags": "orc, green skin, large lower tusks, pointed ears, snarling green face, colored skin, open-faced dark iron horned helmet, whole orc face visible, matte blackened iron plate armor, charcoal steel, no shiny highlights, dark iron greaves and boots, hulking, extremely muscular, scarred face, spiked pauldrons, yellowed skull trophies on belt, dark red cape above the knee, red war paint, brown leather straps, massive double-bladed great axe, bloodstained, warlord, imposing, menacing",
+  "pose": "standing, facing viewer, feet apart, great axe held in both hands, chest out, dominant",
+  "neg": "goblin, small, skinny, cute, chibi, sword, shield, crown, floating skulls, blood splatter, closed helm, full helm, visor, helm covering the head, mask, human skin, red skin, brown skin, tan skin, knight, silver armor, polished steel, shiny metal, light grey armor, pale blue, blue armor",
+  "seed": 173,
+  "round": 3
+ },
+ "skeleton_soldier": {
+  "subject": "monster",
+  "weapon": "sword",
+  "bg": "magenta",
+  "tags": "skeleton, undead, animated skeleton, ochre yellowed bone, tan bone, dark grey bone shadows, thick dark outlines, dried grey flesh on limbs, skull head, hollow eye sockets, bare ribcage, dark brown tunic, dark leather straps, cracked bone armor pieces, rusted iron sword, small bronze buckler, risen ancient warrior, tattered, shaded, menacing, fantasy",
+  "pose": "standing, facing viewer, feet apart, sword held upright close to the body, buckler held forward",
+  "neg": "human, human skin, hair, muscular, white, pure white, off-white, ivory, pale grey cloth, light grey cloth, cast shadow, ground shadow, shadow on floor, floor, ground, rocks, rubble, standing on rock, cute, chibi, halloween costume, transparent",
+  "seed": 134,
+  "round": 4
+ },
+ "skeleton_archer": {
+  "subject": "monster",
+  "weapon": "bow",
+  "bg": "lime green",
+  "tags": "skeleton, undead, skeleton archer, dark weathered bone, grey-brown bone, single skull head, crude wooden bow held upright, hollow eye sockets, blue glowing eyes, blue fire in eye sockets, ragged black tattered tunic, dark leather straps, cracked bone armor pieces, small quiver on hip, rusted arrowheads, shaded, menacing, fantasy",
+  "pose": "standing, facing viewer, feet apart, drawing the bow, bowstring pulled back to the jaw, bow held out in the front hand",
+  "neg": "human, flesh, skin, hair, muscular, pure white, cream white, cute, chibi, gun, rifle, halloween costume, wisps, floating flames, fire particles, transparent, animal skull, horse skull, skull mask, extra head, two heads, multiple heads, from side, profile view, wooden plank, board, cast shadow, shadow on ground",
+  "seed": 91,
+  "round": 3,
+  "pose_cn": "draw_bow",
+  "cn_strength": 1.1
+ },
+ "plague_zombie": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "magenta",
+  "tags": "zombie, undead, shambling zombie, rotting corpse, bloated belly, fat decaying body, grey-green rotting skin, exposed ribs, torn olive shirt, ragged short trousers, bare rotten legs, bare feet, dirty grey bandaged arms, clawed hands, plague boils, open wounds, hunched shoulders, shaded, grotesque, menacing, fantasy",
+  "pose": "standing, facing viewer, feet apart, legs visible, arms outstretched forward, hunched shoulders",
+  "neg": "cute, chibi, pretty, clean, healthy, slim, weapon, floating, dripping, drips, puddle, transparent, robe, cloak, hood, dress, long skirt, wraith, ghost, spectre, spirit, hidden legs, no legs, levitating",
+  "seed": 122,
+  "keyingOnly": false
+ },
+ "ghoul": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "ghoul, undead, blood smeared on jaw only, gaunt emaciated body, ashen grey skin, bald, sunken face, sharp fangs, long black claws, bony visible ribs, torn dark grey rags, dirty loincloth, bare clawed feet, hunched predatory posture, thick dark outlines, shaded, feral, menacing, fantasy",
+  "pose": "standing, three-quarter view, slightly hunched, claws raised, feet apart, both feet visible",
+  "neg": "blood pool, blood puddle, blood on ground, blood on floor, blood splatter, cast shadow, ground shadow, shadow on floor, floor, ground, dirt, cute, chibi, pretty, muscular, clean, weapon, floating, wisps, smoke, pure white, transparent",
+  "seed": 34,
+  "round": 4
+ },
+ "swamp_troll": {
+  "subject": "1boy",
+  "weapon": "mace",
+  "bg": "sky blue",
+  "tags": "troll, orc, green skin, mossy warty skin, hulking, huge muscular body, long arms, hunched, bald, tusks, underbite, beady eyes, pointy ears, bare chest, tattered mud-brown loincloth, rope belt, yellowed bone necklace, scarred, crude iron mace, spiked mace, slimy skin, grotesque, brutish",
+  "pose": "standing, facing viewer, feet apart, hunched shoulders, mace raised in one hand",
+  "neg": "handsome, bishounen, slender, skinny, cute, chibi, young, armor, helmet, cape, wings, horns, homestuck",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "ancient_troll": {
+  "subject": "1boy",
+  "weapon": "war hammer",
+  "bg": "sky blue",
+  "tags": "troll, orc, moss green skin, bark-like gnarled skin, towering, huge muscular body, long tangled green hair, green beard, tusks, underbite, (large yellowed bone crown:1.2), glowing green runes on skin, yellowed skull trophies on belt, tattered brown hide cape, brown loincloth, enormous stone war hammer, imposing",
+  "pose": "standing, facing viewer, feet apart, war hammer held upright in both hands",
+  "neg": "handsome, bishounen, slender, skinny, cute, chibi, plate armor, helmet, wings, horns, homestuck, small, young, falling leaves, floating vines, floating runes, fireflies",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "darkelf_ranger": {
+  "subject": "1boy",
+  "weapon": "longbow",
+  "bg": "lime green",
+  "tags": "dark elf, ash grey skin, dark grey skin, desaturated grey skin, long pointed elf ears clearly visible outside the hood, masculine face, flat chest, silver hair, ponytail, black hood, red eyes, slender, black leather armor, ornate silver trim, silver buckles, dark purple sash, black leather trousers, leather greaves, leather bracers, belt pouches, quiver on back, arrows with fletching, black longbow, thick taut bowstring, archer, ranger, stealthy, cold expression, flat even lighting, thick dark outlines",
+  "pose": "standing, facing viewer, feet apart, both feet on the ground, longbow held vertically at his side, bow limbs parallel to the body, taut bowstring visible, other hand on the quiver strap, centered composition, character fills the frame",
+  "neg": "1girl, female, breasts, feminine, long skirt, skirt, dress, floor-length robe, gown, tan skin, brown skin, warm skin tone, light skin, pale skin, pure white, white clothes, hidden ears, short round ears, gun, pistol, rifle, off-centre composition, diagonal composition, tiny distant figure, wide empty margins, cute, chibi",
+  "seed": 26,
+  "round": 4
+ },
+ "darkelf_warlock": {
+  "subject": "1boy",
+  "weapon": "wand",
+  "bg": "lime green",
+  "tags": "dark elf, dark-skinned male, dark skin, pointy ears, silver hair, long hair, silver circlet, red eyes, slender, dark purple robe, silver embroidery, long black cape, short black wand with silver tip, holding dark purple orb, black boots, warlock, sinister",
+  "pose": "standing, facing viewer, feet apart, wand raised in one hand, dark orb held at chest in other hand, boots visible under robe",
+  "neg": "1girl, female, breasts, light skin, pale skin, pure white, white clothes, levitating sphere, aura, dark smoke, wisps, ornate frame, baroque frame, mirror, decorative border, background ornament, filigree, emblem, halo, wings, pattern behind, engraving, pale grey background, white background, gradient background, cute, chibi",
+  "seed": 130,
+  "keyingOnly": false
+ },
+ "darkelf_priestess": {
+  "subject": "1girl",
+  "weapon": "staff",
+  "bg": "lime green",
+  "tags": "dark elf, dark-skinned female, dark skin, pointy ears, silver hair, very long hair, ornate silver crown, red eyes, dark purple robe, silver embroidery, long black cape, silver jewelry, ornate silver staff with spider motif, holding dark purple orb, high priestess, black boots",
+  "pose": "standing, facing viewer, upright, feet apart, staff planted upright at side in one hand, dark orb held in other hand, boots visible under robe",
+  "neg": "1boy, male, light skin, pale skin, pure white, white robe, revealing clothes, cleavage, spider legs, extra limbs, levitating sphere, circle, ring, summoning circle, sigil, emblem, halo, glyph, spider web, web, background pattern, background decoration, decorative frame, cape train, wide spread cape, pale grey background, white background, gradient background, cute, chibi",
+  "seed": 23,
+  "keyingOnly": false
+ },
+ "lizardman_spear": {
+  "subject": "1boy",
+  "weapon": "spear",
+  "bg": "magenta",
+  "tags": "lizardman, monster boy, reptile, green scales, lizard tail, snout, yellow eyes, sharp teeth, athletic build, green leather armor, olive-brown cloth wrap, bronze spearhead, wooden spear, round wooden shield, bronze rim, tribal ornaments, yellowed bone necklace, swamp warrior, stern",
+  "pose": "standing, facing viewer, feet apart, spear held upright, round shield on other arm at side",
+  "neg": "human, human skin, hair, fur, wings, 1girl, female, beige background, cream background, white background, gradient background",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "lizardman_bruiser": {
+  "subject": "1boy",
+  "weapon": "halberd",
+  "bg": "magenta",
+  "tags": "lizardman, monster boy, reptile, dark green scales, hulking, muscular, thick tail, snout, sharp teeth, yellow eyes, dark tarnished bronze horned helmet, chainmail armor, dark tarnished bronze pauldrons, orange cloth, dark gold ornaments, massive dark bronze halberd, battle scars, imposing, brutal, swamp champion",
+  "pose": "standing, facing viewer, feet wide apart, halberd held upright in both hands, thick tail to the side",
+  "neg": "human, human skin, hair, fur, wings, cute, chibi, 1girl, female, beige background, cream background, white background, gradient background",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "cultist_acolyte": {
+  "subject": "1boy",
+  "weapon": "dagger",
+  "bg": "lime green",
+  "tags": "cultist, holding a plain dark iron dagger, grey steel blade, short straight ritual knife, blade pointing down, acolyte, worn dark crimson hooded robe, hood shadowing face, pale chin, rope belt, gold sigil pendant, thin build, open forbidden book in other hand, dark leather tome, yellowed parchment pages, bloodstained sleeves, chanting, ominous, ragged",
+  "pose": "standing, facing viewer, feet together, dagger held low at side pointing down, open book held at chest",
+  "neg": "muscular, plate armor, knight, floating runes, glowing runes in air, blood splatter in air, cute, cheerful, red blade, crystal blade, energy blade, flame, fire, glowing weapon, magic in hand",
+  "seed": 23,
+  "round": 2
+ },
+ "frost_spirit": {
+  "subject": "1girl",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "yuki-onna, snow woman, youkai, pale skin, long straight silver-white hair, icy blue eyes, white kimono with dark blue trim, wide sleeves, obi sash, frost patterns on the fabric, icicle ornaments in the hair, cold expression, ethereal, opaque solid fabric, feet in wooden sandals",
+  "pose": "standing upright, facing viewer, feet apart, both feet visible on the ground, hands together at the chest",
+  "neg": "transparent, translucent, see-through, ghost, dissolving, fading, floating, hovering, no legs, spirit tail, mist, fog, snowflakes, falling snow, ice shards, floating orbs, magic orb, cute, chibi, nude",
+  "seed": 101,
+  "round": 4,
+  "pose_cn": null,
+  "cn_strength": 0.85,
+  "weaponNouns": []
+ },
+ "hoarfrost_seer": {
+  "subject": "1boy",
+  "weapon": "staff",
+  "bg": "lime green",
+  "tags": "frost shaman, seer, elderly man, upright posture, straight back, short robe hem above the ankles, dark leather boots visible, deep blue hooded robe, grey fur-trimmed hood, grey fur mantle, long silver-grey hair, long grey beard, pale weathered face, thick gnarled wooden staff with small blue ice crystal finial, staff shaft held against the body, holding glowing icy blue orb, tribal, mystic, ominous",
+  "pose": "standing upright, facing viewer, straight back, feet apart, staff held vertical close to the body in one hand, glowing icy orb held at chest in other hand",
+  "neg": "snowflakes, floating ice, snow, mist, fog, white fur, young, cute, armor, knight, hunched, leaning forward, bowed head, looking down, profile view, from side, horizontal pole, diagonal pole, tilted rod, held away from the body, outstretched arm, hanging beads, bead cord, tassel, dangling ornament, floor-length robe covering the feet, robe pooling on the ground, hidden feet",
+  "seed": 148,
+  "round": 3
+ },
+ "stone_golem": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "lime green",
+  "tags": "stone golem, massive hulking body carved from dark grey stone, rough boulder texture, uneven cracked granite, ancient weathered rock, blocky stone limbs, huge stone fists, dark iron bands, glowing violet runes on chest, small carved head, expressionless stone face, glowing violet eyes, ancient guardian, imposing, hostile",
+  "pose": "standing, facing viewer, feet apart, arms at sides, fists clenched, hunched shoulders",
+  "neg": "human, flesh, skin, hair, clothes, cloth, fur, moss, plants, vines, floating rocks, rubble, debris, dust, pedestal, plinth, statue base, green, lime green, green glow, green emblem, green markings, chevron, robot, mecha, mechanical, power armor, cyborg, metal plating, armor plates, cute",
+  "seed": 140,
+  "keyingOnly": false
+ },
+ "storm_wisp": {
+  "subject": "monster",
+  "weapon": "",
+  "bg": "magenta",
+  "tags": "storm elemental, humanoid, holding solid blue crystal orb, opaque orb, hard dark outline around orb, thick solid lightning bolts with dark outlines, solid ash grey skin, electric blue lightning wrapped tightly around arms and torso, crackling blue lightning mohawk, dark blue tattered wings, tattered dark blue cloth wraps at waist, short hem, bare feet visible, glowing blue eyes, fierce, menacing",
+  "pose": "standing, facing viewer, feet apart, wings half-folded, crystal orb held in one hand at his side, both feet visible, centered composition",
+  "neg": "outer glow, glow halo, aura, bloom, light halo, glowing haze, soft light, backlight, rim light, soft edges, feathered edges, second sphere, extra sphere, two spheres, floating sphere in air, levitating sphere, cloth pooling on floor, long train, trailing cloth, cast shadow, ground shadow, shadow on floor, floor, ground, rain, storm clouds in background, thunderstorm scenery, clouds, lightning in the air, transparent, translucent, ghost, human skin, flesh, armor, feathers, cute",
+  "seed": 176,
+  "round": 4
+ },
+ "demon_warrior": {
+  "subject": "1boy",
+  "weapon": "greatsword",
+  "bg": "lime green",
+  "tags": "demon, red skin, colored skin, muscular, hulking, horned helmet, glowing red eyes, fangs, heavy black plate armor, spiked pauldrons, dark iron gauntlets, tattered black cape, one huge jagged greatsword, blood red accents, glowing red cracks on armor, menacing, imposing",
+  "pose": "standing, facing viewer, feet apart, single huge greatsword planted point-down in front, both hands on pommel",
+  "neg": "cute, chibi, human skin, pale skin, slim, thin, dragon, wings, blood pool, blood puddle, blood on ground, dripping blood, drips, ground shadow, floor, dual wielding, second blade, extra weapon, multiple weapons",
+  "seed": 139,
+  "keyingOnly": true
+ },
+ "abyss_hierophant": {
+  "subject": "1boy",
+  "weapon": "staff",
+  "bg": "lime green",
+  "tags": "demon, red skin, colored skin, curved horns, glowing eyes, hooded dark violet robe, deep purple cloth, hem at ankle, dark boots visible, ornate gold trim, gold pauldrons, long dark cape, gold chains, ornate gold staff topped with dark crystal, dark orb held in other hand, high priest, regal, ominous",
+  "pose": "standing, facing viewer, feet apart, staff planted at side, orb held in open palm, boots visible under robe",
+  "neg": "cute, chibi, pale skin, human skin, wings, levitating sphere, skull, white robe, light grey fabric, pale lavender cloth, silver cloth, white hem, trailing hem, robe pooling on floor, long train",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "nightmare_stalker": {
+  "subject": "1boy",
+  "weapon": "dual daggers",
+  "bg": "lime green",
+  "tags": "demon, dark ashen grey skin, shaded skin, colored skin, curved black horns, dark iron mask, glowing violet eyes, slim, lean, dark leather armor, black straps, ragged-edged dark cape, solid cloth, violet accents, dual curved black daggers, assassin, predatory, sinister",
+  "pose": "standing, facing viewer, feet apart, dual daggers held in reverse grip at sides",
+  "neg": "cute, chibi, pale skin, white skin, human skin, wings, bulky, muscular, heavy armor, holes in cape, see-through holes, torn holes, perforated, moth-eaten cloth",
+  "seed": 21,
+  "keyingOnly": true
+ },
+ "blight_druid": {
+  "subject": "1boy",
+  "weapon": "staff",
+  "bg": "lime green",
+  "tags": "old man, druid, gaunt, ashen grey skin, long green hair, antlers, dark green hooded robe, black inner robe, dark moss-green tattered cloak, worn dark leather boots visible under robe, blackened bone necklace, gnarled wooden staff with glowing green orb, fungus on shoulders, rotting leaves on robe, sinister smile, decayed, dark fantasy",
+  "pose": "standing, facing viewer, feet apart, staff held upright in one hand, orb held in other hand, boots visible under robe, robe hem above ankles",
+  "neg": "cute, chibi, young man, muscular, floating leaves, falling leaves, spores, tree, grass, bushes, flowers, bright, cheerful, brown robe, tan cloth, beige cloth, shadow on ground, roots on ground, floor, ground, beige background, grey background, white background",
+  "seed": 140,
+  "keyingOnly": false
+ },
+ "storm_herald": {
+  "subject": "1girl",
+  "weapon": "wand",
+  "bg": "lime green",
+  "tags": "dark elf, storm sorceress, pointed ears, ash grey skin, long blue hair, ornate silver circlet, silver jewelry, azure blue robe with silver trim, dark grey feathered wings folded behind, blue lightning wrapped around arm, black metal wand with glowing blue crystal tip, dark wand, glowing blue crystal orb held in left hand, stern expression, regal, dark fantasy",
+  "pose": "standing, facing viewer, feet apart, dark wand raised overhead in right hand, orb held in left hand, wings folded behind",
+  "neg": "cute, chibi, stray lightning bolts, storm clouds, clouds, rain, wings spread, white wings, white robe, purple skin, silver rod, white rod, pale metal shaft, white glow, ribbon, streamer, floating sphere, grey background, pale background",
+  "seed": 21,
+  "keyingOnly": false
+ },
+ "void_titan": {
+  "subject": "monster",
+  "weapon": "war hammer",
+  "bg": "lime green",
+  "tags": "skeleton titan, undead, (jagged crown of dark crystal:1.3), crowned skull, exposed skull, grey skull face, glowing violet eye sockets, grey bone body, hulking, black obsidian heavy armor, rock-encrusted pauldrons, violet crystal shards on shoulders, long tattered black cape, enormous tower shield, gigantic war hammer, imposing, dark fantasy",
+  "pose": "standing, facing viewer, feet apart, tower shield at side, war hammer raised, crown visible",
+  "neg": "cute, chibi, floating rocks, floating debris, stars, meteor, flesh, skin, hair, small, slim, ground, floor, crystal floor, stone floor, rubble, shadow on ground, purple floor, hood, cowl, hooded",
+  "seed": 23,
+  "keyingOnly": false
+ },
+ "cult_priest": {
+  "subject": "1boy",
+  "weapon": "staff",
+  "bg": "lime green",
+  "tags": "cult priest, closed fist gripping the staff shaft, staff planted upright on the ground beside him, short compact torch flame, robe hem at ankle, black boots visible, hooded, ornate crimson vestments, dark red ceremonial robe, heavy gold embroidery, gold trim, gold half mask, long dark red cape, pale skin, ornate gold staff, gold skull finial, holding burning torch in other hand, bloodstained sleeves, ritual, sinister, imposing",
+  "pose": "standing, facing viewer, feet apart, staff gripped in closed fist and planted upright on the ground beside him, torch held low in other hand, boots visible",
+  "neg": "floating fire, fireball, embers, sparks, smoke, flames in air, fire in background, plate armor, knight, young, cute, open palm, open hand, hovering object, levitating object, long flame wisps, flame trails, detached flames, floor-length robe, trailing hem, robe pooling on floor, hidden feet",
+  "seed": 22,
+  "round": 2
+ },
+ "wight": {
+  "subject": "monster",
+  "weapon": "wand",
+  "bg": "lime green",
+  "tags": "wight, knee-length tattered robe, skeletal legs and bony feet visible below hem, standing on ground, solo, two arms only, undead, skeletal, yellowed bone skull face, hollow eye sockets, tattered black hooded robe, ragged dark cloak, violet trim, bony hands, gnarled bone wand with violet gem, gaunt, vengeful, eerie, ominous, weathered, fantasy",
+  "pose": "standing on ground, facing viewer, feet apart, wand raised in one hand, other bony hand outstretched, bony feet visible below hem",
+  "neg": "cute, chibi, pretty, human skin, flesh, hair, pure white, floating skulls, wisps, ghost flames, levitating, floating, legless, ghost tail, transparent, translucent, extra limbs, extra arms, tentacles, horns, tree branches, antlers, giant claw, wings, wide skirt, robe pooling on floor, floor-length robe, second creature",
+  "seed": 22,
+  "round": 2
+ },
+ "abyss_reaper": {
+  "subject": "1boy",
+  "weapon": "scythe",
+  "bg": "lime green",
+  "tags": "demon, grim reaper, long scythe haft, both hands on the haft, blade mounted on the shaft, one long wooden shaft, red skin, colored skin, curved horns through hood, glowing eyes under hood, fanged grin, black hooded cloak, long dark robe, tattered hem, ornate violet trim, dark iron gauntlets, huge black scythe with curved obsidian blade, violet glow along blade, ominous, sinister",
+  "pose": "standing, facing viewer, both hands gripping a long wooden scythe haft, haft planted vertically at his side, huge curved blade rising above the shoulder",
+  "neg": "cute, chibi, skeleton, skull, bone, white robe, pale skin, human skin, wings, bat wings, membrane wings, feathered wings, demon wings, floating blade, detached blade, blade without handle, crossed arms, arms crossed on chest",
+  "seed": 44,
+  "round": 3
+ }
+}

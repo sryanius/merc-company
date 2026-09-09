@@ -52,6 +52,7 @@
  *
  * 사용 (★ 판정에 쓸 표는 `--grid` 다 — 운에 안 기댄다):
  *   node tools/abysspower.mjs --grid=3        # ★ 격자 스윕 → 「전력 → 심층」 표 + 결론
+ *       └ §184 덧칠 축: 세트 2·3단 · 각성 영웅(400 관문 위). 빼려면 --notiers / --nohero
  *   node tools/abysspower.mjs --search=500    # 가장 깊이 가는 **편성** 찾기 (DEEP_ROSTER 갱신용)
  *   node tools/abysspower.mjs --minpower=400  # 목표 심층을 가장 싼 전력으로 (언덕오르기)
  *   node tools/abysspower.mjs --capped=500    # 전력 상한 이하 최대 심층 (언덕오르기)
@@ -246,7 +247,9 @@ export function setup(o = {}) {
       hero: isHero ? classId : null, awakened: isHero && !o.unawakened,
     };
     if (o.gear === 'sets') {
-      const setId = slotPlan.setId || setForArch(cls.arch);
+      /* §184 세트 단 — 기본 1단. 같은 계열의 2·3단은 조각 예산만 크다 (setIdAtTier) */
+      const baseSetId = slotPlan.setId || setForArch(cls.arch);
+      const setId = Sets.setIdAtTier(baseSetId, slotPlan.setTier || o.setTier || 1);
       for (const slot of FILL_ORDER.slice(0, nSlots)) {
         // minLv 를 레벨 이하로 눌러 «게임에서 실제로 낄 수 있는» 조각으로 만든다
         const it = Sets.setPieceItem(setId, slot, mIlvl, { uid: `ap_it_${i}_${slot}`, minLv: 1 });
@@ -769,11 +772,22 @@ if (import.meta.url === `file:///${String(process.argv[1] || '').replace(/\\/g, 
      *   전력에 안 잡히는 것(펫S · 세트 고유효과 · 진형)은 항상 최대로 켠다.
      */
     const runs = parseInt(arg('grid', '3'), 10) || 3;
-    const cap = parseInt(arg('cap', '130'), 10) || 130;   // 96 보다 한참 위 — 판정엔 영향 없다
+    /* ★ §184 상한을 500 으로 — 세트 3단과 각성 영웅이 생기면서 바닥(DEPTH_CAP)에 닿는다 */
+    const cap = parseInt(arg('cap', '500'), 10) || 500;
     const levels = [1, 3, 5, 8, 10, 12, 15, 18, 20, 25, 30, 35, 40, 50, 60, 70, 80];
     const grades = ['F', 'D', 'C', 'B', 'A', 'S'];
     const gearOpts = [['맨몸', null], ['ilvl1', 1], ['ilvl10', 10], ['ilvl25', 25], ['ilvl50', 50], ['ilvl=Lv', 'lv'], ['ilvl80', 80]];
-    console.log(`판 검사 ✓  격자 스윕 (레벨 ${levels.length} × 등급 ${grades.length} × 장비 ${gearOpts.length} · 각 ${runs}회 · 펫S · 진형 ${DEEP_FID} · 심층 ${cap} 에서 자름)`);
+    /* ★ §184 덧칠 축 — 전부 곱하면 4천 구성이라 포락선을 정할 만한 곳만 골라 더한다:
+     *   · 2·3단 세트는 깊은 쪽에서만 포락선을 올린다 (Lv20+ · A·S · 장비는 ilvl=Lv 와 ilvl80)
+     *   · 각성 영웅은 400 관문(§178) 위를 여는 **유일한** 축이다 — 영웅 없이는 400 에서 멈춘다.
+     *     영웅은 등급 S 고정 · 각성하면 Lv100 까지 큰다. */
+    const tierLevels = [20, 30, 40, 50, 60, 70, 80];
+    const tierGrades = ['A', 'S'];
+    const tierGear = [['ilvl=Lv', 'lv'], ['ilvl80', 80]];
+    const heroLevels = [50, 60, 70, 80, 90, 100];
+    const nExtra = (has('notiers') ? 0 : tierLevels.length * tierGrades.length * tierGear.length * 2)
+      + (has('nohero') ? 0 : heroLevels.length * 3 * 2);
+    console.log(`판 검사 ✓  격자 스윙 (기본 ${levels.length} × ${grades.length} × ${gearOpts.length} + 덧칠 ${nExtra} 구성 · 각 ${runs}회 · 포S · 진형 ${DEEP_FID} · 심층 ${cap} 에서 자름)`);
     const rows = [];
     const t0 = Date.now();
     for (const lv of levels) {
@@ -785,6 +799,32 @@ if (import.meta.url === `file:///${String(process.argv[1] || '').replace(/\\/g, 
             : { ...base, gear: 'sets', setIlvl: gi === 'lv' ? lv : gi };
           const m = measure(o, runs);
           rows.push({ label: `Lv${lv} ${gr} ${gname}`, ...m });
+        }
+      }
+    }
+    /* §184 2·3단 세트 */
+    if (!has('notiers')) {
+      for (const tier of [2, 3]) {
+        for (const lv of tierLevels) {
+          for (const gr of tierGrades) {
+            for (const [gname, gi] of tierGear) {
+              const m = measure({ roster: DEEP_ROSTER, level: lv, grade: gr, formation: DEEP_FID, pets: 'max',
+                maxDepth: cap, gear: 'sets', setTier: tier, setIlvl: gi === 'lv' ? lv : gi }, runs);
+              rows.push({ label: `Lv${lv} ${gr} ${tier}단${gname}`, ...m });
+            }
+          }
+        }
+      }
+    }
+    /* §184 각성 영웅 — 400 관문 위는 이 축만 열 수 있다 */
+    if (!has('nohero')) {
+      for (const tier of [1, 2, 3]) {
+        for (const lv of heroLevels) {
+          for (const [gname, gi] of tierGear) {
+            const m = measure({ roster: DEEP_ROSTER, level: lv, grade: 'S', hero: true, formation: DEEP_FID,
+              pets: 'max', maxDepth: cap, gear: 'sets', setTier: tier, setIlvl: gi === 'lv' ? Math.min(80, lv) : gi }, runs);
+            rows.push({ label: `Lv${lv} 영웅 ${tier}단${gname}`, ...m });
+          }
         }
       }
     }
@@ -809,7 +849,7 @@ if (import.meta.url === `file:///${String(process.argv[1] || '').replace(/\\/g, 
     }
     console.log(`(포락선이 오른 ${shown}줄만 표시 — 전체 ${env.length}줄)`);
 
-    const STOPS = [5000, 10000, 20000, TARGET_POWER, 30000, 50000, 75000, 100000, 150000, 190470];
+    const STOPS = [5000, 10000, 20000, TARGET_POWER, 30000, 50000, 75000, 100000, 150000, 190470, 250000, 300000, 400000];
     console.log('');
     console.log('요청 지점 — 「그 전력 **이하**로 도달한 최대 심층」');
     console.log('-'.repeat(76));
@@ -821,7 +861,7 @@ if (import.meta.url === `file:///${String(process.argv[1] || '').replace(/\\/g, 
     console.log('');
     console.log('심층별 **최소 필요 전력**');
     console.log('-'.repeat(76));
-    for (const d of [20, 40, 50, 60, 70, 80, 85, 90, 92, 95, 96, 100, 120, 150]) {
+    for (const d of [20, 40, 60, 80, 96, 100, 150, 200, 250, 300, 350, 400, 450, 500]) {
       const h = minPowerFor(legalRows, d);
       console.log(`${String(d).padStart(6)}심층  ${h ? h.power.toLocaleString().padStart(11) : '  도달 없음'}  ${h ? h.label : ''}`);
     }

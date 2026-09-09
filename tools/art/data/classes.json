@@ -1,0 +1,1957 @@
+[
+ {
+  "id": "swordsman",
+  "name": "검사",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 1,
+  "equip": [
+   "sword",
+   "shield"
+  ],
+  "desc": "어느 전장에나 한둘은 있는, 균형 잡힌 검술 용병.",
+  "skills": [
+   "베기 — 전방의 적을 힘껏 베어 넘긴다."
+  ],
+  "next": [
+   "berserker",
+   "swordmaster"
+  ]
+ },
+ {
+  "id": "spearman",
+  "name": "창병",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 1,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "긴 창으로 줄지어 선 적을 한 번에 꿰뚫는 보병.",
+  "skills": [
+   "관통 찌르기 — 창을 내질러 일렬로 선 적 둘을 한 번에 꿰뚫는다."
+  ],
+  "next": [
+   "dragoon",
+   "halberdier"
+  ]
+ },
+ {
+  "id": "shieldman",
+  "name": "방패병",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 1,
+  "equip": [
+   "mace",
+   "sword",
+   "shield"
+  ],
+  "desc": "앞줄에서 버티는 것이 전부이자 전문인 사내.",
+  "skills": [
+   "방패 강타 — 방패로 적의 투구를 후려쳐 잠시 기절시킨다."
+  ],
+  "next": [
+   "knight",
+   "guardian"
+  ]
+ },
+ {
+  "id": "archer",
+  "name": "궁수",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 1,
+  "equip": [
+   "bow",
+   "dagger"
+  ],
+  "desc": "후열에서 조용히 적의 숫자를 줄여 나간다.",
+  "skills": [
+   "조준 사격 — 가장 약해진 적을 침착하게 겨눠 쏜다."
+  ],
+  "next": [
+   "sniper",
+   "hunter"
+  ]
+ },
+ {
+  "id": "rogue",
+  "name": "도적",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 1,
+  "equip": [
+   "dagger",
+   "sword"
+  ],
+  "desc": "정면 승부를 경멸하고 언제나 등 뒤를 노린다.",
+  "skills": [
+   "급습 — 적진 뒤로 파고들어 무방비한 등을 찌른다."
+  ],
+  "next": [
+   "assassin",
+   "outlaw"
+  ]
+ },
+ {
+  "id": "apprentice",
+  "name": "견습마법사",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 1,
+  "equip": [
+   "staff",
+   "wand"
+  ],
+  "desc": "탑에서 쫓겨났거나, 학비가 모자란 어린 술사.",
+  "skills": [
+   "마력탄 — 응축한 마력 덩어리를 쏘아 보낸다."
+  ],
+  "next": [
+   "elementalist",
+   "necromancer"
+  ]
+ },
+ {
+  "id": "acolyte",
+  "name": "수도사",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 1,
+  "equip": [
+   "mace",
+   "staff"
+  ],
+  "desc": "전장을 순례지로 삼아 상처를 어루만지는 수행자.",
+  "skills": [
+   "치유의 손길 — 가장 다친 아군의 상처를 어루만져 회복시킨다."
+  ],
+  "next": [
+   "priest",
+   "monk"
+  ]
+ },
+ {
+  "id": "berserker",
+  "name": "광전사",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 2,
+  "equip": [
+   "greatsword",
+   "axe"
+  ],
+  "desc": "갑옷을 벗어던진 대신 두 배로 휘두른다.",
+  "skills": [
+   "베기 — 전방의 적을 힘껏 베어 넘긴다.",
+   "광란 — 이성을 놓고 날뛰어 공격력과 속도를 끌어올린다."
+  ],
+  "next": [
+   "madgeneral",
+   "bloodfiend"
+  ]
+ },
+ {
+  "id": "swordmaster",
+  "name": "검성",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 2,
+  "equip": [
+   "katana",
+   "sword"
+  ],
+  "desc": "검 하나를 평생 갈아 온 자의 정갈한 살의.",
+  "skills": [
+   "베기 — 전방의 적을 힘껏 베어 넘긴다.",
+   "월광참 — 초승달 궤적으로 앞줄의 적 셋을 한꺼번에 벤다."
+  ],
+  "next": [
+   "swordgod",
+   "skysplitter"
+  ]
+ },
+ {
+  "id": "dragoon",
+  "name": "창기병",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 2,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "말은 잃었어도 돌격 습관만은 남은 기병.",
+  "skills": [
+   "관통 찌르기 — 창을 내질러 일렬로 선 적 둘을 한 번에 꿰뚫는다.",
+   "돌격창 — 말발굽처럼 내달려 적의 갑주를 찢어놓는다."
+  ],
+  "next": [
+   "dragoonlord",
+   "skylancer"
+  ]
+ },
+ {
+  "id": "halberdier",
+  "name": "미늘창병",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 2,
+  "equip": [
+   "spear",
+   "scythe"
+  ],
+  "desc": "찌르고 베고 걸어 넘긴다. 미늘창 하나로 전부.",
+  "skills": [
+   "관통 찌르기 — 창을 내질러 일렬로 선 적 둘을 한 번에 꿰뚫는다.",
+   "미늘 휘두르기 — 미늘창을 크게 휘둘러 앞줄을 통째로 쓸어버린다."
+  ],
+  "next": [
+   "gatewarden",
+   "reaper"
+  ]
+ },
+ {
+  "id": "knight",
+  "name": "중갑기사",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 2,
+  "equip": [
+   "sword",
+   "mace",
+   "shield"
+  ],
+  "desc": "작위는 팔아먹었지만 갑주와 긍지는 남겨 두었다.",
+  "skills": [
+   "방패 강타 — 방패로 적의 투구를 후려쳐 잠시 기절시킨다.",
+   "방벽 태세 — 방패를 세워 두터운 보호막과 방어력을 얻는다."
+  ],
+  "next": [
+   "paladin",
+   "blackknight"
+  ]
+ },
+ {
+  "id": "guardian",
+  "name": "수호기사",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 2,
+  "equip": [
+   "mace",
+   "shield"
+  ],
+  "desc": "제 몸보다 뒷줄의 동료를 먼저 세는 방패.",
+  "skills": [
+   "방패 강타 — 방패로 적의 투구를 후려쳐 잠시 기절시킨다.",
+   "수호의 결계 — 부대 전체에 결계를 둘러 피해를 흡수한다."
+  ],
+  "next": [
+   "bulwark",
+   "oathshield"
+  ]
+ },
+ {
+  "id": "sniper",
+  "name": "저격수",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 2,
+  "equip": [
+   "bow",
+   "crossbow"
+  ],
+  "desc": "적장의 목값만으로 먹고사는 조용한 사수.",
+  "skills": [
+   "조준 사격 — 가장 약해진 적을 침착하게 겨눠 쏜다.",
+   "저격 — 적 후열의 요인을 단 한 발로 관통한다."
+  ],
+  "next": [
+   "masterarcher",
+   "shadowarcher"
+  ]
+ },
+ {
+  "id": "hunter",
+  "name": "사냥꾼",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 2,
+  "equip": [
+   "crossbow",
+   "bow",
+   "dagger"
+  ],
+  "desc": "짐승을 쫓던 눈으로 사람을 쫓게 된 자.",
+  "skills": [
+   "조준 사격 — 가장 약해진 적을 침착하게 겨눠 쏜다.",
+   "사냥꾼의 표식 — 가장 위협적인 적에게 표식을 남겨 굼뜨고 무르게 만든다."
+  ],
+  "next": [
+   "beastlord",
+   "spiritranger"
+  ]
+ },
+ {
+  "id": "assassin",
+  "name": "암살자",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 2,
+  "equip": [
+   "dagger",
+   "claw"
+  ],
+  "desc": "이름도 얼굴도 없이 계약서 한 장으로만 존재한다.",
+  "skills": [
+   "급습 — 적진 뒤로 파고들어 무방비한 등을 찌른다.",
+   "암살 — 기척을 지운 채 후열로 파고들어 급소에 칼을 꽂는다."
+  ],
+  "next": [
+   "shadowblade",
+   "venomfang"
+  ]
+ },
+ {
+  "id": "outlaw",
+  "name": "무법자",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 2,
+  "equip": [
+   "axe",
+   "dagger"
+  ],
+  "desc": "현상금이 붙은 채로 현상금을 받으러 다닌다.",
+  "skills": [
+   "급습 — 적진 뒤로 파고들어 무방비한 등을 찌른다.",
+   "비열한 일격 — 규칙 따위 없다. 급소를 노려 적의 숨을 끊어놓는다."
+  ],
+  "next": [
+   "banditking",
+   "bladedancer"
+  ]
+ },
+ {
+  "id": "elementalist",
+  "name": "원소술사",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 2,
+  "equip": [
+   "staff",
+   "wand",
+   "tome"
+  ],
+  "desc": "불과 바람을 다루되 아직 제 손끝은 자주 그을린다.",
+  "skills": [
+   "마력탄 — 응축한 마력 덩어리를 쏘아 보낸다.",
+   "화염구 — 터지는 불덩이로 적 전체를 태우고 불씨를 남긴다."
+  ],
+  "next": [
+   "archmage",
+   "stormcaller"
+  ]
+ },
+ {
+  "id": "necromancer",
+  "name": "강령술사",
+  "arch": "mage",
+  "style": "necro",
+  "tier": 2,
+  "equip": [
+   "wand",
+   "tome",
+   "scythe"
+  ],
+  "desc": "죽은 자의 온기를 빌려 제 목숨을 늘려 쓴다.",
+  "skills": [
+   "마력탄 — 응축한 마력 덩어리를 쏘아 보낸다.",
+   "생명 흡수 — 적의 생기를 빨아들여 자신의 상처를 메운다."
+  ],
+  "next": [
+   "lichlord",
+   "plaguelord"
+  ]
+ },
+ {
+  "id": "priest",
+  "name": "사제",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 2,
+  "equip": [
+   "staff",
+   "mace",
+   "tome"
+  ],
+  "desc": "기도값을 은화로 받는 데 익숙해진 성직자.",
+  "skills": [
+   "치유의 손길 — 가장 다친 아군의 상처를 어루만져 회복시킨다.",
+   "성광의 축복 — 성스러운 빛으로 아군 하나를 크게 회복시킨다."
+  ],
+  "next": [
+   "highpriest",
+   "inquisitor"
+  ]
+ },
+ {
+  "id": "monk",
+  "name": "수도승",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 2,
+  "equip": [
+   "claw",
+   "mace"
+  ],
+  "desc": "기도 대신 주먹으로 수행을 이어 가기로 했다.",
+  "skills": [
+   "치유의 손길 — 가장 다친 아군의 상처를 어루만져 회복시킨다.",
+   "붕권 — 기를 실은 장타로 적의 중심을 무너뜨린다."
+  ],
+  "next": [
+   "arhat",
+   "fallenmonk"
+  ]
+ },
+ {
+  "id": "madgeneral",
+  "name": "광기의 대장군",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "axe",
+   "greatsword"
+  ],
+  "desc": "부하를 미치게 만드는 포효로 전장을 통째로 갈아엎는다.",
+  "skills": [
+   "전장의 포효 — 전장을 뒤흔드는 포효로 부대 전원의 투지를 끌어올린다.",
+   "광란의 참격 — 적진 한복판을 미친 듯이 휘저어 전원을 베어젖힌다."
+  ],
+  "next": [
+   "madgeneral_apex",
+   "madgeneral_abyss"
+  ]
+ },
+ {
+  "id": "bloodfiend",
+  "name": "혈귀검사",
+  "arch": "fighter",
+  "style": "fiend",
+  "tier": 3,
+  "equip": [
+   "katana",
+   "claw"
+  ],
+  "desc": "베어야만 살고, 살기 위해 또 벤다.",
+  "skills": [
+   "피의 수확 — 적의 피를 베어 마시며 제 상처를 아물린다.",
+   "붉은 서약 — 제 피로 맺은 서약이 광포한 힘을 되돌려 준다."
+  ],
+  "next": [
+   "bloodfiend_apex",
+   "bloodfiend_abyss"
+  ]
+ },
+ {
+  "id": "swordgod",
+  "name": "검신",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "katana",
+   "sword"
+  ],
+  "desc": "검이 곧 신앙이 된 자리. 한 합이면 충분하다.",
+  "skills": [
+   "신검일섬 — 단 한 번의 섬광. 그것으로 승부가 끝난다.",
+   "천검난무 — 셀 수 없는 검격이 적진 곳곳을 난도질한다."
+  ],
+  "next": [
+   "swordgod_apex",
+   "swordgod_abyss"
+  ]
+ },
+ {
+  "id": "skysplitter",
+  "name": "파천검호",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "greatsword",
+   "katana"
+  ],
+  "desc": "휘두른 자리에 하늘이 갈라진 금이 남는다.",
+  "skills": [
+   "파천격 — 하늘을 가르는 검압이 적 전체의 갑주를 쪼갠다.",
+   "발도 태세 — 칼집에 손을 얹고 숨을 죽인다. 한동안 어떤 칼날도 몸에 닿지 않는다."
+  ],
+  "next": [
+   "skysplitter_apex",
+   "skysplitter_abyss"
+  ]
+ },
+ {
+  "id": "dragoonlord",
+  "name": "용기병 대장",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 3,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "깃발을 앞세워 부대 전체를 돌격으로 끌고 간다.",
+  "skills": [
+   "용의 돌격 — 용의 기세로 돌진해 적을 꿰뚫고 넘어뜨린다.",
+   "용맹의 깃발 — 깃발을 세워 아군의 방어와 진격 속도를 함께 높인다."
+  ],
+  "next": [
+   "dragoonlord_apex",
+   "dragoonlord_abyss"
+  ]
+ },
+ {
+  "id": "skylancer",
+  "name": "천공창기사",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 3,
+  "equip": [
+   "spear",
+   "wand"
+  ],
+  "desc": "창끝에 벼락을 얹고 하늘에서 내려꽂는다.",
+  "skills": [
+   "천공 관통 — 창끝이 일직선으로 늘어선 적 셋을 한 번에 꿰뚫는다.",
+   "낙뢰창 — 창에 벼락을 실어 적 후열 위로 내리꽂는다."
+  ],
+  "next": [
+   "skylancer_apex",
+   "skylancer_abyss"
+  ]
+ },
+ {
+  "id": "gatewarden",
+  "name": "관문수호자",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 3,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "이 자가 선 자리는 관문이 되어 아무도 지나지 못한다.",
+  "skills": [
+   "강철 관문 — 스스로 관문이 되어 적의 진격을 틀어막는다.",
+   "관문 강타 — 창대를 내리쳐 적을 오래도록 주저앉힌다."
+  ],
+  "next": [
+   "gatewarden_abyss",
+   "gatewarden_apex"
+  ]
+ },
+ {
+  "id": "reaper",
+  "name": "사신낫병",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 3,
+  "equip": [
+   "scythe",
+   "spear"
+  ],
+  "desc": "전장에 널린 빈사자를 거두는 것이 그의 일이다.",
+  "skills": [
+   "영혼 수확 — 죽음에 가장 가까운 자부터 낫으로 거둬들인다.",
+   "죽음의 낫 — 사신의 낫이 적 전체에 죽음의 표식을 새긴다."
+  ],
+  "next": [
+   "reaper_apex",
+   "reaper_abyss"
+  ]
+ },
+ {
+  "id": "paladin",
+  "name": "성전기사",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 3,
+  "equip": [
+   "mace",
+   "sword",
+   "shield"
+  ],
+  "desc": "버티면서 치유하고, 치유하면서 심판한다.",
+  "skills": [
+   "성스러운 심판 — 신벌의 빛이 가장 사나운 적을 내리친다.",
+   "성역 — 성역을 펼쳐 부대 전원의 상처를 어루만진다."
+  ],
+  "next": [
+   "paladin_apex",
+   "paladin_abyss"
+  ]
+ },
+ {
+  "id": "blackknight",
+  "name": "흑기사",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "greatsword",
+   "sword"
+  ],
+  "desc": "맹세를 저버린 대가로 갑주 안에 어둠을 채웠다.",
+  "skills": [
+   "암흑참 — 어둠을 머금은 칼날이 적의 전의까지 꺾어놓는다.",
+   "영혼 흡취 — 적의 영혼을 빨아들여 자신의 생명으로 바꾼다."
+  ],
+  "next": [
+   "blackknight_apex",
+   "blackknight_abyss"
+  ]
+ },
+ {
+  "id": "bulwark",
+  "name": "불굴의 성벽",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 3,
+  "equip": [
+   "mace",
+   "shield"
+  ],
+  "desc": "무너뜨리려면 성벽을 부수는 공성병기를 가져와야 한다.",
+  "skills": [
+   "불굴 — 무너지지 않는 각오로 두꺼운 보호막을 두른다.",
+   "방패 분쇄 — 방패 모서리로 적의 투구를 짓이겨 버린다."
+  ],
+  "next": [
+   "bulwark_abyss",
+   "bulwark_apex"
+  ]
+ },
+ {
+  "id": "oathshield",
+  "name": "서약의 방패",
+  "arch": "healer",
+  "style": "oath",
+  "tier": 3,
+  "equip": [
+   "mace",
+   "shield",
+   "tome"
+  ],
+  "desc": "지키겠다는 맹세가 그대로 결계가 되어 부대를 감싼다.",
+  "skills": [
+   "서약의 가호 — 맹세의 빛이 부대 전원을 두껍게 감싼다.",
+   "빛의 서약 — 가장 위태로운 아군을 치유하고 방어를 굳혀 준다."
+  ],
+  "next": [
+   "oathshield_abyss",
+   "oathshield_apex"
+  ]
+ },
+ {
+  "id": "masterarcher",
+  "name": "신궁",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 3,
+  "equip": [
+   "bow",
+   "crossbow"
+  ],
+  "desc": "화살 한 대가 세 사람을 뚫는다는 소문이 사실이다.",
+  "skills": [
+   "파공시 — 화살 한 대가 늘어선 적 셋을 뚫고 지나간다.",
+   "심장 저격 — 적장의 심장만을 노린 필살의 한 발."
+  ],
+  "next": [
+   "masterarcher_apex",
+   "masterarcher_abyss"
+  ]
+ },
+ {
+  "id": "shadowarcher",
+  "name": "그림자 사수",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 3,
+  "equip": [
+   "crossbow",
+   "dagger"
+  ],
+  "desc": "어디서 쐈는지 아무도 모르는 화살만 남는다.",
+  "skills": [
+   "그림자 연사 — 어둠 속에서 세 발을 연달아 흩뿌린다.",
+   "어둠의 화살 — 그림자에 잠긴 화살이 적 후열의 발을 묶는다."
+  ],
+  "next": [
+   "shadowarcher_apex",
+   "shadowarcher_abyss"
+  ]
+ },
+ {
+  "id": "beastlord",
+  "name": "야수군주",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 3,
+  "equip": [
+   "claw",
+   "axe"
+  ],
+  "desc": "짐승을 부리다 못해 스스로 무리의 우두머리가 되었다.",
+  "skills": [
+   "야수의 부름 — 야성의 함성으로 부대를 짐승처럼 몰아붙인다.",
+   "맹수의 이빨 — 짐승의 이빨로 적을 물어뜯어 생기를 취한다."
+  ],
+  "next": [
+   "beastlord_apex",
+   "beastlord_abyss"
+  ]
+ },
+ {
+  "id": "spiritranger",
+  "name": "정령궁수",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 3,
+  "equip": [
+   "bow",
+   "staff"
+  ],
+  "desc": "시위에 정령을 얹어 쏘고, 남은 기운으로 아군을 덮는다.",
+  "skills": [
+   "정령의 화살 — 정령의 기운을 실은 화살이 갑주를 무시하고 파고든다.",
+   "초록의 축복 — 숲의 기운이 부대 전원의 상처를 덮어 준다."
+  ],
+  "next": [
+   "spiritranger_apex",
+   "spiritranger_abyss"
+  ]
+ },
+ {
+  "id": "shadowblade",
+  "name": "그림자 밀사",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 3,
+  "equip": [
+   "dagger",
+   "claw",
+   "katana"
+  ],
+  "desc": "그림자를 밟고 건너와 후열의 목만 정확히 가져간다.",
+  "skills": [
+   "그림자 도약 — 그림자를 밟고 후열로 뛰어들어 목을 노린다.",
+   "환영의 장막 — 환영을 둘러 적의 시야에서 자취를 감춘다."
+  ],
+  "next": [
+   "shadowblade_apex",
+   "shadowblade_abyss"
+  ]
+ },
+ {
+  "id": "venomfang",
+  "name": "독아",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 3,
+  "equip": [
+   "dagger",
+   "claw"
+  ],
+  "desc": "한 번 스치면 그날 밤을 넘기기 어렵다.",
+  "skills": [
+   "맹독 일격 — 독을 바른 칼날로 적을 서서히 무너뜨린다.",
+   "역병의 단검 — 독무를 흩뿌려 적 전체를 오래도록 곪게 만든다."
+  ],
+  "next": [
+   "venomfang_apex",
+   "venomfang_abyss"
+  ]
+ },
+ {
+  "id": "banditking",
+  "name": "도적왕",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 3,
+  "equip": [
+   "axe",
+   "sword"
+  ],
+  "desc": "산적 떼를 왕국처럼 굴리던 사내. 이제는 용병단 소속이다.",
+  "skills": [
+   "약탈 — 닥치는 대로 베고 빼앗아 적의 방비를 헐어낸다.",
+   "매복 명령 — 부하들에게 급소만 노리라 명령한다."
+  ],
+  "next": [
+   "banditking_apex",
+   "banditking_abyss"
+  ]
+ },
+ {
+  "id": "bladedancer",
+  "name": "칼날무희",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 3,
+  "equip": [
+   "dagger",
+   "katana"
+  ],
+  "desc": "춤이 끝날 때쯤이면 주위에 서 있는 적이 없다.",
+  "skills": [
+   "칼날의 왈츠 — 춤추듯 적진을 가로지르며 전원을 베어낸다.",
+   "검무 — 끝나지 않는 검무로 몸놀림이 걷잡을 수 없이 빨라진다."
+  ],
+  "next": [
+   "bladedancer_apex",
+   "bladedancer_abyss"
+  ]
+ },
+ {
+  "id": "archmage",
+  "name": "대마법사",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 3,
+  "equip": [
+   "staff",
+   "tome",
+   "wand"
+  ],
+  "desc": "탑이 쫓아냈던 견습생이 탑을 사들일 값이 되었다.",
+  "skills": [
+   "메테오 — 하늘에서 불덩이를 떨어뜨려 전장을 통째로 태운다.",
+   "비전 폭주 — 비전 마력을 폭주시켜 주문의 위력을 끌어올린다."
+  ],
+  "next": [
+   "archmage_apex",
+   "archmage_abyss"
+  ]
+ },
+ {
+  "id": "stormcaller",
+  "name": "폭풍술사",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 3,
+  "equip": [
+   "wand",
+   "staff"
+  ],
+  "desc": "구름을 부르는 대신 그 자리에서 벼락을 만든다.",
+  "skills": [
+   "연쇄 번개 — 번개가 적에서 적으로 튀며 세 명을 감전시킨다.",
+   "뇌창 — 뇌전의 창이 적 후열을 단숨에 꿰뚫는다."
+  ],
+  "next": [
+   "stormcaller_apex",
+   "stormcaller_abyss"
+  ]
+ },
+ {
+  "id": "lichlord",
+  "name": "사령왕",
+  "arch": "mage",
+  "style": "necro",
+  "tier": 3,
+  "equip": [
+   "staff",
+   "tome",
+   "scythe"
+  ],
+  "desc": "자기 죽음을 계약서로 바꿔 치우고 왕관을 썼다.",
+  "skills": [
+   "죽음의 고리 — 죽음의 마력을 던져 적의 생명을 통째로 앗아 온다.",
+   "부패의 저주 — 적 전체를 부패시켜 안에서부터 허물어뜨린다."
+  ],
+  "next": [
+   "lichlord_apex",
+   "lichlord_abyss"
+  ]
+ },
+ {
+  "id": "plaguelord",
+  "name": "역병군주",
+  "arch": "mage",
+  "style": "necro",
+  "tier": 3,
+  "equip": [
+   "scythe",
+   "tome"
+  ],
+  "desc": "지나간 자리마다 마을 하나가 조용해진다.",
+  "skills": [
+   "역병 창궐 — 역병이 적진에 퍼져 하나도 남김없이 좀먹는다.",
+   "부패의 손길 — 닿은 자리부터 썩어들어가 마법 저항을 갉아먹는다."
+  ],
+  "next": [
+   "plaguelord_apex",
+   "plaguelord_abyss"
+  ]
+ },
+ {
+  "id": "highpriest",
+  "name": "대주교",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 3,
+  "equip": [
+   "staff",
+   "tome"
+  ],
+  "desc": "한 번의 기도로 부대 전원의 상처가 아문다.",
+  "skills": [
+   "신성한 은총 — 은총의 비가 부대 전원을 감싸 회복시킨다.",
+   "신앙의 축복 — 굳은 신앙으로 아군의 방어와 저항을 함께 세운다."
+  ],
+  "next": [
+   "highpriest_abyss",
+   "highpriest_apex"
+  ]
+ },
+ {
+  "id": "inquisitor",
+  "name": "심판관",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 3,
+  "equip": [
+   "tome",
+   "mace",
+   "sword"
+  ],
+  "desc": "치유를 포기한 사제가 손에 든 것은 죄인의 명부와 불이다.",
+  "skills": [
+   "심판 — 죄 많은 자에게 한 치의 자비도 없는 심판을 내린다.",
+   "정죄의 불길 — 정죄의 불길이 적 전체를 남김없이 사른다."
+  ],
+  "next": [
+   "inquisitor_apex",
+   "inquisitor_abyss"
+  ]
+ },
+ {
+  "id": "arhat",
+  "name": "나한",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 3,
+  "equip": [
+   "claw",
+   "staff"
+  ],
+  "desc": "깨달음의 끝에서 육신 자체가 무기가 되었다.",
+  "skills": [
+   "백보신권 — 보이지 않는 주먹이 사방의 적을 동시에 때린다.",
+   "금강불괴 — 육신을 쇠처럼 단련해 웬만한 타격을 그대로 튕겨 낸다."
+  ],
+  "next": [
+   "arhat_apex",
+   "arhat_abyss"
+  ]
+ },
+ {
+  "id": "fallenmonk",
+  "name": "파계승",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 3,
+  "equip": [
+   "claw",
+   "mace"
+  ],
+  "desc": "계율을 전부 깨뜨린 대신 업화를 손에 넣었다.",
+  "skills": [
+   "마라장 — 타락한 기를 실은 장타가 적의 생기를 앗아 온다.",
+   "업화 폭발 — 쌓이고 쌓인 업이 불길이 되어 적진 한복판에서 터진다."
+  ],
+  "next": [
+   "fallenmonk_apex",
+   "fallenmonk_abyss"
+  ]
+ },
+ {
+  "id": "madgeneral_apex",
+  "name": "멸망의 군신",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "greatsword",
+   "axe"
+  ],
+  "desc": "광기가 갑주를 뚫고 나온 자리. 그가 지나간 전열에는 이름조차 남지 않는다.",
+  "skills": [
+   "광란의 참격 — 적진 한복판을 미친 듯이 휘저어 전원을 베어젖힌다.",
+   "멸군참 — 한 번 휘두르면 군세가 통째로 무너진다. 살아남은 자의 갑주도 남아 있지 않다."
+  ],
+  "next": []
+ },
+ {
+  "id": "madgeneral_abyss",
+  "name": "혈기의 대원수",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "axe",
+   "sword",
+   "shield"
+  ],
+  "desc": "포효 한 번에 부대가 다시 일어선다. 그 자신은 애초에 넘어지지 않는다.",
+  "skills": [
+   "전장의 포효 — 전장을 뒤흔드는 포효로 부대 전원의 투지를 끌어올린다.",
+   "광란의 군령 — 광기를 명령으로 내린다. 부대 전원이 두려움을 잊고 짐승처럼 달려든다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bloodfiend_apex",
+  "name": "진혈군주",
+  "arch": "rogue",
+  "style": "fiend",
+  "tier": 4,
+  "equip": [
+   "katana",
+   "claw"
+  ],
+  "desc": "피를 마시는 것이 아니라, 피가 스스로 그에게 흘러간다.",
+  "skills": [
+   "피의 수확 — 적의 피를 베어 마시며 제 상처를 아물린다.",
+   "혈해일참 — 베어낸 피를 그대로 삼킨다. 빈사의 적일수록 더 달다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bloodfiend_abyss",
+  "name": "불사의 혈염귀",
+  "arch": "tank",
+  "style": "fiend",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "greatsword"
+  ],
+  "desc": "베여도 죽지 않고, 죽지 않는 대신 영원히 굶주린다.",
+  "skills": [
+   "붉은 서약 — 제 피로 맺은 서약이 광포한 힘을 되돌려 준다.",
+   "혈옥의 굴레 — 적진 전체를 피의 우리에 가둔다. 흘린 피는 전부 제 것이 된다."
+  ],
+  "next": []
+ },
+ {
+  "id": "swordgod_apex",
+  "name": "무한의 검성",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "katana",
+   "sword"
+  ],
+  "desc": "한 합에 끝나지 않는 상대를 만난 적이 없어, 두 합을 배우지 못했다.",
+  "skills": [
+   "신검일섬 — 단 한 번의 섬광. 그것으로 승부가 끝난다.",
+   "무한일검 — 베는 순간과 베고 난 뒤가 구분되지 않는다. 한 합에 끝난 뒤 검이 더 빨라진다."
+  ],
+  "next": []
+ },
+ {
+  "id": "swordgod_abyss",
+  "name": "폐검의 수라",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "katana",
+   "dagger"
+  ],
+  "desc": "부러진 검만 골라 쓴다. 어차피 그의 손에서는 전부 한 번만 쓰이니까.",
+  "skills": [
+   "천검난무 — 셀 수 없는 검격이 적진 곳곳을 난도질한다.",
+   "수라의 폐검진 — 부러진 검을 땅에 꽂아 만든 진. 안에 든 자는 검을 들 힘조차 잃는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "skysplitter_apex",
+  "name": "개천검제",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "greatsword",
+   "katana"
+  ],
+  "desc": "내려친 자리에 하늘이 아니라 적의 전열이 통째로 갈라져 있다.",
+  "skills": [
+   "파천격 — 하늘을 가르는 검압이 적 전체의 갑주를 쪼갠다.",
+   "파천개벽 — 하늘이 갈라진 자리로 검압이 쏟아진다. 갑주는 종이처럼 벌어진다."
+  ],
+  "next": []
+ },
+ {
+  "id": "skysplitter_abyss",
+  "name": "만검의 벽",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "greatsword",
+   "sword",
+   "shield"
+  ],
+  "desc": "먼저 베는 법을 잊은 대신, 베려 든 자를 반드시 되돌려 베는 법을 얻었다.",
+  "skills": [
+   "발도 태세 — 칼집에 손을 얹고 숨을 죽인다. 한동안 어떤 칼날도 몸에 닿지 않는다.",
+   "무형발도경 — 칼집에 손을 얹은 채 숨을 지운다. 적은 어디를 베어야 하는지조차 잊는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "dragoonlord_apex",
+  "name": "창룡제",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "axe"
+  ],
+  "desc": "용을 잡던 창이 이제는 용의 이름으로 불린다.",
+  "skills": [
+   "용의 돌격 — 용의 기세로 돌진해 적을 꿰뚫고 넘어뜨린다.",
+   "용왕의 창강 — 용의 기세를 창끝 하나에 몰아 꽂는다. 맞은 자는 일어서지 못한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "dragoonlord_abyss",
+  "name": "불멸의 기수",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "깃대를 쥔 손이 부러지기 전에 전장이 먼저 끝난다.",
+  "skills": [
+   "용맹의 깃발 — 깃발을 세워 아군의 방어와 진격 속도를 함께 높인다.",
+   "용린의 군기 — 용의 비늘로 짠 군기가 펄럭이는 동안 부대는 쓰러지지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "skylancer_apex",
+  "name": "뇌신창제",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "wand"
+  ],
+  "desc": "창을 던지면 벼락이 먼저 도착해 자리를 비워 둔다.",
+  "skills": [
+   "낙뢰창 — 창에 벼락을 실어 적 후열 위로 내리꽂는다.",
+   "천벌뇌창 — 구름을 찢고 내려온 벼락이 창끝을 따라 적 후열에 내리꽂힌다."
+  ],
+  "next": []
+ },
+ {
+  "id": "skylancer_abyss",
+  "name": "천풍의 성창",
+  "arch": "lancer",
+  "style": "lancer",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "staff"
+  ],
+  "desc": "갑주를 바람으로 갈아입었다. 맞지 않으면 뚫릴 일도 없다.",
+  "skills": [
+   "천공 관통 — 창끝이 일직선으로 늘어선 적 셋을 한 번에 꿰뚫는다.",
+   "뇌옥결계 — 전장을 번개의 우리로 덮는다. 발을 옮기는 자마다 감전된다."
+  ],
+  "next": []
+ },
+ {
+  "id": "gatewarden_abyss",
+  "name": "불괴의 세계문",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "shield"
+  ],
+  "desc": "그가 선 곳은 문이 아니라 벽이다. 열리는 쪽은 이쪽이 정한다.",
+  "skills": [
+   "강철 관문 — 스스로 관문이 되어 적의 진격을 틀어막는다.",
+   "불락의 관문 — 부대 앞에 보이지 않는 성문을 세운다. 문지기 자신이 가장 두꺼운 문이 된다."
+  ],
+  "next": []
+ },
+ {
+  "id": "gatewarden_apex",
+  "name": "철문의 패왕",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "spear",
+   "axe",
+   "shield"
+  ],
+  "desc": "지키는 법을 다 배운 뒤, 부수는 쪽이 빠르다는 걸 깨달았다.",
+  "skills": [
+   "관문 강타 — 창대를 내리쳐 적을 오래도록 주저앉힌다.",
+   "관문 붕괴타 — 관문을 닫는 힘으로 내리찍는다. 적은 오래도록 주저앉아 일어나지 못한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "reaper_apex",
+  "name": "사신군주",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "scythe",
+   "dagger"
+  ],
+  "desc": "거두는 자에서 거두라 명하는 자가 되었다.",
+  "skills": [
+   "죽음의 낫 — 사신의 낫이 적 전체에 죽음의 표식을 새긴다.",
+   "종말의 수확 — 죽음에 가장 가까운 자를 낫 한 번으로 거둔다. 유예는 없다."
+  ],
+  "next": []
+ },
+ {
+  "id": "reaper_abyss",
+  "name": "혼백의 수확자",
+  "arch": "tank",
+  "style": "fiend",
+  "tier": 4,
+  "equip": [
+   "scythe",
+   "shield"
+  ],
+  "desc": "앞줄에서 죽음을 먼저 받아 두고, 그것으로 뒷줄을 먹인다.",
+  "skills": [
+   "영혼 수확 — 죽음에 가장 가까운 자부터 낫으로 거둬들인다.",
+   "만인의 장례 — 적 전원의 이름을 명부에 올린다. 적어 넣은 순서대로 숨이 끊긴다."
+  ],
+  "next": []
+ },
+ {
+  "id": "paladin_apex",
+  "name": "광휘의 성왕",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "sword",
+   "mace",
+   "shield"
+  ],
+  "desc": "방패를 든 손으로 심판까지 하기로 했다.",
+  "skills": [
+   "성스러운 심판 — 신벌의 빛이 가장 사나운 적을 내리친다.",
+   "천벌의 심판검 — 하늘에서 내려온 빛이 검을 타고 흐른다. 가장 사나운 죄인부터 무릎을 꺾는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "paladin_abyss",
+  "name": "성역의 수호성인",
+  "arch": "healer",
+  "style": "oath",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "shield",
+   "tome"
+  ],
+  "desc": "그가 발을 붙인 반경 안에서는 아무도 쓰러지지 못한다.",
+  "skills": [
+   "성역 — 성역을 펼쳐 부대 전원의 상처를 어루만진다.",
+   "대성역 — 발 딛은 자리가 성역이 된다. 그 안에서 아군은 상처도 저주도 받지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "blackknight_apex",
+  "name": "암흑의 폐왕",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "greatsword",
+   "axe"
+  ],
+  "desc": "버린 왕국의 이름을 갑주 안쪽에 새기고 다닌다.",
+  "skills": [
+   "암흑참 — 어둠을 머금은 칼날이 적의 전의까지 꺾어놓는다.",
+   "심연대참 — 갑주 안에 채운 어둠을 전부 검에 쏟는다. 베인 자는 전의까지 빼앗긴다."
+  ],
+  "next": []
+ },
+ {
+  "id": "blackknight_abyss",
+  "name": "영혼포식자",
+  "arch": "tank",
+  "style": "fiend",
+  "tier": 4,
+  "equip": [
+   "greatsword",
+   "scythe"
+  ],
+  "desc": "갑주 안에 남은 것은 사람이 아니라 삼켜 온 목숨들이다.",
+  "skills": [
+   "영혼 흡취 — 적의 영혼을 빨아들여 자신의 생명으로 바꾼다.",
+   "영혼의 사슬 — 적 전원의 영혼에 사슬을 걸어 조금씩 끌어당긴다. 끌려온 만큼 제 상처가 아문다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bulwark_abyss",
+  "name": "부동의 대성벽",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "shield"
+  ],
+  "desc": "공성병기를 끌고 와도 늦었다. 이미 이쪽이 성이다.",
+  "skills": [
+   "불굴 — 무너지지 않는 각오로 두꺼운 보호막을 두른다.",
+   "영원의 성벽 — 무너뜨리려면 성벽을 부수는 공성병기가 필요하다. 이제 부대 전체가 성벽이다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bulwark_apex",
+  "name": "분쇄의 거벽",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "axe",
+   "shield"
+  ],
+  "desc": "방패로 막는 것보다 방패로 치는 게 빠르다는 결론에 도달했다.",
+  "skills": [
+   "방패 분쇄 — 방패 모서리로 적의 투구를 짓이겨 버린다.",
+   "공성 분쇄타 — 성벽을 부수러 온 공성추를 되돌려 준다. 방패가 아니라 망치를 든 날이다."
+  ],
+  "next": []
+ },
+ {
+  "id": "oathshield_abyss",
+  "name": "영원한 서약",
+  "arch": "healer",
+  "style": "oath",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "shield",
+   "tome"
+  ],
+  "desc": "맹세가 문장이 되고, 문장이 부대를 감싸는 결계가 되었다.",
+  "skills": [
+   "서약의 가호 — 맹세의 빛이 부대 전원을 두껍게 감싼다.",
+   "불멸의 서약 — 지키겠다는 맹세가 끝내 깨지지 않는 결계가 되었다."
+  ],
+  "next": []
+ },
+ {
+  "id": "oathshield_apex",
+  "name": "파약의 성기사",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "sword",
+   "mace",
+   "shield"
+  ],
+  "desc": "지키겠다는 맹세를 깨고, 대신 갚겠다는 맹세를 새로 했다.",
+  "skills": [
+   "빛의 서약 — 가장 위태로운 아군을 치유하고 방어를 굳혀 준다.",
+   "서약의 파문 — 맹세를 소리 내어 읊는다. 파문이 적진을 훑고 지나가면 손에서 무기가 흘러내린다."
+  ],
+  "next": []
+ },
+ {
+  "id": "masterarcher_apex",
+  "name": "성락의 궁신",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 4,
+  "equip": [
+   "bow",
+   "crossbow"
+  ],
+  "desc": "화살이 아니라 별을 떨어뜨린다는 말을 굳이 부정하지 않는다.",
+  "skills": [
+   "심장 저격 — 적장의 심장만을 노린 필살의 한 발.",
+   "천공일시 — 숨을 한 번 고르고 놓는다. 화살이 닿기 전에 이미 승부가 정해져 있다."
+  ],
+  "next": []
+ },
+ {
+  "id": "masterarcher_abyss",
+  "name": "천리의 풍궁수",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 4,
+  "equip": [
+   "bow",
+   "staff"
+  ],
+  "desc": "바람을 읽는 단계를 지나, 바람에게 화살을 맡기는 단계에 왔다.",
+  "skills": [
+   "파공시 — 화살 한 대가 늘어선 적 셋을 뚫고 지나간다.",
+   "만시천강 — 화살비가 그치지 않는다. 발을 옮기려 해도 다음 화살이 먼저 도착한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "shadowarcher_apex",
+  "name": "공허의 사수",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "crossbow",
+   "dagger"
+  ],
+  "desc": "쏜 자리도 맞은 자리도 남지 않는다. 사람만 없어진다.",
+  "skills": [
+   "그림자 연사 — 어둠 속에서 세 발을 연달아 흩뿌린다.",
+   "심연관통시 — 어둠을 뚫고 온 볼트가 후열의 급소를 정확히 관통한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "shadowarcher_abyss",
+  "name": "망령 추적자",
+  "arch": "archer",
+  "style": "archer",
+  "tier": 4,
+  "equip": [
+   "crossbow",
+   "bow"
+  ],
+  "desc": "표식을 남기는 대신 망령을 붙여 보낸다. 도망칠 방향이 사라진다.",
+  "skills": [
+   "어둠의 화살 — 그림자에 잠긴 화살이 적 후열의 발을 묶는다.",
+   "그림자 사슬 — 적의 그림자를 땅에 못박는다. 그림자가 묶인 자는 제 발도 옮기지 못한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "beastlord_apex",
+  "name": "태초의 야왕",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "axe"
+  ],
+  "desc": "무리를 이끄는 단계를 지나, 무리가 그를 따라 우는 단계에 왔다.",
+  "skills": [
+   "맹수의 이빨 — 짐승의 이빨로 적을 물어뜯어 생기를 취한다.",
+   "야수왕의 포식 — 물어뜯은 자리가 멎지 않는다. 무리의 왕은 먹이를 놓치지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "beastlord_abyss",
+  "name": "만수의 대군주",
+  "arch": "tank",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "axe",
+   "shield"
+  ],
+  "desc": "짐승의 왕관을 쓴 자. 한 번 부르면 숲 전체가 대답한다.",
+  "skills": [
+   "야수의 부름 — 야성의 함성으로 부대를 짐승처럼 몰아붙인다.",
+   "군림하는 야성 — 무리의 왕이 울면 부대 전원이 짐승의 감각을 되찾는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "spiritranger_apex",
+  "name": "세계수의 궁성",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "bow",
+   "staff",
+   "tome"
+  ],
+  "desc": "시위를 당기면 세계수의 뿌리가 함께 당겨진다.",
+  "skills": [
+   "정령의 화살 — 정령의 기운을 실은 화살이 갑주를 무시하고 파고든다.",
+   "정령왕의 화살 — 시위에 정령왕을 얹어 쏜다. 갑주도 결계도 그 앞에서는 의미가 없다."
+  ],
+  "next": []
+ },
+ {
+  "id": "spiritranger_abyss",
+  "name": "정령의 화신",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 4,
+  "equip": [
+   "bow",
+   "staff"
+  ],
+  "desc": "사람의 몸을 빌린 정령인지 정령을 빌린 사람인지, 아무도 묻지 않는다.",
+  "skills": [
+   "초록의 축복 — 숲의 기운이 부대 전원의 상처를 덮어 준다.",
+   "세계수의 가호 — 세계수의 뿌리가 전장 아래로 뻗는다. 밟고 선 아군의 상처가 함께 아문다."
+  ],
+  "next": []
+ },
+ {
+  "id": "shadowblade_apex",
+  "name": "밤의 군주",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "katana",
+   "claw"
+  ],
+  "desc": "밤에 값을 매기던 자가 밤을 소유하게 되었다.",
+  "skills": [
+   "그림자 도약 — 그림자를 밟고 후열로 뛰어들어 목을 노린다.",
+   "단절의 일격 — 숨소리도 남기지 않고 건너와 목을 끊는다. 소리는 몸이 쓰러진 뒤에 들린다."
+  ],
+  "next": []
+ },
+ {
+  "id": "shadowblade_abyss",
+  "name": "환영의 무영객",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "claw"
+  ],
+  "desc": "지금까지 베인 것은 언제나 그의 잔상뿐이었다.",
+  "skills": [
+   "환영의 장막 — 환영을 둘러 적의 시야에서 자취를 감춘다.",
+   "무영장막 — 그림자와 몸의 경계를 지운다. 벨 수 있는 자가 전장에 남아 있지 않다."
+  ],
+  "next": []
+ },
+ {
+  "id": "venomfang_apex",
+  "name": "만독의 아왕",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "claw"
+  ],
+  "desc": "스치기만 해도 끝난다. 스치지 않는 법을 아는 자가 없다.",
+  "skills": [
+   "맹독 일격 — 독을 바른 칼날로 적을 서서히 무너뜨린다.",
+   "치사독아 — 한 번 스치면 해독할 시간이 없다. 독이 심장에 닿는 데 여덟을 세면 충분하다."
+  ],
+  "next": []
+ },
+ {
+  "id": "venomfang_abyss",
+  "name": "부식의 독왕",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "scythe"
+  ],
+  "desc": "제 몸까지 함께 썩혀 가며 적의 전열을 붙잡아 둔다.",
+  "skills": [
+   "역병의 단검 — 독무를 흩뿌려 적 전체를 오래도록 곪게 만든다.",
+   "역병의 안개 — 전장을 독무로 덮는다. 숨을 쉬는 것 자체가 상처가 된다."
+  ],
+  "next": []
+ },
+ {
+  "id": "banditking_apex",
+  "name": "암흑가의 패왕",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "axe",
+   "sword"
+  ],
+  "desc": "산적 떼가 왕국이 되고, 왕국이 다시 그의 사업이 되었다.",
+  "skills": [
+   "약탈 — 닥치는 대로 베고 빼앗아 적의 방비를 헐어낸다.",
+   "왕의 약탈 — 눈에 보이는 것을 전부 벤 뒤 전부 가져간다. 갑옷도 예외가 아니다."
+  ],
+  "next": []
+ },
+ {
+  "id": "banditking_abyss",
+  "name": "흑막의 대영주",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "axe",
+   "sword",
+   "shield"
+  ],
+  "desc": "직접 칼을 드는 일이 드물어졌다. 그래서 아직 살아 있다.",
+  "skills": [
+   "매복 명령 — 부하들에게 급소만 노리라 명령한다.",
+   "난전의 계략 — 전장을 자기 소굴로 바꿔 버린다. 적은 어디서 칼이 오는지 끝까지 모른다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bladedancer_apex",
+  "name": "절검의 무성",
+  "arch": "fighter",
+  "style": "fighter",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "katana"
+  ],
+  "desc": "춤이 검이 되고, 검이 다시 한 곡이 되었다.",
+  "skills": [
+   "검무 — 끝나지 않는 검무로 몸놀림이 걷잡을 수 없이 빨라진다.",
+   "천검의 종막 — 춤의 마지막 박자에 모든 칼날이 동시에 닿는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "bladedancer_abyss",
+  "name": "천무의 환영무희",
+  "arch": "rogue",
+  "style": "rogue",
+  "tier": 4,
+  "equip": [
+   "dagger",
+   "katana"
+  ],
+  "desc": "한 명이 춤을 추는데 그림자는 여섯 개가 흔들린다.",
+  "skills": [
+   "칼날의 왈츠 — 춤추듯 적진을 가로지르며 전원을 베어낸다.",
+   "칼날 폭풍 — 멈추지 않는 칼날이 전장을 맴돈다. 춤이 이어지는 동안 본인은 닿지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "archmage_apex",
+  "name": "허공의 마도제",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "staff",
+   "tome",
+   "wand"
+  ],
+  "desc": "주문을 외우지 않는다. 허공이 알아서 자리를 비켜 준다.",
+  "skills": [
+   "메테오 — 하늘에서 불덩이를 떨어뜨려 전장을 통째로 태운다.",
+   "천상의 유성우 — 하늘이 무너져 내린다. 떨어진 자리마다 불이 꺼지지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "archmage_abyss",
+  "name": "만상의 현왕",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "tome",
+   "staff"
+  ],
+  "desc": "세상을 태우는 법 대신 세상을 고쳐 쓰는 법을 골랐다.",
+  "skills": [
+   "비전 폭주 — 비전 마력을 폭주시켜 주문의 위력을 끌어올린다.",
+   "비전 대결계 — 전장 위에 자기 마법 이론을 덮어쓴다. 결계 안에서는 술사의 법이 곧 물리다."
+  ],
+  "next": []
+ },
+ {
+  "id": "stormcaller_apex",
+  "name": "천뢰의 폭풍제",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "wand",
+   "staff"
+  ],
+  "desc": "구름을 기다리지 않는다. 그가 서면 그 자리가 뇌우다.",
+  "skills": [
+   "연쇄 번개 — 번개가 적에서 적으로 튀며 세 명을 감전시킨다.",
+   "뇌신강림 — 벼락을 부르는 것이 아니라 직접 벼락이 된다. 가장 강한 적부터 지목한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "stormcaller_abyss",
+  "name": "폭풍의 성자",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 4,
+  "equip": [
+   "staff",
+   "tome"
+  ],
+  "desc": "벼락으로 상처를 지지고, 같은 벼락으로 적을 지운다.",
+  "skills": [
+   "뇌창 — 뇌전의 창이 적 후열을 단숨에 꿰뚫는다.",
+   "폭풍의 사슬 — 번개가 적에서 적으로 옮겨 다니며 끊기지 않는다. 다섯 번째까지 감전된다."
+  ],
+  "next": []
+ },
+ {
+  "id": "lichlord_apex",
+  "name": "불사의 사령제",
+  "arch": "mage",
+  "style": "necro",
+  "tier": 4,
+  "equip": [
+   "staff",
+   "tome",
+   "scythe"
+  ],
+  "desc": "왕관을 쓴 해골. 죽음을 계약이 아니라 영지로 갖는다.",
+  "skills": [
+   "죽음의 고리 — 죽음의 마력을 던져 적의 생명을 통째로 앗아 온다.",
+   "사멸의 고리 — 죽음을 고리에 담아 던진다. 걸린 자의 남은 목숨은 전부 술사에게 넘어온다."
+  ],
+  "next": []
+ },
+ {
+  "id": "lichlord_abyss",
+  "name": "명계의 수호자",
+  "arch": "healer",
+  "style": "necro",
+  "tier": 4,
+  "equip": [
+   "tome",
+   "scythe"
+  ],
+  "desc": "산 자와 죽은 자의 경계에 서서, 이쪽 사람만 골라 돌려보낸다.",
+  "skills": [
+   "부패의 저주 — 적 전체를 부패시켜 안에서부터 허물어뜨린다.",
+   "영겁의 저주 — 적 전원에게 끝나지 않는 저주를 새긴다. 썩어가는 속도가 곧 술사의 회복량이다."
+  ],
+  "next": []
+ },
+ {
+  "id": "plaguelord_apex",
+  "name": "만역의 대군주",
+  "arch": "mage",
+  "style": "necro",
+  "tier": 4,
+  "equip": [
+   "scythe",
+   "tome"
+  ],
+  "desc": "역병에 이름을 붙이는 것이 취미다. 대부분 도시 이름이다.",
+  "skills": [
+   "역병 창궐 — 역병이 적진에 퍼져 하나도 남김없이 좀먹는다.",
+   "흑사 창궐 — 역병이 한꺼번에 터진다. 이 장면 뒤로 마을 하나가 조용해지곤 했다."
+  ],
+  "next": []
+ },
+ {
+  "id": "plaguelord_abyss",
+  "name": "부패의 거체",
+  "arch": "tank",
+  "style": "fiend",
+  "tier": 4,
+  "equip": [
+   "scythe",
+   "mace"
+  ],
+  "desc": "썩는 속도보다 부풀어 오르는 속도가 빨라, 결국 벽이 되었다.",
+  "skills": [
+   "부패의 손길 — 닿은 자리부터 썩어들어가 마법 저항을 갉아먹는다.",
+   "만병의 늪 — 전장을 썩은 늪으로 바꾼다. 서 있기만 해도 살이 흘러내린다."
+  ],
+  "next": []
+ },
+ {
+  "id": "highpriest_abyss",
+  "name": "성좌의 교황",
+  "arch": "healer",
+  "style": "healer",
+  "tier": 4,
+  "equip": [
+   "staff",
+   "tome"
+  ],
+  "desc": "기도 한 줄에 부대가 통째로 일어선다. 값은 나중에 청구된다.",
+  "skills": [
+   "신성한 은총 — 은총의 비가 부대 전원을 감싸 회복시킨다.",
+   "만유의 은총 — 한 번의 기도로 부대 전원이 다시 일어선다. 은총은 아직 마르지 않았다."
+  ],
+  "next": []
+ },
+ {
+  "id": "highpriest_apex",
+  "name": "전쟁의 대사제",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "staff",
+   "tome"
+  ],
+  "desc": "치유는 부하에게 맡기고, 본인은 심판만 담당한다.",
+  "skills": [
+   "신앙의 축복 — 굳은 신앙으로 아군의 방어와 저항을 함께 세운다.",
+   "천벌의 성광 — 기도가 끝나는 순간 하늘이 열린다. 빛에 닿은 자는 그 자리에 무릎을 꺾는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "inquisitor_apex",
+  "name": "대심문관",
+  "arch": "mage",
+  "style": "mage",
+  "tier": 4,
+  "equip": [
+   "tome",
+   "sword",
+   "mace"
+  ],
+  "desc": "명부에 이름이 오르는 순간 재판은 이미 끝나 있다.",
+  "skills": [
+   "심판 — 죄 많은 자에게 한 치의 자비도 없는 심판을 내린다.",
+   "최후의 심판 — 명부의 마지막 줄을 읽어 내린다. 변론도 유예도 허용되지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "inquisitor_abyss",
+  "name": "정화의 화신",
+  "arch": "tank",
+  "style": "tank",
+  "tier": 4,
+  "equip": [
+   "mace",
+   "sword",
+   "shield"
+  ],
+  "desc": "스스로 화형대가 되어 앞줄에 선다. 타는 쪽은 언제나 상대다.",
+  "skills": [
+   "정죄의 불길 — 정죄의 불길이 적 전체를 남김없이 사른다.",
+   "정죄의 화형장 — 전장을 화형장으로 선포한다. 불은 죄가 다 타야 꺼진다."
+  ],
+  "next": []
+ },
+ {
+  "id": "arhat_apex",
+  "name": "무극의 투신",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "staff"
+  ],
+  "desc": "주먹이 백 번 나갈 동안 상대는 한 번도 나가지 못한다.",
+  "skills": [
+   "백보신권 — 보이지 않는 주먹이 사방의 적을 동시에 때린다.",
+   "천수나한권 — 천 개의 손이 동시에 뻗는다. 어느 주먹에 맞았는지 아무도 알지 못한다."
+  ],
+  "next": []
+ },
+ {
+  "id": "arhat_abyss",
+  "name": "금강불괴",
+  "arch": "tank",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "staff",
+   "mace"
+  ],
+  "desc": "갑주를 걸치지 않는다. 육신이 이미 갑주보다 단단하다.",
+  "skills": [
+   "금강불괴 — 육신을 쇠처럼 단련해 웬만한 타격을 그대로 튕겨 낸다.",
+   "금강불괴진 — 육신을 쇠로 바꾸는 데 그치지 않고, 쇠보다 단단한 것으로 다시 바꾼다."
+  ],
+  "next": []
+ },
+ {
+  "id": "fallenmonk_apex",
+  "name": "아수라 파계존",
+  "arch": "fighter",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "mace"
+  ],
+  "desc": "계율을 어긴 대가로 팔이 여섯 개인 꿈을 매일 꾼다.",
+  "skills": [
+   "마라장 — 타락한 기를 실은 장타가 적의 생기를 앗아 온다.",
+   "마라파천장 — 깨뜨린 계율 전부를 손바닥 하나에 실었다. 막을 수 있는 자세가 존재하지 않는다."
+  ],
+  "next": []
+ },
+ {
+  "id": "fallenmonk_abyss",
+  "name": "업화의 대존자",
+  "arch": "tank",
+  "style": "monk",
+  "tier": 4,
+  "equip": [
+   "claw",
+   "mace"
+  ],
+  "desc": "남의 업까지 대신 태우기로 했다. 그래서 그의 불은 꺼지지 않는다.",
+  "skills": [
+   "업화 폭발 — 쌓이고 쌓인 업이 불길이 되어 적진 한복판에서 터진다.",
+   "파계의 업장 — 쌓인 업이 갑주가 된다. 죄가 무거울수록 몸이 단단해지는 역설."
+  ],
+  "next": []
+ }
+]
