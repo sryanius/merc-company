@@ -27,7 +27,11 @@ import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
  *   그 모듈은 `state.js` 를 안 물고 상태를 인자로 받는다 (§104 14단계). */
 import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
-import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
+import { gradeRoll, createMerc, hireCost, heroRoll, pickHeroClass } from './_rules/merc.js';
+/* §187 고용을 서버가 굴린다 — 영웅 원고(이름)와 시드 rng 가 필요하다 */
+import { getHero } from './_rules/heroes.js';
+/* §187.1 도시 등급·특화는 **서버가 표에서 읽는다** — 클라가 말한 값을 믿으면 tier=5·특화=true 로 S 확률을 산다 */
+import { getCity, isSpecialtyCity } from './_rules/world.js';
 /* §174 각성 영웅은 Lv100 까지 (limits.js 는 merc.js 가 물어 _rules 에 이미 있다) */
 import { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES } from './_rules/limits.js';
 /* §185 각성 판정도 손으로 안 쓴다 — 게임이 쓰는 awakenIssue 를 그대로 부른다 */
@@ -121,6 +125,11 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
 /** 차수. `classes.js` 의 `tier` 를 그대로 믿는다 (표가 곧 규칙이다). */
+/* ★ 주점 목록의 수명 — `state.js` 의 REFRESH_DAYS 와 **같아야 한다**.
+ *   여기서 하루로 보면 사흘 중 이틀은 «목록이 없다» 로 읽혀 서버가 고용을 못 믿는다.
+ *   state.js 는 게임 전체를 물어 서버 묶음에 못 들어온다 — 그래서 손사본이고, 스모크가 둘을 맞춰 본다. */
+const TAVERN_REFRESH_DAYS = 3;
+
 const tierOf = (id: string) => Math.max(1, Math.round(Number(getClass(id)?.tier) || 1));
 
 Deno.serve(async (req) => {
@@ -372,88 +381,197 @@ Deno.serve(async (req) => {
     return json({ ok: true, shadow: true, result });
   }
 
-  /* ═══════════════════════ 고용 ═══════════════════════════════════════════
-   * ★★ 이 계획에서 **정상 플레이어를 거절할 수 있는 유일한 행동**으로 표시된 자리다.
+  /* ═══════════════════════ 고용 (§187 — 실물) ═══════════════════════════
    *
-   * ★ 그래서 목록을 «재생성해서 대조» 하지 **않는다.** 저장된 목록(`run_state.data.tavern`)에
-   *   대고 묻는다. 재생성을 요구하면 `hireCost` 공식이나 `BASE_CLASSES` 가 바뀐 뒤
-   *   **옛 날짜를 다시 못 만들어** 정상 고용이 거절된다 (§113 이 아이템에서 겪은 병).
-   *   ★ 재현 자체는 된다 — 실측으로 저장 4개 == 재현 4개 (랴니 · lastlamp · 2129일).
-   *     그래도 «믿는 근거» 로 쓰지 않는다. 그 목록은 이미 서버에 있다.
+   * ★★★ **그림자를 끝냈다.** 이제 이 op 이 `run_mercs` 에 진짜로 넣는다.
+   *   그 전까지 서버는 «이관 뒤에 들어온 단원» 을 하나도 몰랐다 — 실측(2026-09-09)으로
+   *   라이브 6계정 전부 영웅 키가 0개였고, 그래서 §185 의 각성 op 도 §177 관문도
+   *   서버에서 잠글 수가 없었다. 그 사슬의 첫 고리가 여기다.
    *
-   * ★★ **등급은 서버가 굴린다.** 클라가 굴리면 «S 가 나올 때까지 다시 누르기» 가 된다.
-   *   그리고 시드를 `op_id` 에서 뽑아 **재시도가 같은 등급**을 내게 한다 —
-   *   `run_ops` 재생과 겹치는 방어지만, 둘 다 있어야 경쟁 조건에서도 안전하다.
+   * ★★ **등급·영웅은 서버가 굴린다.** 클라가 굴리면 «S 가 나올 때까지 다시 누르기» 가 된다.
+   *   시드는 `op_id` 에서 뽑아 **재시도가 같은 등급**을 내게 한다 (`run_ops` 재생과 이중 방어).
+   *   영웅은 §174 대로 gradeRoll **뒤에 같은 rng 로** 한 번 더 굴린다 — 순서가 곧 규칙이다.
    *
-   * ★ 여기 쓰는 해시는 «게임 규칙» 이 아니라 **멱등성의 구현 세부**다. 그래서
-   *   `enemygen.hashStr` 로 **바꾸지 마라** — 지금은 그 모듈이 묶음에 들어와 있어서
-   *   부르는 것 자체는 되지만, 바꾸는 순간 **이미 나간 고용의 등급이 전부 달라진다.**
-   *   (예전 사유였던 「묶음이 13 → 18개가 된다」 는 §138 이후 더 이상 안 맞는다.) */
+   * ★ 여기 쓰는 해시는 «게임 규칙» 이 아니라 **멱등성의 구현 세부**다. `enemygen.hashStr` 로
+   *   **바꾸지 마라** — 바꾸는 순간 이미 나간 고용의 등급이 전부 달라진다.
+   *   (§187 이 손 xorshift 를 `RNG` 로 바꿨지만 **수열은 같다** — 스모크가 굴려서 확인한다.)
+   *
+   * ★★★ 그리고 고용은 이 전환에서 **정상 플레이어를 거절할 수 있는 유일한 행동**이다.
+   *   그래서 두 가지를 지킨다:
+   *     ① 목록을 «재생성해서 대조» 하지 **않는다.** 저장된 목록(`run_state.data.tavern`)에 대고 묻는다.
+   *        재생성을 요구하면 `hireCost` 나 `BASE_CLASSES` 가 바뀐 뒤 **옛 날짜를 못 만들어**
+   *        정상 고용이 거절된다 (§113 이 아이템에서 겪은 병).
+   *     ② **막는 것은 «잴 수 있을 때» 뿐이다** (`inSync`). 서버 사본의 날짜가 클라와 다르면
+   *        골드도 주점 목록도 옛날 것이다 — 실측으로 8계정 중 3개가 −265 ~ +52일 어긋나 있었다.
+   *        그때는 막지 않고 **굴려서 쓰기만** 한다. 정원으로도 안 막는다 (표가 덜 세어진다).
+   *   ⇒ 최악이라도 «오늘 동작 + 서버가 등급을 굴린다» 이지, 새로 막히는 사람은 없다.
+   *
+   * ★ 클라는 답을 **6초까지** 기다리고(굴림 연출이 그 사이를 가린다), 못 받으면 자기가 굴린
+   *   잠정 용병으로 간다 (`ui/tavern.js` rollLocalMerc). 주점이 서버 때문에 멈추면 안 된다. */
   if (op === 'hire') {
     const cityId = String(body?.cityId || '');
     const idx = Math.round(Number(body?.offerIndex));
-    if (!cityId || !Number.isFinite(idx) || idx < 0) {
+    if (!cityId || !Number.isFinite(idx) || idx < 0 || idx > 15) {
       return json({ error: 'cityId 와 offerIndex 가 필요하다' }, 400);
     }
 
     const { data: rs3 } = await admin.from('run_state').select('*').eq('user_id', userId).maybeSingle();
     if (!rs3) return json({ error: '아직 이관 전이다' }, 404);
+
+    /* ══ 이 고용을 **서버가 정할 자격이 있나** ═════════════════════════════════
+     *
+     * ★★★ 셋 다 맞아야 «믿을 수 있다»(trusted) 다. 하나라도 어긋나면 서버는
+     *   **아무것도 쓰지 않고** 관측만 한다 — 클라가 굴린 것이 그대로 간다.
+     *
+     *   ① 같은 판인가 (`seed`)  ② 같은 날인가 (`day`)  ③ 그 자리가 저장된 목록에 실제로 있나
+     *
+     * ★★ 왜 이렇게까지 하나. 서버 사본은 자주 낡는다 (실측: 8계정 중 3개가 −265 ~ +52일).
+     *   낡은 사본으로 굴리면 **평판이 0 인 채로 등급을 굴려** 주점 화면이 약속한 확률보다
+     *   훨씬 나쁜 결과를 정직한 사람에게 안긴다. 그건 막는 것보다 더 나쁘다.
+     *   그리고 낡은 사본으로 **쓰면** `run_mercs` 가 «공격자가 채워 넣는 표» 가 된다 —
+     *   `rules.js serverAxes` 가 그 표로 S 수·전력을 갈아 끼우기 때문에, 그 순간
+     *   이 표는 독립된 증인이 아니라 위조 장부가 된다. 이 op 의 존재 이유가 뒤집힌다. */
+    const cliDay = Math.max(0, Math.round(Number(body?.day) || 0));
+    const srvDay = Math.max(0, Math.round(Number(rs3.day) || 0));
+    const seedMatch = String(body?.seed || '') !== '' && String(body?.seed) === String(rs3.seed);
+    const inSync = cliDay > 0 && cliDay === srvDay && seedMatch;
+
     const book = ((rs3.data || {}).tavern || {})[cityId];
     const list = book && Array.isArray(book.list) ? book.list : null;
-    if (!list) return json({ error: '그 도시의 주점 목록이 서버에 없다', cityId }, 409);
-    if (Number(book.day) !== Number(rs3.day)) {
-      /* ★ 목록이 오늘 것이 아니다 — 거절이 아니라 «다시 받아라» 다. */
-      return json({ error: '주점 목록이 오늘 것이 아니다', 목록일: book.day, 오늘: rs3.day }, 409);
-    }
-    const offer = list[idx];
-    if (!offer) return json({ error: '그 자리가 없다', 칸수: list.length }, 409);
-    if (offer.hired) return json({ error: '이미 계약이 끝난 자리다' }, 409);
+    /* ★ 목록은 하루짜리가 아니다 — `state.js` 가 REFRESH_DAYS(3) 마다 새로 만든다.
+     *   «생성일 == 오늘» 로 보면 사흘 중 이틀은 목록이 없는 것으로 잘못 읽힌다. */
+    const bookAge = list ? cliDay - Math.round(Number(book.day) || 0) : -1;
+    const bookLive = !!list && bookAge >= 0 && bookAge < TAVERN_REFRESH_DAYS;
+    const offer = bookLive && idx < list.length ? list[idx] : null;
 
-    const cost = Math.max(0, Math.round(Number(offer.cost) || 0));
-    if (Number(rs3.gold) < cost) {
+    const city = getCity(cityId);
+    const trusted = inSync && !!offer && !offer.hired && !!city;
+
+    /* 클래스는 **목록이 정한다.** 못 믿을 때만 클라가 말한 것을 쓰고, 그때는 아무것도 안 쓴다. */
+    const classId = String((offer && offer.classId) || body?.classId || '');
+    if (!classId || !CLASSES[classId]) return json({ error: '없는 클래스다', classId }, 400);
+    /* ★ 도시 등급·특화는 **서버 표**에서 온다 (클라가 말한 tier/specialty 는 안 쓴다) */
+    const tier = Math.max(1, Math.min(5, Math.round(Number(city && city.tier) || 1)));
+    const isSpec = isSpecialtyCity(cityId, classId);
+    const cost = offer ? Math.max(0, Math.round(Number(offer.cost) || 0)) : 0;
+
+    /* 막는 것은 **믿을 수 있을 때** 뿐이다 (그 밖에는 굴리지도 쓰지도 않으니 막을 일이 없다) */
+    if (inSync && offer && offer.hired) return json({ error: '이미 계약이 끝난 자리다' }, 409);
+    if (trusted && Number(rs3.gold) < cost) {
       return json({ error: '골드가 모자란다', 필요: cost, 보유: rs3.gold }, 409);
     }
 
-    const { count: rosterN } = await admin.from('run_mercs')
-      .select('uid', { count: 'exact', head: true }).eq('user_id', userId);
-    if ((rosterN || 0) >= Number(rs3.roster_cap || 20)) {
-      return json({ error: '단원 정원이 가득 찼다', 정원: rs3.roster_cap, 지금: rosterN }, 409);
-    }
+    const mercRows = await allRows(admin, 'run_mercs', userId, 'uid, data');
+    const rosterN = mercRows.length;
+    /* ★ 정원으로는 막지 않는다 — 이 표는 이관 뒤 고용을 놓쳐 덜 세어진다(§185). 관측만 한다. */
 
-    /* ★ `op_id` → 시드. FNV-1a 32bit — 저장소의 다른 해시와 **같은 식**이지만
-     *   여기서는 게임 규칙이 아니라 «재시도가 같은 답을 내게» 하는 장치다. */
+    /* ★★★ 시드 — **클라가 고를 수 없는 것**에서 뽑는다.
+     *   §187 은 `op_id` 만으로 시드를 만들었는데, `op_id` 는 클라가 보내는 글자다.
+     *   규칙 모듈(`merc.js`)이 브라우저에도 그대로 있으니, 공격자가 오프라인에서 op_id 를
+     *   쓸어 보며 **S + 영웅이 나오는 열쇠만 골라 보낼 수 있었다** (실측: 53번 만에 나왔다).
+     *   ⇒ 서버만 아는 비밀을 섞는다. 같은 op_id 는 여전히 같은 답을 낸다(멱등성 유지). */
+    const SEED_SALT = Deno.env.get('HIRE_SEED_SALT') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const seedSrc = `${opId}|${userId}|${rs3.seed}|${SEED_SALT}`;
     let h = 2166136261 >>> 0;
-    for (let i = 0; i < opId.length; i++) { h ^= opId.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
-    const seeded = { next: (() => { let x = (h >>> 0) || 1;
-      return () => { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; })() };
-    seeded.weighted = (entries: { g: string; w: number }[]) => {
-      const total = entries.reduce((a, e) => a + e.w, 0);
-      let t = seeded.next() * total;
-      for (const e of entries) { t -= e.w; if (t <= 0) return e; }
-      return entries[entries.length - 1];
-    };
+    for (let i = 0; i < seedSrc.length; i++) { h ^= seedSrc.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    const r = new RNG(h);
 
     const rep = Math.max(0, Math.round(Number(((rs3.data || {}).reputation || {})[cityId]) || 0));
-    const tier = Math.max(1, Math.round(Number(body?.cityTier) || 1));
-    const isSpec = !!body?.specialty;
+
+    /* ══ 못 믿는 자리 — **굴리지도 쓰지도 않는다.** 관측만 남기고 클라에게 맡긴다 ══ */
+    if (!trusted) {
+      await obs(admin, userId, 'hire', {
+        cityId, offerIndex: idx, classId, cost, rep, tier, isSpec,
+        gold: Number(rs3.gold), rosterN, rosterCap: Number(rs3.roster_cap || 20),
+        inSync, seedMatch, bookLive, bookAge, cliDay, srvDay,
+        why: !seedMatch ? '다른 판' : (cliDay !== srvDay ? '날짜 어긋남' : (!bookLive ? '목록 낡음' : (!offer ? '자리 없음' : (offer.hired ? '이미 계약' : '도시 모름')))),
+        wrote: 0,
+      });
+      return json({ ok: true, shadow: true, trusted: false });
+    }
+
     let grade = 'F';
-    try { grade = gradeRoll(tier, seeded, { rep, specialty: isSpec }); }
+    try { grade = gradeRoll(tier, r, { rep, specialty: isSpec }); }
     catch (e) { console.error('[run-op] gradeRoll 실패', e); return json({ error: '추첨하지 못했다' }, 500); }
 
-    const result = { op: 'hire', cityId, offerIndex: idx, classId: offer.classId, cost, grade };
+    /* §174 영웅 — S 뒤에 **같은 rng 로 주사위 하나 더**. 클라와 순서가 같아야 한다.
+     * ★ 보유 영웅은 **서버 표에서만** 센다. 클라가 보낸 목록을 더하면 «갖고 싶은 영웅을 지목» 하는
+     *   손잡이가 된다 (미보유 우선이 곧 선택이 된다). */
+    const ownedHeroes = new Set<string>();
+    for (const m of mercRows) {
+      const hv = (m as { data?: { hero?: string } }).data?.hero;
+      if (hv) ownedHeroes.add(String(hv));
+    }
+    let heroId: string | null = null;
+    try { heroId = heroRoll(grade, r) ? pickHeroClass(classId, r, [...ownedHeroes]) : null; }
+    catch (e) { console.error('[run-op] heroRoll 실패 — 영웅 없이 간다', e); heroId = null; }
+    const heroDef = heroId ? getHero(heroId) : null;
+
+    let merc;
+    try {
+      merc = createMerc({
+        classId: heroId || classId, grade, level: 1, rng: r, day: cliDay,
+        hero: heroId, name: heroDef ? heroDef.name : undefined,
+      });
+    } catch (e) {
+      console.error('[run-op] createMerc 실패', e);
+      return json({ error: '용병을 만들지 못했다' }, 500);
+    }
+    /* ★★ uid 는 **시드 해시에서** 낸다. `createMerc` 의 uid 는 Math.random 이라 재시도마다
+     *   달라지고, 그러면 재생이 같은 답을 못 낸다 (표에 두 줄이 남는다). */
+    merc.uid = `mc_s${h.toString(36)}`;
+    merc.hiredDay = cliDay;
+
+    const result = { op: 'hire', cityId, offerIndex: idx, classId, cost, grade, hero: heroId, merc, trusted: true };
     const { error: opErr3 } = await admin.from('run_ops')
       .insert({ user_id: userId, op_id: opId, kind: 'hire', result });
     if (opErr3) { console.error('[run-op] run_ops insert 실패', opErr3); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
 
-    /* ★★ **아직 안 쓴다** — 그림자다. `run_mercs` 도 `run_state` 도 안 고친다.
-     *   클라가 이 경로를 안 쓰기 때문이고(호출부 0줄), 등급 연출이 서버를 기다리게 하는
-     *   UI 변경이 따로 필요하다. 숫자가 맞는 것을 본 뒤에 소유를 넘긴다. */
-    console.error('[그림자] 고용 — 계산만 하고 안 쓴다', { userId, result, rep, tier, isSpec });
-    await obs(admin, userId, 'hire', {
-      cityId, offerIndex: idx, classId: offer.classId, cost, grade, rep, tier, isSpec,
-      gold: Number(rs3.gold), rosterN: rosterN || 0, rosterCap: Number(rs3.roster_cap || 20),
+    /* ══ 여기서부터 **진짜로 쓴다** (§187) ═══════════════════════════════════
+     * ★ 원장을 먼저 남기고(위) 쓴다. 쓰기가 실패하면 원장을 되돌린다 — sell·equip·promote 와 같은 계약.
+     * ★★ `data` 에는 **컬럼으로 승격된 것과 편성 사본을 뺀 나머지**만 넣는다 (`db/016 run_import` 와 같은 계약).
+     *   등급·클래스를 data 에도 두면 `promote` 가 컬럼만 고친 뒤 data 쪽이 낡은 채로 남는다.
+     * ★ `src: 'hire'` 표식 — 이 줄이 어디서 왔는지 남긴다. 나중에 `serverAxes` 가
+     *   «op 이 쓴 줄» 을 따로 다뤄야 할 때 이것 없이는 구분할 길이 없다. */
+    const SKIP = new Set(['uid', 'classId', 'grade', 'level', 'hiredDay', 'equipment', 'squadId', 'slotIndex']);
+    const mercData: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(merc)) if (!SKIP.has(k)) mercData[k] = v;
+    mercData.src = 'hire';
+
+    const { error: mErr } = await admin.from('run_mercs').insert({
+      user_id: userId, uid: merc.uid, class_id: merc.classId, grade: merc.grade,
+      level: Math.max(1, Math.min(HERO_MAX_LEVEL, Math.round(Number(merc.level) || 1))),
+      hired_day: cliDay,
+      data: mercData,
     });
-    return json({ ok: true, shadow: true, result });
+    if (mErr) {
+      console.error('[run-op] run_mercs insert 실패 — 원장을 되돌린다', mErr);
+      const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+      if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
+      return json({ error: '단원을 넣지 못했다' }, 500);
+    }
+
+    /* 골드·주점 자리 — **실패해도 고용은 이미 섰다.** 되돌리지 않고 로그만 남긴다
+     * (단원이 사라지는 것보다 사본이 조금 어긋나는 편이 낫다). */
+    try {
+      const nextData = JSON.parse(JSON.stringify(rs3.data || {}));
+      if (nextData.tavern && nextData.tavern[cityId]
+          && Array.isArray(nextData.tavern[cityId].list) && nextData.tavern[cityId].list[idx]) {
+        nextData.tavern[cityId].list[idx].hired = true;
+      }
+      const { error: sErr } = await admin.from('run_state')
+        .update({ data: nextData, gold: Math.max(0, Number(rs3.gold) - cost) }).eq('user_id', userId);
+      if (sErr) console.error('[run-op] run_state 반영 실패 — 넘어간다', sErr);
+    } catch (e) {
+      console.error('[run-op] run_state 반영 예외 — 넘어간다', String((e as Error)?.message || e));
+    }
+
+    await obs(admin, userId, 'hire', {
+      cityId, offerIndex: idx, classId, cost, grade, hero: heroId, rep, tier, isSpec,
+      gold: Number(rs3.gold), rosterN, rosterCap: Number(rs3.roster_cap || 20),
+      inSync, seedMatch, bookLive, bookAge, cliDay, srvDay, wrote: 1,
+    });
+    return json({ ok: true, replayed: false, result });
   }
 
   /* ═══════════════════════ 의뢰 정산 신고 (그림자) ═══════════════════════

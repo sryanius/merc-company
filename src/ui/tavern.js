@@ -23,6 +23,12 @@ import * as World from '../data/world.js';
 import { state, addGold, addMerc, addLog, refreshCity, save } from '../game/state.js';
 import * as GameState from '../game/state.js';
 import { GRADES, GRADE_UPKEEP, createMerc, gradeRoll, gradeChances, hireCost, mercRecipe, mercStats, upkeepOf } from '../game/merc.js';
+/* §187 고용은 서버가 굴린다 — 못 물으면 클라가 굴린 잠정 용병이 그대로 간다 */
+import { askHire } from '../net/mirror.js';
+
+/* ★ 서버 답을 기다리는 상한. `net/mirror.js` 의 askHire timeout(9초)보다 **조금 길어야**
+ *   굴림이 답보다 먼저 멈추지 않는다. 둘이 어긋나면 스모크가 문다. */
+const HIRE_WAIT_MS = 9500;
 import * as Merc from '../game/merc.js';
 import { addToSquad, createSquad, SQUAD_SIZE } from '../game/squad.js';
 import { josa } from '../game/gear.js';
@@ -779,9 +785,31 @@ function tryHire(cls, offer, city, ctx) {
   const specList = Array.isArray(ctx?.spec) && ctx.spec.length ? ctx.spec : specialtyOf(city.id);
   const isSpec = specList.includes(cls.id);
 
-  // 상태 반영은 연출 전에 끝낸다 (도중에 창을 닫아도 결과가 사라지지 않도록)
+  // 지불과 «자리 잠금» 은 연출 전에 끝낸다 (도중에 창을 닫아도 결과가 사라지지 않도록)
   addGold(-offer.cost);
-  // 평판·특화를 그대로 추첨에 태운다. opts 를 생략하면 예전과 같은 확률이 나온다.
+  offer.hired = true;
+
+  /* ★★ §187 등급·영웅은 **서버가 굴린다.** 여기서 굴리는 것은 «서버가 답을 못 줄 때» 쓸
+   *   잠정 용병이고, 굴림 연출의 실루엣도 이걸로 그린다 (실루엣은 어차피 C등급·맨 클래스다).
+   *   서버 답이 오면 그걸로 갈아 끼운 뒤에 명부에 넣는다 — 아직 아무것도 안 넣었다. */
+  const local = rollLocalMerc(cls, city, gate, isSpec);
+  /* ★★ **명부에는 지금 넣는다.** 답을 기다리는 동안 앱이 닫히면 돈만 나가고 용병이 없다
+   *   (§187 이전의 «상태 반영은 연출 전에» 불변식을 그대로 지킨다).
+   *   서버 답이 오면 **같은 객체를 갈아 끼운다** — 명부에 두 명이 생기지 않는다. */
+  enrollMerc(local, isSpec);
+  const offerIndex = ((state.tavern && state.tavern[city.id] && state.tavern[city.id].list) || []).indexOf(offer);
+  /* ★ 같은 인자로 다시 부르면 **같은 op_id** 라 서버 원장이 재생한다 —
+   *   시간초과 뒤 «서버가 이미 쓴 용병» 을 되찾는 데 그대로 쓴다. */
+  const ask = () => askHire({
+    cityId: city.id, offerIndex, day: state.day, seed: state.seed,
+    specialty: isSpec, classId: cls.id,
+  });
+
+  openHireModal(cls, local, city, isSpec, offer, ask);
+}
+
+/** 잠정 굴림 — 서버가 답을 못 줄 때 그대로 쓴다 (§187 이전의 동작 그대로). 상태는 안 건드린다. */
+function rollLocalMerc(cls, city, gate, isSpec) {
   const grade = gradeRoll(city.tier || 1, rng, { rep: gate.rep, specialty: isSpec });
   /* ★ §174 영웅 — S 가 뜨면 **같은 rng 로 주사위 하나 더** (1/2). gradeRoll 뒤에 굴린다 (서버 재현 순서).
    *   영웅은 그 계열의 4차 클래스 하나로 **Lv1 부터 4차**로 시작한다. 아직 없는 영웅을 먼저 준다. */
@@ -794,21 +822,81 @@ function tryHire(cls, offer, city, ctx) {
     hero: heroId, name: heroDef ? heroDef.name : undefined,
   });
   merc.hiredDay = state.day;
-  offer.hired = true;
+  return merc;
+}
+
+/** 명부에 넣고 계량기를 올린다 — **연출 전에** 부른다 (§187). 기록(로그)은 등급이 확정된 뒤다. */
+function enrollMerc(merc, isSpec) {
   /* ★ 고용 횟수를 센다 — 서버가 «S 가 이만큼 나올 수 있는 횟수인가» 를 묻는 데 쓴다.
    *   명물 슬롯은 따로 센다: 일반 주점은 S 확률이 **0** 이라 S 는 여기서만 나온다. */
   if (!state.stats) state.stats = {};
   state.stats.hires = (Number(state.stats.hires) || 0) + 1;
   if (isSpec) state.stats.specHires = (Number(state.stats.specHires) || 0) + 1;
   addMerc(merc);
-  const clsHired = getClass(merc.classId) || cls;
-  addLog(`${city.name} 주점에서 ${clsHired.name} ${merc.name}${josa(merc.name, '을/를')} ${num(offer.cost)}G에 고용했다. (${grade}등급${heroId ? ' · ★영웅' : ''}${isSpec ? ' · 이 도시의 명물' : ''})`);
   try { save(); } catch (e) { console.warn('[tavern] 저장 실패', e); }
-
-  openHireModal(cls, merc, city, isSpec);
 }
 
-function openHireModal(cls, merc, city, isSpec) {
+/**
+ * 서버가 준 용병으로 **그 자리에서 갈아 끼운다** (§187).
+ *
+ * ★★ 명부에서 빼고 새로 넣지 않는다 — 같은 객체의 속을 바꾼다. 그래야 이미 그 객체를
+ *   들고 있는 것들(모달·추천 배치)이 같은 사람을 계속 가리킨다.
+ * ★ uid 도 서버 것으로 간다. 아직 어느 부대에도 안 들어갔으니 가리키는 곳이 명부뿐이다.
+ */
+function adoptServerMerc(target, src) {
+  for (const k of Object.keys(target)) if (!(k in src)) delete target[k];
+  Object.assign(target, src);
+}
+
+/** 고용 기록 — 등급이 확정된 뒤에 남긴다 (잠정 등급으로 적으면 거짓말이 된다) */
+function logHire(merc, cls, city, offer, isSpec, from) {
+  const clsHired = getClass(merc.classId) || cls;
+  addLog(`${city.name} 주점에서 ${clsHired.name} ${merc.name}${josa(merc.name, '을/를')} ${num(offer.cost)}G에 고용했다. (${merc.grade}등급${merc.hero ? ' · ★영웅' : ''}${isSpec ? ' · 이 도시의 명물' : ''})`);
+  if (from && from !== '서버') console.info('[주점] 서버가 답을 못 줬다 — 클라 굴림으로 간다', from);
+  try { save(); } catch (e) { console.warn('[tavern] 저장 실패', e); }
+}
+
+function openHireModal(cls, local, city, isSpec, offer, ask) {
+  const pending = ask();
+  /* ★ `merc` 는 **명부에 이미 들어간 그 객체**다. 서버 답이 오면 속만 갈린다 (adoptServerMerc). */
+  const merc = local;
+  let settled = false;
+  const finish = (m, why) => {
+    if (settled) return merc;
+    settled = true;
+    /* ★ 서버가 준 것이 용병 모양인지 본다 — 아니면 잠정 그대로 간다.
+     *   (서버가 이상한 것을 줘서 명부가 깨지는 쪽이, 등급을 클라가 굴리는 쪽보다 나쁘다.) */
+    const okShape = m && typeof m === 'object' && typeof m.uid === 'string'
+      && typeof m.classId === 'string' && typeof m.grade === 'string' && GRADE_COLOR[m.grade];
+    if (m && !okShape) console.warn('[주점] 서버 용병 모양이 이상하다 — 잠정으로 간다', m);
+    if (okShape) adoptServerMerc(local, m);   // 명부에 이미 있는 그 객체를 갈아 끼운다
+    logHire(local, cls, city, offer, isSpec, okShape ? why : '모양이상');
+    /* ★★ §187.1 시간초과로 잠정 확정했다면, 서버는 **이미 썼을 수도 있다** (내 소켓만 끊겼다).
+     *   같은 op_id 로 한 번 더 물어 원장 재생을 받아 온다 — 안 그러면 서버 표에는 있고
+     *   내 명부에는 없는 유령 단원이 남고, 그 표가 곧 §185 가 믿으려는 표다. */
+    if (!okShape && why === '시간초과') reclaim();
+    return merc;
+  };
+
+  /** 시간초과 뒤 한 번만 — 서버가 이미 만든 용병을 되찾아 갈아 끼운다 */
+  const reclaim = () => {
+    Promise.resolve(ask()).then((r2) => {
+      if (!r2 || !r2.ok || !r2.merc || typeof r2.merc.uid !== 'string') return;
+      if (r2.merc.uid === merc.uid) return;
+      adoptServerMerc(merc, r2.merc);
+      try { save(); } catch (e) { console.warn('[tavern] 저장 실패', e); }
+      toast(`계약이 확정됐다 — ${merc.name} (${merc.grade}등급${merc.hero ? ' · ★영웅' : ''})`, 'good');
+      console.info('[주점] 늦게 온 서버 답으로 갈아 끼웠다', merc.uid);
+    }).catch(() => { /* 되찾기 실패는 넘어간다 — 잠정 용병이 이미 명부에 있다 */ });
+  };
+  /* 창을 닫든 말든 답이 오면 확정한다 — 지불은 이미 끝났다 */
+  Promise.resolve(pending)
+    .then((r) => finish(r && r.ok ? r.merc : null, (r && r.why) || '무응답'))
+    .catch(() => finish(null, '예외'));
+
+  /* ★ 굴림이 멈추기 **전에** 확정한다. 굴림 쪽에서 확정하면 그 순간 등급을 아직 몰라서
+   *   글자가 'F' 로 한 번 번쩍인 뒤 «A등급!» 알림이 뜨는 모순이 보인다. */
+  later(() => finish(null, '시간초과'), HIRE_WAIT_MS - 200);
   const gradeNode = el('div', { class: 'tv-grade', style: { color: GRADE_COLOR.F }, text: 'F' });
   const msgNode = el('div', { class: 'muted tiny', text: '계약서에 손도장을 찍는다...' });
   const detail = el('div', { class: 'tv-detail', style: { opacity: '0' } });
@@ -836,9 +924,11 @@ function openHireModal(cls, merc, city, isSpec) {
   const spinBox = el('div', { class: 'tv-spinbox' });
   detail.appendChild(spinBox);
   detail.style.opacity = '1';
-  const spinner = silhouetteSpinner(spinBox, merc, cls.id);
+  const spinner = silhouetteSpinner(spinBox, local, cls.id);
 
-  spinGrade(gradeNode, merc.grade, () => {
+  /* ★ 굴림이 **서버 답을 기다린다.** 답이 오기 전에는 글자가 계속 구른다 —
+   *   기다림이 연출 안에 숨는다. 6초가 넘으면 잠정 용병으로 멈춘다. */
+  spinGrade(gradeNode, () => (settled ? merc.grade : null), () => {
     spinner.dispose();
     spinBox.remove();
     msgNode.textContent = gradeMessage(merc.grade);
@@ -898,16 +988,35 @@ function nameRow(merc) {
 }
 
 /** 등급 글자를 F부터 주르륵 굴리다가 서서히 멈춘다 */
+/**
+ * @param {string|Function} finalGrade 등급 글자, 또는 «아직 모르면 null» 을 주는 함수 (§187).
+ *   함수면 굴림이 총 시간을 넘겨도 **답이 올 때까지 계속 구른다** (WAIT_CAP 까지).
+ */
 function spinGrade(node, finalGrade, onDone, onTick) {
-  const flashy = finalGrade === 'A' || finalGrade === 'S';
+  const get = typeof finalGrade === 'function' ? finalGrade : () => finalGrade;
+  const WAIT_CAP = HIRE_WAIT_MS;         // §187.1 서버 시간초과보다 조금 길게
+  const known = get();
+  const flashy = known === 'A' || known === 'S';
   const total = 400 + Math.floor(rng.next() * 500) + (flashy ? 420 : 0);
   let elapsed = 0;
+  let waited = 0;
   let i = 0;
 
   const step = () => {
+    /* 답을 기다리는 동안은 일정한 속도로 계속 구른다 */
+    if (elapsed >= total && get() == null && waited < WAIT_CAP) {
+      const g0 = GRADES[i++ % GRADES.length];
+      node.textContent = g0;
+      node.style.color = GRADE_COLOR[g0];
+      if (onTick) { try { onTick(i); } catch (e) { /* 연출이 게임을 막으면 안 된다 */ } }
+      waited += 90;
+      later(step, 90);
+      return;
+    }
     if (elapsed >= total) {
-      node.textContent = finalGrade;
-      node.style.color = GRADE_COLOR[finalGrade];
+      const finalG = get() || 'F';
+      node.textContent = finalG;
+      node.style.color = GRADE_COLOR[finalG];
       node.classList.remove('hit');
       void node.offsetWidth;   // 애니메이션 재시작
       node.classList.add('hit');

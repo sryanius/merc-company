@@ -215,6 +215,64 @@ export async function askEquip(mercUid, itemUid, slot, day) {
  * ★ `op_id` 에 **어느 클래스로** 갔는지를 넣는다 — 같은 단원이 2차→3차→4차로 가므로
  *   uid 만으로는 두 번째 전직이 «재생» 으로 막힌다.
  */
+/**
+ * 고용을 **서버에 맡긴다** — §187 (권위)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ 왜 권위인가: 등급을 클라가 굴리면 «S 가 나올 때까지 다시 누르기» 가 된다.
+ *   서버는 `op_id` 에서 시드를 뽑아 굴리므로 **같은 자리를 다시 눌러도 같은 등급**이다.
+ *   영웅(S 뒤의 두 번째 주사위)도 같은 rng 로 이어서 굴린다.
+ *
+ * ★★ 그런데 **막지는 않는다.** 서버가 답을 못 주면(로그인 전·이관 전·네트워크·시간초과)
+ *   클라가 굴린 잠정 용병이 그대로 간다 — 오늘 동작이다. 주점이 서버 때문에 멈추면 안 된다.
+ *
+ * ★ 기다린다. 다만 **6초까지만** — 굴림 연출이 그 사이를 가려 준다.
+ *
+ * @returns {Promise<{ok:boolean, merc:object|null, why:string}>}
+ */
+export async function askHire(o) {
+  const fall = (why) => ({ ok: false, merc: null, why });
+  try {
+    if (!Auth || typeof Auth.accessToken !== 'function' || !Auth.accessToken()) return fall('로그인안됨');
+    const cityId = String(o?.cityId || '');
+    const idx = Math.round(Number(o?.offerIndex));
+    if (!cityId || !Number.isFinite(idx) || idx < 0) return fall('인자없음');
+
+    const r = await authed(EP.fn('run-op'), {
+      method: 'POST',
+      /* ★ §187.1 9초까지 기다린다 — 6초는 엣지 함수가 차갑게 뜰 때 자주 넘겼고,
+       *   그때마다 서버는 쓰고 클라는 못 받는 «유령 단원» 이 생겼다 (적대적 검토). */
+      timeout: 9000,
+      body: {
+        op: 'hire',
+        /* ★★ 열쇠에 **판 시드**를 넣는다. 안 넣으면 새 게임의 `hr_<도시>_1_0` 이 옛 판의 그것과
+         *   같아져서, 서버가 **옛 용병을 재생으로 돌려준다** (같은 계정이 새로 시작하는 경우). */
+        opId: `hr_${String(o.seed || 0).slice(-10)}_${cityId}_${Math.round(Number(o.day) || 0)}_${idx}`.slice(0, 64),
+        rev: CLIENT_REV,
+        cityId, offerIndex: idx,
+        day: Math.round(Number(o.day) || 0),
+        cityTier: Math.round(Number(o.cityTier) || 1),
+        specialty: !!o.specialty,
+        classId: String(o.classId || ''),
+        /* ★ §187.1 보유 영웅은 **안 보낸다.** 서버가 자기 표에서 센다 —
+         *   보내면 «미보유 우선» 이 곧 «갖고 싶은 영웅 지목» 이 된다. */
+      },
+    }, Auth);
+
+    /* 재생(같은 op_id)도 같은 result 를 준다 — 그걸 그대로 쓴다 */
+    const res = r && r.ok && r.data && r.data.result;
+    if (res && res.merc && typeof res.merc === 'object') return { ok: true, merc: res.merc, why: '서버' };
+    /* ★ §187.1 서버가 «내 사본으로는 못 정하겠다» 고 답한 경우 — 사고가 아니다.
+     *   클라가 굴린 것이 그대로 가는 정상 경로다 (사본이 낡은 계정에서 늘 이렇다). */
+    if (r && r.ok && r.data && r.data.trusted === false) return fall('서버가못정함');
+    if (r && r.status === 404) return fall('이관전');
+    if (r && r.status === 409) return fall(`거절:${String(r.error || '')}`);
+    return fall(`상태${r && r.status}`);
+  } catch (e) {
+    return fall('예외');
+  }
+}
+
 export function mirrorPromote(mercUid, toClass) {
   send('promote', `pr_${mercUid}_${toClass}`, { mercUid: String(mercUid || ''), toClass: String(toClass || '') });
 }

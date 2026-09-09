@@ -4,7 +4,9 @@
 
 import { importsOf, importBindings, decomment as libDecomment } from './lib/imports.mjs';
 import { BUNDLES, closureOf } from './lib/bundles.mjs';
-import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync, unlinkSync } from 'node:fs';
+/* §187.1 엣지 함수를 진짜로 불러 보려면 별도 프로세스가 필요하다 */
+import { execSync } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -8737,6 +8739,62 @@ section('순위 축을 서버 값으로 바꿀 수 있나 (18단계 준비)');
   }
 }
 
+section('엣지 함수가 **파싱은 되나** (글자 검사가 못 잡는 자리)');
+{
+  /* ★★★ 왜 생겼나 (§187.1)
+   *
+   *   §187 이 `import { RNG } from './_rules/rng.js';` 를 한 줄 더 넣었는데 그 파일에는
+   *   이미 같은 import 가 있었다. ES 모듈에서 같은 이름을 두 번 들이면 **모듈 자체가**
+   *   `SyntaxError: Identifier 'RNG' has already been declared` 다 — 즉 run-op 의
+   *   **모든 op**(판매·착용·전직·고용·정산)이 부팅부터 죽는다.
+   *
+   *   그런데 이 저장소의 검사는 이 파일들을 `readFileSync` 로 읽어 **정규식만** 돌린다.
+   *   그래서 1,063건이 전부 초록인 채로 «죽은 함수» 가 배포될 뻔했다. 적대적 검토가 잡았다.
+   *
+   * ★ 여기서는 node 로 **정말 불러 본다.** `jsr:` 은 node 가 못 푸니 그 에러는 통과로 친다 —
+   *   거기까지 갔다는 것은 **파싱과 링크가 끝났다**는 뜻이다. 문법 오류는 그 전에 터진다. */
+  const FNS = [
+    'supabase/functions/run-op/index.ts',
+    'supabase/functions/submit-score/index.ts',
+    'supabase/functions/pvp-battle/index.ts',
+  ];
+  const bad = [];
+  for (const rel of FNS) {
+    const p = join(rootDir, rel);
+    if (!existsSync(p)) { bad.push(`${rel} 이 없다`); continue; }
+    const url = `file:///${p.replace(/\\/g, "/")}`;
+    let out = "";
+    try {
+      out = execSync(`node --experimental-strip-types -e "import(process.argv[1]).catch(e=>{console.log(String(e&&e.message));process.exit(0)})" ${JSON.stringify(url)}`,
+        { cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60000 });
+    } catch (e) {
+      out = String((e && (e.stderr || e.stdout)) || e);
+    }
+    const err = out || "";
+    if (/SyntaxError|has already been declared|Unexpected (token|identifier)/.test(err)) {
+      bad.push(`${rel} — ${err.split(String.fromCharCode(10)).find((x) => /SyntaxError|declared/.test(x)) || err.slice(0, 120)}`);
+    }
+  }
+  okAll(bad, '엣지 함수 셋이 문법·중복 선언 없이 파싱된다', FNS.length);
+
+  /* ★ 메타 — 일부러 중복 선언을 심은 판을 실제로 무는지 */
+  {
+    const tmp = join(rootDir, 'tools', '.smoke_dupimport.mjs');
+    let caught = false;
+    try {
+      writeFileSync(tmp, "import { RNG } from '../src/core/rng.js';\nimport { RNG } from '../src/core/rng.js';\n");
+      let out2 = "";
+      try {
+        out2 = execSync(`node --experimental-strip-types -e "import(process.argv[1]).catch(e=>{console.log(String(e&&e.message));process.exit(0)})" ${JSON.stringify(`file:///${tmp.replace(/\\/g, "/")}`)}`,
+          { cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60000 });
+      } catch (e2) { out2 = String((e2 && (e2.stderr || e2.stdout)) || e2); }
+      caught = /SyntaxError|has already been declared/.test(out2);
+    } catch (e) { caught = false; }
+    try { if (existsSync(tmp)) unlinkSync(tmp); } catch (e) { /* 지우기 실패는 넘어간다 */ }
+    ok(caught, '메타 — 중복 선언을 심으면 실제로 문다', '못 물면 이 관문은 아무것도 안 지킨다');
+  }
+}
+
 section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
 {
   /* ★★ 고용은 이 전환에서 **정상 플레이어를 거절할 수 있는 유일한 행동**이다.
@@ -8748,8 +8806,20 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
   const oSrc16 = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
   const oCode16 = decomment(oSrc16);
 
-  ok(/opId\.charCodeAt/.test(oCode16), '등급 시드를 op_id 에서 뽑는다',
-    '시드가 랜덤이면 재시도로 S 가 나올 때까지 돌릴 수 있다');
+  /* ★★★ §187.1 시드는 **op_id 를 포함하되 op_id 만이어서는 안 된다.**
+   *   op_id 는 클라가 보내는 글자다. 규칙 모듈이 브라우저에도 그대로 있어서,
+   *   op_id 만으로 시드를 만들면 공격자가 오프라인에서 열쇠를 쓸어 보며
+   *   **S + 영웅이 나오는 것만 골라 보낸다** (적대적 검토 실측: 53번 만에 나왔다).
+   *   ⇒ 서버만 아는 값(환경변수)을 반드시 섞는다. 멱등성은 op_id 가 계속 지킨다. */
+  {
+    const seedLine = (oCode16.match(/const seedSrc = [^;]+;/) || [])[0] || '';
+    const bad = [];
+    if (!seedLine) bad.push('시드를 만드는 자리를 못 찾았다 (seedSrc)');
+    if (seedLine && !/opId/.test(seedLine)) bad.push('시드에 op_id 가 없다 — 재시도가 다른 등급을 낸다');
+    if (seedLine && !/Deno\.env\.get/.test(oCode16)) bad.push('시드에 서버만 아는 값이 안 섞였다 — op_id 를 갈아 S 를 살 수 있다');
+    if (/const seedSrc = `\$\{opId\}`/.test(oCode16)) bad.push('시드가 op_id 하나뿐이다');
+    okAll(bad, '등급 시드에 op_id 와 **서버 비밀**이 함께 들어간다', 3);
+  }
   ok(!/Math\.random/.test(oCode16), '서버가 Math.random 을 안 쓴다',
     '쓰면 재시도가 다른 답을 낸다');
   ok(/gradeRoll\(/.test(oCode16), '등급을 gradeRoll 로 굴린다 (표가 곧 규칙)',
@@ -8793,6 +8863,104 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
     /* ★ 시드가 다르면 등급도 갈려야 한다 — 다 같으면 결정론이 아니라 고장이다 */
     const variety = new Set(Object.keys(plain)).size;
     ok(variety >= 4, '등급이 실제로 갈린다 (한 값에 몰리지 않는다)', `${variety}종`);
+
+    /* ══ §187 고용이 **그림자를 끝냈다** — 이제 서버가 쓴다 ══════════════════ */
+
+    ok(/from\('run_mercs'\)[\s\S]{0,200}?\.insert\(/.test(oCode16), '고용이 run_mercs 에 진짜로 넣는다',
+      '안 넣으면 서버는 이관 뒤 단원(=영웅)을 영영 모른다 — §185 가 막힌 그 자리다');
+    ok(/merc\.uid = /.test(oCode16), '용병 uid 를 op_id 에서 낸다',
+      'createMerc 의 uid 는 Math.random 이라 재시도가 표에 두 줄을 남긴다');
+    ok(/new RNG\(/.test(oCode16), '시드 rng 로 RNG 를 쓴다 (createMerc 가 pick/int 까지 쓴다)');
+
+    /* ★★ 막는 자리는 **잴 수 있을 때만** 이어야 한다.
+     *   서버 사본의 날짜가 클라와 다르면(실측 8계정 중 3개) 골드·목록이 옛날 것이다. */
+    {
+      const blocks = [...oCode16.matchAll(/return json\(\{ error: (?:'|`)(골드가 모자란다|이미 계약이 끝난 자리다)/g)];
+      const bad = [];
+      for (const m of blocks) {
+        const line = oCode16.slice(Math.max(0, m.index - 220), m.index);
+        if (!/inSync|trusted/.test(line)) bad.push(`잴 수 없는데 막는다: …${line.slice(-70).replace(/\s+/g, ' ')}`);
+      }
+      ok(blocks.length >= 2, '고용에 막는 자리가 있다 (권위가 켜져 있다)');
+      okAll(bad, '고용은 사본이 오늘 것일 때만 막는다', Math.max(1, blocks.length));
+    }
+    /* ★★ 못 믿는 자리(`!trusted`)에서 **쓰기가 하나도 없어야 한다.**
+     *   낡은 사본으로 쓰면 `run_mercs` 가 «공격자가 채워 넣는 표» 가 되고,
+     *   `rules.js serverAxes` 가 그 표로 S 수·전력을 갈아 끼우므로 위조 장부가 된다. */
+    {
+      const hireBlk = oCode16.slice(oCode16.indexOf("if (op === 'hire')"), oCode16.indexOf('의뢰 정산 신고'));
+      const cut = hireBlk.indexOf('if (!trusted)');
+      const bad4 = [];
+      if (cut < 0) bad4.push('못 믿을 때 빠져나가는 자리가 없다');
+      else {
+        const before = hireBlk.slice(0, cut);
+        for (const t of ['run_mercs', 'run_ops', 'run_state']) {
+          if (new RegExp(`from\\('${t}'\\)[\\s\\S]{0,160}?\\.(insert|update|upsert|delete)\\(`).test(before)) {
+            bad4.push(`믿을 수 있는지 정하기 전에 ${t} 에 쓴다`);
+          }
+        }
+      }
+      if (!/return json\(\{ ok: true, shadow: true, trusted: false \}\)/.test(hireBlk)) {
+        bad4.push('못 믿을 때 그림자로 돌려주지 않는다');
+      }
+      okAll(bad4, '못 믿는 고용은 굴리지도 쓰지도 않는다', 4);
+    }
+
+    /* ★ 도시 등급·특화를 클라에게서 받으면 tier=5·특화=true 로 S 확률을 살 수 있다 */
+    ok(/getCity\(cityId\)/.test(oCode16) && /isSpecialtyCity\(/.test(oCode16),
+      '도시 등급·특화를 서버 표에서 읽는다', 'body.cityTier 를 믿으면 S 확률을 돈 없이 산다');
+    ok(!/Number\(body\?\.cityTier\)/.test(oCode16), '클라가 말한 도시 등급을 안 쓴다');
+    ok(!/body\?\.ownedHeroes/.test(oCode16), '보유 영웅을 클라에게서 받지 않는다',
+      '받으면 «미보유 우선» 이 곧 «갖고 싶은 영웅 지목» 이 된다');
+
+    ok(!/정원이 가득 찼다/.test(oCode16), '정원으로는 막지 않는다',
+      'run_mercs 는 이관 뒤 고용을 놓쳐 덜 세어진다 — 그걸로 막으면 정상 고용이 막힌다');
+
+    /* ★★★ 손으로 짠 xorshift → RNG 교체가 **수열을 안 바꿨는지**. 바뀌면 이미 나간 등급이 전부 달라진다. */
+    {
+      const { RNG } = await import('../src/core/rng.js');
+      const bad2 = [];
+      for (const id of ['hr_lastlamp_100_0', 'hr_frostgate_7_3', 'op-z']) {
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+        const o = seedFrom(id); const r = new RNG(h);
+        for (let k = 0; k < 40; k++) if (o.next() !== r.next()) { bad2.push(`${id} 의 ${k}번째 뽑기가 다르다`); break; }
+        const a1 = ME16.gradeRoll(5, seedFrom(id), { rep: 60, specialty: true });
+        const b1 = ME16.gradeRoll(5, new RNG(h), { rep: 60, specialty: true });
+        if (a1 !== b1) bad2.push(`${id} 등급이 다르다 (${a1} ≠ ${b1})`);
+      }
+      okAll(bad2, '손 xorshift 와 RNG 가 같은 수열이다 (이미 나간 등급이 안 바뀐다)', 6);
+      /* ★ 메타 — 시드를 한 칸 밀면 실제로 갈리는지 (검사가 살아 있나) */
+      ok(new RNG(1).next() !== new RNG(2).next(), '메타 — 시드가 다르면 수열도 다르다');
+    }
+
+    /* ══ 클라 — 서버가 답을 못 줘도 주점이 멈추면 안 된다 ═══════════════════ */
+    {
+      const tv = decomment(readFileSync(join(rootDir, 'src/ui/tavern.js'), 'utf8'));
+      const mr = decomment(readFileSync(join(rootDir, 'src/net/mirror.js'), 'utf8'));
+      const bad3 = [];
+      if (!/askHire/.test(tv)) bad3.push('주점이 서버에 안 묻는다');
+      if (!/rollLocalMerc/.test(tv)) bad3.push('서버가 답을 못 줄 때 쓸 잠정 굴림이 없다');
+      if (!/settled/.test(tv)) bad3.push('두 번 넣는 것을 막는 빗장이 없다');
+      if ((tv.split('enrollMerc(').length - 1) !== 2) bad3.push('명부에 넣는 자리가 한 곳(+정의)이 아니다');
+      if (!/adoptServerMerc/.test(tv)) bad3.push('서버 답을 같은 객체에 갈아 끼우지 않는다 — 두 명이 생긴다');
+      if (tv.indexOf('enrollMerc(local') > tv.indexOf('askHire(')) bad3.push('명부보다 서버를 먼저 기다린다 — 그 사이 앱이 닫히면 돈만 나간다');
+      if (!/timeout:\s*\d+/.test(mr.slice(mr.indexOf('askHire')))) bad3.push('고용 문의에 시간 상한이 없다');
+      okAll(bad3, '고용은 서버에 묻되 답이 없으면 클라가 가고, 명부는 먼저 채운다', 7);
+
+      /* ★ 세 곳에 흩어진 상수가 **서로 맞는지**. 어긋나면 조용히 고장난다:
+       *   · 굴림 대기 > 문의 시간초과  (아니면 굴림이 답보다 먼저 멈춘다)
+       *   · 서버의 주점 목록 수명 == state.js 의 REFRESH_DAYS (아니면 사흘 중 이틀을 «없다» 로 읽는다) */
+      const bad5 = [];
+      const waitMs = Number((tv.match(/const HIRE_WAIT_MS = ([0-9]+)/) || [])[1] || 0);
+      const askMs = Number((mr.slice(mr.indexOf('askHire')).match(/timeout: ([0-9]+)/) || [])[1] || 0);
+      if (!(waitMs > askMs && askMs > 0)) bad5.push(`굴림 대기 ${waitMs}ms 가 문의 시간초과 ${askMs}ms 보다 길지 않다`);
+      const srvDays = Number((oCode16.match(/const TAVERN_REFRESH_DAYS = ([0-9]+)/) || [])[1] || 0);
+      const stSrc = readFileSync(join(rootDir, 'src/game/state.js'), 'utf8');
+      const cliDays = Number((stSrc.match(/export const REFRESH_DAYS = ([0-9]+)/) || [])[1] || 0);
+      if (!srvDays || srvDays !== cliDays) bad5.push(`주점 목록 수명이 어긋난다 (서버 ${srvDays} · 게임 ${cliDays})`);
+      okAll(bad5, '흩어진 상수가 서로 맞는다 (대기 > 시간초과 · 목록 수명)', 2);
+    }
   } catch (e) {
     ok(false, '고용 추첨을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }
