@@ -643,57 +643,70 @@ function sanitizeSquad(raw: unknown) {
           import('./_power/runverify.js'),
           import('./_power/squad.js'),
         ]);
-        const BUDGET_MS = 2500;                 // ★ 응답을 늦추지 않도록 예산으로 자른다
+        /* ★★ §185 관측을 고쳤다 — 옛 판은 «잴 수 없었다» 와 «넘었다» 를 **구분하지 못했다.**
+         *
+         *   ① 옛 판은 `startDepth: prevAbyss + 1` 로 시작했다. 시작점이 **클라가 전에 신고한 값**이라
+         *      상한이 클라 값에 바닥을 깔고 올라간다 — 서버가 낸 값이 아니다. 이제 **1 부터** 잰다.
+         *   ② 예산 2500ms 에 걸려 부대 5개 중 2개만 돌던 것이 실측이다 (관측 31건 중 랴니 계정 11건이
+         *      전부 부분 스윕이었고, 그 중 9건이 «넘었다» 로 잘못 찍혔다). 이제 **신고값에서 자르고**
+         *      닿는 부대가 하나 나오면 **바로 멈춘다** — 「최대 심층」이 아니라 「신고에 닿나」만 물으면 된다.
+         *      실측(node): 부대 5개 · 신고 125 → 346ms, 신고 300 → 2.3s. 옛 판은 부대 2개에 2700ms 였다.
+         *   ③ `complete`(전부 돌았나) · `heroKnown`(서버가 각성 영웅을 아나) 를 같이 남긴다.
+         *      §177 관문 때문에 서버가 영웅을 모르면 상한은 400 에서 막힌다 — 그건 치트가 아니라 **모름**이다.
+         *      (지금 서버는 영웅을 하나도 모른다: 고용 op 이 그림자라 이관 뒤 들어온 단원이 run_mercs 에 없다.)
+         *
+         *   ★ 판정은 **여전히 안 한다.** 이 관측이 «완주 스윕에서 넘었다» 를 꾸준히 0 으로 낼 때
+         *     그때 켠다 (§150.2 → §151 이 판매·착용을 켠 그 절차 그대로). */
+        const BUDGET_MS = 2500;
         const t0 = Date.now();
         let bestAbyss = 0;
         let bestTower = 0;
         let ran = 0;
-        /* ★ §173 소탕 — 잠수는 «지난 기록 + 1» 부터 **만피로** 시작한다. 1 부터 돌리면 상한이 낮게 나와
-         *   정상 기록이 «넘었다» 로 찍힌다. 지난 제출 이후 지난 주 수만큼(최대 8) 이어 간 것으로 본다. */
-        const prevAbyss = Number(prev?.abyssBest) || 0;
-        const weeksBetween = prev
-          ? Math.max(1, Math.min(8, Math.floor((Number(st.day) - Number(prev.day)) / 7) + 1))
-          : 1;
+        let hitBy = '';
+        let heroKnown = 0;
+        const abyssCli = Math.max(0, Math.round(Number(score.abyssBest) || 0));
+        const squadsAll = (st.squads || []).length;
         for (const q of st.squads || []) {
           if (Date.now() - t0 > BUDGET_MS) break;
           const allies = squadUnitDefs(st, q.id) || [];
           if (!allies.length) continue;
           ran++;
+          heroKnown += allies.filter((u: { hero?: unknown; awakened?: unknown }) => u && u.hero && u.awakened).length;
           try {
-            let bound = prevAbyss;
-            for (let w = 0; w < weeksBetween; w++) {
-              const day = Number(st.day) - 7 * (weeksBetween - 1 - w);
-              const a = verifyAbyss({ allies, seed: st.seed, day, squadId: q.id, allyFormationId: q.formationId, startDepth: bound + 1 });
-              const r = a?.reached || 0;
-              if (r <= bound) break;
-              bound = r;
-              if (Date.now() - t0 > BUDGET_MS) break;
-            }
-            if (bound > bestAbyss) bestAbyss = bound;
+            /* ★ 신고값에서 자른다 — 그보다 깊이 갈 수 있는지는 판정에 필요 없다 */
+            const a = verifyAbyss({ allies, seed: st.seed, day: st.day, squadId: q.id,
+              allyFormationId: q.formationId, startDepth: 1, maxDepth: Math.max(1, abyssCli) });
+            const r = a?.reached || 0;
+            if (r > bestAbyss) bestAbyss = r;
+            if (r >= abyssCli && abyssCli > 0) hitBy = String(q.id || '');
           } catch (e) { console.error('[그림자] verifyAbyss 실패', q.id, String((e as Error)?.message || e)); }
           if (Date.now() - t0 > BUDGET_MS) break;
           try {
             const w = verifyTower({ allies, seed: st.seed, day: st.day, squadId: q.id, allyFormationId: q.formationId });
             if ((w?.reached || 0) > bestTower) bestTower = w.reached;
           } catch (e) { console.error('[그림자] verifyTower 실패', q.id, String((e as Error)?.message || e)); }
+          if (hitBy) break;                        // ★ 닿는 부대가 나왔다 — 더 돌 이유가 없다
         }
+        const complete = hitBy !== '' || ran >= squadsAll;
         try {
           await admin.from('shadow_obs').insert({
             user_id: userId, kind: 'runs',
-            obs: { abyssBound: bestAbyss, abyssCli: Number(score.abyssBest) || 0,
-              abyssOver: (Number(score.abyssBest) || 0) > bestAbyss,
+            obs: { abyssBound: bestAbyss, abyssCli,
+              abyssOver: complete && abyssCli > bestAbyss && !hitBy,
+              abyssHit: hitBy ? 1 : 0,
               towerBound: bestTower, towerCli: Number(score.towerBest) || 0,
               towerOver: (Number(score.towerBest) || 0) > bestTower,
               towerAtCap: bestTower >= 500 && (Number(score.towerBest) || 0) >= 500,
-              squadsRan: ran, squadsAll: (st.squads || []).length, ms: Date.now() - t0 },
+              complete: complete ? 1 : 0, heroKnown,
+              squadsRan: ran, squadsAll, ms: Date.now() - t0 },
           });
         } catch (e) { console.error('[그림자] 관측 기록 실패 — 넘어간다', String((e as Error)?.message || e)); }
 
-        console.error('[그림자] 나락·탑 상한 vs 클라 신고', {
+        console.error('[그림자] 나락·탑 — 신고에 닿나', {
           userId,
-          나락: { 상한: bestAbyss, 클라: score.abyssBest, 넘었나: Number(score.abyssBest) > bestAbyss },
+          나락: { 신고: abyssCli, 상한: bestAbyss, 닿은부대: hitBy || '없음', 넘었나: complete && abyssCli > bestAbyss && !hitBy },
           탑: { 상한: bestTower, 클라: score.towerBest, 넘었나: Number(score.towerBest) > bestTower },
-          부대: `${ran}/${(st.squads || []).length}`,
+          부대: `${ran}/${squadsAll}`, 완주: complete, 서버가_아는_각성영웅: heroKnown,
           걸린시간: Date.now() - t0,
         });
       } catch (e) {

@@ -29,7 +29,9 @@ import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
 import { gradeRoll, createMerc, hireCost } from './_rules/merc.js';
 /* §174 각성 영웅은 Lv100 까지 (limits.js 는 merc.js 가 물어 _rules 에 이미 있다) */
-import { HERO_MAX_LEVEL } from './_rules/limits.js';
+import { HERO_MAX_LEVEL, HERO_AWAKEN_LEVEL, HERO_AWAKEN_STONES } from './_rules/limits.js';
+/* §185 각성 판정도 손으로 안 쓴다 — 게임이 쓰는 awakenIssue 를 그대로 부른다 */
+import { awakenIssue } from './_rules/merc.js';
 /* ★★ 의뢰 목록을 **다시 만든다** (§104 17단계 2번 조각).
  *   §138 이 `genQuests` 를 `state.js` 에서 떼어 냈다 — 여기서 부르는 것은 게임이
  *   부르는 **바로 그 함수**다. 손으로 다시 쓰지 않는다 (§124 에서 세 번 틀렸다). */
@@ -943,6 +945,56 @@ Deno.serve(async (req) => {
     }
 
     return json({ ok: true, shadow: true });
+  }
+
+  /* ═══════════ 각성 (§185) — **그림자다** ═══════════════════════════════════
+   *
+   * ★★ 왜 그림자인가. 판정에 필요한 것 셋 중 **둘을 서버가 못 본다**:
+   *   ① 영웅 표식(`hero`/`awakened`)은 `run_mercs.data` jsonb 안에 있고, 그 행은
+   *      `run_import` 때 한 번 들어온다. **고용 op 이 그림자라(:446) 이관 뒤 뽑은 단원은
+   *      run_mercs 에 아예 없다.** 실측: 라이브 6계정 전부 hero 키 0개 (2026-09-09).
+   *   ② 각성석(`awakenStones`)은 `run_state.data` 안이고, 그 jsonb 를 갱신하는 길이 없다
+   *      (던전 보상에는 보고 경로가 없다). 서버가 보는 개수는 이관 시점에 굳어 있다.
+   *   ⇒ 지금 «막는» 판정을 켜면 **정직한 각성이 전부 막힌다.** 그래서 계산만 하고 남긴다.
+   *
+   * ★ 켜는 순서는 정해져 있다: 고용 op 실사용 → run_mercs 가 영웅을 안다 →
+   *   각성석 보고 경로 → 그때 이 op 을 실물로 바꾸고 §177 관문을 서버에서 잠근다.
+   *   그 전까지 이 관측이 답할 질문: 「서버가 그 단원을 아는가」 · 「알 때 판정이 맞는가」.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  if (op === 'awaken') {
+    const mercUid = String(body?.mercUid || '');
+    if (!mercUid) return json({ error: 'mercUid 가 필요하다' }, 400);
+
+    const [{ data: mrow }, { data: rs4 }] = await Promise.all([
+      admin.from('run_mercs').select('uid, class_id, level, grade, data')
+        .eq('user_id', userId).eq('uid', mercUid).maybeSingle(),
+      admin.from('run_state').select('data').eq('user_id', userId).maybeSingle(),
+    ]);
+
+    const known = !!mrow;
+    const d = (mrow && mrow.data) || {};
+    const stones = Math.max(0, Math.round(Number(((rs4 && rs4.data) || {}).awakenStones) || 0));
+    /* 게임과 **같은 함수**로 판정한다 (손으로 옮기면 갈라진다 — §124) */
+    const asMerc = known
+      ? { uid: mrow.uid, classId: mrow.class_id, grade: mrow.grade, level: Number(mrow.level) || 1,
+          hero: d.hero || null, awakened: !!d.awakened }
+      : null;
+    const issue = known ? awakenIssue(asMerc, stones) : '서버가 그 단원을 모른다';
+    const tier = known ? tierOf(String(mrow.class_id || '')) : 0;
+
+    const result = { op: 'awaken', mercUid, known, issue: issue || null,
+      grade: known ? mrow.grade : null, level: known ? Number(mrow.level) || 1 : 0,
+      tier, hero: known ? (d.hero || null) : null, awakened: known ? !!d.awakened : null,
+      stones, need: HERO_AWAKEN_STONES, needLevel: HERO_AWAKEN_LEVEL, cap: HERO_MAX_LEVEL };
+
+    const { error: opErr4 } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'awaken', result });
+    if (opErr4) { console.error('[run-op] run_ops insert 실패', opErr4); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+
+    /* ★★ **아직 안 쓴다** — run_mercs 도 run_state 도 안 고친다. 위 주석의 이유다. */
+    console.error('[그림자] 각성 — 계산만 하고 안 쓴다', { userId, result });
+    await obs(admin, userId, 'awaken', result);
+    return json({ ok: true, shadow: true, result });
   }
 
   if (op !== 'promote') return json({ error: '모르는 op 이다' }, 400);

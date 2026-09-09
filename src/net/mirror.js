@@ -40,7 +40,7 @@ const handled = new Set();
 const eqHandled = new Set();
 
 /** 콘솔에 남길 때 쓰는 이름 */
-const LABEL = { promote: '전직', sell: '판매', equip: '착용' };
+const LABEL = { promote: '전직', sell: '판매', equip: '착용', awaken: '각성' };
 
 /**
  * op 하나를 서버에 알린다. **기다리지 않는다.**
@@ -217,6 +217,21 @@ export async function askEquip(mercUid, itemUid, slot, day) {
  */
 export function mirrorPromote(mercUid, toClass) {
   send('promote', `pr_${mercUid}_${toClass}`, { mercUid: String(mercUid || ''), toClass: String(toClass || '') });
+}
+
+/**
+ * 각성 (§185) — **거울이다. 절대 막지 않는다.**
+ *
+ * ★★ 서버의 `awaken` 은 지금 그림자다: 계산만 하고 run_mercs·run_state 를 안 고친다.
+ *   서버가 그 단원을 아예 모를 수도 있다 (고용 op 이 그림자라 이관 뒤 뽑은 단원은 표에 없다).
+ *   그래서 결과를 **보지 않는다** — 이 호출의 값어치는 「서버가 아는가 / 알 때 판정이 맞는가」 를
+ *   관측표에 쌓는 것뿐이다. 그 관측이 쌓여야 §177 관문을 서버에서 잠글 수 있다.
+ *
+ * ★ 각성은 단원당 한 번뿐이라 열쇠에 날짜를 안 넣는다 — 재시도가 그대로 재생이 된다.
+ */
+export function mirrorAwaken(mercUid) {
+  if (!mercUid) return;
+  send('awaken', `aw_${mercUid}`, { mercUid: String(mercUid) });
 }
 
 /**

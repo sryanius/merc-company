@@ -43,7 +43,7 @@ import * as SetsAPI from '../data/sets.js';
 import * as GameState from '../game/state.js';
 import * as Pet from '../game/pet.js';
 /* ★ 서버 사본을 따라오게 하는 채널 — 게임 흐름을 막지 않는다 (net/mirror.js) */
-import { mirrorPromote, askPromote, askEquip } from '../net/mirror.js';
+import { mirrorPromote, mirrorAwaken, askPromote, askEquip } from '../net/mirror.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -3010,6 +3010,8 @@ function awakenBlock(m, stopAnim) {
         const r = StateAPI.awakenMerc(m.uid);
         if (!r.ok) { toast(r.reason, 'bad'); return; }
         try { save(); } catch (e) { /* 저장 실패는 다음 저장에서 */ }
+        /* §185 서버에 알린다 — 그림자라 결과를 안 본다. 실패해도 게임은 그대로 간다. */
+        try { mirrorAwaken(m.uid); } catch (e) { console.warn('[company] 각성 거울 실패', e); }
         toast(`${m.name}${josa(m.name, '이/가')} 각성했다! Lv${HERO_MAX_LEVEL} 까지 큰다${r.levels ? ` · 묶어 둔 경험치로 ${r.levels}레벨 상승` : ''}.`, 'good');
         refresh();
         setTimeout(() => openMercDetail(m.uid), 30);

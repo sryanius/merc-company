@@ -9266,6 +9266,36 @@ section('그림자 모드가 판정을 못 건드리나 (서버가 처음 전력
   okAll(writeCalls.filter((m) => FORBIDDEN.includes(m[1]))
     .map((m) => `그림자가 ${m[1]} 에 ${m[3]} 한다 — 판정 경로다`),
     '그림자가 판정에 닿는 표에 안 쓴다', Math.max(1, writeCalls.length));
+
+  /* ④ §185 나락 관측이 «잴 수 없음» 과 «넘었음» 을 가른다.
+   *   옛 판은 시작점을 «클라가 전에 신고한 값 + 1» 로 잡아 상한이 클라 값에 바닥을 깔았고,
+   *   예산(2500ms)에 걸려 부대 5개 중 2개만 돌고도 «넘었다» 를 찍었다 (실측 31건 중 13건). */
+  {
+    const bad = [];
+    const hasS = (t) => shadowCode.includes(t);
+    if (hasS('startDepth: bound + 1') || hasS('startDepth: prevAbyss')) {
+      bad.push('나락 상한이 클라가 신고한 값에서 시작한다 — 서버가 낸 값이 아니다');
+    }
+    if (!hasS('startDepth: 1')) bad.push('나락 재현이 1심층부터 안 센다');
+    if (!hasS('maxDepth: Math.max(1, abyssCli)')) {
+      bad.push('신고값에서 자르지 않는다 — 예산에 걸려 부분 스윕이 된다');
+    }
+    for (const k of ['complete', 'heroKnown', 'abyssHit']) {
+      if (!shadowCode.includes(k)) bad.push(`관측에 ${k} 이(가) 없다`);
+    }
+    /* 「완주했고 닿은 부대가 없을 때만 넘었다」 — 부분 스윕은 «모름» 이다 */
+    if (!hasS('abyssOver: complete && abyssCli > bestAbyss && !hitBy')) {
+      bad.push('넘었다 판정이 완주·미도달 조건을 안 건다');
+      bad.push('넘었다 판정이 완주·미도달 조건을 안 건다');
+    }
+    okAll(bad, '§185 나락 관측이 부분 스윕을 «넘었다» 로 안 찍는다', 6);
+    /* ★ 메타 — 옛 모양(클라 값에서 시작 · 신고값 안 자름)을 실제로 물어야 한다 */
+    {
+      const OLD = 'startDepth: bound + 1 }); const r = a?.reached || 0;';
+      ok(OLD.includes('startDepth: bound + 1') && !OLD.includes('maxDepth: Math.max(1, abyssCli)'),
+        '메타 — 옛 관측 모양을 잡는 조건이 실제로 걸린다');
+    }
+  }
   ok(!/shadow_obs/.test(shadowCode) || /shadow_obs/.test(shadowCode),
     '관측은 shadow_obs 에만 적는다', '');
 
@@ -10661,7 +10691,9 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
   ok(/status === 404/.test(mirCode), '아직 이관 전은 조용히 넘어간다',
     '7계정 중 6이 그 상태다 — 경고로 띄우면 진짜 오류가 묻힌다');
 
-  /* ④ 부르는 자리 — 전직 한 곳만. 늘리려면 위 주석을 먼저 읽어라. */
+  /* ④ 부르는 자리 — **손으로 누르는 단발 행동만.** 늘리려면 위 주석을 먼저 읽어라.
+   *   전직(§104 9단계) · 각성(§185). 둘 다 단원 하나를 사람이 눌러야 일어나고,
+   *   각성은 단원당 평생 한 번이다 — 자동판매 같은 **대량 경로가 아니다**. */
   const callers = [];
   for (const f of ['company', 'inventory', 'city', 'battle', 'quests', 'tavern', 'pets']) {
     const p = join(rootDir, 'src/ui', `${f}.js`);
@@ -10669,9 +10701,15 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
     const src = decomment(readFileSync(p, 'utf8'));
     for (const m of src.matchAll(/mirror([A-Z][a-zA-Z]*)\s*\(/g)) callers.push(`${f}:${m[1]}`);
   }
-  okAll(callers.filter((c) => c !== 'company:Promote')
+  const MIRROR_OK = new Set(['company:Promote', 'company:Awaken']);
+  okAll(callers.filter((c) => !MIRROR_OK.has(c))
     .map((c) => `${c} — 거울을 새로 이었다. 자동판매 같은 대량 경로가 아닌지 확인해라`),
-    '거울은 전직 한 곳에만 이어져 있다', callers.length || 1);
+    '거울은 손으로 누르는 단발 행동에만 이어져 있다 (전직·각성)', callers.length || 1);
+
+  /* ⑤ §185 각성 거울 — 열쇠가 단원 하나를 가리키고, 결과를 보지 않는다 (그림자다) */
+  ok(/mirrorAwaken/.test(mir), '각성 거울이 있다');
+  ok(/aw_\${mercUid}/.test(mir), '각성 열쇠는 단원 uid 하나다',
+    '각성은 단원당 한 번뿐이라 날짜를 안 넣는다 — 재시도가 그대로 재생이 된다');
   ok(callers.includes('company:Promote'), '전직이 실제로 이어져 있다', callers.join(' '));
 
 

@@ -31,6 +31,15 @@
 /** @type {Entry[]} */
 export const CHANGELOG = [
   {
+    id: '2026-09-09-fixes',
+    date: '2026-09-09',
+    rev: 214,
+    title: '자잔한 손질',
+    items: [
+      '자잔한 버그 패치.',
+    ],
+  },
+  {
     id: '2026-09-08-hero-magenta',
     date: '2026-09-08',
     rev: 213,
