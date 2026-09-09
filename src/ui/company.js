@@ -13,7 +13,7 @@ import { getClass, classChain } from '../data/classes.js';
 import { getSkill } from '../data/skills.js';
 import { FORMATION_LIST, getFormation, formationMods, formationSummary, slotZoneOf } from '../data/formations.js';
 import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME, gradeKeyOf } from '../art/palette.js';
-import { levelCapOf, heroSkillIds, awakenIssue } from '../game/merc.js';
+import { levelCapOf, heroSkillIds, awakenIssue, isLocked as isMercLocked } from '../game/merc.js';
 import { getHero, heroTheme, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEVEL } from '../data/heroes.js';
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
@@ -1146,7 +1146,7 @@ function validatePick() {
 function pruneMarked() {
   for (const uid of [...marked]) {
     const m = mercOf(uid);
-    if (!m || (!includeDeployed && m.squadId)) marked.delete(uid);
+    if (!m || (!includeDeployed && m.squadId) || isMercLocked(m)) marked.delete(uid);
   }
 }
 
@@ -2047,8 +2047,9 @@ function askExpandRoster() {
 /* ── 다중 선택 / 일괄 해고 ── */
 
 /** 지금 명부에 보이는 목록 중 선택 가능한(= 배치 규칙을 통과한) 단원 */
+/** 지금 고를 수 있는 단원 — 배치 인원은 스위치가 켜져야, 잠긴 단원은 **아예** 못 고른다 (§189) */
 function selectableIn(list) {
-  return list.filter((m) => includeDeployed || !m.squadId);
+  return list.filter((m) => (includeDeployed || !m.squadId) && !isMercLocked(m));
 }
 
 function markedMercs() {
@@ -2073,6 +2074,16 @@ function dismissBar(list) {
       style: { flex: '0 0 auto', color: sel.length ? 'var(--bad)' : 'var(--ink-faint)' },
       text: `해고 선택 ${sel.length}명`,
     }),
+    /* ★ 고를 수 있는 사람이 하나도 없으면 **그 이유를 적는다.** 회색 체크박스만 늘어놓으면
+     *   화면이 고장난 것처럼 보인다 (제작자 지적). */
+    (!pool.length && list.length)
+      ? el('span', {
+        class: 'tiny', style: { color: 'var(--bad)', flex: '0 0 auto' },
+        text: list.every((m) => isMercLocked(m))
+          ? '표시된 단원이 전부 잠겨 있습니다 — 카드의 자물쇠를 푸세요'
+          : '표시된 단원이 전부 부대에 배치돼 있습니다 — [배치 인원도 선택]을 켜세요',
+      })
+      : null,
     sel.length
       ? el('span', { class: 'tiny faint num', style: { flex: '0 0 auto' }, text: `임금 −${num(upkeep)}G/일` })
       : null,
@@ -2313,22 +2324,36 @@ function rosterCard(m) {
     }, sq ? '데려오기' : '배치');
   }
 
-  // 일괄 해고용 체크박스. 배치된 용병은 [배치 인원도 선택]을 켜야 열린다.
+  // 일괄 해고용 체크박스. 배치된 용병은 [배치 인원도 선택]을 켜야 열리고, 잠근 단원은 안 열린다.
+  const mercLocked = isMercLocked(m);
   const lockedForDismiss = !!m.squadId && !includeDeployed;
+  const cantPick = mercLocked || lockedForDismiss;
+  /* ★★ 왜 못 고르는지 — 이 자리에 **글로** 둔다. 예전에는 `title` 툴팁뿐이었는데,
+   *   폰에는 툴팁이 없고 PC 에서도 물러난 회색 네모만 보인다. 제작자가 「체크박스가
+   *   비활성화 되어있다」 고 짚은 것이 정확히 이 상태였다 — 70명이 전부 배치돼 있어서
+   *   명부 전체가 회색이었고, 그 이유가 화면 어디에도 안 적혀 있었다. */
+  const whyCant = mercLocked
+    ? '잠근 단원입니다. 카드의 자물쇠를 풀어야 고를 수 있습니다.'
+    : '부대에 배치된 용병입니다. 위의 [배치 인원도 선택]을 켜야 고를 수 있습니다.';
   const isMarked = marked.has(m.uid);
   const cb = checkbox(isMarked, (v) => {
     if (v) marked.add(m.uid); else marked.delete(m.uid);
     redraw();
   }, {
-    disabled: lockedForDismiss,
-    title: lockedForDismiss
-      ? '부대에 배치된 용병입니다. 위의 [배치 인원도 선택]을 켜야 고를 수 있습니다.'
-      : '해고 대상으로 고른다',
+    disabled: cantPick,
+    title: cantPick ? whyCant : '해고 대상으로 고른다',
   });
 
   // 22px 체크박스는 손끝보다 작다 — 투명한 여백(label)을 둘러 실제 탭 영역만 40px로 넓힌다.
   // label 이라 여백을 눌러도 안쪽 체크박스가 토글되고, 카드 선택으로는 새지 않는다.
-  const cbBox = el('label', { class: 'co-cbwrap', onClick: (e) => e.stopPropagation() }, cb);
+  const cbBox = el('label', {
+    class: 'co-cbwrap',
+    onClick: (e) => {
+      e.stopPropagation();
+      /* ★ 못 고르는 체크박스를 누르면 **이유를 말해 준다.** 아무 반응도 없으면 고장으로 읽힌다. */
+      if (cantPick) toast(whyCant, 'bad');
+    },
+  }, cb);
 
   const card = el('div', {
     /* ★ 등급 테두리 (§167.1) — S·A 만. 카드 테두리·모서리로 등급을 알리고, 그림 위에는 아무것도 안 얹는다. */
@@ -2367,8 +2392,35 @@ function rosterCard(m) {
       promo ? el('span', { class: 'tag', style: { color: 'var(--gold)' }, text: '전직 가능' }) : null),
     el('div', { class: 'row', style: { gap: '5px', marginTop: '8px' } },
       mainBtn,
-      el('button', { class: 'btn sm ghost', onClick: stop(() => openMercDetail(m.uid)) }, '상세')));
+      el('button', { class: 'btn sm ghost', onClick: stop(() => openMercDetail(m.uid)) }, '상세'),
+      lockBtn(m)));
   return card;
+}
+
+/**
+ * 자물쇠 단추 (§189) — 장비 잠금과 **같은 모양·같은 뜻**이다.
+ *
+ * ★ 잠그면 일괄 선택·해고가 못 건드린다. 실수로 주력을 잘라내는 것을 막는 장치라,
+ *   «배치 인원도 선택» 스위치보다 한 겹 더 강하다 (스위치를 켜도 안 열린다).
+ */
+function lockBtn(m) {
+  const on = isMercLocked(m);
+  return el('button', {
+    class: `btn sm ${on ? '' : 'ghost'}`,
+    title: on ? '잠금 해제 — 일괄 해고가 고를 수 있게 된다' : '잠금 — 일괄 선택·해고가 못 건드린다',
+    style: on ? { color: 'var(--gold)' } : null,
+    /* ★★ 여기서 `stop(...)` 을 쓰면 안 된다 — 그건 `rosterCard` **안에만** 있는 지역 함수다.
+     *   바깥에서 부르면 브라우저의 `window.stop` 이 잡혀 **핸들러가 통째로 사라진다**
+     *   (문법 검사도 통과하고 콘솔도 조용하다 — 눌러 보고서야 알았다). 직접 막는다. */
+    onClick: (e) => {
+      e.stopPropagation();
+      m.locked = !on;
+      if (m.locked) marked.delete(m.uid);
+      save();
+      toast(m.locked ? `${m.name} 잠갔다 — 일괄 해고가 못 건드린다.` : `${m.name} 잠금을 풀었다.`, m.locked ? 'good' : '');
+      redraw();
+    },
+  }, on ? '🔒' : '🔓');
 }
 
 /* ─────────────────────────── 용병 상세 ─────────────────────────── */
@@ -3186,6 +3238,13 @@ function askDismissMany(mercs) {
     .map((x) => (typeof x === 'string' ? mercOf(x) : x))
     .filter((m) => m && state.roster.some((r) => r.uid === m.uid));
   if (!list.length) { toast('해고할 단원을 먼저 고르세요.', 'bad'); return; }
+  /* ★★ §189 잠근 단원은 **여기서도** 막는다. 체크박스만 막으면 카드의 «해고» 나
+   *   다른 경로로 새어 들어올 수 있다 — 안전장치는 마지막 문에도 있어야 한다. */
+  const lockedOnes = list.filter((m) => isMercLocked(m));
+  if (lockedOnes.length) {
+    toast(`잠근 단원 ${lockedOnes.length}명은 해고할 수 없습니다 — 자물쇠를 먼저 푸세요.`, 'bad');
+    return;
+  }
 
   const upkeep = list.reduce((a, m) => a + GameState.upkeepOfMerc(m, state), 0);
   const deployed = list.filter((m) => m.squadId);

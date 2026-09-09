@@ -955,6 +955,18 @@ export function heroSkillIds(merc) {
  * @param {object} merc
  * @param {number} stones 보유 각성석
  */
+/**
+ * 이 단원이 **잠겨 있는가** (§189).
+ *
+ * ★ 잠금은 «일괄 조작이 건드리지 마라» 는 뜻이다. 해고 선택·일괄 선택·해고가 막힌다.
+ *   장비 잠금(`gear.isLocked`)과 같은 계약이고, 같은 이유로 존재한다 —
+ *   **되돌릴 수 없는 조작에 대한 플레이어의 유일한 안전장치**다.
+ * ★ 옛 세이브에는 이 필드가 없다 — 없으면 false 라 마이그레이션이 필요 없다.
+ */
+export function isLocked(merc) {
+  return !!(merc && merc.locked);
+}
+
 export function awakenIssue(merc, stones = 0) {
   if (!merc || !heroOf(merc)) return '영웅만 각성할 수 있다.';
   if (merc.awakened) return '이미 각성했다.';
