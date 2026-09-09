@@ -15,7 +15,7 @@ import { getHero } from '../data/heroes.js';
 /* ★ 주점은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습).
  *   showcase 가 정면 파츠가 없으면 옆모습으로 물러난다 — 부르는 쪽은 신경 안 써도 된다. */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
-import { ARCHETYPES, BASE_CLASSES, getClass } from '../data/classes.js';
+import { ARCHETYPES, BASE_CLASSES, getClass, promoteOptions } from '../data/classes.js';
 import { getCity } from '../data/world.js';
 // 평판/특화/확률 API는 다른 모듈에서 나중에 붙는 것들이라 이름 import 하면
 // 없을 때 모듈 전체가 죽는다. 네임스페이스로 받아 존재할 때만 호출한다.
@@ -1050,15 +1050,49 @@ function spinGrade(node, finalGrade, onDone, onTick) {
  *
  * @returns {{tick:(i:number)=>void, dispose:()=>void}}
  */
+/**
+ * §189.2 굴리는 동안 보여 줄 **그 계열의 클래스들**.
+ *
+ * ★ 예전에는 같은 클래스의 머리색만 바뀌어서 «뭐가 굴러가는지» 가 안 읽혔다 (제작자 지적).
+ *   이제 1차 → 2차 → 3차 → 4차로 **계보가 흘러간다** — 이 계약서가 어디까지 갈 수 있는지가 그림으로 보인다.
+ * ★★ 결과와 **무관하게** 같은 목록을 돈다. 결과에 따라 목록이 달라지면 그게 곧 누출이다
+ *   (§177 이 배경 후광에서 겪은 그 사고와 같은 종류다).
+ */
+function lineSilhouettes(rootId) {
+  const out = [];
+  const seen = new Set();
+  let layer = [rootId];
+  while (layer.length && out.length < 12) {
+    const next = [];
+    for (const id of layer) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      if (getClass(id)) out.push(id);
+      let opts = [];
+      try { opts = promoteOptions(id) || []; } catch (e) { opts = []; }
+      for (const o of opts) next.push(typeof o === 'string' ? o : (o && o.id));
+    }
+    layer = next;
+  }
+  return out;
+}
+
 function silhouetteSpinner(box, merc, plainClassId = null) {
-  const VARIANTS = 6;
+  const rootId = plainClassId || merc.classId;
+  const line = lineSilhouettes(rootId);
+  /* 계보가 하나뿐이면(자료가 이상하면) 예전처럼 머리색만 흔든다 */
+  /* ★ 스프라이트는 미리 만들어 두는 것이라 개수가 곧 준비 비용이다 (폰에서 버벅이면 굴림이 죽는다).
+   *   계보가 길면(검사 계열은 15종) **고르게 솎아** 여덟 벌만 만든다 — 1차부터 4차까지가 그래도 다 스친다. */
+  const CAP = 8;
+  const thin = (a2) => (a2.length <= CAP ? a2 : Array.from({ length: CAP }, (_, i) => a2[Math.round(i * (a2.length - 1) / (CAP - 1))]));
+  const ids = line.length > 1 ? thin(line) : [rootId, rootId, rootId, rootId, rootId, rootId];
   const made = [];
   try {
-    for (let k = 0; k < VARIANTS; k++) {
+    for (const id of ids) {
       /* ★ 굴리는 동안은 **등급도 영웅도 보이면 안 된다** (제작자: 「배경에서 A 등급인 게 보인다」 — §177).
-       *   후광(gradeBg)·오라·영웅 전용 그림은 등급이 정하는 치장이라, C 등급 · 주점에 걸린 클래스로 그린다.
+       *   후광(gradeBg)·오라·영웅 전용 그림은 등급이 정하는 치장이라 **C 등급**으로 그린다.
        *   결과는 spinGrade 가 멈춘 뒤 revealBlock 이 진짜 레시피로 다시 그린다. */
-      const fake = { ...merc, grade: 'C', hero: null, awakened: false, classId: plainClassId || merc.classId, look: Merc.rollLook(rng) };
+      const fake = { ...merc, grade: 'C', hero: null, awakened: false, classId: id, look: Merc.rollLook(rng) };
       const { box: b, entry } = makePreview(mercRecipe(fake, state));
       b.style.display = 'none';
       made.push({ b, entry });

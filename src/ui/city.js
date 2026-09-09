@@ -28,7 +28,7 @@ import {
   /* ★ 판매 가능 판정의 유일한 출처 — 손으로 다시 쓰지 않는다 */
   isSellable,
 } from '../game/gear.js';
-import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
+import { RARITY_COLOR, RARITY_NAME, GRADE_COLOR, gradeKeyOf } from '../art/palette.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
 import { getPortrait, drawPortraitFrame } from '../art/portrait.js';
 import { hasIllustPng } from '../art/illustpng.js';
@@ -716,7 +716,7 @@ function restPreview(m, days) {
 function woundedChip(m) {
   const c = getClass(m.classId);
   return el('span', { class: 'tiny' },
-    el('b', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+    el('b', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)' }, text: m.name }),
     el('span', { class: 'faint', text: c ? ` ${c.name} Lv${m.level}` : '' }),
     el('span', { class: 'num', style: { color: 'var(--bad)' }, text: ` ${num(backDay(m))}일차 복귀` }));
 }
@@ -1621,7 +1621,7 @@ function openRest(city) {
       const full = p.hp >= p.maxHp;
       return el('tr', {},
         el('td', {},
-          el('span', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)', fontWeight: '600' }, text: m.name }),
+          el('span', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)', fontWeight: '600' }, text: m.name }),
           el('div', { class: 'faint tiny', text: cls ? `${cls.name} Lv${m.level}` : `Lv${m.level}` })),
         el('td', { class: 'num tiny' },
           el('span', { class: 'faint', text: `${num(p.cur)} → ` }),
@@ -1746,7 +1746,7 @@ function showRestResult(city, days, goldBefore, before) {
   const spent = Math.max(0, goldBefore - state.gold);
 
   const rows = healed.map((h) => el('div', { class: 'city-krow tiny' },
-    el('span', { style: { color: GRADE_COLOR[h.grade] || 'var(--ink)', fontWeight: '600' }, text: h.name }),
+    el('span', { style: { color: GRADE_COLOR[gradeKeyOf(h)] || 'var(--ink)', fontWeight: '600' }, text: h.name }),
     el('span', { class: 'num' },
       el('span', { style: { color: 'var(--ok)' }, text: `+${num(h.gain)}` }),
       el('span', { class: 'faint', text: ` (${num(h.hp)} / ${num(h.max)})` }))));
@@ -1893,7 +1893,7 @@ function openSmith(city) {
           el('div', { class: 'faint tiny', text: statLine(itemStats(it)) })),
         el('td', { class: 'tiny muted' }, `${SLOT_NAME[it.slot] || it.slot}${it.weaponType ? `/${weaponTypeName(it.weaponType)}` : ''}`),
         el('td', { class: 'tiny' }, owner
-          ? el('span', { style: { color: GRADE_COLOR[owner.grade] || 'var(--ink-dim)' }, text: owner.name })
+          ? el('span', { style: { color: GRADE_COLOR[gradeKeyOf(owner)] || 'var(--ink-dim)' }, text: owner.name })
           : el('span', { class: 'faint', text: '창고' })),
         el('td', { class: 'num tiny' }, `iLv${it.ilvl}`),
         el('td', {}, el('div', { class: 'row', style: { gap: '6px' } },

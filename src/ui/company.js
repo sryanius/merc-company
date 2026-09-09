@@ -1907,7 +1907,14 @@ function rosterPanel() {
   const list = filteredRoster();
   const nf = activeFilterCount();
   panel.appendChild(el('div', { class: 'row spread center wrap', style: { gap: '10px' } },
-    el('h3', { class: 'panel-title', text: `단원 명부 — ${list.length}명 표시`, style: { margin: '0' } }),
+    /* ★ §189.3 걸러졌는지를 **숫자로** 보여 준다. 예전에는 «70명 표시» 만 있어서
+     *   필터를 눌렀는데 안 걸린 것인지, 원래 다 보이는 것인지 구분이 안 됐다 (제작자 지적). */
+    el('h3', {
+      class: 'panel-title', style: { margin: '0' },
+      text: list.length === (state.roster || []).length
+        ? `단원 명부 — ${list.length}명`
+        : `단원 명부 — ${(state.roster || []).length}명 중 ${list.length}명 표시`,
+    }),
     // 폰에서는 필터가 7줄까지 넘쳐 명부를 밀어낸다 — 접이식으로 만든다 (PC 에서는 이 버튼이 안 보인다)
     el('button', {
       class: `btn sm co-ftoggle${nf ? ' primary' : ' ghost'}`,
@@ -2197,11 +2204,12 @@ function filterBar() {
     el('button', {
       class: `btn sm${rosterFilter.hideWounded ? ' primary' : ' ghost'}`,
       onClick: () => { rosterFilter.hideWounded = !rosterFilter.hideWounded; redraw(); },
-    }, '부상 제외'),
+      /* ★ 켜짐을 **글자로도** 알린다 — 색만으로는 작은 단추에서 안 읽힌다 (제작자가 두 번 짚었다) */
+    }, rosterFilter.hideWounded ? '✓ 부상 제외' : '부상 제외'),
     el('button', {
       class: `btn sm${rosterFilter.onlyFree ? ' primary' : ' ghost'}`,
       onClick: () => { rosterFilter.onlyFree = !rosterFilter.onlyFree; redraw(); },
-    }, '미배치만'),
+    }, rosterFilter.onlyFree ? '✓ 미배치만' : '미배치만'),
     // 전직 가능한 단원만 — 명부가 20~40명이 되면 ★ 표시를 눈으로 훑어 찾기가 힘들다.
     // 인원 수를 버튼에 박아 두어 목록을 열지 않고도 "지금 전직할 사람이 있나"를 알 수 있게 한다.
     (() => {

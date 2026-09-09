@@ -1,7 +1,7 @@
 // 전투 화면 — 웨이브 진행 / 캔버스 스테이지 / 전투 로그 / 결과 정산.
 // params: { questId, squadId }  또는  { battleCfg, ... } (랜덤 인카운터용)
 import { el, num, clamp } from '../core/util.js';
-import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME } from '../art/palette.js';
+import { GRADE_COLOR, RARITY_COLOR, RARITY_NAME, gradeKeyOf } from '../art/palette.js';
 // 세트(신화) 등급 표기용 — RARITY_* 는 전설(4)까지라 세트템 rarity 5 를 못 담는다
 import { MYTHIC_COLOR, MYTHIC_NAME, getSet } from '../data/sets.js';
 import { getSprite, drawSpriteFrame } from '../art/spritegen.js';
@@ -1202,7 +1202,10 @@ function renderResult(win) {
     rewardStat('획득 골드', `${num(a.gold || 0)}G`, 'var(--gold)'),
     rewardStat('경험치', num(a.exp || 0), 'var(--arcane)'),
     rewardStat('명성', `+${a.renown || 0}`, 'var(--steel)'),
-    a.stones > 0 ? rewardStat('각성석', `+${a.stones}개`, '#ff7fd8') : null));
+    /* §189.4 지금 몇 개인지 같이 보여 준다 — 각성(30개)까지 얼마나 남았는지가 그 자리에서 읽힌다 */
+    a.stones > 0
+      ? rewardStat('각성석', `+${a.stones}개`, '#ff7fd8', `보유 ${num(state.awakenStones || 0)}개`)
+      : null));
 
   const items = (a.items || []).filter(Boolean);
   reward.appendChild(el('div', { class: 'sep' }));
@@ -1351,7 +1354,7 @@ function runLootAutoEquip(items, btn, box) {
   for (const row of res.perMerc) {
     if (!row.changed.length) continue;
     const line = el('div', { class: 'bt-note tiny row wrap center', style: { gap: '6px' } },
-      el('b', { style: { color: GRADE_COLOR[row.merc.grade] || 'var(--ink)' }, text: row.name }));
+      el('b', { style: { color: GRADE_COLOR[gradeKeyOf(row.merc)] || 'var(--ink)' }, text: row.name }));
     for (const ch of row.changed) {
       line.append(
         el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: SLOT_NAME[ch.slot] || ch.slot }),
@@ -1369,9 +1372,10 @@ function runLootAutoEquip(items, btn, box) {
   btn.textContent = '착용 완료';
 }
 
-const rewardStat = (k, v, color) => el('div', { class: 'col', style: { gap: '2px' } },
+const rewardStat = (k, v, color, sub = '') => el('div', { class: 'col', style: { gap: '2px' } },
   el('span', { class: 'tiny faint', text: k }),
-  el('span', { class: 'num', style: { fontSize: '20px', fontWeight: '800', color } , text: v }));
+  el('span', { class: 'num', style: { fontSize: '20px', fontWeight: '800', color } , text: v }),
+  sub ? el('span', { class: 'tiny faint num', text: sub }) : null);
 
 function itemCard(it) {
   /* ★ 세트(신화) 아이템은 rarity 5 인데 RARITY_NAME/COLOR 는 0~4(일반~전설)까지뿐이다.
@@ -1584,7 +1588,7 @@ function createSimpleRenderer(canvas, biome) {
 
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillStyle = u.boss ? '#f0d24a' : (GRADE_COLOR[u.grade] || '#ddd');
+        ctx.fillStyle = u.boss ? '#f0d24a' : (GRADE_COLOR[gradeKeyOf(u)] || '#ddd');   // §189.1 영웅은 자홍
         ctx.fillText(`${u.boss ? '◆ ' : ''}${u.name} Lv${u.level}`, x, by - 5);
       }
 

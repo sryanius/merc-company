@@ -22,7 +22,7 @@
 import { el, num } from '../core/util.js';
 import { getClass } from '../data/classes.js';
 import '../data/classes_t4.js';
-import { GRADE_COLOR } from '../art/palette.js';
+import { GRADE_COLOR, gradeKeyOf } from '../art/palette.js';
 
 /** 이 인원보다 적은 부대는 눈에 띄게 — §92 에서 부상자가 빠져 «용병 1명» 이 된 적이 있다 */
 export const THIN_SQUAD = 3;
@@ -66,7 +66,7 @@ function squadNode(squad, i) {
       el('span', { class: 'rp-lu-nm', text: u.name || (cls && cls.name) || u.classId || '?' }),
       el('span', { class: 'tiny faint', text: cls ? cls.name : '' }),
       el('span', { class: 'tiny faint', text: u.level ? `Lv${u.level}` : '' }),
-      el('span', { class: 'tiny', style: { color: GRADE_COLOR[u.grade] || 'var(--ink-faint)' }, text: u.grade || '' }),
+      el('span', { class: 'tiny', style: { color: GRADE_COLOR[gradeKeyOf(u)] || 'var(--ink-faint)' }, text: (u.hero ? '영웅' : u.grade) || '' }),
       el('span', { class: 'tiny faint', text: st.hp ? `체 ${num(Math.round(st.hp))}` : '' }),
       el('span', { class: 'tiny faint', text: st.atk ? `공 ${num(Math.round(st.atk))}` : '' })));
   }

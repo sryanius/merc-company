@@ -281,6 +281,22 @@ export function markSquadRun(state = State.state, squadId = null, difficulty = '
    *   같은 판을 이어 갈 때(2웨이브~) 다른 난이도로 새지 않게 UI 가 이 값을 본다. */
   if (!st.dungeonRunDiff || typeof st.dungeonRunDiff !== 'object' || Array.isArray(st.dungeonRunDiff)) st.dungeonRunDiff = {};
   st.dungeonRunDiff[squadId] = normDifficulty(difficulty);
+  /* §189.4 오늘 이 부대가 **몇 웨이브까지** 갔나 — 들어갈 때 0 으로 연다 (제작자:
+   *   「이미 다녀온 부대는 몇 웨이브까지 갔는지 알 수 있으면 좋겠다」).
+   *   날짜를 같이 적어 두어야 어제 기록이 오늘 것처럼 보이지 않는다. */
+  if (!st.dungeonRunWave || typeof st.dungeonRunWave !== 'object' || Array.isArray(st.dungeonRunWave)) st.dungeonRunWave = {};
+  st.dungeonRunWave[squadId] = { day: st.day || 1, wave: 0 };
+}
+
+/** 오늘 이 부대가 던전에서 도달한 웨이브 (안 갔으면 0) — §189.4 */
+export function squadRunWave(state = State.state, squadId = null) {
+  const st = state || State.state;
+  if (!st || !squadId) return 0;
+  const rec = st.dungeonRunWave && st.dungeonRunWave[squadId];
+  if (!rec || typeof rec !== 'object') return 0;
+  if (Math.floor(Number(rec.day)) !== (st.day || 1)) return 0;
+  const w = Math.floor(Number(rec.wave));
+  return Number.isFinite(w) && w > 0 ? w : 0;
 }
 
 /** 이 부대가 오늘 들어간 난이도 (오늘 몫을 안 썼으면 null) */
@@ -828,6 +844,17 @@ export function applyDungeonResult(state = State.state, dungeonId = null, waveIn
 
   // 참여 용병
   const squadId = opts.squadId || resSquad || null;
+  /* §189.4 이긴 웨이브를 그 부대 기록에 남긴다 — 화면이 «몇 웨이브까지 갔나» 를 보여 준다.
+   *   진 웨이브는 안 센다 (돌파한 데까지가 그 부대의 오늘 성적이다). */
+  if (win && squadId && st) {
+    if (!st.dungeonRunWave || typeof st.dungeonRunWave !== 'object' || Array.isArray(st.dungeonRunWave)) st.dungeonRunWave = {};
+    const prev = st.dungeonRunWave[squadId];
+    const same = prev && Math.floor(Number(prev.day)) === (st.day || 1);
+    st.dungeonRunWave[squadId] = {
+      day: st.day || 1,
+      wave: Math.max(same ? Math.floor(Number(prev.wave)) || 0 : 0, waveNo),
+    };
+  }
   const squad = squadId ? (st.squads || []).find((s) => s.id === squadId) : null;
   const hpMap = collectHp(list);
   let members = [];

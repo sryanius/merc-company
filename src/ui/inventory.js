@@ -10,7 +10,7 @@ import { el, num, clamp } from '../core/util.js';
 import { refresh, toast, modal, go } from './app.js';
 import { state, addLog, save } from '../game/state.js';
 import { getClass } from '../data/classes.js';
-import { makePalette, RARITY_COLOR, RARITY_NAME, GRADE_COLOR } from '../art/palette.js';
+import { makePalette, RARITY_COLOR, RARITY_NAME, GRADE_COLOR, gradeKeyOf } from '../art/palette.js';
 import { getPart } from '../art/parts.js';
 import { mercStats, mercPower, weaponPartOf, shieldPartOf, armorPartOf, isWounded } from '../game/merc.js';
 import {
@@ -330,6 +330,13 @@ function setDefFor(setId, setName = '') {
 const setDefOfItem = (it) => (it ? setDefFor(setIdOfItem(it), it.setName || '') : null);
 
 /** 세트 이름 (정의가 없어도 아이템에 실린 이름을 쓴다) */
+/** 이 조각이 **몇 단** 세트인가 (1·2·3). 모르면 1 — §189.4 */
+function setTierOfItem(it) {
+  const d = setDefOfItem(it);
+  const t = Math.round(Number(d && d.tier) || 0);
+  return t >= 1 && t <= 3 ? t : 1;
+}
+
 function setNameOfItem(it) {
   const d = setDefOfItem(it);
   return (d && d.name) || it?.setName || setIdOfItem(it) || '';
@@ -801,16 +808,21 @@ function wornPanel() {
       for (const sl of SLOTS) {
         const it = itemOf(m.equipment && m.equipment[sl]);
         const nm = it && setNameOfItem(it);
-        if (nm) sets.set(nm, (sets.get(nm) || 0) + 1);
+        if (!nm) continue;
+        const cur = sets.get(nm) || { n: 0, tier: setTierOfItem(it) };
+        cur.n += 1;
+        if (!cur.tier) cur.tier = setTierOfItem(it);
+        sets.set(nm, cur);
       }
-      const setTag = [...sets.entries()].map(([nm, n]) => `${nm} ${n}`).join(' · ');
+      /* §189.4 «몇 단» 을 같이 적는다 — 이름만으로는 1·2·3단을 못 가른다 (제작자 지적) */
+      const setTag = [...sets.entries()].map(([nm, v]) => `${nm}${v.tier > 1 ? ` ${v.tier}단` : ''} ${v.n}`).join(' · ');
       const filled = SLOTS.filter((sl) => m.equipment && m.equipment[sl]).length;
 
       return el('tr', {},
         el('td', { class: 'iv-wname' },
           el('div', {
             class: 'iv-wmerc',
-            style: { fontWeight: '700', color: GRADE_COLOR[m.grade] || 'var(--ink)' },
+            style: { fontWeight: '700', color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)' },
             title: '용병 상세 보기',
             onClick: () => openMercDetailHere(m.uid),
           }, m.name),
@@ -1044,7 +1056,7 @@ function openAutoEquipPicker() {
       class: 'iv-row pick',
       onClick: () => openAutoEquipPreview({ label: m.name, mercs: [m] }),
     },
-      el('b', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)', flex: '1' }, text: m.name }),
+      el('b', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)', flex: '1' }, text: m.name }),
       el('span', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1}` })));
   }
   box.appendChild(one);
@@ -1165,7 +1177,7 @@ function planCard(row) {
   const card = el('div', { class: 'iv-plan col', style: { gap: '6px' } },
     el('div', { class: 'row spread center wrap', style: { gap: '8px' } },
       el('div', { class: 'row center', style: { gap: '6px' } },
-        el('b', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+        el('b', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)' }, text: m.name }),
         el('span', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1}` })),
       el('span', {
         class: 'tiny num',
@@ -1403,7 +1415,7 @@ function itemCard(it, owner, col) {
       el('div', { class: 'row center', style: { gap: '6px' } },
         lockToggle(it),
         owner
-          ? el('span', { class: 'tag', style: { color: GRADE_COLOR[owner.grade] || 'var(--steel)' }, text: `${owner.name} 착용` })
+          ? el('span', { class: 'tag', style: { color: GRADE_COLOR[gradeKeyOf(owner)] || 'var(--steel)' }, text: `${owner.name} 착용` })
           : isProtected(it)
             ? el('span', { class: 'tag', style: { color: 'var(--ink-faint)' }, text: '판매 불가' })
             : el('button', {
@@ -1474,7 +1486,7 @@ function openItemDetail(itemUid) {
     owner
       ? el('div', { class: 'iv-row' },
         el('span', { class: 'tiny faint', text: '착용 중' }),
-        el('b', { style: { color: GRADE_COLOR[owner.grade] || 'var(--ink)', flex: '1' }, text: owner.name }),
+        el('b', { style: { color: GRADE_COLOR[gradeKeyOf(owner)] || 'var(--ink)', flex: '1' }, text: owner.name }),
         el('button', {
           class: 'btn sm ghost',
           onClick: () => {
@@ -1593,7 +1605,7 @@ function equipTargets(it, owner) {
     box.appendChild(el('div', { class: 'iv-rec col', style: { gap: '2px' } },
       el('div', { class: 'tiny faint', text: '가장 잘 어울리는 단원' }),
       el('div', { class: 'row center wrap', style: { gap: '6px' } },
-        el('b', { style: { color: GRADE_COLOR[top.merc.grade] || 'var(--ink)' }, text: top.merc.name }),
+        el('b', { style: { color: GRADE_COLOR[gradeKeyOf(top.merc)] || 'var(--ink)' }, text: top.merc.name }),
         el('span', { class: 'tiny faint', text: `${tc.name || top.merc.classId} · ${tc.role || '용병'}` }),
         el('span', { class: 'tiny num', style: { color: 'var(--ok)' }, text: `적합도 +${num(Math.round(top.delta))}` })),
       el('div', {
@@ -1644,7 +1656,7 @@ function equipTargets(it, owner) {
     },
       el('div', { class: 'col', style: { flex: '1', gap: '1px', minWidth: '0' } },
         el('div', { class: 'row center', style: { gap: '6px' } },
-          el('b', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+          el('b', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)' }, text: m.name }),
           el('span', { class: 'tiny faint', text: `${c.name || m.classId} Lv${m.level || 1}` }),
           isTop ? el('span', { class: 'tag', style: { color: 'var(--gold)' }, text: '추천' }) : null,
           isWounded(m, state.day) ? el('span', { class: 'tag', style: { color: 'var(--bad)' }, text: '부상' }) : null),
@@ -1667,7 +1679,7 @@ function equipTargets(it, owner) {
     box.appendChild(el('div', { class: 'tiny faint', text: '착용 불가' }));
     for (const m of unable) {
       box.appendChild(el('div', { class: 'tiny muted' },
-        el('span', { style: { color: GRADE_COLOR[m.grade] || 'var(--ink)' }, text: m.name }),
+        el('span', { style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink)' }, text: m.name }),
         ` — ${equipIssue(m, it) || '알 수 없음'}`));
     }
   }

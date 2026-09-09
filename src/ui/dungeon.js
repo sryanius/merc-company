@@ -25,7 +25,7 @@ import { getEnemy } from '../data/enemies.js';
 import { getClass } from '../data/classes.js';
 import { canDeploy, squadMembers } from '../game/squad.js';
 import { mercPower, isWounded } from '../game/merc.js';
-import { GRADE_COLOR } from '../art/palette.js';
+import { GRADE_COLOR, gradeKeyOf } from '../art/palette.js';
 import { go, toast, modal } from './app.js';
 
 export const meta = { id: 'dungeon', title: '던전' };
@@ -526,7 +526,14 @@ function deployInfo(id, opt = {}) {
   if (usedToday) {
     return {
       ok: false,
-      reason: '이 부대는 오늘 던전에 다녀왔다. 날짜를 넘기면 다시 갈 수 있다.',
+      /* §189.4 몇 웨이브까지 갔는지 같이 적는다 — 「다녀왔다」 만으로는 성적을 알 수 없다 */
+      reason: (() => {
+        let w = 0;
+        try { w = Dungeon.squadRunWave(state, squadId) || 0; } catch (e) { w = 0; }
+        return w > 0
+          ? `이 부대는 오늘 ${w}웨이브까지 갔다. 날짜를 넘기면 다시 갈 수 있다.`
+          : '이 부대는 오늘 던전에 다녀왔다 (한 웨이브도 못 넘었다). 날짜를 넘기면 다시 갈 수 있다.';
+      })(),
       members,
       benched: Array.isArray(res.benched) ? res.benched : hurt,
       fit: list ? list.length : Math.max(0, members.length - hurt.length),
@@ -1279,7 +1286,7 @@ function deployPanel(d, root) {
           const c = getClass(m.classId);
           return el('span', {
             class: 'tag',
-            style: { color: GRADE_COLOR[m.grade] || 'var(--ink-dim)', opacity: isWounded(m, state.day) ? '.45' : '1' },
+            style: { color: GRADE_COLOR[gradeKeyOf(m)] || 'var(--ink-dim)', opacity: isWounded(m, state.day) ? '.45' : '1' },
             title: `${m.name} · ${c ? c.name : ''} Lv${m.level}`,
             text: `${m.name.slice(0, 4)}`,
           });
