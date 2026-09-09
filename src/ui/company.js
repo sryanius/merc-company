@@ -187,9 +187,12 @@ const numOr = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const MAX_SQUADS = numOr(SquadAPI.MAX_SQUADS, 5);
 const SQUAD_COST_FALLBACK = [0, 0, 1500, 4000, 9000, 18000];
 const ROSTER_CAP_START = numOr(StateAPI.ROSTER_CAP_START, 20);
-const ROSTER_CAP_MAX = numOr(StateAPI.ROSTER_CAP_MAX, 40);
+/* ★ 폴백은 «state.js 가 안 실렸을 때» 만 쓰인다. 그래도 값이 낡으면 화면이 조용히 거짓말을 한다 —
+ *   §191 로 상한이 150 이 됐는데 여기는 40 인 채였다 (실제로 두 판 뒤처져 있었다).
+ *   스모크가 이 폴백과 state.js 의 값을 맞춰 본다. */
+const ROSTER_CAP_MAX = numOr(StateAPI.ROSTER_CAP_MAX, 150);
 const ROSTER_CAP_STEP = numOr(StateAPI.ROSTER_CAP_STEP, 5);
-const ROSTER_CAP_COST_FALLBACK = { 25: 1200, 30: 3000, 35: 6500, 40: 12000 };
+const ROSTER_CAP_COST_FALLBACK = { 25: 3500, 30: 9000, 35: 20000, 40: 40000 };
 
 /** 현재 단원 정원 (옛 세이브면 시작값으로 본다) */
 function rosterCapOf() {

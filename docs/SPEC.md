@@ -487,7 +487,7 @@ REP_QUEST_GAIN = { F:2, E:3, D:4, C:5, B:6, A:8, S:10 }   // 실패는 이 값�
 #### 단원 정원 (`rosterCap`)
 
 ```js
-ROSTER_CAP_START = 20 · ROSTER_CAP_MAX = 40 · ROSTER_CAP_STEP = 5
+ROSTER_CAP_START = 20 · ROSTER_CAP_MAX = 150 (§191) · ROSTER_CAP_STEP = 5
 ROSTER_CAP_COST  = { 25:1200, 30:3000, 35:6500, 40:12000 }
 ```
 - `rosterCapCost(nextCap)` (표 밖이면 `Infinity`) / `canExpandRoster(st)` → `{ok, reason, cost, nextCap}`

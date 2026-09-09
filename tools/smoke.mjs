@@ -1320,6 +1320,13 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
       `ROSTER_CAP_MAX(${State.ROSTER_CAP_MAX})가 START(${State.ROSTER_CAP_START})보다 크고 STEP(${State.ROSTER_CAP_STEP}) 배수로 떨어진다`,
       `${State.ROSTER_CAP_START} → ${State.ROSTER_CAP_MAX} (step ${State.ROSTER_CAP_STEP})`);
     // 부대 정원(5부대 x 7명 = 35) 보다는 넉넉해야 예비 인원을 둘 수 있다
+    /* ★ §191.1 화면의 **폴백 상수**가 state.js 와 어긋나면 조용히 거짓말을 한다
+     *   (실제로 company.js 가 40 인 채로 두 판 뒤처져 있었다 — 적대적 검토가 짚었다) */
+    {
+      const co = readFileSync(join(rootDir, 'src/ui/company.js'), 'utf8');
+      const fb = parseInt((co.split('numOr(StateAPI.ROSTER_CAP_MAX, ')[1] || ''), 10) || 0;
+      ok(fb === State.ROSTER_CAP_MAX, '명부 화면의 정원 폴백이 state.js 와 같다', `화면 ${fb} · state ${State.ROSTER_CAP_MAX}`);
+    }
     ok(State.ROSTER_CAP_MAX >= 35 + State.ROSTER_CAP_STEP,
       '정원 상한이 전 부대 정원(35명)보다 넉넉하다', State.ROSTER_CAP_MAX);
     const capBad = [];
