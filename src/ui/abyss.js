@@ -24,7 +24,7 @@ import { state, save, dailyUpkeep } from '../game/state.js';
 import * as Abyss from '../game/abyss.js';
 import * as Pet from '../game/pet.js';
 import {
-  ABYSS_NAME, zoneOf, depthPower, depthGold, goldRange, depthEnemyCount, depthEnemyLevel,
+  ABYSS_NAME, zoneOf, depthPower, depthGold, goldRange, sweepGold, depthEnemyCount, depthEnemyLevel,
   REST_EVERY, VAULT_EVERY, VAULT_MULT, DEPTH_CAP, HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen,
 } from '../data/abyss.js';
 import { costRange, TOWER_FLOORS } from '../data/tower.js';
@@ -145,7 +145,7 @@ function ledgerPanel(st) {
   const need = upkeepWeek + towerWeek;
 
   const best = st.abyss?.best || 0;
-  const expect = goldRange(best);
+  const expect = sweepGold(best);              // §186 소탕은 지급률이 걸린다
   const ok = expect >= need;
 
   return el('div', { class: 'panel col', style: { gap: '8px' } },
@@ -192,7 +192,7 @@ function divePanel(st, entry) {
     el('h3', { text: '잠수' }),
     el('div', { class: 'muted tiny' },
       sweepTo >= 1
-        ? `최고 기록 ${best}심층까지는 소탕한다 — 전투 없이 지나가고 골드는 그대로 캔다 (+${num(goldRange(sweepTo))}G). `
+        ? `최고 기록 ${best}심층까지는 소탕한다 — 전투 없이 지나가고 골드를 일부 캔다 (+${num(sweepGold(sweepTo))}G). `
           + `${sweepTo + 1}심층부터는 전투를 보며 한 심층씩 내려간다.`
         : `1심층부터 전투를 보며 한 심층씩 내려간다. 다음 주부터는 기록까지 소탕하고 그 아래만 싸운다.`),
     el('div', { class: 'faint tiny' },

@@ -40,7 +40,7 @@
  */
 
 import {
-  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, sweepLimit,
+  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, sweepGold, SWEEP_PAY, depthPower, sweepLimit,
   isRestDepth, isVaultDepth, zoneOf, weekIndex, REST_EVERY, VAULT_EVERY, VAULT_MULT,
   HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen, countAwakenedHeroes,
 } from '../data/abyss.js';
@@ -49,7 +49,7 @@ import * as Quest from './quest.js';
 import * as RV from './runverify.js';
 
 export {
-  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, depthPower, zoneOf, sweepLimit,
+  ABYSS_NAME, DEPTH_CAP, depthGold, goldRange, sweepGold, SWEEP_PAY, depthPower, zoneOf, sweepLimit,
   isRestDepth, isVaultDepth, REST_EVERY, VAULT_EVERY, VAULT_MULT,
   HERO_GATE_DEPTH, HERO_GATE_NEED, heroGateOpen,
 };
@@ -166,8 +166,8 @@ export function dive(st, squadId, opts = {}) {
    *   `noSweep` 은 계측 도구용 (1심층부터 이월 잠수를 재고 싶을 때). */
   const to = opts.noSweep ? 0 : sweepLimit(st.abyss?.best || 0);
   if (to >= 1) {
-    gold += goldRange(to);
-    log.push({ type: 'sweep', from: 1, to, gold: goldRange(to) });
+    gold += sweepGold(to);                     // §186 지급률 — 새 심층은 아래에서 전액이다
+    log.push({ type: 'sweep', from: 1, to, gold: sweepGold(to) });
   }
 
   /* ★ 심층 루프 자체는 `runverify.js` 한 벌뿐이다 (서버가 그대로 다시 돌린다).
@@ -252,7 +252,7 @@ export function beginLiveRun(st, squadId) {
   const log = [];
   let gold = 0;
   if (to >= 1) {
-    gold = goldRange(to);
+    gold = sweepGold(to);                      // §186 지급률
     log.push({ type: 'sweep', from: 1, to, gold });
   }
   st.gold = (st.gold || 0) + gold;
