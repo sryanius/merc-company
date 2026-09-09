@@ -711,6 +711,11 @@ function doCloud() {
        *   **새 창이 그 자리에서 지워진다.** (실제로 그랬다. 브라우저로 눌러 보고 알았다.)
        *   ⇒ 닫힌 다음에 연다. `maybeShowChangelog` 도 같은 이유로 setTimeout 을 쓴다. */
       ...(st.on ? [{ label: '서버로 옮기기', kind: 'ghost', act: () => { setTimeout(openImport, 0); return true; } }] : []),
+      /* §188 사본 다시 맞추기 — **사람이 눌러야만** 돈다.
+       *   자동으로 돌리지 않는 이유는 이게 «클라가 서버를 덮는다» 이기 때문이다 (db/024 의 경고).
+       *   그런데 §187 이후로는 사본이 낡으면 서버가 고용을 정하지 못하고 빠진다 —
+       *   그래서 한 번 맞출 길이 필요하다. 서버가 거절하면(자물쇠) 그대로 알려 준다. */
+      ...(st.on ? [{ label: '서버 사본 맞추기', kind: 'ghost', act: () => { setTimeout(openResync, 0); return true; } }] : []),
       st.on
         ? {
           /* ★ '끄기' 대신 **계정 전환**이다. 끄는 스위치는 없앴다 —
@@ -770,6 +775,62 @@ function doCloud() {
  *
  * ★ 게임에는 영향이 없다. 화면·세이브·판정 중 어느 것도 이 버튼으로 안 바뀐다.
  */
+/**
+ * 서버가 가진 «내 진행도 사본» 을 지금 세이브로 맞춘다 (§188).
+ *
+ * ★★ 이건 **덮어쓰기**다. 그래서 자동으로 안 돌리고, 무엇이 어떻게 어긋나 있는지
+ *   먼저 보여 준 다음 확인을 받는다 (서버로 옮기기와 같은 계약).
+ * ★ 서버가 «locked» 로 거절할 수 있다 — 그건 사고가 아니라 **자물쇠가 일한 것**이다.
+ *   사유를 그대로 보여 준다.
+ */
+function openResync() {
+  const msg = el('div', { class: 'tiny', style: { marginTop: '8px', color: 'var(--ink-faint)' } });
+  const body = el('div', {},
+    el('div', { class: 'tiny muted' },
+      '서버가 가진 내 진행도 사본을 ', el('b', { text: '지금 세이브로' }), ' 맞춥니다. ',
+      '게임 화면도 세이브도 달라지지 않습니다 — 서버 쪽 사본만 최신이 됩니다.'),
+    el('div', { class: 'sep' }),
+    el('div', { class: 'tiny' }, el('b', { text: '지금 세이브' }), ` ${num(state.day)}일차 · 단원 ${(state.roster || []).length}명 · ${num(state.gold)} G`),
+    el('div', { class: 'sep' }),
+    el('div', { class: 'faint tiny' }, '★ 사본이 낡아 있으면 서버가 고용 등급을 정하지 못하고 빠집니다. 한 번 맞추면 그때부터 서버가 정합니다.'),
+    el('div', { class: 'faint tiny' }, '★ 서버가 거절할 수도 있습니다 — 그럴 때는 사유를 그대로 보여 줍니다.'),
+    msg);
+
+  modal({
+    title: '서버 사본 맞추기',
+    body,
+    actions: [
+      { label: '닫기', kind: 'ghost' },
+      {
+        label: '맞춘다',
+        kind: 'primary',
+        act: async () => {
+          msg.style.color = 'var(--ink-faint)';
+          msg.textContent = '올리는 중…';
+          const r = await Run.resync(state);
+          if (!r.ok) {
+            msg.style.color = 'var(--bad)';
+            msg.textContent = r.error || '서버가 받지 않았습니다.';
+            return false;
+          }
+          if (r.data && r.data.ok === false) {
+            msg.style.color = 'var(--bad)';
+            const why = String(r.data.reason || '');
+            msg.textContent = why === 'locked' ? '서버가 잠갔습니다 — 같은 판을 덮는 것은 막혀 있습니다.'
+              : (why === 'none' ? '아직 서버로 옮기기 전입니다 — «서버로 옮기기» 를 먼저 하세요.'
+                : `서버가 받지 않았습니다 (${why || '알 수 없는 이유'}).`);
+            return false;
+          }
+          msg.style.color = 'var(--ok)';
+          msg.textContent = '맞췄습니다. 이제 서버가 내 진행도를 최신으로 봅니다.';
+          toast('서버 사본을 맞췄다.', 'good');
+          return false;
+        },
+      },
+    ],
+  });
+}
+
 function openImport() {
   const p = Run.preview(state);
   const msg = el('div', { class: 'tiny', style: 'margin-top:8px;min-height:1.2em' });

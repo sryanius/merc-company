@@ -8960,6 +8960,14 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
       const cliDays = Number((stSrc.match(/export const REFRESH_DAYS = ([0-9]+)/) || [])[1] || 0);
       if (!srvDays || srvDays !== cliDays) bad5.push(`주점 목록 수명이 어긋난다 (서버 ${srvDays} · 게임 ${cliDays})`);
       okAll(bad5, '흩어진 상수가 서로 맞는다 (대기 > 시간초과 · 목록 수명)', 2);
+
+      /* ★ §188 재동기화는 **사람이 누를 때만** 돈다. 이건 «클라가 서버를 덮는다» 라
+       *   자동 경로가 늘면 자물쇠(db/025)가 의미를 잃는다. 부르는 자리를 세어 둔다. */
+      const appSrc = decomment(readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8'));
+      const resyncCalls = appSrc.split('Run.resync(').length - 1;
+      ok(resyncCalls === 2, '재동기화를 부르는 자리가 둘뿐이다 (새 판 자동 + 사람이 누르는 단추)',
+        `지금 ${resyncCalls}곳 — 늘리려면 db/024·025 의 경고를 먼저 읽어라`);
+      ok(/openResync/.test(appSrc), '사본 맞추기 단추가 있다');
     }
   } catch (e) {
     ok(false, '고용 추첨을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
