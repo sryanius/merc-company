@@ -179,6 +179,25 @@ export const SPEC_S_START_FRAC = 0.20;
 /** 실효 티어가 가장 낮아도 상한 대비 이 비율만큼은 S가 나온다 (5% × 0.16 = 0.8%) */
 export const SPEC_S_MIN_FRAC = 0.16;
 
+/**
+ * ★★ §190 **보유 S 한 명당 명물 슬롯 S 확률 +0.1 퍼센트포인트** (제작자: 「어느정도 용병을 뽑아두면
+ *   영웅 뽑는게 너무 노가다다 — 내가 가지고 있는 S 용병 한명당 S 확률을 0.1퍼씩 올리자」).
+ *
+ * ★★★ 이 가산은 **반드시 `specialtySChance` 안에만** 들어간다.
+ *   `gradeWeightsFor`/`gradeOdds`/`gradeRoll` 쪽에 더하면 **일반 슬롯에도 S 가 샌다** —
+ *   §118 방어의 전제(「S 는 명물에서만」)가 그 자리에서 무너진다. 실측으로, 가중치에 직접 더하면
+ *   보유 S 39명일 때 일반 슬롯에서 20,000판 중 754판이 S 였다 (스모크가 문다).
+ *   여기에 두면 `applySpecialty` 가 특화일 때만 불리므로 **구조적으로** 0 이 유지된다.
+ *
+ * ★ 「나머지에서 균등하게 내린다」 는 **비례 축소**로 읽는다 (아래 applySpecialty 의 `(1-s)`).
+ *   진짜로 6등분해서 빼면 5급·평판300 에서 F 가 0.0968% 뿐이라 **보유 S 6명**에서 음수가 되고,
+ *   `gradeRoll` 이 음수 항목을 조용히 버려서 실제 S 확률이 약속한 값보다 **높아진다**.
+ *
+ * ★ 상한 50명 = +5.0%p. 5급·평판 만점에서 5% → **10%** 가 천장이다 (그 위는 안 올라간다).
+ */
+export const SPEC_S_PER_OWNED_S = 0.001;
+export const SPEC_S_OWNED_CAP = 50;
+
 /** 기본 아키타입 (클래스 데이터가 깨져도 스탯 0이 되지 않게) */
 const FALLBACK_ARCH = { hp: 220, atk: 30, def: 15, res: 12, spd: 46, crit: 6, critDmg: 50, eva: 5 };
 
@@ -796,12 +815,15 @@ export function gradeWeightsAt(effTier = 1) {
  * 실효 티어에 비례한다. 상한이 8 로 올라가면서 «최대치» 는 그만큼 멀어졌다 —
  * S 는 초반엔 더 어렵고, 평판을 오래 쌓은 뒤라야 예전 수준에 닿는다 (제작자 의도).
  */
-export function specialtySChance(cityTier = 1, rep = REP_BASELINE, repMax = 300) {
+export function specialtySChance(cityTier = 1, rep = REP_BASELINE, repMax = 300, ownedS = 0) {
   const tier = clamp(Math.round(Number(cityTier) || 1), 1, 5);
   const cap = SPEC_S_MAX_BY_TIER[tier] ?? SPEC_S_MAX;
   const span = Math.max(1, (Number(repMax) || 300) - REP_BASELINE);
   const f = clamp(((Number(rep) || 0) - REP_BASELINE) / span, 0, 1);
-  return cap * (SPEC_S_START_FRAC + (1 - SPEC_S_START_FRAC) * f);
+  const base = cap * (SPEC_S_START_FRAC + (1 - SPEC_S_START_FRAC) * f);
+  /* §190 보유 S 가산 — 안 넘기면 0 이라 **예전 호출은 분포가 그대로다** (스모크가 못 박는다) */
+  const n = clamp(Math.round(Number(ownedS) || 0), 0, SPEC_S_OWNED_CAP);
+  return clamp(base + SPEC_S_PER_OWNED_S * n, 0, 1);
 }
 
 /**
@@ -822,7 +844,7 @@ function applySpecialty(w, ctx = {}) {
   for (const g of GRADES) out[g] = isTop(g) ? (w[g] || 0) * SPECIALTY_TOP_MULT : (w[g] || 0) * k;
 
   // S 배정: 나머지를 (1 - s) 로 눌러 자리를 만들고 그 자리에 S 를 넣는다. 합계는 유지된다.
-  const s = specialtySChance(ctx.cityTier, ctx.rep, ctx.repMax);
+  const s = specialtySChance(ctx.cityTier, ctx.rep, ctx.repMax, ctx.ownedS);
   const sum = GRADES.reduce((a, g) => a + out[g], 0);
   if (sum > 0 && s > 0) {
     for (const g of GRADES) out[g] *= (1 - s);
@@ -840,7 +862,7 @@ export function gradeWeightsFor(cityTier = 1, opts = {}) {
   const eff = effectiveTier(cityTier, opts);
   const w = gradeWeightsAt(eff);
   return (opts && opts.specialty)
-    ? applySpecialty(w, { cityTier, rep: opts.rep, repMax: opts.repMax })
+    ? applySpecialty(w, { cityTier, rep: opts.rep, repMax: opts.repMax, ownedS: opts.ownedS })
     : w;
 }
 

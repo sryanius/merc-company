@@ -550,6 +550,43 @@ export const S_CHANCE_MAX = 0.05;
 /** 운을 봐주는 배수. 4배면 실효 20% — 이걸 넘으면 확률로는 설명이 안 된다. */
 export const S_LUCK_SLACK = 4;
 
+/**
+ * ★★ §190 **보유 S 1명당 명물 S 확률 +0.1%p** (merc.js SPEC_S_PER_OWNED_S 의 손사본).
+ *   상한 50명 = +5%p → 명물 S 는 최대 10% 다. 스모크가 두 모듈의 값이 같은지 맞춰 본다
+ *   (rules.js 는 의존성 0 모듈만 물 수 있어서 merc.js 를 import 하지 못한다 — §37 계약).
+ */
+export const S_PER_OWNED_S = 0.001;
+export const S_OWNED_CAP = 50;
+
+/**
+ * 명물 고용 **H 회로 설명되는 S 의 최대 수**.
+ *
+ * ★★★ 왜 곱셈이 아니라 누적인가. §190 부터 S 확률은 **이미 가진 S 수에 따라 오른다** —
+ *   k 번째 S 를 뽑을 때의 확률은 `S_CHANCE_MAX + 0.001×(n0+k−1)` 이다. 그래서 상한은
+ *   `H × 최대확률` 이 아니라 **한 명씩 쌓아 올린 합**이어야 한다. 그냥 최대확률을 곱하면
+ *   상한이 너무 헐거워져서 (실측) 「10일차 S 30명」 치트가 30 > 29 로 **간신히** 걸리고,
+ *   0.15 까지 올리면 §118 방어와 함께 통째로 뚫린다.
+ *
+ * ★★ 바닥을 옛 상한으로 둔다 — `max(옛 상한, 새 상한)`. 그래서 이 변경으로 **새 오탐이 0** 이다
+ *   (H = 0~20000 전수 확인). 느슨해지기만 하고 조여지지 않는다.
+ *
+ * @param {number} H   그 시점까지 가능한 명물 고용 횟수
+ * @param {number} n0  검사 시작 시점에 이미 갖고 있던 S 수 (증가분 검사에서 쓴다)
+ */
+export function sFromSpecHires(H, n0 = 0) {
+  const h = Math.max(0, Math.floor(Number(H) || 0));
+  const base = Math.ceil(h * S_CHANCE_MAX * S_LUCK_SLACK);
+  let need = 0;
+  let k = 0;
+  while (k < 20000) {
+    const rate = S_CHANCE_MAX + S_PER_OWNED_S * Math.min(Math.max(0, n0) + k, S_OWNED_CAP);
+    need += 1 / (rate * S_LUCK_SLACK);
+    if (need > h) break;
+    k++;
+  }
+  return Math.max(base, k);
+}
+
 /* ── 탐침 차단 ─────────────────────────────────────────────────
  *
  * ★★ 제작자: 「해킹하려면 차단되는거 여러번 반복할껀데 이거 체크해서도 막을수있나?」
@@ -765,7 +802,8 @@ export function checkGrowth(prev, s) {
   const dS = s.sMercs - prev.sMercs;
   if (dS > 0) {
     const dSpec = Math.max(0, s.specHires - prev.specHires);
-    const cap = Math.max(2, Math.ceil(dSpec * S_CHANCE_MAX * S_LUCK_SLACK));
+    /* §190 이미 가진 S 부터 쌓아 올린다 — 후반 계정은 실제로 더 높은 확률로 굴린다 */
+    const cap = Math.max(2, sFromSpecHires(dSpec, prev.sMercs));
     if (dS > cap) bad.push(`S 용병 ${dS}명 증가 · 명물 고용 ${dSpec}회 (상한 ${cap})`);
   }
 
@@ -819,7 +857,7 @@ function absoluteOddities(s) {
    *   (168일차 S 36명: 예전 상한 23 → 지금은 고용 기록만 있으면 통과한다.) */
   const specSeen = Math.max(0, Number(s.specHires) || 0, Number(s.hires) || 0);
   const specPossible = Math.min(specSeen, s.day * SPEC_HIRES_PER_DAY);
-  const fromHires = Math.ceil(specPossible * S_CHANCE_MAX * S_LUCK_SLACK);
+  const fromHires = sFromSpecHires(specPossible);   // §190
   const sCap = Math.max(2, Math.ceil(s.day * 0.06), fromHires);
   if (s.sMercs > sCap) bad.push(`S 용병 ${s.sMercs}명 · ${s.day}일차 상한 ${sCap}`);
 
@@ -860,7 +898,7 @@ function absoluteOddities(s) {
       const d = Math.max(1, Math.round(Number(sDays[i]) || 1));
       if (d >= s.day) break;                       // 오늘 시점은 위에서 이미 봤다
       const capThen = Math.max(2, Math.ceil(d * 0.06),
-        Math.ceil(Math.min(specSeen, d * SPEC_HIRES_PER_DAY) * S_CHANCE_MAX * S_LUCK_SLACK));
+        sFromSpecHires(Math.min(specSeen, d * SPEC_HIRES_PER_DAY)));   // §190
       if (i + 1 > capThen) {
         bad.push(`${d}일차까지 S 용병 ${i + 1}명 · 그 시점 상한 ${capThen}`);
         break;                                     // 가장 이른 위반 하나만 적는다

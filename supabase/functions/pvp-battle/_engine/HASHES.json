@@ -5,11 +5,11 @@
   "src/core/util.js": "863340d8",
   "src/data/classes.js": "dffacc8a",
   "src/data/classes_t4.js": "5cb67a1d",
-  "src/data/enginever.js": "a5dbf16e",
+  "src/data/enginever.js": "ad2cc51f",
   "src/data/formations.js": "a767f504",
   "src/data/heroes.js": "588b5540",
-  "src/data/limits.js": "2488f1fd",
+  "src/data/limits.js": "175fd79f",
   "src/data/skills.js": "b6d55ad5",
-  "tests/fixtures/battle-golden.json": "810c9162",
+  "tests/fixtures/battle-golden.json": "af5fc6f5",
   "src/battle/tagmatch.js": "3770305f"
 }

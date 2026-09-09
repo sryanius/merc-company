@@ -49,8 +49,8 @@ export const DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR;
 export const MAX_SQUADS = 5;
 /** 한 부대의 슬롯 수 */
 export const SQUAD_SLOTS = 7;
-/** 정원 상한 (state.js ROSTER_CAP_MAX 와 같은 값) */
-export const ROSTER_CAP_MAX = 70;
+/** 정원 상한 (state.js ROSTER_CAP_MAX 와 같은 값) — §191 에서 70 → 150 */
+export const ROSTER_CAP_MAX = 150;
 
 /* ════════════════════════════════════════════════════════════════════════════
  * 도시 등급 배율 — **의뢰 보상과 고용가가 같은 기울기를 쓰게 하는 값**

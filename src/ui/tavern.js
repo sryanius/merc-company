@@ -177,7 +177,17 @@ function specialtyOf(cityId) {
  * @param {{rep?:number, specialty?:boolean}} opts
  * @returns {{F:number,...,S:number}} 0~100 퍼센트
  */
+/**
+ * §190 지금 명부의 **S 등급 수** — 명물 슬롯 S 확률에 1명당 +0.1%p 로 얹힌다.
+ * ★ 영웅도 등급이 S 다 (§174) — 따로 세지 않는다. 상한은 merc.js SPEC_S_OWNED_CAP 이 건다.
+ */
+function ownedSCount() {
+  return (state.roster || []).filter((m) => m && m.grade === 'S').length;
+}
+
 function oddsOf(tier, opts = {}) {
+  /* ★ 확률표와 실제 굴림이 **같은 값**을 봐야 한다 — 안 그러면 화면이 거짓말을 한다 */
+  if (opts.ownedS == null) opts = { ...opts, ownedS: ownedSCount() };
   if (typeof Merc.gradeOdds === 'function') {
     try {
       const o = Merc.gradeOdds(tier, opts);
@@ -802,7 +812,7 @@ function tryHire(cls, offer, city, ctx) {
    *   시간초과 뒤 «서버가 이미 쓴 용병» 을 되찾는 데 그대로 쓴다. */
   const ask = () => askHire({
     cityId: city.id, offerIndex, day: state.day, seed: state.seed,
-    specialty: isSpec, classId: cls.id,
+    specialty: isSpec, classId: cls.id, rosterN: (state.roster || []).length,
   });
 
   openHireModal(cls, local, city, isSpec, offer, ask);
@@ -810,7 +820,7 @@ function tryHire(cls, offer, city, ctx) {
 
 /** 잠정 굴림 — 서버가 답을 못 줄 때 그대로 쓴다 (§187 이전의 동작 그대로). 상태는 안 건드린다. */
 function rollLocalMerc(cls, city, gate, isSpec) {
-  const grade = gradeRoll(city.tier || 1, rng, { rep: gate.rep, specialty: isSpec });
+  const grade = gradeRoll(city.tier || 1, rng, { rep: gate.rep, specialty: isSpec, ownedS: ownedSCount() });
   /* ★ §174 영웅 — S 가 뜨면 **같은 rng 로 주사위 하나 더** (1/2). gradeRoll 뒤에 굴린다 (서버 재현 순서).
    *   영웅은 그 계열의 4차 클래스 하나로 **Lv1 부터 4차**로 시작한다. 아직 없는 영웅을 먼저 준다. */
   const heroId = Merc.heroRoll(grade, rng)

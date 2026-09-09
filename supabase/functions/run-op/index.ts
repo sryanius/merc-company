@@ -445,7 +445,8 @@ Deno.serve(async (req) => {
     const offer = bookLive && idx < list.length ? list[idx] : null;
 
     const city = getCity(cityId);
-    const trusted = inSync && !!offer && !offer.hired && !!city;
+    /* §190 `rosterKnown` 이 없으면 보유 S 를 덜 세어 **주점 화면이 약속한 확률보다 나쁘게** 굴린다 */
+    const trusted = inSync && !!offer && !offer.hired && !!city && rosterKnown;
 
     /* 클래스는 **목록이 정한다.** 못 믿을 때만 클라가 말한 것을 쓰고, 그때는 아무것도 안 쓴다. */
     const classId = String((offer && offer.classId) || body?.classId || '');
@@ -461,7 +462,9 @@ Deno.serve(async (req) => {
       return json({ error: '골드가 모자란다', 필요: cost, 보유: rs3.gold }, 409);
     }
 
-    const mercRows = await allRows(admin, 'run_mercs', userId, 'uid, data');
+    /* ★ §190 `grade` 는 **컬럼**이다 (data 에는 없다 — 아래 SKIP 이 뺀다). 보유 S 를 세려면 같이 읽어야 한다.
+     *   db/013 이 그 컬럼에 «S 용병 수를 세는 열쇠» 라고 적어 두고 색인까지 걸어 뒀다. */
+    const mercRows = await allRows(admin, 'run_mercs', userId, 'uid, data, grade');
     const rosterN = mercRows.length;
     /* ★ 정원으로는 막지 않는다 — 이 표는 이관 뒤 고용을 놓쳐 덜 세어진다(§185). 관측만 한다. */
 
@@ -477,6 +480,13 @@ Deno.serve(async (req) => {
     const r = new RNG(h);
 
     const rep = Math.max(0, Math.round(Number(((rs3.data || {}).reputation || {})[cityId]) || 0));
+    /* §190 보유 S 1명당 명물 S +0.1%p. **서버 표에서만** 센다 — 클라가 보내면
+     *   그게 곧 «S 확률을 사는 손잡이» 가 된다 (§187 이 op_id 에서 막은 그 종류다). */
+    const ownedS = mercRows.filter((m) => String((m as { grade?: string }).grade || '') === 'S').length;
+    /* ★★ 이 표가 클라보다 적으면 서버는 **약속보다 나쁜 확률**로 굴리게 된다.
+     *   그건 막는 것보다 나쁘다 — 그럴 때는 아예 정하지 않는다 (아래 trusted 에 얹는다). */
+    const cliRosterN = Math.max(0, Math.round(Number(body?.rosterN) || 0));
+    const rosterKnown = cliRosterN > 0 && mercRows.length >= cliRosterN;
 
     /* ══ 못 믿는 자리 — **굴리지도 쓰지도 않는다.** 관측만 남기고 클라에게 맡긴다 ══ */
     if (!trusted) {
@@ -484,14 +494,14 @@ Deno.serve(async (req) => {
         cityId, offerIndex: idx, classId, cost, rep, tier, isSpec,
         gold: Number(rs3.gold), rosterN, rosterCap: Number(rs3.roster_cap || 20),
         inSync, seedMatch, bookLive, bookAge, cliDay, srvDay,
-        why: !seedMatch ? '다른 판' : (cliDay !== srvDay ? '날짜 어긋남' : (!bookLive ? '목록 낡음' : (!offer ? '자리 없음' : (offer.hired ? '이미 계약' : '도시 모름')))),
+        why: !seedMatch ? '다른 판' : (cliDay !== srvDay ? '날짜 어긋남' : (!bookLive ? '목록 낡음' : (!offer ? '자리 없음' : (offer.hired ? '이미 계약' : (!city ? '도시 모름' : '명부 덜 셈'))))),
         wrote: 0,
       });
       return json({ ok: true, shadow: true, trusted: false });
     }
 
     let grade = 'F';
-    try { grade = gradeRoll(tier, r, { rep, specialty: isSpec }); }
+    try { grade = gradeRoll(tier, r, { rep, specialty: isSpec, ownedS }); }
     catch (e) { console.error('[run-op] gradeRoll 실패', e); return json({ error: '추첨하지 못했다' }, 500); }
 
     /* §174 영웅 — S 뒤에 **같은 rng 로 주사위 하나 더**. 클라와 순서가 같아야 한다.

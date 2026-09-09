@@ -1337,7 +1337,7 @@ section('평판 / 정원 / 부대 확장 / 특화 도시');
 
     State.state.gold = 0;
     ok(State.canExpandRoster(State.state).ok === false, '골드가 없으면 정원 확장 불가');
-    State.state.gold = 1000000;
+    State.state.gold = 200000000;   // §191 20→150 사다리 전체가 1억 1,538만 G
     let expandTimes = 0;
     while (State.canExpandRoster(State.state).ok) {
       const before = State.state.gold;
@@ -1957,6 +1957,48 @@ section('고용 계량기 — S 가 나올 수 있는 횟수였나');
     ok(R.S_CHANCE_MAX > 0 && R.S_CHANCE_MAX <= 0.1 && R.S_LUCK_SLACK >= 2,
       '상한이 넉넉하다 (운 좋은 사람을 날리지 않는다)',
       `S 확률 ${R.S_CHANCE_MAX} × 여유 ${R.S_LUCK_SLACK} = 실효 ${(R.S_CHANCE_MAX * R.S_LUCK_SLACK * 100).toFixed(0)}%`);
+
+    /* ══ §190 보유 S 가산 — 손사본이 어긋나면 판정선이 규칙과 따로 논다 ══
+     *   rules.js 는 의존성 0 모듈만 물 수 있어 merc.js 를 import 하지 못한다(§37).
+     *   그래서 두 파일의 값이 **손으로** 같아야 하고, 그걸 여기서 맞춰 본다. */
+    {
+      const MM = await import('../src/game/merc.js');
+      const bad = [];
+      const tierMax = Math.max(...Object.values(MM.SPEC_S_MAX_BY_TIER));
+      if (R.S_CHANCE_MAX !== tierMax) bad.push(`S_CHANCE_MAX ${R.S_CHANCE_MAX} ≠ merc 의 최대 ${tierMax}`);
+      if (R.S_PER_OWNED_S !== MM.SPEC_S_PER_OWNED_S) bad.push(`보유 가산이 다르다 (rules ${R.S_PER_OWNED_S} · merc ${MM.SPEC_S_PER_OWNED_S})`);
+      if (R.S_OWNED_CAP !== MM.SPEC_S_OWNED_CAP) bad.push(`보유 상한이 다르다 (rules ${R.S_OWNED_CAP} · merc ${MM.SPEC_S_OWNED_CAP})`);
+      okAll(bad, '§190 보유 S 가산 상수가 rules.js 손사본과 같다', 3);
+
+      /* ★★★ 보너스가 **일반 슬롯으로 새면 안 된다** — §118 방어의 전제가 그 자리에서 무너진다.
+       *   실측: 가중치에 직접 더하는 판에서는 보유 39명일 때 2만 판 중 754판이 S 였다. */
+      const leak = [];
+      for (const n of [0, 10, 39, 50, 999]) {
+        const plain = MM.gradeOdds(5, { rep: 300, ownedS: n });
+        if ((plain.S || 0) !== 0) leak.push(`보유 ${n} 명에서 일반 슬롯 S 가 ${plain.S}`);
+      }
+      okAll(leak, '§190 가산이 일반 슬롯으로 새지 않는다 (S 는 명물에서만)', 5);
+
+      /* 약속한 만큼 정확히 오르고, 상한에서 멈춘다 */
+      const at = (n) => MM.gradeOdds(5, { rep: 300, specialty: true, ownedS: n }).S;
+      const step = [];
+      if (Math.abs(at(0) - 0.05) > 1e-9) step.push(`보유 0 에서 ${at(0)} (0.05 이어야)`);
+      if (Math.abs(at(10) - 0.06) > 1e-9) step.push(`보유 10 에서 ${at(10)} (0.06 이어야)`);
+      if (Math.abs(at(50) - 0.10) > 1e-9) step.push(`보유 50 에서 ${at(50)} (0.10 이어야)`);
+      if (Math.abs(at(999) - at(50)) > 1e-9) step.push(`상한 위에서도 오른다 (${at(999)})`);
+      okAll(step, '§190 1명당 +0.1%p 로 오르고 상한에서 멈춘다', 4);
+
+      /* ★★ 새 상한은 **옛 상한보다 절대 낮지 않다** — 이 변경으로 새 오탐이 생기면 안 된다 */
+      const tight = [];
+      for (let H = 0; H <= 3000; H += 7) {
+        const old = Math.ceil(H * R.S_CHANCE_MAX * R.S_LUCK_SLACK);
+        if (R.sFromSpecHires(H) < old) { tight.push(`H=${H} 에서 상한이 낮아졌다`); break; }
+      }
+      okAll(tight, '§190 새 상한이 옛 상한 밑으로 안 내려간다 (새 오탐 0)', 1);
+      ok(R.sFromSpecHires(6) === 2, '§118 1일차 상한은 그대로 2 다', `지금 ${R.sFromSpecHires(6)}`);
+      ok(R.sFromSpecHires(300) > Math.ceil(300 * R.S_CHANCE_MAX * R.S_LUCK_SLACK),
+        '명물을 오래 돈 사람에게는 상한이 넉넉해진다', '안 넓어지면 이 변경의 뜻이 없다');
+    }
   }
 }
 

@@ -319,6 +319,17 @@ console.log(NLC + '── 7. 총량 불변식 (실제 조작 기록 + 오탐 검
       towerBest: 500, towerBestDay: 2900, towerLastRunDay: 2900,
       gold: 8291589, renown: 40000,
       sHiredDays: Array.from({ length: 48 }, (_, i) => 673 + i * 45) })],
+
+    /* ★★ §190 이 변경이 **새로 만들어 내는 모양** — 보유 S 가 많을수록 S 가 잘 나오므로,
+     *   명물 도시를 오래 판 계정은 예전 상한(고용 400회 × 5% × 4 = 80)을 **정당하게** 넘는다.
+     *   옛 판정선이면 90 > 80 으로 걸렸을 계정이다. 이 줄이 초록이어야 이 변경이 뜻대로 된 것이다. */
+    [false, '명물만 오래 판 사람 (고용 400회 · S 90명 — §190 으로 정당해진 모양)', S0({ day: 600, questsDone: 400,
+      battlesWon: 1200, battlesLost: 90, topLevel: 80, rosterN: 120, rosterCap: 150, squadsN: 5,
+      sMercs: 90, hires: 400, specHires: 400, hiredN: 120, topPower: 174034,
+      abyssBest: 95, abyssBestDay: 560, abyssLastRunDay: 560,
+      towerBest: 400, towerBestDay: 550, towerLastRunDay: 550,
+      gold: 3200000, renown: 12000,
+      sHiredDays: Array.from({ length: 90 }, (_, i) => 40 + i * 6) })],
   ];
   for (const [shouldCatch, name, sc] of CASES) {
     const v = judge(null, sc);

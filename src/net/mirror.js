@@ -254,6 +254,9 @@ export async function askHire(o) {
         cityTier: Math.round(Number(o.cityTier) || 1),
         specialty: !!o.specialty,
         classId: String(o.classId || ''),
+        /* §190 서버가 보유 S 를 덜 세면 약속보다 나쁜 확률로 굴린다 — 그럴 땐 굴리지 말라고 알려 준다.
+         *   ★ 보유 S 자체는 **안 보낸다** (그건 확률을 사는 손잡이가 된다). 명부 크기만 준다. */
+        rosterN: Math.max(0, Math.round(Number(o.rosterN) || 0)),
         /* ★ §187.1 보유 영웅은 **안 보낸다.** 서버가 자기 표에서 센다 —
          *   보내면 «미보유 우선» 이 곧 «갖고 싶은 영웅 지목» 이 된다. */
       },
