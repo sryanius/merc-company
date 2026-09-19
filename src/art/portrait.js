@@ -127,7 +127,9 @@ function partsOf(recipe = {}) {
    *   같은 이름(illust_<style>)으로 PNG 가 받아져 있으면 문자 일러스트 대신 그것을 쓴다.
    *   개인 색 편차(머리·눈)는 크로마키로 산다. 아직 못 받았으면 아래 문자 일러스트로 물러난다. */
   /* §174 영웅 전용 그림이 있으면 그것부터 — 없으면 클래스 그림으로 물러난다 (도감·주점·전투가 전부 같은 경로) */
-  const png = [recipe.illustHero, recipe.illustClass, recipe.illust].find((n) => n && hasIllustPng(n)) || null;   // hero PNG, class PNG, style PNG
+  /* §193 각성한 영웅은 `_awk` 그림부터 (없으면 평소 영웅 그림) — 명부·도감·주점이 전부 이 한 줄을 지난다 */
+  const awk = recipe.awakened && recipe.illustHero ? `${recipe.illustHero}_awk` : null;
+  const png = [awk, recipe.illustHero, recipe.illustClass, recipe.illust].find((n) => n && hasIllustPng(n)) || null;   // awakened hero PNG, hero PNG, class PNG, style PNG
   if (png) return { png };
 
   const illust = recipe.illust && hasFrontPart(recipe.illust) ? recipe.illust : null;

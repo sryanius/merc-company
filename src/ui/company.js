@@ -2518,6 +2518,7 @@ function lineageBlock(m) {
  * ★ 무대의 그림은 화면 높이에 맞춰 키운다 (PNG 240px → 최대 3배). 키울 때는 보간을 켠다 (`smooth`) —
  *   최근접으로 키우면 계단이 진다 (portrait.js 는 도트 시절 규칙으로 키울 때 최근접이었다). */
 let showAnim = null;          // 지금 무대에 선 애니메이션 (닫거나 다시 그릴 때 멈춘다)
+let revealUid = null;         // §193 방금 각성한 단원 — 다음에 무대를 그릴 때 섬광 연출을 한 번 한다
 let showTab = 'growth';       // 다시 그려도 보던 탭을 유지한다
 let showOffKey = null;
 const SHOW_TABS = [['growth', '성장'], ['stats', '스탯'], ['skills', '스킬'], ['gear', '장비'], ['sets', '세트'], ['log', '기록']];
@@ -2566,6 +2567,13 @@ export function openMercDetail(mercUid) {
   let layer = document.querySelector('#co-show');
   if (!layer) { layer = el('div', { id: 'co-show' }); document.body.appendChild(layer); }
   layer.innerHTML = '';
+  layer.classList.remove('scene', 'reveal');
+  if (revealUid === m.uid) {
+    revealUid = null;
+    /* 다음 프레임에 붙여야 애니메이션이 시작된다 (같은 프레임에 붙이면 안 논다) */
+    requestAnimationFrame(() => { layer.classList.add('reveal'); setTimeout(() => layer.classList.remove('reveal'), 2200); });
+  }
+  layer.style.removeProperty('--show-scene');
   layer.style.setProperty('--show-accent', accent);
   /* 발광은 영웅 색 · S 금 · A 보라. 그 아래 등급은 안 빛난다 (회색 발광은 그림을 더럽힌다) */
   layer.style.setProperty('--show-glow', hero ? accent : (m.grade === 'S' || m.grade === 'A' ? gradeColor(m) : 'transparent'));
@@ -2651,12 +2659,18 @@ export function openMercDetail(mercUid) {
    *   192×240 을 2~3배로 키우면 보간을 켜도 계단이 진다 (실측 — 제작자: 「일러 화질이 너무 안 좋다」).
    *   큰 그림은 셸(sw.js)에 안 넣는다 — 열 때만 받고, 못 받으면(오프라인) 캔버스 그대로 간다.
    *   머리·눈은 bigart.js 가 게임과 같은 recolorInto 로 칠한다 (영웅은 표식이 없어 그대로). */
-  bigPortrait(recipe).then((bigC) => {
-    if (!bigC || showAnim !== anim || !anim.canvas.parentNode) return;   // 못 받았거나, 그 사이 닫혔거나 다시 그렸다
-    bigC.className = 'co-show-big';
-    bigC.style.height = `${40 * showStageScale()}px`;
-    bigC.style.width = 'auto';
-    stage.replaceChild(bigC, anim.canvas);
+  bigPortrait(recipe).then((big) => {
+    if (!big || showAnim !== anim || !anim.canvas.parentNode) return;   // 못 받았거나, 그 사이 닫혔거나 다시 그렸다
+    const node = big.el;
+    node.className = `co-show-big${big.scene ? ' scene' : ''}`;
+    node.style.height = `${40 * showStageScale()}px`;
+    node.style.width = 'auto';
+    /* §193.2 배경까지 그려진 장면이면 액자로 세우고, 같은 그림을 흐리게 깔아 화면 전체를 그 분위기로 물들인다 */
+    if (big.scene) {
+      layer.classList.add('scene');
+      layer.style.setProperty('--show-scene', `url("${node.src}")`);
+    }
+    stage.replaceChild(node, anim.canvas);
     anim.stop();
   });
   const rail = el('div', { class: 'co-show-rail' },
@@ -3178,6 +3192,7 @@ function awakenBlock(m, stopAnim) {
         try { mirrorAwaken(m.uid); } catch (e) { console.warn('[company] 각성 거울 실패', e); }
         toast(`${m.name}${josa(m.name, '이/가')} 각성했다! Lv${HERO_MAX_LEVEL} 까지 큰다${r.levels ? ` · 묶어 둔 경험치로 ${r.levels}레벨 상승` : ''}.`, 'good');
         refresh();
+        revealUid = m.uid;   // §193 무대가 다시 열리며 섬광 → 각성 그림
         setTimeout(() => openMercDetail(m.uid), 30);
       },
     }, `★ 각성 — 각성석 ${HERO_AWAKEN_STONES}개 (보유 ${state.awakenStones || 0}개)`),

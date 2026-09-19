@@ -1,5 +1,8 @@
 // §193 영웅 각성 일러스트 — 기존 영웅 raw 를 Qwen-Image-Edit 로 «각성판» 으로 → illust_hero_<id>_awk(_atk)
-//   node tools/art/gen_hero_awaken.mjs [--only=id,id] [--stage=awk|atk|all] [--style=auto|drama|regal|ascend|dark|pinup] [--seed=7] [--reuse] [--apply]
+//   node tools/art/gen_hero_awaken.mjs [--only=id,id] [--stage=awk|atk|scene|awkscene|all] [--style=auto|drama|regal|ascend|dark|pinup] [--seed=7] [--reuse] [--apply]
+//   · scene / awkscene (§193.2): 평소 raw / 각성 raw 의 **라임 배경을 계열별 장면으로 채운다** → 무대 전용 art/big/illust_hero_<id>[_awk]_scene.webp
+//     투명이 필요 없으니 키잉·색 줄이기 없이 원본 해상도(896×1152) 그대로 WebP(q88) 로 — 가장자리 계단·128색 거칢이 없다.
+//     메타는 art/big/manifest.json 에 {w,h,scene:true} 로 적는다 (bigart.js 가 장면을 먼저 찾는다).
 //   · 제작자 결정(2026-09-19): **얼굴·머리색·눈색만 지키고 옷은 자유.** 각성 = 더 화려하고 매혹적으로.
 //   · 새로 txt2img 하지 않는다 — 다른 사람이 나온다. §176 의 대기 raw(라임 배경)를 **편집**해 같은 얼굴을 지킨다 (§171 지시 편집).
 //   · 첫 시안(«흰 드레스 + 후광 + 날개»)은 셋이 똑같아 «평범» 했다 (§193.1). 방향 시안 5장에서 고른 것을 --style 로 준다.
@@ -63,6 +66,45 @@ function promptFor(id, h, kind) {
     case 'pinup': return `Transform her into her awakened form: a seductive elegant ${col} and black evening gown with sheer see-through fabric, deep neckline, bare shoulders and a very high leg slit, gold body jewelry, a confident alluring pose with her weapon resting on her shoulder, ${fx} and sparkling ${col} light particles. ${KEEP}`;
     default: return `Transform her into her awakened form as a legendary warrior: a dramatic battle-ready stance, her weapon wreathed in ${col} and gold light, her long hair and a torn ${col} cape whipping in a violent wind, ${fx} around her, a sleek black and ${col} outfit with gold ornaments, high leg slit, bare shoulders, intense rim lighting from behind. ${KEEP}`;
   }
+}
+/* ── 장면 — 계열(fx)별 장소. apex 는 밝고 장엄하게, abyss 는 같은 장소의 어둡고 달빛 버전 ── */
+const SCENE = {
+  fire: 'a volcanic ruin with rivers of lava, drifting embers and a burning sky',
+  ice: 'a frozen mountain peak with ice crystals, blowing snow and a pale aurora',
+  holy: 'a grand cathedral of light with tall stained-glass windows and golden light rays',
+  shadow: 'an abyssal void with violet mist, floating shattered stone and a dark moon',
+  nature: 'an ancient forest with giant glowing trees, floating spirit lights and morning mist',
+  lightning: 'a storm-wracked cliff top with crackling lightning across dark clouds',
+  poison: 'a misty swamp with glowing toxic pools and twisted trees',
+  bolt: 'an arcane observatory with floating runes, star maps and a night sky',
+  heal: 'a serene sanctuary garden with a shining fountain and drifting petals',
+  buff: 'a sunlit temple courtyard with banners and golden light',
+  slash: 'a ruined battlefield at dusk with a blood-red sky, distant burning banners and cracked stone ground',
+  pierce: 'a ruined battlefield at dusk with a blood-red sky, distant burning banners and cracked stone ground',
+  blunt: 'a ruined battlefield at dusk with a blood-red sky, distant burning banners and cracked stone ground',
+  arrow: 'a windswept cliff above a vast forest at golden hour, feathers drifting in the wind',
+};
+function scenePrompt(id, h) {
+  const col = colorWord(h.color);
+  const place = SCENE[h.fx] || SCENE.slash;
+  const mood = id.endsWith('_abyss')
+    ? 'the scene is dark and moonlit, with deep shadows and an eerie glow'
+    : 'the scene is epic and cinematic, with dramatic depth of field';
+  return `Replace the plain flat light green background with a dramatic painted scene: ${place}; ${mood}, lit in ${col} and gold to match her, a soft shadow under her feet. Keep her face, her hair, her outfit, her weapon and her pose exactly the same.`;
+}
+/** 장면 raw → WebP (원본 해상도, q88) — PIL 로. 투명이 없으니 키잉을 안 거친다. */
+function toWebp(rawPng, outWebp) {
+  const py = `from PIL import Image; im=Image.open(r'${rawPng}').convert('RGB'); im.save(r'${outWebp}', 'WEBP', quality=88, method=6); print(im.size[0], im.size[1])`;
+  const g = spawnSync(PY, ['-c', py], { encoding: 'utf8' });
+  if (g.status !== 0) return null;
+  const [w, hh] = (g.stdout || '').trim().split(/\s+/).map(Number);
+  return { w, h: hh };
+}
+function writeSceneMeta(name, dim) {
+  const mp = `${GAME}/art/big/manifest.json`;
+  const cur = fs.existsSync(mp) ? JSON.parse(fs.readFileSync(mp, 'utf8')) : {};
+  cur[name] = { w: dim.w, h: dim.h, scene: true, file: `${name}.webp` };
+  fs.writeFileSync(mp, JSON.stringify(cur, null, 1));
 }
 function styleOf(id) {
   if (style !== 'auto') return style;
@@ -163,6 +205,36 @@ for (const id of ids) {
     rec.atk = { ...r, sec: Math.round((Date.now() - t0) / 1000) };
     results[id] = rec; save();
     console.error(`[${i}/${ids.length}] ${id} ${h.name} 각성 공격: ${r.ok ? '✓' : '✗'} ${rec.atk.sec}s · 배경 ${r.keyed || '?'}%${r.err ? ' · ' + r.err : ''}${r.warn.length ? ' · ⚠ ' + r.warn.join(' / ') : ''}`);
+  }
+}
+/* ── 장면 (평소 · 각성) — 무대 전용, WebP 원본 해상도 ── */
+if (stage === 'scene' || stage === 'awkscene' || stage === 'all') {
+  let j = 0;
+  for (const id of ids) {
+    j++;
+    const h = HEROES[id];
+    const rec = results[id] || { name: h.name };
+    for (const kind of (stage === 'all' ? ['scene', 'awkscene'] : [stage])) {
+      const awk = kind === 'awkscene';
+      const input = awk ? `${OUT}/${id}_awk_raw.png` : `${SRC}/${id}_raw.png`;
+      if (!fs.existsSync(input)) { if (awk) { console.error(`[${j}] ${id}: 각성 raw 없음 — 장면 건너뜀`); continue; } console.error(`[${j}] ${id}: raw 없음`); continue; }
+      const rawScene = `${OUT}/${id}${awk ? '_awk' : ''}_scene_raw.png`;
+      const name = `illust_hero_${id}${awk ? '_awk' : ''}_scene`;
+      const t0 = Date.now();
+      if (!(reuse && fs.existsSync(rawScene))) {
+        const e = edit(input, scenePrompt(id, h), rawScene);
+        if (!e.ok) { rec[kind] = { ok: false, err: e.err }; results[id] = rec; save(); console.error(`[${j}/${ids.length}] ${id} ${h.name} ${kind}: ✗ ${e.err.slice(-120)}`); continue; }
+      }
+      let dim = null;
+      if (apply) {
+        fs.mkdirSync(`${GAME}/art/big`, { recursive: true });
+        dim = toWebp(rawScene, `${GAME}/art/big/${name}.webp`);
+        if (dim) writeSceneMeta(name, dim);
+      }
+      rec[kind] = { ok: true, sec: Math.round((Date.now() - t0) / 1000), applied: !!dim };
+      results[id] = rec; save();
+      console.error(`[${j}/${ids.length}] ${id} ${h.name} ${kind}: ✓ ${rec[kind].sec}s${dim ? ` → art/big/${name}.webp ${dim.w}x${dim.h}` : ''}`);
+    }
   }
 }
 const okAwk = Object.values(results).filter((r) => r.awk && r.awk.ok).length;

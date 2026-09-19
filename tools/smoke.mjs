@@ -9233,6 +9233,19 @@ section('§192 하루 넘기기가 실물이다 — 서버 날짜가 클라와 �
       ok(R.serverAxes(cli, mk(), { dayLag: 0 }).used === true, '메타 — 정상 짝은 여전히 갈아 끼운다 (보호막이 과하지 않다)');
     }
 
+    /* §193 각성한 영웅은 세 곳(초상·전투 무대·전투 화면)이 모두 _awk 그림을 먼저 본다 — 하나라도 빠지면 각성해도 예전 얼굴이다 */
+    {
+      const bad = [];
+      const pt2 = decomment(readFileSync(join(rootDir, 'src/art/portrait.js'), 'utf8'));
+      if (!pt2.includes('recipe.awakened && recipe.illustHero ? `${recipe.illustHero}_awk`')) bad.push('portrait.js 가 _awk 를 안 본다');
+      for (const f2 of ['src/battle/renderer.js', 'src/ui/battle.js']) {
+        const s2 = decomment(readFileSync(join(rootDir, f2), 'utf8'));
+        if (!s2.includes('rc.awakened && rc.illustHero && hasIllustPng(`${rc.illustHero}_awk`)')) bad.push(f2 + ' 가 _awk 를 안 본다');
+      }
+      const co2 = decomment(readFileSync(join(rootDir, 'src/ui/company.js'), 'utf8'));
+      if (!co2.includes('revealUid = m.uid') || !co2.includes("classList.add('reveal')")) bad.push('각성 순간 연출이 없다');
+      okAll(bad, '각성한 영웅은 초상·전투 두 곳·무대 연출까지 _awk 를 본다', 4);
+    }
     /* ── 메타 — 검사가 실제로 무나 ────────────────────────────────────────── */
     {
       const BAD1 = adv.replace(".eq('day', srvDay)", '');
@@ -9303,6 +9316,32 @@ section('§193 단원 상세 = 전신 일러스트 무대');
       okAll(bad, '클래스 105 + 영웅 56 의 무대 그림·메타가 전부 있다 (448×560 · 클래스는 머리 표식)', names.length);
       const shell = readFileSync(join(rootDir, 'sw.js'), 'utf8');
       ok(!/art\/big\//.test(shell), '무대 그림은 셸(sw.js)에 안 넣는다', '56장 5.8MB 를 첫 로드에 싣지 않는다 — 열 때만 받고 못 받으면 캔버스로 간다');
+      /* §193.2 장면(배경까지 그려진 WebP) — 있는 것은 전부 파일이 있고 크기가 적혀 있다. 클래스 그림은 부드러운 가장자리다 */
+      {
+        const badS = [];
+        let scenes = 0;
+        for (const [nm, e] of Object.entries(bigMeta)) {
+          if (!e || !e.scene) continue;
+          scenes++;
+          if (!(e.w > 0 && e.h > 0)) badS.push(nm + ' 크기 없음');
+          if (!existsSync(join(rootDir, 'art/big', e.file || (nm + '.webp')))) badS.push(nm + ' 파일 없음');
+        }
+        okAll(badS, '장면 ' + scenes + '장의 메타·파일이 맞다', Math.max(1, scenes));
+        const ba = decomment(readFileSync(join(rootDir, 'src/art/bigart.js'), 'utf8'));
+        ok(/_scene/.test(ba) && /e\.scene/.test(ba) && /scene: true/.test(ba), 'bigart 가 장면을 먼저 찾아 <img> 로 준다');
+        ok(/#co-show::after \{/.test(css) && /--show-scene/.test(css) && /big\.scene/.test(fn), '무대가 장면을 액자로 세우고 뒤에 흐리게 깐다');
+        const bsrc = readFileSync(join(rootDir, 'tools/art/bigart.mjs'), 'utf8');
+        ok(/--alpha=soft/.test(bsrc) && /--colors=192/.test(bsrc), '클래스 무대 그림은 부드러운 가장자리(soft)·192색으로 만든다', '딱 자른 알파는 1.3배만 키워도 계단이 보인다');
+        /* soft 가 실제로 반투명 가장자리를 남기는가 — 알파 히스토그램으로 잰다 (PNG 를 직접 읽는다) */
+        const { decodePng } = await import('./lib/png.mjs').catch(() => ({ decodePng: null }));
+        const p = join(rootDir, 'art/big/illust_swordsman.png');
+        if (decodePng && existsSync(p)) {
+          const png = decodePng(readFileSync(p));
+          let mid = 0, solid = 0;
+          for (let i = 3; i < png.rgba.length; i += 4) { const a = png.rgba[i]; if (a > 12 && a < 243) mid++; else if (a >= 243) solid++; }
+          ok(mid > solid * 0.01, '클래스 무대 그림에 반투명 가장자리가 실제로 있다 (soft 알파)', '반투명 ' + mid + ' / 불투명 ' + solid);
+        }
+      }
     }
     /* 메타 — 모달로 되돌린 판을 실제로 잡는다 */
     ok(/\bmodal\(\{/.test(fn.replace('closeAnyModal();', 'modal({ title: 1 });')), '메타 — 모달로 되돌리면 잡는다');

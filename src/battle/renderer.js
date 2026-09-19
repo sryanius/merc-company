@@ -1033,7 +1033,7 @@ export function createRenderer(canvas, { width = 1280, height = 560, biome = 'pl
   const spriteOf = (v) => (v.sprite || (v.sprite = (() => {
     const rc = v.u.recipe || {};
     /* 적은 레시피에 illustClass 가 없다(enemies.js 는 서버 공유) — enemyId 로 illust_enemy_<id> 를 찾는다 (§163) */
-    const png = (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass) || (v.u.enemyId ? 'illust_enemy_' + v.u.enemyId : null);   // §174 영웅 그림 우선
+    const png = (rc.awakened && rc.illustHero && hasIllustPng(`${rc.illustHero}_awk`) ? `${rc.illustHero}_awk` : (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass)) || (v.u.enemyId ? 'illust_enemy_' + v.u.enemyId : null);   // §174 영웅 그림 우선
     return png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc);
   })()));
   /** 발밑에서 정수리까지 화면 px — PNG 초상은 옆모습(114)보다 조금 크다(240×0.5 = 120). 이름·HP·기절 별이 이걸로 자리를 잡는다. */

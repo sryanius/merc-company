@@ -1508,7 +1508,7 @@ function createSimpleRenderer(canvas, biome) {
     let s = null;
     const rc = u.recipe || {};
     /* §174 영웅 전용 그림이 있으면 그것부터 (없으면 클래스 그림) */
-    const png = (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass) || (u.enemyId ? 'illust_enemy_' + u.enemyId : null);   // 적 PNG (§163)
+    const png = (rc.awakened && rc.illustHero && hasIllustPng(`${rc.illustHero}_awk`) ? `${rc.illustHero}_awk` : (rc.illustHero && hasIllustPng(rc.illustHero) ? rc.illustHero : rc.illustClass)) || (u.enemyId ? 'illust_enemy_' + u.enemyId : null);   // 적 PNG (§163)
     try { s = png && hasIllustPng(png) ? { png: getPortrait(rc.illustClass === png ? rc : { ...rc, illustClass: png }) } : getSprite(rc); }
     catch (e) { console.warn('[battle] 스프라이트 생성 실패', e); }
     sprites.set(u.uid, s);

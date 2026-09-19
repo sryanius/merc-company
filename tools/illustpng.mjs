@@ -378,6 +378,11 @@ if (fixture) {
      * 구두코처럼 아래가 가늘어지면 그 줄들의 평균 알파가 문턱을 못 넘어 사라진다.
      * 실측: 도적왕 공격본이 7줄 떴다 (끝 줄 232/239). 뜬 만큼 위가 비어 있을 때만 내리므로 위가 잘리지 않는다. */
     if (fit !== 'none') sinkToFloor(src.w, src.h, src.rgba);
+  } else {
+    /* ★ §193.2 soft — 키잉·줄이기가 남긴 알파는 사실상 이진이라(실측 반투명 0칸) 키우면 계단이 진다.
+     *   3×3 평균으로 가장자리 1px 을 반투명으로 다듬는다 (안쪽은 그대로 255). 발 붙이기는 hard 와 같다. */
+    if (fit !== 'none') sinkToFloor(src.w, src.h, src.rgba);
+    featherAlpha(src.w, src.h, src.rgba);
   }
   /* 색 줄이기 — 부드럽게 줄어든 그림을 «도트» 로 보이게 한다. 표식 픽셀은 건드리지 않는다 (게임이 다시 칠한다). */
   const colors = Number(arg('colors', 0)) || 0;
@@ -434,6 +439,28 @@ console.error(`  ✓ ${rel} + ${MANIFEST} (${Object.keys(entries).length}장)`);
 ensureShellEntry(rel);
 
 /* ─────────────────────────── 배경 키잉 · 틀 맞추기 · 색 줄이기 ─────────────────────────── */
+
+/** §193.2 가장자리 다듬기 — 불투명 픽셀의 알파를 3×3 이웃 평균으로 내린다 (투명 픽셀은 그대로). 1px 안티에일리어싱. */
+function featherAlpha(w, h, rgba) {
+  const a = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) a[i] = rgba[i * 4 + 3];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!a[i]) continue;
+      let sum = 0, n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          sum += a[yy * w + xx]; n++;
+        }
+      }
+      const v = Math.round(sum / n);
+      if (v < a[i]) rgba[i * 4 + 3] = v;
+    }
+  }
+}
 
 /* HSV 색상 — illustpng.js 의 것과 같은 공식 (표식 분류는 저쪽 classifyMarker 를 쓴다) */
 function hsv(r, g, b) {

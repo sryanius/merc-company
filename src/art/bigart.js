@@ -46,24 +46,42 @@ function loadImage(url) {
   });
 }
 
+function remember(key, v) {
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  cache.set(key, v);
+  return v;
+}
+
 /**
  * 큰 초상 한 장. **못 받으면 null** — 부르는 쪽이 작은 캔버스(portrait.js)로 간다.
+ *
+ * ★ §193.2 **장면(scene)이 있으면 그것부터** — 배경까지 그려진 WebP(원본 해상도, 투명 없음). 영웅은 `_scene`,
+ *   각성이면 `_awk_scene`. 장면은 머리 재색이 없다(영웅은 표식이 없다). 없으면 투명 PNG(448×560)로 물러난다.
  * @param {object} recipe mercRecipe() 결과
- * @returns {Promise<HTMLCanvasElement|null>} 448×560 캔버스 (머리·눈 칠해짐)
+ * @returns {Promise<{el:HTMLImageElement|HTMLCanvasElement, scene:boolean, w:number, h:number}|null>}
  */
 export async function bigPortrait(recipe) {
   try {
     const m = await meta();
-    const names = [bigNameOf(recipe)];
+    const base = bigNameOf(recipe);
+    const cands = [];
+    if (base) cands.push(`${base}_scene`, base);
     /* 각성판이 아직 없는 영웅은 평소 그림으로 */
-    if (recipe && recipe.awakened && recipe.illustHero) names.push(recipe.illustHero);
-    const name = names.find((n) => n && m[n]);
+    if (recipe && recipe.awakened && recipe.illustHero) cands.push(`${recipe.illustHero}_scene`, recipe.illustHero);
+    const name = cands.find((n) => m[n]);
     if (!name) return null;
+    const e = m[name];
+
+    if (e.scene) {
+      if (cache.has(name)) return cache.get(name);
+      const img = await loadImage(`art/big/${e.file || `${name}.webp`}`);
+      return remember(name, { el: img, scene: true, w: img.naturalWidth, h: img.naturalHeight });
+    }
+
     const pal = makePalette((recipe && recipe.palette) || {});
     const key = `${name}|${pal.H}|${pal.h}|${pal.y}|${pal.E}|${pal.e}`;
     if (cache.has(key)) return cache.get(key);
 
-    const e = m[name];
     const img = await loadImage(`art/big/${name}.png`);
     const w = Number(e.w) || img.naturalWidth;
     const h = Number(e.h) || img.naturalHeight;
@@ -78,9 +96,7 @@ export async function bigPortrait(recipe) {
       recolorInto(out, w, h, rec, 0, colorTable(pal));
       ctx.putImageData(new ImageData(out, w, h), 0, 0);
     }
-    if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-    cache.set(key, c);
-    return c;
+    return remember(key, { el: c, scene: false, w, h });
   } catch (e) {
     console.info('[bigart] 큰 그림을 못 받았다 — 작은 캔버스로 간다', e && e.message);
     return null;

@@ -32,7 +32,8 @@ const bad = [];
 for (const j of jobs) {
   if (only.length && !only.includes(j.name)) continue;
   if (!fs.existsSync(j.raw)) { if (j.optional) { skip++; continue; } bad.push(`${j.name}: raw 없음`); continue; }
-  const a = ['tools/illustpng.mjs', j.raw, `--name=${j.name}`, '--bg=auto', '--fit=448x560', '--colors=128',
+  /* §193.2 클래스는 부드러운 가장자리(soft) + 192색 — 딱 자른 알파(hard)는 1.3배만 키워도 계단이 보였다 (제작자 지적). 영웅은 장면 WebP 가 우선이라 여기 것은 폴백이다. */
+  const a = ['tools/illustpng.mjs', j.raw, `--name=${j.name}`, '--bg=auto', '--fit=448x560', '--colors=192', '--alpha=soft',
     `--out=${OUT}/${j.name}.png`, `--metaout=${META}`];
   if (j.nohair) a.push('--nohair');
   const r = spawnSync(process.execPath, a, { cwd: GAME, encoding: 'utf8', maxBuffer: 1 << 24 });

@@ -521,3 +521,27 @@ table.data tbody tr:hover { background: rgba(255,255,255,.025); }
   animation: coShowBreath 4.2s ease-in-out infinite;
 }
 @keyframes coShowBreath { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* §193.2 배경까지 그려진 장면 — 액자로 세우고, 같은 그림을 흐리게 깔아 화면을 물들인다 */
+#co-show::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: var(--show-scene, none) center / cover no-repeat;
+  filter: blur(42px) brightness(.5) saturate(1.15); opacity: .6;
+}
+#co-show.scene::before { opacity: .08; }
+.co-show-big.scene {
+  border-radius: 14px; filter: none; animation: none;
+  box-shadow: 0 30px 70px -22px rgba(0,0,0,.95), 0 0 0 1px rgba(255,255,255,.10), 0 0 46px -12px var(--show-accent, #ff7fd8);
+}
+@media (max-width: 767px) {
+  .co-show-big.scene { border-radius: 10px; }
+}
+
+/* §193 각성 순간 — 무대가 다시 열리며 섬광이 터지고 새 그림이 커졌다 줄어든다 */
+#co-show.reveal .co-show-stage { animation: coReveal 1.8s cubic-bezier(.2,.8,.2,1) both; }
+#co-show.reveal::before { animation: coRevealGlow 1.8s ease-out both; }
+@keyframes coReveal {
+  0% { filter: brightness(6) saturate(0); transform: scale(1.14); }
+  22% { filter: brightness(2.2) saturate(.6); transform: scale(1.08); }
+  100% { filter: none; transform: none; }
+}
+@keyframes coRevealGlow { 0% { opacity: .9; } 100% { opacity: .18; } }

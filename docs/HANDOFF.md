@@ -12452,3 +12452,21 @@ power        dayLag 0 · axesUsed false (AXES_LIVE 꺼짐 · 그 요청은 하�
   V4 화보(매혹 드레스) · V5 승천(부유·불꽃 검 6자루) · V3 심연(abyss 용 — 검은 날개·사슬). 제작자 선택 대기.
   ★ 배운 것: «지킬 것» 에 머리색 이름을 넣지 마라 — results.json 의 look 이 raw 와 다른 영웅(키릴)이 있어 V3 에서 머리가 금발이 됐다.
   «her hair colour exactly the same» 처럼 그림을 보고 지키게 한다 (gen_hero_awaken.mjs 에 반영).
+
+### 193.2 배경까지 그려진 장면 · 부드러운 가장자리 (제작자 「배경 같이 넣자」 「아직 저화질로 보인다」)
+- 저화질의 진짜 원인: 투명 그림을 만들 때 **알파를 딱 자른다**(`--alpha=hard`, 도트 시절 규칙) → 1.3배만 키워도 계단이 보인다. 그리고 128색.
+  ⇒ ① 클래스 105장은 `--alpha=soft --colors=192` 로 다시(88KB/장, 스모크 알파 중간값으로 확인).
+  ② 영웅은 **배경까지 그려진 장면**을 무대에서 쓴다 — 투명이 필요 없으니 키잉·색 줄이기 없이 **원본 해상도(880×1184) WebP q88**(~115KB).
+- 장면 = 같은 raw 를 Qwen 으로 «라임 배경만 장면으로» 편집 (캐릭터·조명이 그대로 이어진다 — 갈라드 실측). 계열(fx)별 장소
+  (화염 화산 · 한기 설산 · 신성 대성당 · 암흑 심연 · 정령 숲 · 뇌전 절벽 · 맹독 늪 · 마력 천문대 · 검/창/타격 황혼 전장 · 화살 절벽 · 치유/가호 성소),
+  apex 는 장엄·abyss 는 달빛. `gen_hero_awaken.mjs --stage=scene|awkscene --apply` → `art/big/illust_hero_<id>[_awk]_scene.webp` + manifest `{scene:true}`.
+- `bigart.js` 는 `_scene` 을 먼저 찾고 `<img>` 로 준다({el, scene, w, h}); 없으면 투명 PNG 캔버스. 무대는 장면이면 액자(둥근 모서리·영웅색 그림자)로 세우고
+  `#co-show::after` 에 같은 그림을 blur 42px 로 깔아 화면을 물들인다 (`--show-scene`). 다시 그릴 때 표식을 지운다.
+- ★ 배운 것: 편집기의 출력 크기는 입력과 다르다 (896×1152 → 880×1184). PIL 로 재 메타에 적는다 — 처음엔 `split(/s+/)` 오타로 w 가 null 이었다.
+- 각성 방향: 제작자가 고르지 않아 **추천대로 진행** — apex `drama`(계열 원소 + 영웅 색), abyss `dark`. 첫 시안 3명의 각성 raw 는 지우고 새 방향으로 다시.
+- ★ `--alpha=soft` 는 **이름만 soft 였다** — 키잉·줄이기가 남긴 알파가 사실상 이진이라 반투명 픽셀이 0칸이었다 (PIL 히스토그램 실측).
+  `illustpng.mjs featherAlpha`(3×3 이웃 평균, 불투명 픽셀만 내림)를 soft 에 붙였다 → 반투명 5.4%(검사 swordsman). 스모크가 PNG 를 직접 읽어 잰다.
+- 각성 배선: `portrait.js partsOf` 가 `recipe.awakened` 면 `illust_hero_<id>_awk` 부터, 전투 두 곳(renderer·ui/battle)도 같은 우선순위.
+  각성 단추 → `revealUid` → 무대가 다시 열리며 `#co-show.reveal` 섬광(brightness 6 → 1, scale 1.14 → 1, 1.8s). 스모크가 넷을 문다.
+- ★ 이 세션에서 또 겪은 것: 헤드닥/`node -e` 로 넘긴 패치 문자열의 `\` 가 깎인다 (§185 때와 같다). 패치 스크립트는 **Write 도구로 파일을 쓰고**
+  줄바꿈은 `String.fromCharCode(10/13)` 으로, CRLF 파일(illustpng.mjs)은 LF 로 바꿔 맞춘 뒤 되돌린다.

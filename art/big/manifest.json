@@ -57,10 +57,10 @@
   "ax": 303,
   "ay": 559,
   "eyeBox": [
-   198,
+   221,
    55,
    230,
-   65
+   61
   ],
   "marker": {
    "hair": [
@@ -128,7 +128,12 @@
   "h": 560,
   "ax": 145,
   "ay": 559,
-  "eyeBox": null,
+  "eyeBox": [
+   201,
+   137,
+   241,
+   151
+  ],
   "marker": {
    "hair": [
     255,
@@ -140,7 +145,8 @@
    ]
   },
   "roles": [
-   "hair"
+   "hair",
+   "eye"
   ]
  },
  "illust_acolyte": {
@@ -175,10 +181,10 @@
   "ax": 319,
   "ay": 559,
   "eyeBox": [
-   210,
+   235,
    56,
    244,
-   71
+   62
   ],
   "marker": {
    "hair": [
@@ -305,10 +311,10 @@
   "ax": 340,
   "ay": 559,
   "eyeBox": [
-   230,
+   254,
    56,
    263,
-   72
+   63
   ],
   "marker": {
    "hair": [
@@ -456,8 +462,8 @@
   "ay": 559,
   "eyeBox": [
    171,
-   62,
-   206,
+   63,
+   203,
    75
   ],
   "marker": {
@@ -833,10 +839,10 @@
   "ax": 300,
   "ay": 559,
   "eyeBox": [
-   166,
+   188,
    69,
    198,
-   81
+   78
   ],
   "marker": {
    "hair": [
@@ -937,10 +943,10 @@
   "ax": 269,
   "ay": 559,
   "eyeBox": [
-   209,
+   202,
    66,
    240,
-   73
+   77
   ],
   "marker": {
    "hair": [
@@ -2408,12 +2414,7 @@
   "h": 560,
   "ax": 154,
   "ay": 559,
-  "eyeBox": [
-   196,
-   149,
-   201,
-   153
-  ],
+  "eyeBox": null,
   "marker": {
    "hair": [
     255,
@@ -2425,8 +2426,7 @@
    ]
   },
   "roles": [
-   "hair",
-   "eye"
+   "hair"
   ]
  },
  "illust_plaguelord_abyss": {
@@ -3166,5 +3166,341 @@
   "eyeBox": null,
   "marker": null,
   "roles": []
+ },
+ "illust_hero_swordgod_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_swordgod_apex_scene.webp"
+ },
+ "illust_hero_swordgod_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_swordgod_abyss_scene.webp"
+ },
+ "illust_hero_madgeneral_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_madgeneral_apex_scene.webp"
+ },
+ "illust_hero_madgeneral_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_madgeneral_abyss_scene.webp"
+ },
+ "illust_hero_skysplitter_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skysplitter_apex_scene.webp"
+ },
+ "illust_hero_skysplitter_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skysplitter_abyss_scene.webp"
+ },
+ "illust_hero_bloodfiend_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bloodfiend_apex_scene.webp"
+ },
+ "illust_hero_bloodfiend_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bloodfiend_abyss_scene.webp"
+ },
+ "illust_hero_gatewarden_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_gatewarden_apex_scene.webp"
+ },
+ "illust_hero_gatewarden_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_gatewarden_abyss_scene.webp"
+ },
+ "illust_hero_reaper_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_reaper_apex_scene.webp"
+ },
+ "illust_hero_reaper_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_reaper_abyss_scene.webp"
+ },
+ "illust_hero_dragoonlord_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_dragoonlord_apex_scene.webp"
+ },
+ "illust_hero_dragoonlord_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_dragoonlord_abyss_scene.webp"
+ },
+ "illust_hero_skylancer_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skylancer_apex_scene.webp"
+ },
+ "illust_hero_skylancer_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skylancer_abyss_scene.webp"
+ },
+ "illust_hero_bulwark_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bulwark_apex_scene.webp"
+ },
+ "illust_hero_bulwark_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bulwark_abyss_scene.webp"
+ },
+ "illust_hero_oathshield_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_oathshield_apex_scene.webp"
+ },
+ "illust_hero_oathshield_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_oathshield_abyss_scene.webp"
+ },
+ "illust_hero_paladin_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_paladin_apex_scene.webp"
+ },
+ "illust_hero_paladin_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_paladin_abyss_scene.webp"
+ },
+ "illust_hero_blackknight_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_blackknight_apex_scene.webp"
+ },
+ "illust_hero_blackknight_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_blackknight_abyss_scene.webp"
+ },
+ "illust_hero_shadowarcher_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowarcher_apex_scene.webp"
+ },
+ "illust_hero_shadowarcher_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowarcher_abyss_scene.webp"
+ },
+ "illust_hero_masterarcher_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_masterarcher_apex_scene.webp"
+ },
+ "illust_hero_masterarcher_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_masterarcher_abyss_scene.webp"
+ },
+ "illust_hero_beastlord_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_beastlord_apex_scene.webp"
+ },
+ "illust_hero_beastlord_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_beastlord_abyss_scene.webp"
+ },
+ "illust_hero_spiritranger_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_spiritranger_apex_scene.webp"
+ },
+ "illust_hero_spiritranger_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_spiritranger_abyss_scene.webp"
+ },
+ "illust_hero_shadowblade_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowblade_apex_scene.webp"
+ },
+ "illust_hero_shadowblade_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowblade_abyss_scene.webp"
+ },
+ "illust_hero_banditking_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_banditking_apex_scene.webp"
+ },
+ "illust_hero_banditking_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_banditking_abyss_scene.webp"
+ },
+ "illust_hero_venomfang_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_venomfang_apex_scene.webp"
+ },
+ "illust_hero_venomfang_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_venomfang_abyss_scene.webp"
+ },
+ "illust_hero_bladedancer_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bladedancer_apex_scene.webp"
+ },
+ "illust_hero_bladedancer_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bladedancer_abyss_scene.webp"
+ },
+ "illust_hero_archmage_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_archmage_apex_scene.webp"
+ },
+ "illust_hero_archmage_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_archmage_abyss_scene.webp"
+ },
+ "illust_hero_lichlord_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_lichlord_apex_scene.webp"
+ },
+ "illust_hero_lichlord_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_lichlord_abyss_scene.webp"
+ },
+ "illust_hero_plaguelord_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_plaguelord_apex_scene.webp"
+ },
+ "illust_hero_plaguelord_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_plaguelord_abyss_scene.webp"
+ },
+ "illust_hero_stormcaller_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_stormcaller_apex_scene.webp"
+ },
+ "illust_hero_stormcaller_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_stormcaller_abyss_scene.webp"
+ },
+ "illust_hero_arhat_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_arhat_apex_scene.webp"
+ },
+ "illust_hero_arhat_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_arhat_abyss_scene.webp"
+ },
+ "illust_hero_highpriest_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_highpriest_apex_scene.webp"
+ },
+ "illust_hero_highpriest_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_highpriest_abyss_scene.webp"
+ },
+ "illust_hero_inquisitor_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_inquisitor_apex_scene.webp"
+ },
+ "illust_hero_inquisitor_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_inquisitor_abyss_scene.webp"
+ },
+ "illust_hero_fallenmonk_apex_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_fallenmonk_apex_scene.webp"
+ },
+ "illust_hero_fallenmonk_abyss_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_fallenmonk_abyss_scene.webp"
  }
 }
