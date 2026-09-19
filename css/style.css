@@ -456,3 +456,68 @@ table.data tbody tr:hover { background: rgba(255,255,255,.025); }
   padding: 1px 6px;
   white-space: nowrap;
 }
+
+/* ---------- 단원 상세 무대 (§193) — 가운데 전신 일러스트 · 왼쪽 탭 · 오른쪽 정보 패널 ----------
+   제작자 참고 화면(가챠류 영웅 화면). 모달이 아니라 전용 층이다 — 장착·전직 창(#modal-layer, z 90)이 이 위에 뜬다. */
+#co-show {
+  position: fixed; inset: 0; z-index: 85; overflow: hidden;
+  display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(300px, 400px); grid-template-rows: 100%;
+  align-items: center; gap: 14px;
+  padding: calc(14px + var(--safe-t)) calc(18px + var(--safe-r)) calc(14px + var(--safe-b)) calc(18px + var(--safe-l));
+  background: linear-gradient(180deg, rgba(12,10,17,.96), rgba(6,4,10,.98));
+}
+#co-show::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 46% 60% at 50% 48%, var(--show-accent, #ff7fd8), transparent 70%);
+  opacity: .18;
+}
+.co-show-rail { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; align-self: center; }
+.co-show-back { align-self: flex-start; margin-bottom: 10px; }
+.co-show-tabs { display: flex; flex-direction: column; gap: 6px; }
+.co-show-tab {
+  background: rgba(28,24,38,.72); border: 1px solid var(--line); color: var(--ink-dim);
+  border-radius: 999px; padding: 9px 16px; text-align: left; cursor: pointer; font-weight: 700; font-size: 14px;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.co-show-tab:hover { color: var(--ink); border-color: var(--ink-faint); }
+.co-show-tab.on { color: var(--gold); border-color: var(--gold-dim); background: rgba(50,42,66,.92); box-shadow: 0 0 0 1px rgba(224,180,74,.25) inset; }
+.co-show-stage { position: relative; z-index: 1; display: flex; align-items: flex-end; justify-content: center; height: 100%; min-width: 0; }
+.co-show-stage canvas { display: block; max-width: 100%; max-height: 100%; filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)); }
+.co-show-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line);
+  background: rgba(20,17,28,.75); color: var(--ink); font-size: 24px; line-height: 1; cursor: pointer;
+}
+.co-show-nav:hover { border-color: var(--gold-dim); color: var(--gold); }
+.co-show-nav.prev { left: 4px; }
+.co-show-nav.next { right: 4px; }
+.co-show-panel {
+  position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; height: 100%; max-height: 100%;
+  background: rgba(20,17,28,.86); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  box-shadow: var(--shadow), 0 0 40px -18px var(--show-accent, #ff7fd8);
+}
+.co-show-head { display: flex; flex-direction: column; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+.co-show-name { font-size: 26px; font-weight: 800; letter-spacing: .3px; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+.co-show-body { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+@media (max-width: 767px) {
+  #co-show {
+    grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; align-items: stretch;
+    padding: calc(6px + var(--safe-t)) 8px calc(8px + var(--safe-b));
+  }
+  .co-show-rail { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; align-self: auto; }
+  .co-show-back { margin: 0; }
+  .co-show-tabs { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .co-show-tab { padding: 6px 10px; font-size: 12px; }
+  .co-show-stage { height: auto; min-height: 0; }
+  .co-show-nav { width: 36px; height: 36px; font-size: 20px; }
+  .co-show-panel { height: auto; max-height: 46vh; padding: 12px; border-radius: 10px; }
+  .co-show-name { font-size: 20px; }
+  .co-show-head { padding-bottom: 6px; }
+}
+/* §193 무대용 고해상도 그림 (영웅) — 캔버스 대신 <img>. 숨쉬기는 CSS 로, 발광은 영웅 색으로 */
+.co-show-big {
+  display: block; width: auto; max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+  filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)) drop-shadow(0 0 26px var(--show-accent, #ff7fd8));
+  animation: coShowBreath 4.2s ease-in-out infinite;
+}
+@keyframes coShowBreath { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }

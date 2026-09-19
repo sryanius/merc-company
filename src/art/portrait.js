@@ -320,7 +320,9 @@ export function drawPortraitFrame(ctx, portrait, frame, x, y, opts = {}) {
   if (flip) { ctx.translate(Math.round(x) * 2, 0); ctx.scale(-1, 1); }   // x 를 축으로 좌우 반전 — 아래 dx0 계산은 그대로 쓴다
   /* ★ PNG 일러스트를 **줄여** 그릴 때만 보간을 켠다 (dpr 1 화면). 최근접으로 줄이면 줄이 통째로 빠진다.
    *   같은 크기·키울 때는 최근접 — 도트가 뭉개지면 안 된다. 문자 일러스트는 예전 그대로 최근접. */
-  ctx.imageSmoothingEnabled = !!(portrait.png && dw < W);
+  /* ★ §193 무대처럼 **키울 때** 도 그림이면 보간을 켤 수 있다 (`opts.smooth`) — 240px 를 700px 로 최근접 확대하면 계단이 진다. */
+  ctx.imageSmoothingEnabled = !!(portrait.png && (dw < W || opts.smooth));
+  if (ctx.imageSmoothingEnabled) ctx.imageSmoothingQuality = 'high';
   const dx0 = Math.round(x) - Math.round(dw / 2);
   const dy0 = Math.round(y) - Math.round((portrait.footY ?? PORTRAIT_FOOT_Y) * px);
 

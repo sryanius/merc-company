@@ -561,6 +561,7 @@ function confirmBox(title, message, onYes, yesLabel = '확인') {
 function closeModalLayer() {
   const layer = document.getElementById('modal-layer');
   if (layer) { layer.innerHTML = ''; layer.onclick = null; }
+  closeMercDetail();   // §193 상세 무대도 같이 — 다른 화면으로 가는 단추가 여기를 부른다
 }
 const fmtStat = (k, v) => (PCT_KEYS.has(k) ? `${Math.round(v * 10) / 10}%` : num(v));
 const mercOf = (uid) => state.roster.find((m) => m.uid === uid) || null;
@@ -585,7 +586,7 @@ function spriteCanvas(recipe, scale = 1, frame = 'idle0') {
 }
 
 /** idle 애니메이션이 도는 큰 스프라이트 */
-function animatedSprite(recipe, scale = 3) {
+function animatedSprite(recipe, scale = 3, opts = {}) {
   const { c, dpr } = dprCanvas(32 * scale, 40 * scale);
   let sp = null;
   try { sp = getShowcase(recipe); } catch (e) { console.warn('[company] 스프라이트 생성 실패', e); }
@@ -596,7 +597,7 @@ function animatedSprite(recipe, scale = 3) {
     ctx.clearRect(0, 0, c.width, c.height);
     if (sp) {
       ctx.imageSmoothingEnabled = false;
-      drawShowcase(ctx, sp, seq[i % seq.length], 16 * scale * dpr, 38 * scale * dpr, { scale: scale * dpr });
+      drawShowcase(ctx, sp, seq[i % seq.length], 16 * scale * dpr, 38 * scale * dpr, { scale: scale * dpr, ...opts });
     }
     i++;
   };
@@ -2505,16 +2506,64 @@ function lineageBlock(m) {
     strip);
 }
 
-/**
- * 단원 상세 모달. **다른 화면에서도 부를 수 있게 export 한다** (장비 화면의 단원별 표 등).
- * 내부에서 쓰는 `redraw()` 는 app.js `refresh()`(= 지금 떠 있는 화면 다시 그리기)를 부를 뿐이라
- * 용병단 화면이 안 떠 있어도 안전하다.
- */
+/* ══════════════════════ 단원 상세 = «전신 일러스트 무대» (§193) ══════════════════════
+ * 제작자 참고 화면(가챠류 영웅 화면): 가운데 전신 일러스트, 왼쪽 탭, 오른쪽에 떠 있는 정보 패널.
+ * 예전엔 모달(왼쪽 초상 210px + 오른쪽 스크롤)이었다 — 그림이 작고 정보가 그림과 따로 흘렀다.
+ *
+ * ★ 모달이 아니라 전용 층(#co-show, z 85)이다. 장착·전직·이름 창은 그 위(#modal-layer, z 90)에 뜬다.
+ *   하위 창들은 «뒤로»·행동 뒤에 `openMercDetail` 을 다시 부른다 (예전 모달 관습을 그대로 둔다) —
+ *   그러면 여기서 창 층을 비우고 무대를 다시 그린다. 보던 탭은 유지한다.
+ * ★ 무대의 그림은 화면 높이에 맞춰 키운다 (PNG 240px → 최대 3배). 키울 때는 보간을 켠다 (`smooth`) —
+ *   최근접으로 키우면 계단이 진다 (portrait.js 는 도트 시절 규칙으로 키울 때 최근접이었다). */
+let showAnim = null;          // 지금 무대에 선 애니메이션 (닫거나 다시 그릴 때 멈춘다)
+let showTab = 'growth';       // 다시 그려도 보던 탭을 유지한다
+let showOffKey = null;
+const SHOW_TABS = [['growth', '성장'], ['stats', '스탯'], ['skills', '스킬'], ['gear', '장비'], ['sets', '세트'], ['log', '기록']];
+
+function closeAnyModal() {
+  const layer = document.querySelector('#modal-layer');
+  if (layer) layer.innerHTML = '';
+}
+
+/** 무대를 닫는다 (해고·Esc·닫기). 여러 번 불러도 안전하다. */
+export function closeMercDetail() {
+  if (showAnim) { try { showAnim.stop(); } catch (e) { /* 이미 멈췄다 */ } showAnim = null; }
+  if (showOffKey) { showOffKey(); showOffKey = null; }
+  const layer = document.querySelector('#co-show');
+  if (layer) layer.remove();
+}
+
+/** 무대 배율 — 표시 높이 = 40 × scale (32×40 논리 픽셀, portrait.js norm). 세로는 화면의 80%(폰 46%), 가로는 폭에 맞춘다. */
+function showStageScale() {
+  const w = window.innerWidth || 1280;
+  const h = window.innerHeight || 800;
+  const phone = w <= 767;
+  const byH = ((phone ? 0.46 : 0.8) * h) / 40;
+  const byW = ((phone ? 0.9 : 0.42) * w) / 32;
+  return clamp(Math.min(byH, byW), 4, 18);
+}
+
 export function openMercDetail(mercUid) {
   const m = state.roster.find((x) => x.uid === mercUid);
-  if (!m) { toast('용병을 찾을 수 없습니다.', 'bad'); return; }
+  if (!m) { toast('용병을 찾을 수 없습니다.', 'bad'); closeMercDetail(); return; }
+  /* ★ 장비 칸 격자(.co-doll)·전직 카드의 CSS 는 company.js 가 화면을 그릴 때 심는다 —
+   *   장비 화면 등 **다른 화면에서 상세를 열면** 안 심겨 있어 칸이 세로로 늘어섰다 (무대에서 실측). */
+  injectStyle();
+  closeAnyModal();
+  if (showAnim) { try { showAnim.stop(); } catch (e) { /* */ } showAnim = null; }
+
   const c = getClass(m.classId) || {};
-  const anim = animatedSprite(mercRecipe(m, state), m.hero ? 4.5 : 3);   // §179 영웅은 큰 일러스트
+  const hero = m.hero ? getHero(m.hero) : null;
+  const th = hero ? heroTheme(hero) : null;
+  const accent = hero ? th.color : gradeColor(m);
+  const anim = animatedSprite(mercRecipe(m, state), showStageScale(), { smooth: true });
+  showAnim = anim;
+  const stopAnim = () => { if (showAnim === anim) anim.stop(); };
+
+  let layer = document.querySelector('#co-show');
+  if (!layer) { layer = el('div', { id: 'co-show' }); document.body.appendChild(layer); }
+  layer.innerHTML = '';
+  layer.style.setProperty('--show-accent', accent);
 
   const base = baseStatsOf(m);
   const gear = mercStats(m, state);
@@ -2523,58 +2572,107 @@ export function openMercDetail(mercUid) {
   const exp = expProgress(m);
   const sq = m.squadId ? state.squads.find((s) => s.id === m.squadId) : null;
 
-  /* 좌측 — 초상 / 신상 */
-  const left = el('div', { class: 'col co-dl', style: { flex: '0 0 210px', alignItems: 'center', gap: '8px' } },
-    el('div', { class: `sprite-box${m.hero ? ' co-hero-frame' : ''}`, style: { width: '100%', height: m.hero ? '196px' : '132px', padding: '6px' } }, anim.canvas),
-    el('div', { class: 'col center', style: { gap: '2px', textAlign: 'center' } },
-      el('b', { style: { color: gradeColor(m), fontSize: '16px' }, text: m.name }),
-      el('div', { class: 'tiny muted', text: `${c.name || m.classId} · ${c.tier || 1}차 · ${c.role || ''}` }),
-      el('div', { class: 'row center', style: { gap: '6px', justifyContent: 'center' } },
-        m.hero ? el('span', { class: 'tag hero-tag', text: '♛ 영웅' }) : el('span', { class: 'tag', style: { color: gradeColor(m) }, text: `${m.grade} 등급` }),
-        el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: `Lv ${m.level || 1}` }))),
-    el('div', { class: 'col', style: { width: '100%', gap: '3px' } },
+  /* ── 탭 내용 — 예전 모달의 블록들을 그대로 쓴다 ── */
+  const growthBlock = () => el('div', { class: 'col', style: { gap: '12px' } },
+    el('div', { class: 'col', style: { gap: '3px' } },
       el('div', { class: 'row spread tiny faint' },
         el('span', { text: `경험치 · Lv${m.level || 1} / ${levelCapOf(m)}` }),
         el('span', { class: 'num', text: exp.max ? '최대 레벨' : `${num(exp.cur)} / ${num(exp.need)}` })),
       el('div', { class: 'bar exp' }, el('i', { style: { width: `${exp.ratio * 100}%` } })),
       promoteProgressLine(m)),
-    el('div', { class: 'tiny faint col center', style: { gap: '1px', textAlign: 'center' } },
+    promoteBlock(m, stopAnim),
+    lineageBlock(m),
+    heroBlock(m));
+  const logBlock = () => el('div', { class: 'col', style: { gap: '8px' } },
+    el('h3', { class: 'panel-title', text: '기록', style: { margin: '0' } }),
+    el('div', { class: 'tiny muted col', style: { gap: '3px' } },
       el('div', { text: sq ? `${sq.name} ${m.slotIndex + 1}번 자리` : '미배치' }),
       el('div', { text: `일당 ${num(GameState.upkeepOfMerc(m, state))}G · 고용 ${num(m.hiredDay || 1)}일차` }),
       el('div', { text: `전투 ${num(m.battles || 0)}회 · 처치 ${num(m.kills || 0)}` }),
       isWounded(m, state.day) ? el('div', { style: { color: 'var(--bad)' }, text: `부상 — ${num(m.woundUntil)}일차 회복` }) : null),
-    promoteBlock(m, () => { anim.stop(); }));
+    el('div', { class: 'row wrap center', style: { gap: '6px', marginTop: '6px' } },
+      hero
+        ? el('span', { class: 'tiny faint', text: '영웅의 이름은 고유하다 — 바꿀 수 없다' })
+        : el('button', { class: 'btn sm ghost', onClick: () => setTimeout(() => renameMerc(m), 0) }, '✎ 이름 변경'),
+      el('button', { class: 'btn sm ghost danger', onClick: () => { closeMercDetail(); setTimeout(() => askDismiss(m), 0); } }, '해고')));
+  const content = (tab) => {
+    switch (tab) {
+      case 'stats': return [statTable(base, gear, total, mods)];
+      case 'skills': return [skillBlock(c, m)];
+      case 'gear': return [equipBlock(m, stopAnim)];
+      case 'sets': return [setBlock(m)];
+      case 'log': return [logBlock()];
+      default: return [growthBlock()];
+    }
+  };
 
-  /* 우측 — 계보 / 스탯 / 스킬 / 장비 */
-  const right = el('div', { class: 'col co-dr', style: { flex: '1 1 380px', minWidth: '340px' } },
-    lineageBlock(m),
-    heroBlock(m),
-    statTable(base, gear, total, mods),
-    skillBlock(c, m),
-    equipBlock(m, () => anim.stop()),
-    setBlock(m));
+  const body = el('div', { class: 'co-show-body' });
+  const tabs = el('div', { class: 'co-show-tabs' });
+  const paint = () => {
+    body.innerHTML = '';
+    for (const node of content(showTab)) if (node) body.appendChild(node);
+    body.scrollTop = 0;
+    for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === showTab);
+  };
+  for (const [id, label] of SHOW_TABS) {
+    tabs.appendChild(el('button', { class: 'co-show-tab', 'data-tab': id, onClick: () => { showTab = id; paint(); } }, label));
+  }
 
-  modal({
-    /* 이름 옆에 바로 수정 아이콘을 단다.
-     * 예전에는 하단 액션에 «이름 변경» 이 있었는데, 이름을 고치러 모달 끝까지 내려가야 했다. */
-    title: el('span', { class: 'row center', style: { gap: '8px', flexWrap: 'wrap' } },
-      el('span', { text: `${m.name} — ${c.name || m.classId}` }),
-      /* §179 영웅의 이름은 고유하다 — 바꿀 수 없다 */
-      m.hero ? el('span', { class: 'tiny faint', title: '영웅의 이름은 바꿀 수 없다', text: '고유한 이름' }) : el('button', {
-        class: 'btn sm ghost co-rename',
-        title: '이름 변경',
-        'aria-label': '이름 변경',
-        // 모달 안에서 모달을 바로 열면 바깥 모달이 닫히며 같이 사라진다 — 다음 틱으로 미룬다
-        onClick: () => { anim.stop(); setTimeout(() => renameMerc(m), 0); },
-      }, '✎')),
-    wide: true,
-    body: el('div', { class: 'row wrap co-mbody', style: { alignItems: 'flex-start', gap: '16px' } }, left, right),
-    onClose: () => anim.stop(),
-    actions: [
-      { label: '해고', kind: 'ghost danger', act: () => { anim.stop(); setTimeout(() => askDismiss(m), 0); } },
-      { label: '닫기', kind: '' },
-    ],
-  });
+  const head = el('div', { class: 'co-show-head' },
+    el('div', { class: 'row center wrap', style: { gap: '6px' } },
+      hero
+        ? el('span', { class: 'tag hero-tag', text: `${th.crest} 영웅` })
+        : el('span', { class: 'tag', style: { color: gradeColor(m) }, text: `${m.grade} 등급` }),
+      el('span', { class: 'tag', style: { color: 'var(--ink-dim)' }, text: `Lv ${m.level || 1} / ${levelCapOf(m)}` }),
+      m.awakened ? el('span', { class: 'tag', style: { color: accent }, text: '각성' }) : null),
+    el('div', { class: 'co-show-name', style: { color: accent }, text: m.name }),
+    el('div', { class: 'tiny muted', text: hero
+      ? `«${hero.title}» · ${c.name || m.classId} · ${th.element.name}`
+      : `${c.name || m.classId} · ${c.tier || 1}차 · ${c.role || ''}` }));
+
+  /* ── 명부 앞뒤로 넘기기 ── */
+  const idx = state.roster.findIndex((x) => x.uid === m.uid);
+  const n = state.roster.length;
+  const prev = state.roster[(idx - 1 + n) % n];
+  const next = state.roster[(idx + 1) % n];
+  const nav = (mm, cls, txt) => el('button', {
+    class: `co-show-nav ${cls}`, title: mm.name, 'aria-label': mm.name,
+    onClick: () => openMercDetail(mm.uid),
+  }, txt);
+
+  const stage = el('div', { class: 'co-show-stage' }, anim.canvas);
+  if (n > 1) { stage.appendChild(nav(prev, 'prev', '‹')); stage.appendChild(nav(next, 'next', '›')); }
+  /* ★ 영웅은 무대용 고해상도 그림(art/big, 448×560)을 따로 받아 캔버스를 갈아 끼운다 (§193).
+   *   192×240 을 2~3배로 키우면 보간을 켜도 계단이 진다 (실측). 큰 그림은 셸(sw.js)에 안 넣는다 —
+   *   열 때만 받고(56장 5.8MB), 못 받으면(오프라인) 캔버스 그대로 간다.
+   *   영웅은 머리 재색이 없어서(§176 --nohair) 그림을 그대로 써도 캔버스와 같은 모습이다. */
+  if (hero) {
+    const big = el('img', { class: 'co-show-big', alt: '', draggable: 'false' });
+    big.style.height = `${40 * showStageScale()}px`;
+    big.addEventListener('load', () => {
+      if (showAnim !== anim || !anim.canvas.parentNode) return;   // 그 사이 닫혔거나 다시 그렸다
+      stage.replaceChild(big, anim.canvas);
+      anim.stop();
+    });
+    big.src = `art/big/illust_hero_${hero.id}${m.awakened ? '_awk' : ''}.png`;
+  }
+  const rail = el('div', { class: 'co-show-rail' },
+    el('button', { class: 'btn sm ghost co-show-back', onClick: closeMercDetail }, '← 닫기'),
+    tabs);
+  layer.appendChild(rail);
+  layer.appendChild(stage);
+  layer.appendChild(el('div', { class: 'co-show-panel' }, head, body));
+
+  if (!showOffKey) {
+    const onKey = (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (document.querySelector('#modal-layer .modal')) return;   // 위에 창이 떠 있으면 그쪽 몫이다
+      closeMercDetail();
+    };
+    window.addEventListener('keydown', onKey);
+    showOffKey = () => window.removeEventListener('keydown', onKey);
+  }
+  paint();
 }
 
 function statTable(base, gear, total, mods) {

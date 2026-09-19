@@ -9247,6 +9247,54 @@ section('§192 하루 넘기기가 실물이다 — 서버 날짜가 클라와 �
   }
 }
 
+section('§193 단원 상세 = 전신 일러스트 무대');
+{
+  /* 제작자 참고 화면(가챠류 영웅 화면): 가운데 전신 일러스트 · 왼쪽 탭 · 오른쪽 정보 패널.
+   * 모달(왼쪽 210px 초상 + 오른쪽 스크롤)을 버리고 전용 층(#co-show)으로 갔다. 영웅은 무대용 448×560 그림을 따로 받는다. */
+  try {
+    const co = decomment(readFileSync(join(rootDir, 'src/ui/company.js'), 'utf8'));
+    const css = readFileSync(join(rootDir, 'css/style.css'), 'utf8');
+    const pt = decomment(readFileSync(join(rootDir, 'src/art/portrait.js'), 'utf8'));
+    const i0 = co.indexOf('export function openMercDetail(');
+    const fn = i0 >= 0 ? co.slice(i0, co.indexOf('\nfunction statTable(', i0)) : '';
+    ok(fn.length > 500 && !/\bmodal\(\{/.test(fn), '상세 화면은 모달이 아니라 전용 층(#co-show)이다');
+    ok(/export function closeMercDetail/.test(co), '무대를 닫는 함수가 있다 (해고·Esc·닫기)');
+    {
+      const j = co.indexOf('function closeModalLayer');
+      ok(j >= 0 && /closeMercDetail\(\)/.test(co.slice(j, j + 320)), '장비 화면·펫 관리로 나갈 때 무대도 닫힌다',
+        '안 닫으면 무대가 다음 화면 위에 남는다');
+    }
+    ok(/injectStyle\(\);/.test(fn), '상세를 열 때 company.js 의 CSS 를 심는다',
+      '장비 칸 격자(.co-doll)가 company.js 안에 있어 다른 화면에서 열면 칸이 세로로 늘어선다 (실측)');
+    ok(/smooth: true/.test(fn) && /opts\.smooth/.test(pt), '무대 캔버스는 키울 때 보간을 켠다');
+    ok(/art\/big\/illust_hero_\$\{hero\.id\}\$\{m\.awakened \? '_awk' : ''\}\.png/.test(fn), '영웅은 무대용 고해상도 그림(art/big)을 받아 갈아 끼운다');
+    ok(/anim\.canvas\.parentNode\) return;/.test(fn), '큰 그림이 늦게 오면(그 사이 닫힘) 갈아 끼우지 않는다');
+    ok(/#co-show \{/.test(css) && /\.co-show-big \{/.test(css) && /@media \(max-width: 767px\) \{\s*#co-show \{/.test(css),
+      '무대 CSS 가 PC·폰 둘 다 있다');
+    ok(/z-index: 85/.test(css.slice(css.indexOf('#co-show {'), css.indexOf('#co-show {') + 400)), '무대 층은 창 층(90) 아래·화면(60) 위다',
+      '장착·전직 창이 무대 위에 떠야 한다');
+    /* art/big — 영웅 56명 전부 448×560, 셸에는 없다 */
+    {
+      const { HERO_IDS } = await import('../src/data/heroes.js');
+      const bad = [];
+      for (const id of HERO_IDS) {
+        const p = join(rootDir, 'art/big', `illust_hero_${id}.png`);
+        if (!existsSync(p)) { bad.push(`${id} 없음`); continue; }
+        const b = readFileSync(p);
+        const w = b.readUInt32BE(16); const h = b.readUInt32BE(20);
+        if (w !== 448 || h !== 560) bad.push(`${id} ${w}x${h}`);
+      }
+      okAll(bad, '영웅 56명의 무대 그림이 전부 448×560 으로 있다', HERO_IDS.length);
+      const shell = readFileSync(join(rootDir, 'sw.js'), 'utf8');
+      ok(!/art\/big\//.test(shell), '무대 그림은 셸(sw.js)에 안 넣는다', '56장 5.8MB 를 첫 로드에 싣지 않는다 — 열 때만 받고 못 받으면 캔버스로 간다');
+    }
+    /* 메타 — 모달로 되돌린 판을 실제로 잡는다 */
+    ok(/\bmodal\(\{/.test(fn.replace('closeAnyModal();', 'modal({ title: 1 });')), '메타 — 모달로 되돌리면 잡는다');
+  } catch (e) {
+    ok(false, '§193 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
 section('UI 의 폴백 상수가 진짜 값과 같은가 (주점)');
 {
   /* ★★ `ui/tavern.js` 는 `state.js` 상수를 «방어적으로» 읽는다 — `knob(name, fallback)`.
