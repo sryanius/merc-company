@@ -401,6 +401,21 @@ for (const l of r.lines) console.error('  ' + l);
 for (const wmsg of r.warn) console.error('  ⚠ ' + wmsg);
 if (r.fatal.length) { console.error('  ✗ 넣을 수 없다 — 위 경고를 고쳐라'); process.exit(1); }
 
+/* ★ §193 무대용 큰 그림 — 목록(manifest.js)엔 안 넣고(부팅 메모리) 메타만 JSON 에 모은다: art/big/manifest.json.
+ *   게임(src/art/bigart.js)이 열 때 그림을 받아 같은 recolorInto 로 머리·눈을 칠한다. --out 과 짝으로 쓴다. */
+const metaOut = arg('metaout', '');
+if (metaOut) {
+  const mp = path.resolve(ROOT, metaOut);
+  const cur = fs.existsSync(mp) ? JSON.parse(fs.readFileSync(mp, 'utf8')) : {};
+  const mroles = [];
+  if (!NOHAIR && a.hair) mroles.push('hair');
+  if (!NOHAIR && a.eyeBox) mroles.push('eye');
+  cur[name] = { w: src.w, h: src.h, ax: a.ax, ay: a.ay, eyeBox: (!NOHAIR && a.eyeBox) || null,
+    marker: NOHAIR ? null : { hair: SPEC.hair.hue, eye: SPEC.eye.hue }, roles: mroles };
+  fs.writeFileSync(mp, JSON.stringify(cur, null, 1));
+  console.error(`  메타 기록: ${metaOut} (${name})`);
+}
+
 if (!flag('apply')) { console.error('  (--apply 가 없어 아무것도 안 썼다)'); process.exit(0); }
 
 fs.mkdirSync(path.join(ROOT, ILLUST_DIR), { recursive: true });

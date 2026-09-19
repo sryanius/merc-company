@@ -9267,24 +9267,40 @@ section('§193 단원 상세 = 전신 일러스트 무대');
     ok(/injectStyle\(\);/.test(fn), '상세를 열 때 company.js 의 CSS 를 심는다',
       '장비 칸 격자(.co-doll)가 company.js 안에 있어 다른 화면에서 열면 칸이 세로로 늘어선다 (실측)');
     ok(/smooth: true/.test(fn) && /opts\.smooth/.test(pt), '무대 캔버스는 키울 때 보간을 켠다');
-    ok(/art\/big\/illust_hero_\$\{hero\.id\}\$\{m\.awakened \? '_awk' : ''\}\.png/.test(fn), '영웅은 무대용 고해상도 그림(art/big)을 받아 갈아 끼운다');
+    ok(/bigPortrait\(recipe\)\.then/.test(fn), '무대는 모든 단원의 고해상도 그림(art/big)을 받아 갈아 끼운다');
+    {
+      const ba = decomment(readFileSync(join(rootDir, 'src/art/bigart.js'), 'utf8'));
+      ok(/recolorInto\(/.test(ba) && /from '\.\/illustpng\.js'/.test(ba) && /makePalette\(/.test(ba) && /colorTable\(/.test(ba),
+        '큰 그림의 머리·눈 색칠은 게임과 같은 함수(recolorInto·makePalette·colorTable)다', '손으로 다시 쓰면 작은 그림과 색이 갈린다');
+      ok(/illust_hero_\$\{hero\.id\}/.test(decomment(readFileSync(join(rootDir, 'src/game/merc.js'), 'utf8'))) && /rec\.awakened = !!merc\.awakened/.test(readFileSync(join(rootDir, 'src/game/merc.js'), 'utf8')),
+        '레시피가 각성 표식을 든다 (무대가 _awk 그림을 찾는 열쇠)');
+      ok(/\.\/src\/art\/bigart\.js/.test(readFileSync(join(rootDir, 'sw.js'), 'utf8')), 'sw.js APP_SHELL 에 bigart.js');
+    }
     ok(/anim\.canvas\.parentNode\) return;/.test(fn), '큰 그림이 늦게 오면(그 사이 닫힘) 갈아 끼우지 않는다');
     ok(/#co-show \{/.test(css) && /\.co-show-big \{/.test(css) && /@media \(max-width: 767px\) \{\s*#co-show \{/.test(css),
       '무대 CSS 가 PC·폰 둘 다 있다');
     ok(/z-index: 85/.test(css.slice(css.indexOf('#co-show {'), css.indexOf('#co-show {') + 400)), '무대 층은 창 층(90) 아래·화면(60) 위다',
       '장착·전직 창이 무대 위에 떠야 한다');
-    /* art/big — 영웅 56명 전부 448×560, 셸에는 없다 */
+    /* art/big — 클래스 105 + 영웅 56 전부 448×560 + 메타(manifest.json), 셸에는 없다 */
     {
       const { HERO_IDS } = await import('../src/data/heroes.js');
+      await import('../src/data/classes_t4.js');
+      const { CLASSES } = await import('../src/data/classes.js');
+      const names = [...Object.keys(CLASSES).map((id) => `illust_${id}`), ...HERO_IDS.map((id) => `illust_hero_${id}`)];
+      const mp = join(rootDir, 'art/big/manifest.json');
+      const bigMeta = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : {};
       const bad = [];
-      for (const id of HERO_IDS) {
-        const p = join(rootDir, 'art/big', `illust_hero_${id}.png`);
-        if (!existsSync(p)) { bad.push(`${id} 없음`); continue; }
+      for (const nm of names) {
+        const p = join(rootDir, 'art/big', `${nm}.png`);
+        if (!existsSync(p)) { bad.push(`${nm} 없음`); continue; }
         const b = readFileSync(p);
         const w = b.readUInt32BE(16); const h = b.readUInt32BE(20);
-        if (w !== 448 || h !== 560) bad.push(`${id} ${w}x${h}`);
+        if (w !== 448 || h !== 560) bad.push(`${nm} ${w}x${h}`);
+        const e = bigMeta[nm];
+        if (!e || e.w !== 448 || e.h !== 560) bad.push(`${nm} 메타 없음`);
+        else if (!nm.startsWith('illust_hero_') && !(e.roles || []).includes('hair')) bad.push(`${nm} 머리 표식 없음 — 머리색 편차가 안 산다`);
       }
-      okAll(bad, '영웅 56명의 무대 그림이 전부 448×560 으로 있다', HERO_IDS.length);
+      okAll(bad, '클래스 105 + 영웅 56 의 무대 그림·메타가 전부 있다 (448×560 · 클래스는 머리 표식)', names.length);
       const shell = readFileSync(join(rootDir, 'sw.js'), 'utf8');
       ok(!/art\/big\//.test(shell), '무대 그림은 셸(sw.js)에 안 넣는다', '56장 5.8MB 를 첫 로드에 싣지 않는다 — 열 때만 받고 못 받으면 캔버스로 간다');
     }

@@ -1,9 +1,11 @@
 // §193 영웅 각성 일러스트 — 기존 영웅 raw 를 Qwen-Image-Edit 로 «각성판» 으로 → illust_hero_<id>_awk(_atk)
-//   node tools/art/gen_hero_awaken.mjs [--only=id,id] [--stage=awk|atk|all] [--seed=7] [--reuse] [--apply]
-//   · 제작자 결정(2026-09-19): **얼굴·머리색·눈색만 지키고 옷은 자유.** 각성 = 더 화려하고 매혹적으로 (비치는 천·맨어깨·슬릿 + 후광·빛의 날개).
+//   node tools/art/gen_hero_awaken.mjs [--only=id,id] [--stage=awk|atk|all] [--style=auto|drama|regal|ascend|dark|pinup] [--seed=7] [--reuse] [--apply]
+//   · 제작자 결정(2026-09-19): **얼굴·머리색·눈색만 지키고 옷은 자유.** 각성 = 더 화려하고 매혹적으로.
 //   · 새로 txt2img 하지 않는다 — 다른 사람이 나온다. §176 의 대기 raw(라임 배경)를 **편집**해 같은 얼굴을 지킨다 (§171 지시 편집).
+//   · 첫 시안(«흰 드레스 + 후광 + 날개»)은 셋이 똑같아 «평범» 했다 (§193.1). 방향 시안 5장에서 고른 것을 --style 로 준다.
+//     auto = apex 는 drama(계열 원소 효과 + 영웅 색), abyss 는 dark(검은 날개·사슬·영웅 색 빛).
+//   · «지킬 것» 에 머리색 **이름을 넣지 않는다** — results.json 의 look 이 raw 와 다른 영웅이 있었다(키릴 → 금발). 그림을 보고 지키게 한다.
 //   · 공격은 각성 raw 에서 «자세만» (gen_hero_art.mjs 와 같은 POSE 표).
-//   · 머리·눈색은 gen_hero/results.json 의 `idle.look` 을 그대로 읽는다 — 손사본을 두지 않는다.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -23,16 +25,49 @@ const flag = (k) => args.includes(`--${k}`);
 const seed = Number(arg('seed', 7));
 const only = arg('only', '').split(',').filter(Boolean);
 const stage = arg('stage', 'all');
+const style = arg('style', 'auto');
 const reuse = flag('reuse');
 const apply = flag('apply');
 
 const { CLASS_TAGS } = await import(`file:///${GAME}/tools/illustprompts_classes.mjs`);
 const { HEROES, HERO_IDS } = await import(`file:///${GAME}/src/data/heroes.js`);
-const srcResults = JSON.parse(fs.readFileSync(SRC + '/results.json', 'utf8'));
 
-/* 각성 지시 — §171: 한 문장에 «바꿀 것» + «지킬 것». turbo 는 부정을 무시하므로 지킬 것을 명시한다. */
-const AWAKEN = (look) =>
-  `Redesign her outfit into an awakened, divine and glamorous form: a revealing elegant costume with sheer flowing fabric, bare shoulders, a high leg slit, ornate gold jewelry and gems, a glowing halo behind her head, wings of light and floating golden sparkles, brighter dramatic lighting. Keep her face, her ${look.hair.replace(' hair', '')} hair, her ${look.eyes}, her weapon, her standing pose and the plain flat light green background exactly the same.`;
+/* ── 영웅 색 → 말 (hex 를 가장 가까운 이름으로) ── */
+const COLOR_WORDS = [
+  ['crimson', [224, 67, 63]], ['gold', [255, 201, 74]], ['silver', [154, 156, 184]], ['violet', [165, 107, 255]],
+  ['ice blue', [111, 216, 255]], ['emerald green', [111, 216, 106]], ['amber orange', [255, 122, 42]], ['pale pink', [255, 127, 216]],
+  ['deep blue', [60, 90, 220]], ['jade', [70, 180, 150]], ['white', [240, 240, 245]], ['black', [30, 30, 40]],
+];
+function colorWord(hex) {
+  const n = parseInt(String(hex || '#ff7fd8').slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  let best = COLOR_WORDS[0], bd = Infinity;
+  for (const w of COLOR_WORDS) { const d = w[1].reduce((a, v, i) => a + (v - c[i]) ** 2, 0); if (d < bd) { bd = d; best = w; } }
+  return best[0];
+}
+/* 계열(fx) → 효과 말 */
+const FX_WORDS = {
+  fire: 'swirling flames and embers', ice: 'frost crystals and a frozen wind', holy: 'radiant golden light rays', shadow: 'violet shadow smoke',
+  nature: 'glowing leaves and forest spirits', lightning: 'crackling arcs of lightning', poison: 'toxic green mist', bolt: 'floating arcane runes',
+  heal: 'soft healing light and feathers', buff: 'shimmering golden aura', slash: 'sharp wind and glowing petals', pierce: 'sharp wind and glowing petals',
+  arrow: 'a rushing wind and glowing feathers', blunt: 'cracked ground and shockwaves',
+};
+const KEEP = 'Keep her face, her hair colour, her eye colour, her weapon and the plain flat light green background exactly the same.';
+function promptFor(id, h, kind) {
+  const col = colorWord(h.color);
+  const fx = FX_WORDS[h.fx] || FX_WORDS.slash;
+  switch (kind) {
+    case 'regal': return `Transform her into her awakened form as a goddess of war: an elaborate ${col} and gold crown with a jeweled diadem, a huge ornate ${col} cape spreading behind her, crystal shoulder armor over a revealing elegant dress with a high leg slit, floating golden rings and jewels orbiting her, a brilliant ${col} backlight like a rising sun, ${fx} around her, a majestic pose with her weapon held upright. ${KEEP}`;
+    case 'ascend': return `Transform her into her ascended form: she floats slightly above the ground, six blazing ${col} energy weapons hovering in a circle behind her, cracks of glowing ${col} light across her outfit, glowing eyes, a torn flowing outfit with a high slit and bare shoulders, hair floating upward as if weightless, ${fx} and dramatic light rays from below. ${KEEP}`;
+    case 'dark': return `Transform her into her awakened abyss form: a dark black and ${col} outfit with sheer fabric and a high leg slit, glowing ${col} eyes, shadowy black smoke and huge torn black wings spreading behind her, floating broken weapon fragments circling her, chains of ${col} light, ${fx}, a cold moonlit rim light and an eerie ${col} glow. ${KEEP}`;
+    case 'pinup': return `Transform her into her awakened form: a seductive elegant ${col} and black evening gown with sheer see-through fabric, deep neckline, bare shoulders and a very high leg slit, gold body jewelry, a confident alluring pose with her weapon resting on her shoulder, ${fx} and sparkling ${col} light particles. ${KEEP}`;
+    default: return `Transform her into her awakened form as a legendary warrior: a dramatic battle-ready stance, her weapon wreathed in ${col} and gold light, her long hair and a torn ${col} cape whipping in a violent wind, ${fx} around her, a sleek black and ${col} outfit with gold ornaments, high leg slit, bare shoulders, intense rim lighting from behind. ${KEEP}`;
+  }
+}
+function styleOf(id) {
+  if (style !== 'auto') return style;
+  return id.endsWith('_abyss') ? 'dark' : 'drama';
+}
 
 /* Qwen 자세 지시 — gen_hero_art.mjs 의 POSE 와 같다 (무기별) */
 const POSE = {
@@ -83,10 +118,11 @@ for (const id of ids) {
   i++;
   const h = HEROES[id];
   const ct = CLASS_TAGS[id];
-  const look = srcResults[id] && srcResults[id].idle && srcResults[id].idle.look;
   const rawIdle = `${SRC}/${id}_raw.png`;
-  if (!ct || !look || !fs.existsSync(rawIdle)) { console.error(`[${i}] ${id}: 원본 raw·look 없음 — §176 를 먼저 돌려라`); continue; }
-  const rec = results[id] || { name: h.name, cls: ct.name, look };
+  if (!ct || !fs.existsSync(rawIdle)) { console.error(`[${i}] ${id}: 원본 raw 없음 — §176 를 먼저 돌려라`); continue; }
+  const kind = styleOf(id);
+  const rec = results[id] || { name: h.name, cls: ct.name };
+  rec.style = kind;
   const rawAwk = `${OUT}/${id}_awk_raw.png`, awk192 = `${OUT}/${id}_awk_192.png`;
   const rawAtk = `${OUT}/${id}_awk_atk_raw.png`, atk192 = `${OUT}/${id}_awk_atk_192.png`;
 
@@ -94,17 +130,17 @@ for (const id of ids) {
   if (stage === 'awk' || stage === 'all') {
     const t0 = Date.now();
     if (!(reuse && fs.existsSync(rawAwk))) {
-      const e = edit(rawIdle, AWAKEN(look), rawAwk);
+      const e = edit(rawIdle, promptFor(id, h, kind), rawAwk);
       if (!e.ok) {
         rec.awk = { ok: false, stage: 'edit', err: e.err }; results[id] = rec; save();
-        console.error(`[${i}/${ids.length}] ${id} ${h.name} 각성: ✗ 편집 실패 ${e.err.slice(-120)}`);
+        console.error(`[${i}/${ids.length}] ${id} ${h.name} 각성(${kind}): ✗ 편집 실패 ${e.err.slice(-120)}`);
         continue;
       }
     }
     const r = ingest(rawAwk, `illust_hero_${id}_awk`, awk192);
     rec.awk = { ...r, sec: Math.round((Date.now() - t0) / 1000) };
     results[id] = rec; save();
-    console.error(`[${i}/${ids.length}] ${id} ${h.name} 각성: ${r.ok ? '✓' : '✗'} ${rec.awk.sec}s · 배경 ${r.keyed || '?'}%${r.err ? ' · ' + r.err : ''}${r.warn.length ? ' · ⚠ ' + r.warn.join(' / ') : ''}`);
+    console.error(`[${i}/${ids.length}] ${id} ${h.name} 각성(${kind}): ${r.ok ? '✓' : '✗'} ${rec.awk.sec}s · 배경 ${r.keyed || '?'}%${r.err ? ' · ' + r.err : ''}${r.warn.length ? ' · ⚠ ' + r.warn.join(' / ') : ''}`);
     if (!r.ok) continue;
   }
 
@@ -115,7 +151,7 @@ for (const id of ids) {
     if (!(reuse && fs.existsSync(rawAtk))) {
       const w = (ct.equip || [])[0];
       const pose = POSE[w] || POSE.sword;
-      const prompt = `Change only her pose into ${pose}. Keep her outfit, her weapon, her ${look.hair.replace(' hair', '')} hair, her face, all colours and the plain flat light green background exactly the same. Both feet stay on the ground.`;
+      const prompt = `Change only her pose into ${pose}. Keep her outfit, her weapon, her hair colour, her face, all colours and the plain flat light green background exactly the same. Both feet stay on the ground.`;
       const e = edit(rawAwk, prompt, rawAtk);
       if (!e.ok) {
         rec.atk = { ok: false, stage: 'edit', err: e.err }; results[id] = rec; save();

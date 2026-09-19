@@ -12440,3 +12440,15 @@ power        dayLag 0 · axesUsed false (AXES_LIVE 꺼짐 · 그 요청은 하�
   공격은 각성 raw 에서 «자세만»(gen_hero_art 의 POSE 표). 머리·눈색은 `gen_hero/results.json` 의 `idle.look` 을 읽는다(손사본 없음).
 - 시안 3명(갈라드·오리엘·오르벨): 각성 ✓ 공격 ✓ 각 21~23초, 배경 키잉 55~65%. 얼굴·머리 유지, 옷 전부 교체, 후광·날개 붙음. 시트 `C:/claude/artwork/gen_hero_awk/sheet_3.png`.
 - 남은 것(제작자 확인 뒤): 56명 전부(≈50분) → `--apply` 로 `illust_hero_<id>_awk(_atk)` 등록 + `art/big/…_awk.png` → `mercRecipe` 가 `awakened` 면 `_awk` 우선(portrait·renderer·battle 세 곳) → 각성 순간 연출(옛 그림 → 빛 → 새 그림) → 도감 각성 전/후.
+
+### 193.1 제작자 피드백 셋 (2026-09-19 저녁) — 화질 · 폭 · «평범한» 각성
+- 「일러 화질이 너무 안 좋다」(비영웅 S, 2000px 모니터): 192×240 을 3배로 키운 것이다. ⇒ **전원 448×560** — `tools/art/bigart.mjs` 가
+  클래스 105(원본 raw, 표식 유지) + 영웅 56 을 `art/big/<name>.png` + `art/big/manifest.json`(눈 상자·표식 색상대) 로 만든다(161장 16MB, 128색).
+  `src/art/bigart.js` 가 열 때 그 한 장을 받아 **게임과 같은 `recolorInto`** 로 머리·눈을 칠한다 (`illustpng.mjs --metaout` 새 손잡이).
+  목록(illust_manifest.js)엔 안 넣는다 — 부팅 때 전부 펴져 161MB 가 된다. 셸에도 안 넣는다. 브라우저 실측: 검사 C등급(빨간 머리) 448×560 캔버스로 교체, 머리색 유지.
+- 「전체 화면이라 왼쪽에서 고르고 오른쪽에서 보니 눈이 힘들다」: 격자를 `120px · 300~780px · 300~420px` + `justify-content:center` 로 묶었다 — 넓은 화면에선 가운데 1,330px 안에 모인다.
+- 「각성 일러가 평범하다 — 와 이거다 가 없다」: 첫 시안은 «흰 드레스 + 후광 + 날개» 로 셋이 똑같았다(프롬프트가 그렇게 시켰다).
+  방향 시안 5장(`gen_hero_awk/var_*.png`, 시트 `sheet_variants.png`): V1 극적 전투(불꽃 검·바람·망토) · V2 여신(왕관·대망토·태양 후광) ·
+  V4 화보(매혹 드레스) · V5 승천(부유·불꽃 검 6자루) · V3 심연(abyss 용 — 검은 날개·사슬). 제작자 선택 대기.
+  ★ 배운 것: «지킬 것» 에 머리색 이름을 넣지 마라 — results.json 의 look 이 raw 와 다른 영웅(키릴)이 있어 V3 에서 머리가 금발이 됐다.
+  «her hair colour exactly the same» 처럼 그림을 보고 지키게 한다 (gen_hero_awaken.mjs 에 반영).

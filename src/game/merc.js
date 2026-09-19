@@ -1258,7 +1258,7 @@ export function mercRecipe(merc, itemsById) {
     rec.illust = `illust_${style}`;
     rec.illustClass = `illust_${c.id}`;   // class-specific PNG comes first (art/illustpng.js, HANDOFF §161.7)
     /* §174 영웅 전용 일러스트 — 있으면 portrait.js 가 이걸 먼저 쓴다 (없으면 클래스 그림으로 물러난다) */
-    if (hero) rec.illustHero = `illust_hero_${hero.id}`;
+    if (hero) { rec.illustHero = `illust_hero_${hero.id}`; rec.awakened = !!merc.awakened; }   // §193 각성이면 무대가 _awk 그림을 찾는다
     rec.plate = `plate_${arch}`;
     rec.frontHead = `face_${arch}`;
     /* 전투 통짜 시트 — 열 장이 전부 있는 스타일만 spritegen 이 실제로 쓴다 (sheetOf 검사) */

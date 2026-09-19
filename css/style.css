@@ -461,7 +461,7 @@ table.data tbody tr:hover { background: rgba(255,255,255,.025); }
    제작자 참고 화면(가챠류 영웅 화면). 모달이 아니라 전용 층이다 — 장착·전직 창(#modal-layer, z 90)이 이 위에 뜬다. */
 #co-show {
   position: fixed; inset: 0; z-index: 85; overflow: hidden;
-  display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(300px, 400px); grid-template-rows: 100%;
+  display: grid; grid-template-columns: 120px minmax(300px, 780px) minmax(300px, 420px); grid-template-rows: 100%; justify-content: center;
   align-items: center; gap: 14px;
   padding: calc(14px + var(--safe-t)) calc(18px + var(--safe-r)) calc(14px + var(--safe-b)) calc(18px + var(--safe-l));
   background: linear-gradient(180deg, rgba(12,10,17,.96), rgba(6,4,10,.98));
@@ -517,7 +517,7 @@ table.data tbody tr:hover { background: rgba(255,255,255,.025); }
 /* §193 무대용 고해상도 그림 (영웅) — 캔버스 대신 <img>. 숨쉬기는 CSS 로, 발광은 영웅 색으로 */
 .co-show-big {
   display: block; width: auto; max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none;
-  filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)) drop-shadow(0 0 26px var(--show-accent, #ff7fd8));
+  filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)) drop-shadow(0 0 26px var(--show-glow, transparent));
   animation: coShowBreath 4.2s ease-in-out infinite;
 }
 @keyframes coShowBreath { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }

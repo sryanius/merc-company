@@ -18,6 +18,8 @@ import { getHero, heroTheme, HERO_AWAKEN_STONES, HERO_AWAKEN_LEVEL, HERO_MAX_LEV
 import * as Cloud from '../net/cloud.js';
 /* ★ 단원 탭은 «세워 놓고 보는» 화면이라 **정면**이다 (전투만 옆모습). */
 import { getShowcase, drawShowcase, pixelRatio } from '../art/showcase.js';
+/* §193 무대용 큰 그림 — 열 때만 받아 머리·눈을 칠한다 */
+import { bigPortrait } from '../art/bigart.js';
 import {
   GRADES, mercStats, mercRecipe, mercPower, baseStatsOf, expProgress,
   canPromote, promoteOptionsFor, promote, nextPromoteLevel, isWounded,
@@ -2556,7 +2558,8 @@ export function openMercDetail(mercUid) {
   const hero = m.hero ? getHero(m.hero) : null;
   const th = hero ? heroTheme(hero) : null;
   const accent = hero ? th.color : gradeColor(m);
-  const anim = animatedSprite(mercRecipe(m, state), showStageScale(), { smooth: true });
+  const recipe = mercRecipe(m, state);
+  const anim = animatedSprite(recipe, showStageScale(), { smooth: true });
   showAnim = anim;
   const stopAnim = () => { if (showAnim === anim) anim.stop(); };
 
@@ -2564,6 +2567,8 @@ export function openMercDetail(mercUid) {
   if (!layer) { layer = el('div', { id: 'co-show' }); document.body.appendChild(layer); }
   layer.innerHTML = '';
   layer.style.setProperty('--show-accent', accent);
+  /* 발광은 영웅 색 · S 금 · A 보라. 그 아래 등급은 안 빛난다 (회색 발광은 그림을 더럽힌다) */
+  layer.style.setProperty('--show-glow', hero ? accent : (m.grade === 'S' || m.grade === 'A' ? gradeColor(m) : 'transparent'));
 
   const base = baseStatsOf(m);
   const gear = mercStats(m, state);
@@ -2642,20 +2647,18 @@ export function openMercDetail(mercUid) {
 
   const stage = el('div', { class: 'co-show-stage' }, anim.canvas);
   if (n > 1) { stage.appendChild(nav(prev, 'prev', '‹')); stage.appendChild(nav(next, 'next', '›')); }
-  /* ★ 영웅은 무대용 고해상도 그림(art/big, 448×560)을 따로 받아 캔버스를 갈아 끼운다 (§193).
-   *   192×240 을 2~3배로 키우면 보간을 켜도 계단이 진다 (실측). 큰 그림은 셸(sw.js)에 안 넣는다 —
-   *   열 때만 받고(56장 5.8MB), 못 받으면(오프라인) 캔버스 그대로 간다.
-   *   영웅은 머리 재색이 없어서(§176 --nohair) 그림을 그대로 써도 캔버스와 같은 모습이다. */
-  if (hero) {
-    const big = el('img', { class: 'co-show-big', alt: '', draggable: 'false' });
-    big.style.height = `${40 * showStageScale()}px`;
-    big.addEventListener('load', () => {
-      if (showAnim !== anim || !anim.canvas.parentNode) return;   // 그 사이 닫혔거나 다시 그렸다
-      stage.replaceChild(big, anim.canvas);
-      anim.stop();
-    });
-    big.src = `art/big/illust_hero_${hero.id}${m.awakened ? '_awk' : ''}.png`;
-  }
+  /* ★ 무대용 고해상도 그림(art/big, 448×560)을 따로 받아 캔버스를 갈아 끼운다 (§193, 모든 단원).
+   *   192×240 을 2~3배로 키우면 보간을 켜도 계단이 진다 (실측 — 제작자: 「일러 화질이 너무 안 좋다」).
+   *   큰 그림은 셸(sw.js)에 안 넣는다 — 열 때만 받고, 못 받으면(오프라인) 캔버스 그대로 간다.
+   *   머리·눈은 bigart.js 가 게임과 같은 recolorInto 로 칠한다 (영웅은 표식이 없어 그대로). */
+  bigPortrait(recipe).then((bigC) => {
+    if (!bigC || showAnim !== anim || !anim.canvas.parentNode) return;   // 못 받았거나, 그 사이 닫혔거나 다시 그렸다
+    bigC.className = 'co-show-big';
+    bigC.style.height = `${40 * showStageScale()}px`;
+    bigC.style.width = 'auto';
+    stage.replaceChild(bigC, anim.canvas);
+    anim.stop();
+  });
   const rail = el('div', { class: 'co-show-rail' },
     el('button', { class: 'btn sm ghost co-show-back', onClick: closeMercDetail }, '← 닫기'),
     tabs);
