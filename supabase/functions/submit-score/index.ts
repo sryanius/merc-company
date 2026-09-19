@@ -156,7 +156,14 @@ Deno.serve(async (req) => {
       const dayLag = (Math.round(Number(score.day) || 0)) - (Math.round(Number(rs0.day) || 0));
       const r = serverAxes(score, srvScore, { dayLag });
       axes = { used: r.used, why: r.why, diff: r.diff };
-      if (r.used) score = r.score as Record<string, unknown>;
+      /* ★★★ §192.1 **갈아 끼우지 않는다 — 관측만.** 서버 날짜가 살아 움직이면서(하루 op) dayLag 0 이
+       *   «보통» 이 됐는데, 서버 표는 **편성을 모른다** (편성 op 이 없어 이관 뒤 고용한 단원은 서버 부대에
+       *   영영 안 들어간다) 와 던전·나락·탑 성장(경험·전리품)을 모른다. 그 표로 갈아 끼우면 정직한 계정의
+       *   전력이 시작 부대 값으로 떨어지고, 나락 기록과 어긋나 `absoluteOddities` 가 C 등급으로 숨긴다
+       *   (적대적 검토 실측: 4인 시작 부대 1.6k~5.5k vs 나락 36 에 필요한 5,000).
+       *   `axesUsed` 관측은 «썼을 것이다» 로 계속 쌓인다. 편성 거울 + 던전 성장 신고 경로가 생기면 켠다. */
+      const AXES_LIVE = false;
+      if (AXES_LIVE && r.used) score = r.score as Record<string, unknown>;
     } else {
       axes = { used: false, why: '스냅숏없음', diff: {} };
     }

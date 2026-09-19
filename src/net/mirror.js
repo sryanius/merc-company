@@ -40,7 +40,7 @@ const handled = new Set();
 const eqHandled = new Set();
 
 /** 콘솔에 남길 때 쓰는 이름 */
-const LABEL = { promote: '전직', sell: '판매', equip: '착용', awaken: '각성' };
+const LABEL = { promote: '전직', sell: '판매', equip: '착용', awaken: '각성', advanceDays: '하루', dismiss: '해고' };
 
 /**
  * op 하나를 서버에 알린다. **기다리지 않는다.**
@@ -251,6 +251,16 @@ export async function askHire(o) {
         rev: CLIENT_REV,
         cityId, offerIndex: idx,
         day: Math.round(Number(o.day) || 0),
+        /* ★★ §192 **판 시드를 따로 보낸다.** 열쇠(opId)에만 넣었더니 서버의 «같은 판인가»
+         *   비교(`body.seed`)가 늘 비어서 고용 35건이 전부 «다른 판» 으로 떨어졌다 (실측 2026-09-19).
+         *   서버는 이 값을 굴림에 안 쓴다 — 자기 사본의 시드로 굴린다. 비교에만 쓴다. */
+        seed: String(o.seed || ''),
+        /* §192 내 주점 목록이 **며칠에 만들어졌나.** 서버 사본에 그 목록이 없으면 서버가
+         *   (판·도시·이 날) 로 **같은 목록을 다시 만든다** (state.js refreshCity 와 같은 시드). */
+        bookDay: Math.max(0, Math.round(Number(o.bookDay) || 0)),
+        /* §192.1 화면이 보여 준 평판. 서버는 이 값으로 **굴리지 않는다** — 자기 것이 이보다 낮으면 «못 정함» 으로
+         *   물러날 뿐이다 (rosterN 과 같은 계약). 크게 말해서 얻는 것은 오늘 동작(클라 굴림)뿐이다. */
+        rep: Math.max(0, Math.round(Number(o.rep) || 0)),
         cityTier: Math.round(Number(o.cityTier) || 1),
         specialty: !!o.specialty,
         classId: String(o.classId || ''),
@@ -293,6 +303,53 @@ export function mirrorPromote(mercUid, toClass) {
 export function mirrorAwaken(mercUid) {
   if (!mercUid) return;
   send('awaken', `aw_${mercUid}`, { mercUid: String(mercUid) });
+}
+
+/**
+ * 하루 넘기기 (§192) — **거울이다. 절대 막지 않는다.**
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ★★★ 왜 필요한가: 서버 사본의 날짜는 **재동기화 때만** 움직였다. 그래서 고용 op(§187)이
+ *   «같은 날인가» 를 물으면 거의 언제나 «아니오» 였고, 서버는 고용을 한 번도 정하지 못했다
+ *   (실측 2026-09-19: 35건 전부). 이 거울이 서버 날짜를 클라와 같이 걷게 한다.
+ *
+ * ★ 서버는 자기 사본으로 **같은 하루 루프**(`_rules/day.js`)를 돌린다 — 임금·회복·복귀·감쇠.
+ *   클라 값을 받아 적는 것이 아니다. 그래서 골드는 조금 어긋날 수 있고(던전 수입은 신고 경로가
+ *   없다), 그건 다음 정산 신고가 맞춘다. **날짜**는 정확히 같이 간다.
+ *
+ * ★ 열쇠에 «어디서 어디로» 를 넣는다 — 같은 걸음을 두 번 보내도 서버가 재생으로 거른다.
+ *   서버가 뒤처져 있으면 스스로 따라잡는다(catch-up) — 그래서 **순서가 바뀌어 닿아도** 된다.
+ *
+ * @param {{seed:number|string, dayFrom:number, days:number, inn?:boolean}} o
+ */
+export function mirrorAdvanceDays(o) {
+  try {
+    const dayFrom = Math.max(0, Math.round(Number(o && o.dayFrom) || 0));
+    const days = Math.max(1, Math.round(Number(o && o.days) || 1));
+    if (!dayFrom) return;
+    const seed = String((o && o.seed) || 0);
+    const inn = !!(o && o.inn);
+    send('advanceDays', `ad_${seed.slice(-10)}_${dayFrom}_${dayFrom + days}${inn ? 'i' : ''}`,
+      { seed, dayFrom, n: days, inn });
+  } catch (e) {
+    console.warn('[거울] 하루 신고를 만들지 못했다 (게임에는 영향 없다)', e);
+  }
+}
+
+/**
+ * 해고 (§192) — **거울이다. 절대 막지 않는다.**
+ *
+ * ★★ 왜 필요한가: 고용은 서버가 쓰는데(§187) 해고는 아무도 안 알렸다. 그러면 서버 표에
+ *   해고한 단원이 **남는다** — 보유 S 를 더 세고(§190), 정원을 넘긴 것으로 보이며
+ *   (`rules.js` 는 `rosterN > ROSTER_CAP_MAX` 를 A등급으로 본다), 순위 축(18단계)이
+ *   그 표를 쓰는 날엔 정직한 계정이 그 자리에서 거절될 수 있다.
+ *
+ * ★ 자기 줄을 지우는 것뿐이라 손잡이가 아니다 — 지워서 얻는 것이 없다.
+ */
+export function mirrorDismiss(uids, day) {
+  const list = (Array.isArray(uids) ? uids : []).map(String).filter(Boolean).slice(0, 200);
+  if (!list.length) return;
+  send('dismiss', `dm_${list[0]}_${list.length}_${day || 0}`, { uids: list });
 }
 
 /**

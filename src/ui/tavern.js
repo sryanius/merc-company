@@ -812,6 +812,10 @@ function tryHire(cls, offer, city, ctx) {
    *   시간초과 뒤 «서버가 이미 쓴 용병» 을 되찾는 데 그대로 쓴다. */
   const ask = () => askHire({
     cityId: city.id, offerIndex, day: state.day, seed: state.seed,
+    /* §192 이 목록이 만들어진 날 — 서버 사본에 목록이 없으면 서버가 이 날로 같은 목록을 다시 만든다 */
+    bookDay: (state.tavern && state.tavern[city.id] && state.tavern[city.id].day) || 0,
+    /* §192.1 화면이 보여 준 평판 — 서버 것이 이보다 낮으면 서버는 정하지 않는다 (약속보다 나쁜 확률을 안 준다) */
+    rep: gate.rep,
     specialty: isSpec, classId: cls.id, rosterN: (state.roster || []).length,
   });
 

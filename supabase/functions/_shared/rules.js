@@ -266,6 +266,13 @@ export function serverAxes(cli, srv, opt = {}) {
   if (sm > rn) { out.why = 'sMercs>rosterN'; return out; }
   if (hn > rn) { out.why = 'hiredN>rosterN'; return out; }
   if (!sd || sd.length !== sm) { out.why = 'sHiredDays≠sMercs'; return out; }
+  /* ★ §192.1 서버 표가 클라보다 **적거나**(이관 전 고용 단원이 표에 없다) 정원을 **넘으면**(해고 거울이
+   *   한 번 빠졌다 · 시간초과 유령 단원) «못 잰다» 다. 갈아 끼우면 `checkStatic` 이 그 명부로 A등급을
+   *   만든다 — 「서버 표로 거절하지 않는다」 는 §144 의 계약이 거기서 깨진다. 클라 값은 여전히 모든 검사를 지난다. */
+  const cliRn = Math.round(Number(cli.rosterN) || 0);
+  const cap = Math.round(Number(cli.rosterCap) || 0);
+  if (rn > ROSTER_CAP_MAX || (cap > 0 && rn > cap)) { out.why = '서버명부>정원'; return out; }
+  if (cliRn > 0 && rn < cliRn) { out.why = '서버명부부족'; return out; }
 
   /* ── 갈아 끼운다. **목록에 있는 것 전부**, 하나도 빠짐없이 ─────────────── */
   const merged = { ...cli };

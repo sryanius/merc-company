@@ -25,7 +25,7 @@ import { CLASSES, getClass, promoteOptions } from './_rules/classes.js';
 import { isSellable, equipIssue, getBase, sellPrice } from './_rules/gear.js';
 /* ★★ 하루 넘기기도 **사본을 안 만든다** — `game/day.js` 를 그대로 부른다.
  *   그 모듈은 `state.js` 를 안 물고 상태를 인자로 받는다 (§104 14단계). */
-import { advanceDays, dailyUpkeep, bindDay } from './_rules/day.js';
+import { advanceDays, dailyUpkeep, bindDay, restAtInn, REP_DECAY_FLOOR } from './_rules/day.js';
 import { fromRows } from './_rules/runrows.js';
 import { gradeRoll, createMerc, hireCost, heroRoll, pickHeroClass } from './_rules/merc.js';
 /* §187 고용을 서버가 굴린다 — 영웅 원고(이름)와 시드 rng 가 필요하다 */
@@ -39,7 +39,9 @@ import { awakenIssue } from './_rules/merc.js';
 /* ★★ 의뢰 목록을 **다시 만든다** (§104 17단계 2번 조각).
  *   §138 이 `genQuests` 를 `state.js` 에서 떼어 냈다 — 여기서 부르는 것은 게임이
  *   부르는 **바로 그 함수**다. 손으로 다시 쓰지 않는다 (§124 에서 세 번 틀렸다). */
-import { genQuests, resolveSquadCount } from './_rules/questgen.js';
+import { genQuests, resolveSquadCount, REP_GAIN, isEliteQuest, ELITE_RENOWN, repLoss } from './_rules/questgen.js';
+/* §192 서버가 주점 목록을 (판·도시·날) 로 **다시 만든다** — state.js refreshCity 가 부르는 바로 그 함수 */
+import { genTavern } from './_rules/tavern.js';
 import { hashStr } from './_rules/enemygen.js';
 /* ★★ 정산 판정은 **손으로 다시 쓰지 않는다.** 밴드 계산이 여기 인라인으로 있었는데,
  *   그러면 오프라인으로 굴려 볼 수가 없어서 「정직한 판이 걸리나」 를 못 물었다.
@@ -129,6 +131,11 @@ const json = (body: unknown, status = 200) =>
  *   여기서 하루로 보면 사흘 중 이틀은 «목록이 없다» 로 읽혀 서버가 고용을 못 믿는다.
  *   state.js 는 게임 전체를 물어 서버 묶음에 못 들어온다 — 그래서 손사본이고, 스모크가 둘을 맞춰 본다. */
 const TAVERN_REFRESH_DAYS = 3;
+/* ★ 평판의 범위 — `state.js` 의 REP_MIN·REP_MAX 와 **같아야 한다** (손사본, 스모크가 맞춰 본다). §192 */
+const REP_RANGE = [0, 300];
+/* ★ §192.1 고용 때 서버 평판이 클라(화면)보다 이만큼 넘게 낮으면 서버는 정하지 않는다.
+ *   15 ≈ A랭크 의뢰 한 건의 획득(11)보다 조금 큰 값 — S 확률로는 0.2%p 안쪽이다 (merc.js specialtySChance 기울기). */
+const REP_TOL = 15;
 
 const tierOf = (id: string) => Math.max(1, Math.round(Number(getClass(id)?.tier) || 1));
 
@@ -329,56 +336,244 @@ Deno.serve(async (req) => {
     return json({ ok: true, replayed: false, result });
   }
 
-  /* ═══════════════════════ 하루 넘기기 ═══════════════════════════════════
-   * ★★ **첫 배포는 «그림자» 다.** 서버가 계산해서 로그로만 남기고 `run_state` 를 안 고친다.
-   *   이유: 하루 루프는 임금·회복·원정복귀·평판감쇠 넷을 한꺼번에 바꾸는데,
-   *   그중 회복이 난수를 안 먹어도 **`m.maxHp` 를 다시 계산**하고 그 값이 아이템에
-   *   의존한다. 숫자가 맞는 것을 눈으로 본 뒤에 소유를 넘긴다.
+  /* ═══════════════════════ 하루 넘기기 (§192 — 실물) ═══════════════════════
+   * ★★★ **그림자를 끝냈다.** §129 가 그림자로 달아 둔 뒤 클라가 이 op 을 **한 번도 안 불렀다**
+   *   (부르는 자리가 0줄). 그래서 서버 사본의 날짜는 재동기화 때만 움직였고, 고용 op(§187)의
+   *   «같은 날인가» 가 늘 거짓이라 서버는 고용을 한 번도 정하지 못했다 (실측 2026-09-19: 35/35).
    *
-   * ★ 임금의 반올림은 **«합계 1회»** 다 — 제작자 결정 (day.js 의 머리 주석).
-   *   실측: 컬럼(class_id·grade·level)에서 다시 계산해도 랴니 42명에서 **차이 0**.
+   * ★★ **클라 값을 받아 적지 않는다.** 서버는 자기 사본으로 `_rules/day.js` 의 같은 하루 루프를
+   *   돌린다 — 임금·회복·원정 복귀·평판 감쇠. 여관이면 `restAtInn` (같은 파일). 손사본은 없다.
    *
-   * ★ `day.js` 를 **그대로 부른다.** 여기서 하루 루프를 다시 쓰면 사본이 둘이 되고
-   *   반드시 갈라진다 (§94·§98·§107 — 이번 세션에만 세 번 겪었다). */
+   * ★★ **따라잡는다(catch-up).** 클라가 말한 기준일(dayFrom)이 서버보다 앞서 있으면 그 사이
+   *   놓친 날까지 한 번에 돌린다 — 거울은 순서가 뒤바뀌어 닿을 수 있고(fire-and-forget), 옛 셸·
+   *   오프라인이 며칠을 통째로 빠뜨릴 수 있다. 한 걸음 놓쳤다고 영영 뒤처지면 고용이 영영 못 선다.
+   *   상한(MAX_CATCHUP)을 넘기면 안 돌린다 — 그건 재동기화의 몫이다.
+   *
+   * ★ **같은 판일 때만.** 시드가 다르면 관측만 남긴다 (고용과 같은 잣대).
+   * ★ 원장을 먼저 남기고 쓴다. `run_state` 는 «읽었던 날짜 그대로일 때만» 고친다(낙관 잠금) —
+   *   같은 계정의 다른 op 이 사이에 끼면 이 걸음은 물러나고, 다음 걸음이 따라잡는다.
+   * ★ 골드는 어긋날 수 있다 (던전·나락·상점·숙박비는 신고 경로가 없다). 다음 정산 신고가 맞춘다.
+   *   **날짜**는 정확히 같이 간다 — 이 op 의 목적은 그것이다.
+   *
+   * ★ 임금의 반올림은 **«합계 1회»** 다 — 제작자 결정 (day.js 의 머리 주석). */
   if (op === 'advanceDays') {
     const n = Math.max(1, Math.min(365, Math.round(Number(body?.n) || 1)));
+    const dayFrom = Math.max(0, Math.round(Number(body?.dayFrom) || 0));
+    const inn = !!body?.inn;
+    const MAX_CATCHUP = 400;
 
-    const [{ data: rs2 }, { data: rm2 }, { data: ri2 }, { data: rp2 }, { data: rq2 }] = await Promise.all([
+    const [{ data: rs2 }, rm2, ri2, rp2, rq2] = await Promise.all([
       admin.from('run_state').select('*').eq('user_id', userId).maybeSingle(),
-      /* ★★ `select('*')` 만 쓰면 **1000행에서 조용히 잘린다** — 아이템 1372개짜리
-       *   실계정에서 전력이 166,274 → 105,411 이 됐다. `allRows` 가 끝까지 읽는다. */
-      { data: await allRows(admin, 'run_mercs', userId) },
-      { data: await allRows(admin, 'run_items', userId) },
-      { data: await allRows(admin, 'run_pets', userId) },
-      { data: await allRows(admin, 'run_squads', userId) },
+      /* ★★ `select('*')` 만 쓰면 **1000행에서 조용히 잘린다** — `allRows` 가 끝까지 읽는다. */
+      allRows(admin, 'run_mercs', userId),
+      allRows(admin, 'run_items', userId),
+      allRows(admin, 'run_pets', userId),
+      allRows(admin, 'run_squads', userId),
     ]);
     if (!rs2) return json({ error: '아직 이관 전이다' }, 404);
 
+    const srvDay = Math.max(0, Math.round(Number(rs2.day) || 0));
+    const seedMatch = String(body?.seed || '') !== '' && String(body?.seed) === String(rs2.seed);
+    const target = dayFrom + n;
+    const gap = target - srvDay;               // 서버가 걸어야 할 날 수 (놓친 날 + 이번 걸음)
+    const why = !seedMatch ? '다른 판'
+      : (!dayFrom ? '기준일 없음' : (gap <= 0 ? '이미' : (gap > MAX_CATCHUP ? '너무 뒤처짐' : '')));
+    if (why) {
+      /* ══ 못 믿는 자리 — **쓰지 않는다.** 관측만 남긴다 ══ */
+      await obs(admin, userId, 'advanceDays', { n, dayFrom, srvDay, target, inn, seedMatch, why, wrote: 0 });
+      return json({ ok: true, shadow: true, trusted: false, why });
+    }
+
     const st2 = fromRows({ state: rs2, mercs: rm2 || [], items: ri2 || [],
       pets: rp2 || [], squads: rq2 || [], quests: [] });
-    const before = { day: st2.day, gold: st2.gold, upkeep: dailyUpkeep(st2) };
-    let out = null;
-    try { out = advanceDays(st2, n); }
-    catch (e) { console.error('[run-op] advanceDays 실패', e); return json({ error: '계산하지 못했다' }, 500); }
+    const before = { day: st2.day, gold: st2.gold, renown: st2.renown, upkeep: dailyUpkeep(st2) };
+    const mercKey = (m: { hp?: unknown; maxHp?: unknown; status?: unknown; woundUntil?: unknown }) =>
+      JSON.stringify([m.hp, m.maxHp, m.status, m.woundUntil]);
+    const mercBefore = new Map<string, string>(
+      (st2.roster || []).map((m: { uid: string }) => [m.uid, mercKey(m)] as [string, string]));
+    const squadBefore = new Map<string, string>(
+      (st2.squads || []).map((q: { id: string; status?: string; returnDay?: number }) =>
+        [q.id, `${q.status}|${q.returnDay}`] as [string, string]));
+
+    const out = { days: 0, upkeep: 0, unpaid: 0, recovered: 0, returned: 0 };
+    const add = (r: { days: number; upkeep: number; unpaid: number; recovered: unknown[]; returned: unknown[] }) => {
+      out.days += r.days; out.upkeep += r.upkeep; out.unpaid += r.unpaid;
+      out.recovered += r.recovered.length; out.returned += r.returned.length;
+    };
+    const repBefore: Record<string, number> = JSON.parse(JSON.stringify(st2.reputation || {}));
+    try {
+      const catchup = gap - n;
+      if (catchup > 0) {
+        /* ★ §192.1 따라잡는 날들에는 **평판 감쇠를 안 돌린다.** 그 날들은 클라가 이미 산 날이고 클라는
+         *   그때 의뢰로 평판을 벌었을 수 있는데 서버는 그 정산을 못 봤다(놓친 걸음). 감쇠만 돌리면 서버
+         *   평판이 바닥(50)까지 떨어져 정직한 고용이 약속보다 나쁜 확률로 굴려진다 — 막는 것보다 나쁘다.
+         *   감쇠는 «이번 걸음(n)» 에만 돈다. 임금·회복은 그대로 따라잡는다 (골드는 어차피 정산이 맞춘다). */
+        const keep = JSON.parse(JSON.stringify(st2.reputation || {}));
+        add(advanceDays(st2, catchup));
+        if (st2.reputation && typeof st2.reputation === 'object') Object.assign(st2.reputation, keep);
+      }
+      add(inn ? restAtInn(st2, n) : advanceDays(st2, n));
+    } catch (e) { console.error('[run-op] advanceDays 실패', e); return json({ error: '계산하지 못했다' }, 500); }
+    if (Math.round(Number(st2.day) || 0) !== target) {
+      console.error('[run-op] 하루 루프가 목표 일차에 안 닿았다', { srvDay, target, got: st2.day });
+      return json({ error: '계산하지 못했다' }, 500);
+    }
 
     const result = {
-      op: 'advanceDays', n,
+      op: 'advanceDays', n, dayFrom, catchup: gap - n, inn,
       day: { 전: before.day, 후: st2.day },
       gold: { 전: before.gold, 후: st2.gold, 임금: out.upkeep, 밀린것: out.unpaid },
-      회복: (out.recovered || []).length, 복귀: (out.returned || []).length,
-      하루임금: before.upkeep,
+      회복: out.recovered, 복귀: out.returned, 하루임금: before.upkeep,
     };
-    console.error('[그림자] 하루 넘기기 — 계산만 하고 안 쓴다', { userId, result });
-    await obs(admin, userId, 'advanceDays', {
-      n, dayFrom: before.day, dayTo: st2.day,
-      goldFrom: before.gold, goldTo: st2.gold,
-      upkeepDay: before.upkeep, upkeepTotal: out.upkeep, unpaid: out.unpaid,
-      recovered: (out.recovered || []).length, returned: (out.returned || []).length,
-    });
+    /* ── 원장을 **먼저** 남긴다 (sell·equip·promote·hire 와 같은 계약) ── */
+    const { error: ledErr } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'advanceDays', result });
+    if (ledErr) { console.error('[run-op] run_ops insert 실패', ledErr); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+    const rollback = async () => {
+      const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+      if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
+    };
 
-    /* ★★ **아직 안 쓴다.** 원장도 안 남긴다 — 남기면 «했다» 가 되어
-     *   다음 진짜 호출이 재생으로 막힌다. */
-    return json({ ok: true, shadow: true, result });
+    /* ── run_state — 날짜·골드·명성·(감쇠된) 평판 · 낡은 목록 정리 ─────────
+     * ★ `expireCityLists` 의 서버판이다 (state.js 의 것은 전역 state 를 물어 여기 못 온다).
+     *   잣대는 하나 — TAVERN_REFRESH_DAYS(=REFRESH_DAYS). 스모크가 둘을 맞춰 본다. */
+    /* ★★ §192.1 쓰기 직전에 **다시 읽고** 그 위에 «감쇠 델타» 만 얹는다. 루프 전에 읽은 data 를 통째로 쓰면
+     *   그 사이 들어온 정산의 평판 획득·고용의 hired 표식을 되돌린다 (적대적 검토). 날짜가 움직였으면 물러난다. */
+    const { data: rsF } = await admin.from('run_state').select('day, data').eq('user_id', userId).maybeSingle();
+    if (!rsF || Math.round(Number(rsF.day) || 0) !== srvDay) {
+      await rollback();
+      await obs(admin, userId, 'advanceDays', { n, dayFrom, srvDay, target, inn, seedMatch, why: '경합', wrote: 0 });
+      return json({ error: '같은 요청이 이미 처리 중이다' }, 409);
+    }
+    const nextData = JSON.parse(JSON.stringify(rsF.data || {}));
+    if (!nextData.reputation || typeof nextData.reputation !== 'object') nextData.reputation = {};
+    const repAfter: Record<string, unknown> = st2.reputation || {};
+    for (const cid of Object.keys(repAfter)) {
+      const d = (Math.round(Number(repBefore[cid])) || 0) - (Math.round(Number(repAfter[cid])) || 0);
+      if (d <= 0) continue;
+      const cur = Math.round(Number(nextData.reputation[cid])) || 0;
+      /* day.js 와 같은 바닥 — 이미 바닥 아래면 그대로 둔다 */
+      nextData.reputation[cid] = cur <= REP_DECAY_FLOOR ? cur : Math.max(REP_DECAY_FLOOR, cur - d);
+    }
+    for (const key of ['quests', 'tavern', 'shop']) {
+      const book = nextData[key];
+      if (!book || typeof book !== 'object') continue;
+      for (const cid of Object.keys(book)) {
+        const e = book[cid];
+        if (!e || !Array.isArray(e.list) || target - (Math.round(Number(e.day)) || 0) >= TAVERN_REFRESH_DAYS) delete book[cid];
+      }
+    }
+    if (nextData.quests && typeof nextData.quests === 'object') {
+      for (const cid of Object.keys(nextData.quests)) {
+        const e = nextData.quests[cid];
+        e.list = (e.list || []).filter((q: { expiresDay?: unknown }) =>
+          (q && q.expiresDay != null ? Number(q.expiresDay) : Infinity) >= target);
+        if (!e.list.length) delete nextData.quests[cid];
+      }
+    }
+    const { data: upd, error: sErr } = await admin.from('run_state')
+      .update({
+        day: target,
+        gold: Math.max(0, Math.round(Number(st2.gold) || 0)),
+        renown: Math.max(0, Math.round(Number(st2.renown) || 0)),
+        data: nextData,
+      })
+      .eq('user_id', userId).eq('day', srvDay).select('day');
+    if (sErr || !upd || !upd.length) {
+      /* 사이에 누가 날짜를 움직였다(경합) 거나 쓰기가 실패했다 — 이 걸음은 물러난다. 다음 걸음이 따라잡는다. */
+      console.error('[run-op] 하루 넘기기 run_state 반영 실패 — 원장을 되돌린다', sErr || '경합');
+      await rollback();
+      await obs(admin, userId, 'advanceDays', { n, dayFrom, srvDay, target, inn, seedMatch, why: sErr ? '쓰기 실패' : '경합', wrote: 0 });
+      return json({ error: sErr ? '적용하지 못했다' : '같은 요청이 이미 처리 중이다' }, sErr ? 500 : 409);
+    }
+
+    /* ── 단원 — 체력·상태·부상이 **바뀐 줄만** 한 번에 (150명이면 150번 왕복하지 않는다) ──
+     * ★ 열(class_id·grade·level·hired_day)은 읽은 그대로 되돌려 준다 — upsert 가 열을 요구한다.
+     *   `data` 는 읽은 것에 네 칸만 덮어 쓴다 (정산 쓰기와 같은 «읽어서 합쳐 쓴다» 계약). */
+    /* ★ §192.1 여기서도 **다시 읽는다** — 루프 전 행을 되쓰면 그 사이 정산이 올린 level·exp 를 되돌린다.
+     *   열·data 는 방금 읽은 행 것을 쓰고 네 칸만 덮는다. 사이에 해고된 단원은 건너뛴다. */
+    const freshMercs = await allRows(admin, 'run_mercs', userId);
+    const rowOf = new Map<string, Record<string, unknown>>(
+      (freshMercs || []).map((r: { uid: string }) => [r.uid, r as unknown as Record<string, unknown>] as [string, Record<string, unknown>]));
+    const mercRows2: Record<string, unknown>[] = [];
+    for (const m of st2.roster || []) {
+      if (mercBefore.get(m.uid) === mercKey(m)) continue;
+      const r = rowOf.get(m.uid);
+      if (!r) continue;
+      mercRows2.push({
+        ...r,
+        data: {
+          ...((r.data as Record<string, unknown>) || {}),
+          hp: Math.max(0, Math.round(Number(m.hp) || 0)),
+          maxHp: Math.max(1, Math.round(Number(m.maxHp) || 1)),
+          status: String(m.status || 'idle').slice(0, 16),
+          woundUntil: Math.max(0, Math.round(Number(m.woundUntil) || 0)),
+        },
+      });
+    }
+    let mercsN = 0;
+    if (mercRows2.length) {
+      const { error: mErr } = await admin.from('run_mercs').upsert(mercRows2, { onConflict: 'user_id,uid' });
+      if (mErr) console.error('[run-op] 하루 넘기기 run_mercs 반영 실패 — 넘어간다 (날짜는 이미 섰다)', mErr);
+      else mercsN = mercRows2.length;
+    }
+    /* ── 부대 — 복귀한 것만 ── */
+    let squadsN = 0;
+    for (const q of st2.squads || []) {
+      if (squadBefore.get(q.id) === `${q.status}|${q.returnDay}`) continue;
+      const { error: qErr } = await admin.from('run_squads')
+        .update({ status: q.status === 'away' ? 'away' : 'idle', return_day: Math.max(0, Math.round(Number(q.returnDay) || 0)) })
+        .eq('user_id', userId).eq('sid', q.id);
+      if (!qErr) squadsN++;
+    }
+
+    await obs(admin, userId, 'advanceDays', {
+      n, dayFrom, srvDay, target, inn, seedMatch, catchup: gap - n,
+      goldFrom: before.gold, goldTo: st2.gold, upkeepDay: before.upkeep, upkeepTotal: out.upkeep, unpaid: out.unpaid,
+      recovered: out.recovered, returned: out.returned, mercs: mercsN, squads: squadsN, wrote: 1,
+    });
+    return json({ ok: true, replayed: false, result });
+  }
+
+  /* ═══════════════════════ 해고 (§192 — 실물, 거울) ═══════════════════════
+   * ★★ 고용은 서버가 쓰는데(§187) 해고는 아무도 안 알렸다. 그러면 서버 표에 해고한 단원이 남아
+   *   보유 S 를 더 세고(§190), 정원(150)을 넘긴 것으로 보이며 — `rules.js` 는 `rosterN > ROSTER_CAP_MAX`
+   *   를 A등급으로 본다 — 순위 축(18단계)이 그 표를 쓰는 날엔 정직한 계정이 거절될 수 있다.
+   *   서버 날짜가 살아 움직이면(위) 그 «날» 이 자주 온다(dayLag 0). 그래서 같이 들어왔다.
+   *
+   * ★ 자기 줄을 지우는 것뿐이다 — 지워서 얻는 것이 없다. 클라 `doDismiss` 와 같은 순서:
+   *   착용 장비를 창고로 → 부대 자리 비우기 → 줄 지우기. 사본에 없는 uid 는 조용히 넘어간다. */
+  if (op === 'dismiss') {
+    const uids: string[] = (Array.isArray(body?.uids) ? (body.uids as unknown[]) : [])
+      .map((u: unknown) => String(u || '')).filter(Boolean).slice(0, 200);
+    if (!uids.length) return json({ error: 'uids 가 필요하다' }, 400);
+    const { data: have } = await admin.from('run_mercs').select('uid').eq('user_id', userId).in('uid', uids);
+    const found: string[] = (have || []).map((r: { uid: string }) => String(r.uid));
+    const result = { op: 'dismiss', asked: uids.length, found: found.length };
+    const { error: ledErr } = await admin.from('run_ops')
+      .insert({ user_id: userId, op_id: opId, kind: 'dismiss', result });
+    if (ledErr) { console.error('[run-op] run_ops insert 실패', ledErr); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
+    if (found.length) {
+      const { error: e1 } = await admin.from('run_items')
+        .update({ equipped_by: null, equipped_slot: null }).eq('user_id', userId).in('equipped_by', found);
+      const sqs = await allRows(admin, 'run_squads', userId, 'sid, member_uids');
+      for (const s of sqs || []) {
+        const mu: unknown[] = Array.isArray(s.member_uids) ? s.member_uids : [];
+        if (!mu.some((u) => u && found.includes(String(u)))) continue;
+        await admin.from('run_squads')
+          .update({ member_uids: mu.map((u) => (u && found.includes(String(u)) ? null : u)) })
+          .eq('user_id', userId).eq('sid', s.sid);
+      }
+      const { error: e3 } = await admin.from('run_mercs').delete().eq('user_id', userId).in('uid', found);
+      if (e1 || e3) {
+        console.error('[run-op] 해고 반영 실패 — 원장을 되돌린다', e1 || e3);
+        const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+        if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
+        return json({ error: '적용하지 못했다' }, 500);
+      }
+    }
+    await obs(admin, userId, 'dismiss', { asked: uids.length, found: found.length, wrote: found.length ? 1 : 0 });
+    return json({ ok: true, replayed: false, result });
   }
 
   /* ═══════════════════════ 고용 (§187 — 실물) ═══════════════════════════
@@ -436,17 +631,70 @@ Deno.serve(async (req) => {
     const seedMatch = String(body?.seed || '') !== '' && String(body?.seed) === String(rs3.seed);
     const inSync = cliDay > 0 && cliDay === srvDay && seedMatch;
 
-    const book = ((rs3.data || {}).tavern || {})[cityId];
+    const city = getCity(cityId);
+    /* ══ §192 주점 목록 — 저장본이 살아 있으면 그것, 아니면 (판·도시·날) 로 **다시 만든다** ══
+     * ★★ 왜: 서버 사본의 목록은 재동기화·이 op 이 쓴 것뿐이다. 클라는 사흘마다 새 목록을 만드는데
+     *   서버는 그걸 모르니 «목록 낡음» 으로 떨어져 고용을 못 정했다. §119 이후 목록은
+     *   (seed, day, city) 만으로 정해지므로(전역 rng 를 안 쓴다) 서버가 **같은 목록을 그대로** 만들 수 있다.
+     * ★ 목록은 하루짜리가 아니다 — `state.js` 가 REFRESH_DAYS(3) 마다 새로 만든다.
+     * ★ 클라가 보내는 것은 «며칠에 만들었나»(bookDay) 하나다 — 사흘 중 하루를 고를 수 있을 뿐이고
+     *   (클래스·값만 달라진다), 등급·영웅은 여전히 서버가 굴린다. 오늘 기준 사흘 밖이면 안 만든다.
+     * ★ 저장본이 살아 있는데 클라가 다른 날을 말하면 **안 믿는다** (`목록 어긋남`) — 저장본의
+     *   `hired` 표식이 진실이고, 새로 만들면 그 표식이 사라져 같은 자리를 두 번 살 수 있다. */
+    const stored = ((rs3.data || {}).tavern || {})[cityId];
+    const storedList = stored && Array.isArray(stored.list) ? stored.list : null;
+    const storedDay = storedList ? Math.round(Number(stored.day) || 0) : -1;
+    const storedLive = !!storedList && cliDay - storedDay >= 0 && cliDay - storedDay < TAVERN_REFRESH_DAYS;
+    const cliBookDay = Math.max(0, Math.round(Number(body?.bookDay) || 0));
+    const cliBookLive = cliBookDay > 0 && cliDay - cliBookDay >= 0 && cliDay - cliBookDay < TAVERN_REFRESH_DAYS;
+    let book: { day: number; list: Record<string, unknown>[] } | null = storedLive ? stored : null;
+    let regen = false;
+    let bookWhy = storedLive ? '' : '목록 낡음';
+    if (storedLive && cliBookDay > 0 && cliBookDay !== storedDay) { book = null; bookWhy = '목록 어긋남'; }
+    else if (!storedLive && cliBookLive && city && inSync) {
+      try {
+        /* ★ `state.js refreshCity` 의 seedFor('tv') 와 **같은 식**이어야 한다 — 스모크가 글자로 맞춰 본다 */
+        const r0 = new RNG((hashStr(`tv#${cityId}#${cliBookDay}`) ^ ((Number(rs3.seed) || 0) >>> 0)) >>> 0);
+        book = { day: cliBookDay, list: genTavern(city, r0) };
+        regen = true;
+        bookWhy = '';
+      } catch (e) { console.error('[run-op] genTavern 실패', e); book = null; bookWhy = '재생성 실패'; }
+    }
     const list = book && Array.isArray(book.list) ? book.list : null;
-    /* ★ 목록은 하루짜리가 아니다 — `state.js` 가 REFRESH_DAYS(3) 마다 새로 만든다.
-     *   «생성일 == 오늘» 로 보면 사흘 중 이틀은 목록이 없는 것으로 잘못 읽힌다. */
-    const bookAge = list ? cliDay - Math.round(Number(book.day) || 0) : -1;
-    const bookLive = !!list && bookAge >= 0 && bookAge < TAVERN_REFRESH_DAYS;
+    const bookAge = book ? cliDay - Math.round(Number(book.day) || 0) : -1;
+    const bookLive = !!list;
     const offer = bookLive && idx < list.length ? list[idx] : null;
 
-    const city = getCity(cityId);
+    /* ★ §190 `grade` 는 **컬럼**이다 (data 에는 없다 — 아래 SKIP 이 뺀다). 보유 S 를 세려면 같이 읽어야 한다.
+     *   db/013 이 그 컬럼에 «S 용병 수를 세는 열쇠» 라고 적어 두고 색인까지 걸어 뒀다.
+     * ★★★ §192.1 이 블록은 `trusted` **보다 앞**에 있어야 한다. 예전엔 뒤에 있었는데 `const` 라
+     *   `trusted` 가 `rosterKnown` 을 읽는 순간 ReferenceError(TDZ) 였다 — `inSync` 가 늘 거짓이라
+     *   단락 평가로 한 번도 안 읽혀서 열흘 동안 몰랐다 (적대적 검토가 잡았다). 스모크가 순서를 지킨다. */
+    const mercRows = await allRows(admin, 'run_mercs', userId, 'uid, data, grade');
+    const rosterN = mercRows.length;
+    /* ★ 정원으로는 막지 않는다 — 이 표는 이관 뒤 고용을 놓쳐 덜 세어진다(§185). 관측만 한다. */
+    const rep = Math.max(0, Math.round(Number(((rs3.data || {}).reputation || {})[cityId]) || 0));
+    /* §190 보유 S 1명당 명물 S +0.1%p. **서버 표에서만** 센다 — 클라가 보내면
+     *   그게 곧 «S 확률을 사는 손잡이» 가 된다 (§187 이 op_id 에서 막은 그 종류다). */
+    const ownedS = mercRows.filter((m) => String((m as { grade?: string }).grade || '') === 'S').length;
+    /* ★★ 이 표가 클라보다 적으면 서버는 **약속보다 나쁜 확률**로 굴리게 된다.
+     *   그건 막는 것보다 나쁘다 — 그럴 때는 아예 정하지 않는다 (아래 trusted 에 얹는다). */
+    const cliRosterN = Math.max(0, Math.round(Number(body?.rosterN) || 0));
+    const rosterKnown = cliRosterN > 0 && mercRows.length >= cliRosterN;
+    /* ★★ §192.1 평판도 같은 잣대다. 서버 평판은 «이관 때 값 + 정산 증감 − 감쇠» 라 클라보다 **낮을 수 있다**
+     *   (이관 뒤 놓친 정산·판정 못 한 정산). 낮은 채로 굴리면 주점 화면이 보여 준 확률보다 나쁘다.
+     *   클라가 «화면이 보여 준 평판»(rep) 을 보내고, 서버 것이 그보다 REP_TOL 넘게 낮으면 **정하지 않는다**
+     *   (클라 굴림 = 오늘 동작). 클라가 크게 말해서 얻는 것은 «오늘 동작» 뿐이다 — 서버가 클라 값으로
+     *   굴리는 일은 없다 (max 를 쓰면 rep 300 을 말하는 것이 곧 확률 구매다). 옛 셸은 rep 을 안 보낸다(0) → 예전 그대로. */
+    const cliRep = Math.max(0, Math.min(REP_RANGE[1], Math.round(Number(body?.rep) || 0)));
+    const repKnown = cliRep === 0 || rep >= cliRep - REP_TOL;
     /* §190 `rosterKnown` 이 없으면 보유 S 를 덜 세어 **주점 화면이 약속한 확률보다 나쁘게** 굴린다 */
-    const trusted = inSync && !!offer && !offer.hired && !!city && rosterKnown;
+    const trusted = inSync && !!offer && !offer.hired && !!city && rosterKnown && repKnown;
+    /* ★★ §192.1 열쇠를 **서버가 정한다.** 클라가 보낸 op_id 를 그대로 원장 열쇠로 쓰면 같은 자리에
+     *   열쇠만 바꿔 동시에 두 번 물어 «한 자리에 두 번 굴리기» 가 된다 (`hired` 표식은 읽고-쓰기라
+     *   그 창을 못 막는다). 정직한 클라는 어차피 같은 모양(`hr_<시드>_<도시>_<날>_<자리>`)을 보낸다 —
+     *   그러면 원장의 PK(user_id, op_id) 가 같은 자리·같은 날의 두 번째를 409 로 막는다. */
+    const opIdH = `hr_${String(rs3.seed || 0).slice(-10)}_${cityId}_${cliDay}_${idx}`.slice(0, 64);
 
     /* 클래스는 **목록이 정한다.** 못 믿을 때만 클라가 말한 것을 쓰고, 그때는 아무것도 안 쓴다. */
     const classId = String((offer && offer.classId) || body?.classId || '');
@@ -458,15 +706,11 @@ Deno.serve(async (req) => {
 
     /* 막는 것은 **믿을 수 있을 때** 뿐이다 (그 밖에는 굴리지도 쓰지도 않으니 막을 일이 없다) */
     if (inSync && offer && offer.hired) return json({ error: '이미 계약이 끝난 자리다' }, 409);
-    if (trusted && Number(rs3.gold) < cost) {
-      return json({ error: '골드가 모자란다', 필요: cost, 보유: rs3.gold }, 409);
-    }
-
-    /* ★ §190 `grade` 는 **컬럼**이다 (data 에는 없다 — 아래 SKIP 이 뺀다). 보유 S 를 세려면 같이 읽어야 한다.
-     *   db/013 이 그 컬럼에 «S 용병 수를 세는 열쇠» 라고 적어 두고 색인까지 걸어 뒀다. */
-    const mercRows = await allRows(admin, 'run_mercs', userId, 'uid, data, grade');
-    const rosterN = mercRows.length;
-    /* ★ 정원으로는 막지 않는다 — 이 표는 이관 뒤 고용을 놓쳐 덜 세어진다(§185). 관측만 한다. */
+    /* ★★ §192 골드로는 **막지 않는다.** 서버의 골드는 결국 클라가 준 값이다(정산 신고 `after.gold` ·
+     *   재동기화) — 그 값으로 막으면 얻는 것이 0 이고, 던전·나락 수입(신고 경로 없음)을 아직 못 본
+     *   사본이 **정직한 고용을 거절**한다. 그리고 «모자라면 클라 굴림» 으로 물러나면 그게 곧
+     *   «서버 골드를 낮춰 두고 S 를 직접 굴리는» 손잡이가 된다. ⇒ 굴리고, 관측만 남긴다. */
+    const goldShort = trusted && Number(rs3.gold) < cost;
 
     /* ★★★ 시드 — **클라가 고를 수 없는 것**에서 뽑는다.
      *   §187 은 `op_id` 만으로 시드를 만들었는데, `op_id` 는 클라가 보내는 글자다.
@@ -474,30 +718,29 @@ Deno.serve(async (req) => {
      *   쓸어 보며 **S + 영웅이 나오는 열쇠만 골라 보낼 수 있었다** (실측: 53번 만에 나왔다).
      *   ⇒ 서버만 아는 비밀을 섞는다. 같은 op_id 는 여전히 같은 답을 낸다(멱등성 유지). */
     const SEED_SALT = Deno.env.get('HIRE_SEED_SALT') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const seedSrc = `${opId}|${userId}|${rs3.seed}|${SEED_SALT}`;
+    const seedSrc = `${opIdH}|${userId}|${rs3.seed}|${SEED_SALT}`;
     let h = 2166136261 >>> 0;
     for (let i = 0; i < seedSrc.length; i++) { h ^= seedSrc.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
     const r = new RNG(h);
 
-    const rep = Math.max(0, Math.round(Number(((rs3.data || {}).reputation || {})[cityId]) || 0));
-    /* §190 보유 S 1명당 명물 S +0.1%p. **서버 표에서만** 센다 — 클라가 보내면
-     *   그게 곧 «S 확률을 사는 손잡이» 가 된다 (§187 이 op_id 에서 막은 그 종류다). */
-    const ownedS = mercRows.filter((m) => String((m as { grade?: string }).grade || '') === 'S').length;
-    /* ★★ 이 표가 클라보다 적으면 서버는 **약속보다 나쁜 확률**로 굴리게 된다.
-     *   그건 막는 것보다 나쁘다 — 그럴 때는 아예 정하지 않는다 (아래 trusted 에 얹는다). */
-    const cliRosterN = Math.max(0, Math.round(Number(body?.rosterN) || 0));
-    const rosterKnown = cliRosterN > 0 && mercRows.length >= cliRosterN;
-
     /* ══ 못 믿는 자리 — **굴리지도 쓰지도 않는다.** 관측만 남기고 클라에게 맡긴다 ══ */
     if (!trusted) {
       await obs(admin, userId, 'hire', {
-        cityId, offerIndex: idx, classId, cost, rep, tier, isSpec,
+        cityId, offerIndex: idx, classId, cost, rep, cliRep, tier, isSpec,
         gold: Number(rs3.gold), rosterN, rosterCap: Number(rs3.roster_cap || 20),
-        inSync, seedMatch, bookLive, bookAge, cliDay, srvDay,
-        why: !seedMatch ? '다른 판' : (cliDay !== srvDay ? '날짜 어긋남' : (!bookLive ? '목록 낡음' : (!offer ? '자리 없음' : (offer.hired ? '이미 계약' : (!city ? '도시 모름' : '명부 덜 셈'))))),
+        inSync, seedMatch, bookLive, bookAge, cliDay, srvDay, cliBookDay, storedDay, regen,
+        why: !seedMatch ? '다른 판' : (cliDay !== srvDay ? '날짜 어긋남' : (!bookLive ? (bookWhy || '목록 낡음') : (!offer ? '자리 없음' : (offer.hired ? '이미 계약' : (!city ? '도시 모름' : (!rosterKnown ? '명부 덜 셈' : '평판 덜 셈')))))),
         wrote: 0,
       });
       return json({ ok: true, shadow: true, trusted: false });
+    }
+
+    /* ★ 클라 열쇠와 서버 열쇠가 다르면(손으로 만든 요청) 서버 열쇠로 한 번 더 재생을 본다 —
+     *   같은 자리를 이미 굴렸으면 그 답을 준다. 정직한 클라는 둘이 같아서 여기 안 온다. */
+    if (opIdH !== opId) {
+      const { data: prevH } = await admin.from('run_ops')
+        .select('result').eq('user_id', userId).eq('op_id', opIdH).maybeSingle();
+      if (prevH) return json({ ok: true, replayed: true, result: prevH.result });
     }
 
     let grade = 'F';
@@ -534,7 +777,7 @@ Deno.serve(async (req) => {
 
     const result = { op: 'hire', cityId, offerIndex: idx, classId, cost, grade, hero: heroId, merc, trusted: true };
     const { error: opErr3 } = await admin.from('run_ops')
-      .insert({ user_id: userId, op_id: opId, kind: 'hire', result });
+      .insert({ user_id: userId, op_id: opIdH, kind: 'hire', result });
     if (opErr3) { console.error('[run-op] run_ops insert 실패', opErr3); return json({ error: '같은 요청이 이미 처리 중이다' }, 409); }
 
     /* ══ 여기서부터 **진짜로 쓴다** (§187) ═══════════════════════════════════
@@ -556,7 +799,7 @@ Deno.serve(async (req) => {
     });
     if (mErr) {
       console.error('[run-op] run_mercs insert 실패 — 원장을 되돌린다', mErr);
-      const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opId);
+      const { error: rbErr } = await admin.from('run_ops').delete().eq('user_id', userId).eq('op_id', opIdH);
       if (rbErr) console.error('[run-op] ★ 원장 되돌리기도 실패했다 — 이 op 은 굳는다', rbErr);
       return json({ error: '단원을 넣지 못했다' }, 500);
     }
@@ -564,14 +807,22 @@ Deno.serve(async (req) => {
     /* 골드·주점 자리 — **실패해도 고용은 이미 섰다.** 되돌리지 않고 로그만 남긴다
      * (단원이 사라지는 것보다 사본이 조금 어긋나는 편이 낫다). */
     try {
-      const nextData = JSON.parse(JSON.stringify(rs3.data || {}));
-      if (nextData.tavern && nextData.tavern[cityId]
-          && Array.isArray(nextData.tavern[cityId].list) && nextData.tavern[cityId].list[idx]) {
+      /* ★ §192.1 쓰기 직전에 **다시 읽는다** — 그 사이 정산(평판)·하루 op 이 data 를 고쳤을 수 있다.
+       *   읽고-쓰기 창을 굴림 시간(수십 ms)에서 한 왕복으로 줄인다. 날짜가 움직였으면 아래 잠금이 막는다. */
+      const { data: rsF } = await admin.from('run_state').select('day, data').eq('user_id', userId).maybeSingle();
+      const nextData = JSON.parse(JSON.stringify((rsF && rsF.data) || rs3.data || {}));
+      if (!nextData.tavern || typeof nextData.tavern !== 'object') nextData.tavern = {};
+      /* §192 다시 만든 목록은 **저장한다** — 그래야 `hired` 표식이 남아 같은 자리를 두 번 못 산다 */
+      if (regen && book) nextData.tavern[cityId] = JSON.parse(JSON.stringify(book));
+      if (nextData.tavern[cityId] && Array.isArray(nextData.tavern[cityId].list) && nextData.tavern[cityId].list[idx]) {
         nextData.tavern[cityId].list[idx].hired = true;
       }
-      const { error: sErr } = await admin.from('run_state')
-        .update({ data: nextData, gold: Math.max(0, Number(rs3.gold) - cost) }).eq('user_id', userId);
+      /* ★ 읽었던 날짜 그대로일 때만 (§192 하루 op 이 사이에 끼면 그쪽 data 를 덮지 않는다) */
+      const { data: upd, error: sErr } = await admin.from('run_state')
+        .update({ data: nextData, gold: Math.max(0, Number(rs3.gold) - cost) })
+        .eq('user_id', userId).eq('day', cliDay).select('day');
       if (sErr) console.error('[run-op] run_state 반영 실패 — 넘어간다', sErr);
+      else if (!upd || !upd.length) console.error('[run-op] run_state 반영 — 사이에 날짜가 움직여 넘어간다');
     } catch (e) {
       console.error('[run-op] run_state 반영 예외 — 넘어간다', String((e as Error)?.message || e));
     }
@@ -579,7 +830,7 @@ Deno.serve(async (req) => {
     await obs(admin, userId, 'hire', {
       cityId, offerIndex: idx, classId, cost, grade, hero: heroId, rep, tier, isSpec,
       gold: Number(rs3.gold), rosterN, rosterCap: Number(rs3.roster_cap || 20),
-      inSync, seedMatch, bookLive, bookAge, cliDay, srvDay, wrote: 1,
+      inSync, seedMatch, bookLive, bookAge, cliDay, srvDay, cliBookDay, storedDay, regen, goldShort, cliRep, wrote: 1,
     });
     return json({ ok: true, replayed: false, result });
   }
@@ -963,7 +1214,40 @@ Deno.serve(async (req) => {
             battles_won: Math.max(0, Math.round(Number(af.battlesWon) || 0)),
             battles_lost: Math.max(0, Math.round(Number(af.battlesLost) || 0)),
           }).eq('user_id', userId);
-          wrote = { did: true, mercs: n, state: !stErr, loot: lootN, rolls };
+          /* ═══ §192 평판 — 서버가 **직접** 굴린다 (quest.js applyReputation 과 같은 식) ═══
+           * ★ 클라가 준 값을 받아 적지 않는다 — 평판은 명물 S 확률의 손잡이다 (merc.js specialtySChance).
+           *   REP_GAIN·정예 ×1.5·실패는 repLoss — 전부 `_rules/questgen.js` 에서 import 한다 (손사본 없음).
+           * ★ 왜 이제야: 서버 날짜가 살아 움직이면(하루 op) 감쇠는 도는데 획득이 안 오면 서버 평판이
+           *   클라보다 **낮아져** 정직한 사람이 약속보다 나쁜 확률로 고용된다. 그건 막는 것보다 나쁘다.
+           * ★ 재생성한 의뢰(genHit)가 있을 때만 — 랭크·정예를 서버가 아는 의뢰만 굴린다. */
+          let repDelta: number | null = null;
+          try {
+            const qq = genHit as { rank?: string; elite?: boolean } | null;
+            const cid = String(q.cityId || '');
+            if (qq && cid) {
+              const baseGain = (REP_GAIN as Record<string, number>)[String(qq.rank || 'F')] ?? REP_GAIN.F;
+              const gain = Math.max(1, Math.round(baseGain * (isEliteQuest(qq) ? ELITE_RENOWN : 1)));
+              const delta = q.win ? gain : -repLoss(gain);
+              /* ★ §192.1 읽고-쓰기라 하루 op·고용과 겹칠 수 있다 — 0행이면 **한 번 다시** 읽어서 얹는다.
+               *   두 번째도 0행이면 이 증감은 잃는다 (관측 rep:null). 다음 정산이 또 온다. */
+              for (let attempt = 0; attempt < 2 && repDelta === null; attempt++) {
+                const { data: rsN } = await admin.from('run_state').select('day, data').eq('user_id', userId).maybeSingle();
+                if (!rsN) break;
+                const d2 = JSON.parse(JSON.stringify(rsN.data || {}));
+                if (!d2.reputation || typeof d2.reputation !== 'object') d2.reputation = {};
+                if (!d2.repTouch || typeof d2.repTouch !== 'object') d2.repTouch = {};
+                const cur = Math.round(Number(d2.reputation[cid]) || 0);
+                d2.reputation[cid] = Math.max(REP_RANGE[0], Math.min(REP_RANGE[1], cur + delta));
+                /* ★ 도장은 **서버 날짜**로 찍는다. 클라 `q.day` 를 믿으면 먼 미래 날짜로 감쇠를 영영 막을 수 있다 (적대적 검토). */
+                d2.repTouch[cid] = Math.max(0, Math.round(Number(rsN.day) || 0));
+                const { data: upd2, error: rpErr } = await admin.from('run_state').update({ data: d2 })
+                  .eq('user_id', userId).eq('day', rsN.day).select('day');
+                if (rpErr) { console.error('[정산] 평판 반영 실패 — 넘어간다', rpErr); break; }
+                if (upd2 && upd2.length) repDelta = delta;
+              }
+            }
+          } catch (e) { console.error('[정산] 평판 반영 예외 — 넘어간다', String((e as Error)?.message || e)); }
+          wrote = { did: true, mercs: n, state: !stErr, loot: lootN, rolls, rep: repDelta };
         }
       } catch (e) {
         wrote = { did: false, why: '실패' };

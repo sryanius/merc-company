@@ -35,6 +35,10 @@ export const REP_DECAY_PER_DAY = 1;
 export const REP_DECAY_FLOOR = 50;
 /** 이 날짜 안에 그 도시 일을 했으면 봐준다 */
 export const REP_DECAY_GRACE = 7;
+/** 여관 휴식이 하루당 추가로 회복시키는 양 (maxHp 비율) — §192 에서 `state.js` 에서 옮겨 왔다 */
+export const REST_HEAL = 0.45;
+/** 여관 휴식이 하루당 추가로 단축하는 부상 잔여 일수 */
+export const REST_WOUND_SPEEDUP = 1;
 
 /* ── 순수 헬퍼 ───────────────────────────────────────────────────────────
  * ★ 둘 다 **상태를 안 본다** — 인자만 본다. 그래서 여기 둔다.
@@ -223,4 +227,47 @@ export function advanceDays(st, n = 1) {
   if (out.upkeep > 0) addLog(`${out.days}일이 지났다. 임금으로 ${num(out.upkeep)}G를 지출했다.`);
   touch();
   return out;
+}
+
+/**
+ * 여관 휴식 — 날짜만 넘기는 게 아니라 실제로 치료한다 (§192 에서 `state.js` 에서 옮겨 왔다).
+ *
+ * ★★ 왜 여기로 왔나: 서버가 하루 넘기기를 **실물**로 쓰면서(§192) 여관 휴식도 같은 함수로
+ *   따라와야 한다. `state.js` 에 두면 서버 묶음에 못 들어오고, 손으로 옮기면 사본이 둘이 된다.
+ *   ★ 그리고 `state.js` 의 옛 본문은 `maxHpOf` 를 부르는데 그 함수가 이 파일로 옮겨진 뒤
+ *     **import 가 안 돼 있어서 부를 때마다 던졌다** — 여관은 그동안 `ui/city.js legacyRest`
+ *     (같은 식의 폴백)로 돌고 있었다. 실측 2026-09-19: `restAtInn(1)` → ReferenceError.
+ *
+ * - 하루당 부상 잔여 기간을 REST_WOUND_SPEEDUP 일 추가로 단축한다
+ *   (자연 경과 1일 + 단축 1일 = 하루 묵으면 부상이 2일치 줄어든다).
+ * - 하루당 maxHp 의 REST_HEAL 만큼 추가 회복한다 (자연 회복과 별도).
+ *
+ * 숙박비 계산/차감은 UI(ui/city.js) 담당이다. 여기서는 골드를 건드리지 않는다.
+ *
+ * @param {object} st 상태 (인자로 받는다 — 이 모듈의 계약)
+ * @param {number} days 묵을 일수
+ * @returns {{days:number, upkeep:number, unpaid:number, recovered:string[], returned:string[]}} advanceDays 의 것 그대로
+ */
+export function restAtInn(st, days = 1) {
+  const n = Math.max(1, Math.round(days || 1));
+
+  // 날짜가 흐르기 전에 부상 잔여 기간을 먼저 깎는다.
+  // 이래야 이번 advanceDays 안에서 회복 판정(st.day >= woundUntil)이 실제로 걸린다.
+  const cut = n * REST_WOUND_SPEEDUP;
+  for (const m of st.roster || []) {
+    if (m && m.status === 'wounded') m.woundUntil = Math.max(st.day, (m.woundUntil || 0) - cut);
+  }
+
+  const adv = advanceDays(st, n);
+
+  // 자연 회복 위에 휴식분을 얹는다.
+  const idx = itemsById(st.items);
+  for (const m of st.roster || []) {
+    if (!m) continue;
+    const maxHp = maxHpOf(m, idx);
+    m.maxHp = maxHp;
+    const cur = clamp(Math.round(m.hp ?? maxHp), 1, maxHp);
+    m.hp = clamp(Math.round(cur + maxHp * REST_HEAL * n), 1, maxHp);
+  }
+  return adv;
 }

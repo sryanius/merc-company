@@ -17,6 +17,10 @@
  */
 import * as State from '../src/game/state.js';
 import * as Quest from '../src/game/quest.js';
+/* §192 하루 op — 서버가 자기 사본에 **같은 하루 루프**를 돌린다 */
+import * as Day from '../src/game/day.js';
+/* §192 정산이 평판을 서버에서 굴린다 — 클라 값을 받아 적지 않는다 */
+import { REP_GAIN, isEliteQuest, ELITE_RENOWN, repLoss } from '../src/game/questgen.js';
 import { toRows, fromRows } from '../src/game/runrows.js';
 import { getClass } from '../src/data/classes.js';
 import '../src/data/classes_t4.js';
@@ -54,7 +58,16 @@ function mkState(seed) {
  * 서버 사본에 **지금 실제로 올라가는 것만** 반영한다 (§149).
  * ★ 여기 없는 것이 곧 «벌어지는 것» 이다. 손으로 «다 반영» 하면 이 도구가 거짓말한다.
  */
-function applyReportedOnly(srv, st, squadId, loot) {
+function applyReportedOnly(srv, st, squadId, loot, quest, win) {
+  /* §192 평판 — 서버가 REP_GAIN 으로 **직접** 굴린다 (run-op questSettle 과 같은 식). 클라 값을 안 받는다 */
+  if (quest && quest.cityId) {
+    const g = Math.max(1, Math.round((REP_GAIN[quest.rank] ?? REP_GAIN.F) * (isEliteQuest(quest) ? ELITE_RENOWN : 1)));
+    const d = win ? g : -repLoss(g);
+    if (!srv.reputation || typeof srv.reputation !== 'object') srv.reputation = {};
+    if (!srv.repTouch || typeof srv.repTouch !== 'object') srv.repTouch = {};
+    srv.reputation[quest.cityId] = Math.max(0, Math.min(300, (Math.round(Number(srv.reputation[quest.cityId])) || 0) + d));
+    srv.repTouch[quest.cityId] = st.day;
+  }
   /* ★ 전리품도 올라간다 (§158) — 판정을 통과한 정산의 것만, 굴림 수까지 */
   for (const it of loot || []) {
     if (!(srv.items || []).some((x) => x.uid === it.uid)) srv.items.push(it);
@@ -107,10 +120,13 @@ for (let d = 0; d < DAYS; d++) {
       /* ★ 서버가 받는 것: 단원 상태 · 총량 · **그 정산의 전리품** (굴림 수까지) */
       const rolls = Array.isArray(q.reward?.itemRolls) ? q.reward.itemRolls.length : 0;
       const loot = (applied && Array.isArray(applied.items) ? applied.items : []).slice(0, rolls);
-      applyReportedOnly(srv, st, sqId, loot);
+      applyReportedOnly(srv, st, sqId, loot, q, !!(applied && applied.win));
     }
   }
-  State.advanceDays(1);                       // ★ 임금·회복·부상 — 신고 경로 없음
+  State.advanceDays(1);
+  /* §192 하루 op — 서버는 클라 값을 받지 않고 **자기 사본에 같은 루프**를 돌린다 (임금·회복·부상·감쇠).
+   *   그래서 여기 반영되는 것은 «클라의 결과» 가 아니라 «서버가 스스로 낸 결과» 다 — 그 둘이 같은지가 이 도구의 질문이다. */
+  Day.advanceDays(srv, 1);
 }
 
 /* ── 얼마나 벌어졌나 ─────────────────────────────────────────────────── */
@@ -133,6 +149,12 @@ const row = (k, c, s) => {
 const dItems = row('아이템 수', cliItems, srvItems);
 const dGold = row('골드', cliGold, srvGold);
 const dLv = row('레벨 합', cliLv, srvLv);
+/* §192 — 서버가 하루를 스스로 걷고, 정산이 평판을 굴리면 이 셋도 안 벌어져야 한다 */
+const repOf = (o) => Object.values((o && o.reputation) || {}).reduce((a, v) => a + (Math.round(Number(v)) || 0), 0);
+const hpOf = (list) => (list || []).reduce((a, m) => a + (Math.round(Number(m.hp)) || 0), 0);
+const dDay = row('일차', Math.round(st.day || 0), Math.round(srv.day || 0));
+const dRep = row('평판 합', repOf(st), repOf(srv));
+const dHp = row('체력 합', hpOf(st.roster), hpOf(srv.roster));
 
 console.log('');
 console.log('-'.repeat(74));
@@ -143,6 +165,9 @@ need(cliItems > startItems, `논 뒤에 아이템이 늘었다 (${startItems} �
 need(dLv === 0, `레벨은 안 벌어진다 (차이 ${dLv}) — 정산 쓰기가 따라온다`);
 need(dGold === 0, `골드는 안 벌어진다 (차이 ${dGold}) — 정산 쓰기가 따라온다`);
 need(dItems === 0, `아이템은 안 벌어진다 (차이 ${dItems})`);
+need(dDay === 0, `일차는 안 벌어진다 (차이 ${dDay}) — 하루 op 이 따라온다 (§192)`);
+need(dRep === 0, `평판은 안 벌어진다 (차이 ${dRep}) — 정산이 평판을 서버에서 굴린다 (§192)`);
+need(dHp === 0, `체력은 안 벌어진다 (차이 ${dHp}) — 하루 op 의 회복이 같은 함수다 (§192)`);
 
 console.log('='.repeat(74));
 if (fails) {

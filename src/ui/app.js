@@ -16,7 +16,7 @@ import * as Auth from '../net/auth.js';
 import { CLIENT_REV } from '../net/config.js';
 /* ★ 장비 갈고리 — `gear.js` 가 «팔았다/끼웠다» 를 알려 오면 서버 사본에 전한다.
  *   `gear.js` 는 의존성 0 이어야 해서 (묶음에 들어간다) **여기서 묶는다.** */
-import { noteSold, noteEquip } from '../net/mirror.js';
+import { noteSold, noteEquip, mirrorAdvanceDays } from '../net/mirror.js';
 import { bindGearMirror } from '../game/gear.js';
 /* ★ 진행도 이관 (§104 8단계). 지금까지 이 모듈을 부르는 화면이 **하나도 없었다** —
  *   제작자가 콘솔에서 손으로 한 번 불렀을 뿐이다. 그래서 7계정 중 1개만 서버에 있다. */
@@ -1409,6 +1409,9 @@ export function boot() {
       onEquip: (mercUid, itemUid, slot) => noteEquip(mercUid, itemUid, slot, state.day),
     });
   } catch (e) { console.warn('[app] 장비 거울 배선 실패', e); }
+  /* ★★ §192 하루 넘기기를 서버 사본에 전한다. 이게 없으면 서버 날짜가 재동기화 때만 움직여
+   *   고용을 서버가 한 번도 못 정한다 (실측 2026-09-19: 35건 전부 «다른 판»). */
+  try { GameState.bindDayReport(mirrorAdvanceDays); } catch (e) { console.warn('[app] 하루 거울 배선 실패', e); }
   /* ★ 구글 로그인에서 돌아온 길인지 본다. 주소에 `?code=` 가 붙어 있으면
    *   그걸 토큰으로 바꾸고 주소를 청소한다 (코드가 남으면 새로고침 때 재사용 오류가 난다).
    *   로그인 흔적이 없으면 아무 일도 안 하므로 부팅을 지연시키지 않는다. */

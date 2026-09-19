@@ -43,7 +43,7 @@ import * as SetsAPI from '../data/sets.js';
 import * as GameState from '../game/state.js';
 import * as Pet from '../game/pet.js';
 /* ★ 서버 사본을 따라오게 하는 채널 — 게임 흐름을 막지 않는다 (net/mirror.js) */
-import { mirrorPromote, mirrorAwaken, askPromote, askEquip } from '../net/mirror.js';
+import { mirrorPromote, mirrorAwaken, mirrorDismiss, askPromote, askEquip } from '../net/mirror.js';
 
 export const meta = { id: 'company', title: '용병단' };
 
@@ -3335,6 +3335,7 @@ function askDismissMany(mercs) {
 function doDismiss(list, upkeep = 0) {
   let n = 0;
   const names = [];
+  const gone = [];
   for (const m of list) {
     if (m.squadId) removeFromSquad(state, m.squadId, m.uid);
     // 옛 세이브의 3슬롯 키(armor/accessory)가 남아 있을 수 있어 실제 키를 전부 훑는다
@@ -3345,9 +3346,12 @@ function doDismiss(list, upkeep = 0) {
     marked.delete(m.uid);
     if (picked && picked.type === 'merc' && picked.uid === m.uid) picked = null;
     names.push(m.name);
+    gone.push(m.uid);
     n++;
   }
   if (!n) { toast('해고할 단원을 찾지 못했습니다.', 'bad'); redraw(); return; }
+  /* §192 서버 표에서도 지운다 — 안 지우면 서버가 보유 S·정원을 더 센다 (거울, 절대 막지 않는다) */
+  try { mirrorDismiss(gone, state.day); } catch (e) { console.warn('[company] 해고 거울 실패', e); }
 
   if (n === 1) addLog(`${names[0]}${josa(names[0])} 해고했다.`);
   else addLog(`단원 ${n}명을 해고했다. (${names.slice(0, 4).join(', ')}${n > 4 ? ` 외 ${n - 4}명` : ''}) 일일 임금 -${num(upkeep)}G`);

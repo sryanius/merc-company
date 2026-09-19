@@ -8874,11 +8874,21 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
   ok(/gradeRoll\(/.test(oCode16), '등급을 gradeRoll 로 굴린다 (표가 곧 규칙)',
     '손으로 확률을 쓰면 사본이 된다');
 
-  /* ★★ 목록을 **재생성해서 대조하지 않는다** — 그러면 공식이 바뀐 뒤 옛 날짜를 못 만든다 */
+  /* ★★ 목록을 **재생성해서 대조하지 않는다** — 그러면 공식이 바뀐 뒤 옛 날짜를 못 만든다.
+   * ★ §192 부터 재생성은 **저장본이 없거나 낡았을 때 빈자리를 채우는 데만** 쓴다 (`!storedLive` 가지).
+   *   살아 있는 저장본은 그대로 믿는다 — «재생성 == 저장본» 을 요구하는 자리는 여전히 없다. */
   ok(/data \|\| \{\}\)\.tavern/.test(oCode16), '저장된 주점 목록에 대고 묻는다',
     '재생성을 요구하면 hireCost 가 바뀐 뒤 정상 고용이 거절된다 (§113 과 같은 병)');
-  ok(!/genTavern\(/.test(oCode16), '고용 검증이 목록을 다시 만들지 않는다',
-    '재생성 == 저장본을 요구하면 소급 불가에 걸린다');
+  {
+    const hb = oCode16.slice(oCode16.indexOf("if (op === 'hire')"), oCode16.indexOf('의뢰 정산'));
+    const iGen = hb.indexOf('genTavern(');
+    const guard = iGen >= 0 ? hb.slice(Math.max(0, iGen - 400), iGen) : '';
+    const bad = [];
+    if (iGen < 0) bad.push('genTavern 을 안 부른다 — 저장본이 낡으면 «목록 낡음» 으로 떨어진다 (§192)');
+    if (iGen >= 0 && !/!storedLive/.test(guard)) bad.push('저장본이 살아 있어도 다시 만든다 — hired 표식이 사라진다');
+    if (/JSON\.stringify\(stored/.test(hb) || /storedList\[idx\]\.classId !==/.test(hb)) bad.push('재생성한 목록을 저장본과 대조한다 — 공식이 바뀐 뒤 옛 날짜를 못 만든다');
+    okAll(bad, '재생성은 빈자리를 채울 때만 — 저장본과 대조하지 않는다 (§192)', 3);
+  }
 
   /* ★ 결정론을 **굴려서** 확인한다 — 글자 검사만으로는 못 잡는다 */
   try {
@@ -8930,7 +8940,8 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
         const line = oCode16.slice(Math.max(0, m.index - 220), m.index);
         if (!/inSync|trusted/.test(line)) bad.push(`잴 수 없는데 막는다: …${line.slice(-70).replace(/\s+/g, ' ')}`);
       }
-      ok(blocks.length >= 2, '고용에 막는 자리가 있다 (권위가 켜져 있다)');
+      /* ★ §192 부터 «골드가 모자란다» 는 없다 — 서버 골드는 클라가 준 값이라 막아도 얻는 것이 없고 정직한 고용만 막혔다 */
+      ok(blocks.length >= 1, '고용에 막는 자리가 있다 (권위가 켜져 있다)');
       okAll(bad, '고용은 사본이 오늘 것일 때만 막는다', Math.max(1, blocks.length));
     }
     /* ★★ 못 믿는 자리(`!trusted`)에서 **쓰기가 하나도 없어야 한다.**
@@ -9020,6 +9031,219 @@ section('고용 — 등급 추첨이 재시도로 안 바뀌나 (run-op hire)');
     }
   } catch (e) {
     ok(false, '고용 추첨을 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
+  }
+}
+
+section('§192 하루 넘기기가 실물이다 — 서버 날짜가 클라와 같이 걷는다');
+{
+  /* ★★★ 왜 생겼나 (2026-09-19 실측)
+   *   고용 op(§187)이 나간 뒤 열흘, 서버가 정한 고용이 **0건**이었다 — 35건 전부 «다른 판».
+   *   원인 둘: ① 클라가 판 시드를 열쇠(opId)에만 넣고 `body.seed` 로는 안 보냈다
+   *            ② 서버 사본의 날짜가 **재동기화 때만** 움직여 «같은 날인가» 가 늘 거짓이었다
+   *              (하루 넘기기 op 은 §129 이후 그림자였고, 클라가 부르는 자리도 0줄이었다).
+   *   ⇒ 하루 넘기기를 실물로, 고용이 서버 목록 없이도 (판·도시·날) 로 목록을 다시 만들게,
+   *      해고도 서버에 전하게, 정산이 평판을 서버에서 굴리게 했다. 이 절이 그 넷을 지킨다. */
+  try {
+    const oSrc = readFileSync(join(rootDir, 'supabase/functions/run-op/index.ts'), 'utf8');
+    const oc = decomment(oSrc);
+    const stSrc = readFileSync(join(rootDir, 'src/game/state.js'), 'utf8');
+    const st = decomment(stSrc);
+    const mr = decomment(readFileSync(join(rootDir, 'src/net/mirror.js'), 'utf8'));
+    const app = decomment(readFileSync(join(rootDir, 'src/ui/app.js'), 'utf8'));
+    const tv = decomment(readFileSync(join(rootDir, 'src/ui/tavern.js'), 'utf8'));
+    const co = decomment(readFileSync(join(rootDir, 'src/ui/company.js'), 'utf8'));
+    const daySrc = decomment(readFileSync(join(rootDir, 'src/game/day.js'), 'utf8'));
+
+    /* ── 서버: 하루 op 이 진짜로 쓴다 ─────────────────────────────────────── */
+    const iAdv = oc.indexOf("if (op === 'advanceDays')");
+    const iDm = oc.indexOf("if (op === 'dismiss')");
+    const iHire = oc.indexOf("if (op === 'hire')");
+    const adv = iAdv >= 0 && iDm > iAdv ? oc.slice(iAdv, iDm) : '';
+    ok(adv.length > 200, '하루 넘기기 op 블록이 있고 해고 op 이 그 뒤에 있다');
+    ok(/from\('run_state'\)[\s\S]{0,400}?\.update\(\{[\s\S]{0,80}?day: target/.test(adv), '하루 op 이 run_state.day 를 진짜로 쓴다',
+      '안 쓰면 서버 날짜가 재동기화 때만 움직여 고용을 영영 못 정한다');
+    ok(/kind: 'advanceDays'/.test(adv) && adv.indexOf("kind: 'advanceDays'") < adv.indexOf('day: target'), '원장을 먼저 남기고 쓴다');
+    ok(/\.eq\('day', srvDay\)/.test(adv), 'run_state 는 읽었던 날짜 그대로일 때만 고친다 (낙관 잠금)',
+      '같은 계정의 다른 op 이 사이에 끼면 그쪽 data 를 덮어쓴다');
+    ok(!/shadow: true, result/.test(adv), '그림자 반환이 남아 있지 않다');
+    {
+      /* 못 믿는 자리(시드 불일치·기준일 없음·이미·너무 뒤처짐)에서 **쓰기가 하나도 없어야 한다** */
+      const cut = adv.indexOf('if (why)');
+      const before = cut > 0 ? adv.slice(0, cut) : adv;
+      const bad = [];
+      if (cut < 0) bad.push('못 믿을 때 빠져나가는 자리가 없다');
+      for (const t of ['run_mercs', 'run_ops', 'run_state', 'run_squads']) {
+        if (new RegExp(`from\\('${t}'\\)[\\s\\S]{0,160}?\\.(insert|update|upsert|delete)\\(`).test(before)) bad.push(`믿을 수 있는지 정하기 전에 ${t} 에 쓴다`);
+      }
+      okAll(bad, '못 믿는 하루 op 은 쓰지 않는다 (시드가 다르면 관측만)', 4);
+    }
+    ok(/MAX_CATCHUP = \d+/.test(adv) && /if \(catchup > 0\) \{[\s\S]{0,900}?add\(advanceDays\(st2, catchup\)\)/.test(adv),
+      '뒤처진 날을 따라잡되 상한이 있다', '거울은 순서가 뒤바뀌어 닿는다 — 한 걸음 놓쳤다고 영영 뒤처지면 안 된다');
+    ok(/restAtInn\(st2, n\)/.test(adv), '여관이면 같은 파일의 restAtInn 을 부른다 (손사본 없음)');
+    ok(/upsert\(mercRows2, \{ onConflict: 'user_id,uid' \}\)/.test(adv), '단원은 바뀐 줄만 한 번에 upsert 한다 (150번 왕복하지 않는다)');
+    ok(!/st2\.day\+\+|st2\.gold -= /.test(adv), '하루 루프를 손으로 다시 쓰지 않았다 (day.js 를 부른다)');
+    ok(/TAVERN_REFRESH_DAYS\) delete book\[cid\]/.test(adv), '낡은 도시 목록을 state.js 와 같은 잣대(REFRESH_DAYS)로 지운다');
+
+    /* ── 서버: 해고 op ────────────────────────────────────────────────────── */
+    const dm = iDm >= 0 && iHire > iDm ? oc.slice(iDm, iHire) : '';
+    ok(/from\('run_mercs'\)\.delete\(\)/.test(dm), '해고 op 이 run_mercs 에서 지운다',
+      '안 지우면 서버가 보유 S·정원을 더 센다 — 정원 150 을 넘긴 것으로 보이면 A등급이다');
+    ok(dm.indexOf('equipped_by: null') >= 0 && dm.indexOf('equipped_by: null') < dm.indexOf('.delete()'), '지우기 전에 착용 장비를 창고로 돌린다');
+    ok(/kind: 'dismiss'/.test(dm) && dm.indexOf("kind: 'dismiss'") < dm.indexOf('.delete()'), '해고도 원장을 먼저 남긴다');
+
+    /* ── 서버: 고용 — 목록 재생성 · 골드로 안 막는다 ───────────────────────── */
+    const hire = iHire >= 0 ? oc.slice(iHire, oc.indexOf('의뢰 정산')) : '';
+    ok(/genTavern\(city, r0\)/.test(hire), '고용이 저장본에 목록이 없으면 genTavern 으로 다시 만든다',
+      '안 만들면 사흘마다 «목록 낡음» 으로 떨어져 서버가 고용을 못 정한다');
+    const srvSeed = 'hashStr(`tv#${cityId}#${cliBookDay}`) ^ ((Number(rs3.seed) || 0) >>> 0)) >>> 0';
+    ok(hire.includes(srvSeed), '서버의 목록 시드 식이 기대한 모양이다 (state.js seedFor 와 같은 구조)');
+    ok(st.includes('hashStr(`${kind}#${cityId}#${state.day}`) ^ ((state.seed || 0) >>> 0)) >>> 0'),
+      'state.js 의 seedFor 식이 그대로다 (서버가 이 식을 베꼈다 — 바꾸면 둘 다 바꿔라)');
+    ok(!/골드가 모자란다/.test(hire), '골드 부족으로는 막지 않는다',
+      '서버 골드는 클라가 준 값 — 막아도 얻는 것이 없고, «모자라면 클라 굴림» 은 S 손잡이가 된다');
+    ok(/goldShort/.test(hire), '골드 부족을 관측한다');
+    ok(/regen && book\) nextData\.tavern\[cityId\]/.test(hire), '다시 만든 목록을 저장한다 (hired 표식이 남아 같은 자리를 두 번 못 산다)');
+    ok(/\.eq\('day', cliDay\)\.select\('day'\)/.test(hire), '고용의 run_state 쓰기도 날짜 낙관 잠금이다');
+    ok(/bookWhy = '목록 어긋남'/.test(hire), '저장본이 살아 있는데 클라가 다른 날을 말하면 안 믿는다');
+    ok(/regen = true/.test(hire) && hire.indexOf('regen = true') > hire.indexOf('&& inSync)'), '목록은 같은 판·같은 날일 때만 다시 만든다');
+
+    /* 기능 검사 — 서버 식대로 만든 목록 == 클라 refreshCity 의 목록 (글자가 아니라 값으로) */
+    {
+      const S = await import('../src/game/state.js');
+      const { genTavern } = await import('../src/game/tavern.js');
+      const { hashStr } = await import('../src/game/enemygen.js');
+      const { RNG } = await import('../src/core/rng.js');
+      const { getCity } = await import('../src/data/world.js');
+      S.newGame(4242, '검사단');
+      const cid = S.state.cityId;
+      S.refreshCity(cid, true);
+      const mine = S.state.tavern[cid];
+      const mk = (day) => genTavern(getCity(cid), new RNG((hashStr(`tv#${cid}#${day}`) ^ ((Number(S.state.seed) || 0) >>> 0)) >>> 0));
+      const srv = mk(mine.day);
+      const cli = mine.list.map(({ classId, cost }) => ({ classId, cost }));
+      ok(JSON.stringify(srv) === JSON.stringify(cli), '서버 식으로 만든 주점 목록이 클라의 목록과 같다',
+        `서버 ${JSON.stringify(srv).slice(0, 80)} / 클라 ${JSON.stringify(cli).slice(0, 80)}`);
+      ok(JSON.stringify(mk(mine.day + 1)) !== JSON.stringify(srv), '메타 — 만든 날이 다르면 목록도 다르다 (검사가 살아 있다)');
+    }
+
+    /* ── 서버: 정산이 평판을 굴린다 — 손사본 없이 ───────────────────────────── */
+    ok(/REP_GAIN, isEliteQuest, ELITE_RENOWN, repLoss \} from '\.\/_rules\/questgen\.js'/.test(oc), '평판 식을 questgen 에서 import 한다');
+    ok(!/REP_GAIN\s*=\s*\{/.test(oc), '평판 표를 손으로 베끼지 않았다');
+    ok(/-repLoss\(gain\)/.test(oc) && /isEliteQuest\(qq\) \? ELITE_RENOWN : 1/.test(oc), '정예 ×1.5 · 실패는 repLoss — quest.js applyReputation 과 같은 식');
+    ok(!/after\?\.reputation|af\.reputation/.test(oc), '평판을 클라 신고값으로 받아 적지 않는다 (평판은 S 확률의 손잡이다)');
+    {
+      const m = oc.match(/const REP_RANGE = \[(\d+), (\d+)\]/);
+      const lo = Number((stSrc.match(/export const REP_MIN = (\d+)/) || [])[1]);
+      const hi = Number((stSrc.match(/export const REP_MAX = (\d+)/) || [])[1]);
+      ok(!!m && Number(m[1]) === lo && Number(m[2]) === hi, '서버의 평판 범위가 state.js 의 REP_MIN·REP_MAX 와 같다',
+        `서버 ${m && m.slice(1, 3)} · 게임 ${lo}~${hi}`);
+    }
+
+    /* ── 클라: 모든 하루 넘기기가 state.js 를 지나고, 거기서 신고가 나간다 ───── */
+    ok(/bindDayReport/.test(st) && /reportDay\(\{ dayFrom, days: out\.days, inn: false \}\)/.test(st), 'state.advanceDays 가 하루 신고를 낸다');
+    ok(/Day\.restAtInn\(state, n\)/.test(st) && /reportDay\(\{ dayFrom, days: adv\.days, inn: true \}\)/.test(st),
+      '여관 휴식은 day.js 의 restAtInn 을 쓰고 inn 표식으로 신고한다');
+    ok(/export function restAtInn\(st, days/.test(daySrc), 'day.js 에 restAtInn 이 있다 (서버와 한 벌)');
+    ok(!/^export const REST_HEAL|^export const REST_WOUND_SPEEDUP/m.test(st) && /REST_HEAL, REST_WOUND_SPEEDUP,\s*\} = Day/.test(st),
+      '여관 상수는 day.js 것 하나다 (state.js 는 재수출)');
+    ok(/bindDayReport\(mirrorAdvanceDays\)/.test(app), 'app.js 가 하루 거울을 묶는다', '안 묶으면 신고가 한 건도 안 나간다 (고용 op 이 두 달 그랬다)');
+    ok(/export function mirrorAdvanceDays/.test(mr) && mr.indexOf('export function mirrorAdvanceDays') > mr.indexOf('export function mirrorPromote'),
+      '하루 거울이 거울 구역(await 없는 쪽)에 있다');
+    {
+      const bad = [];
+      for (const f of ['src/ui/city.js', 'src/ui/worldmap.js', 'src/ui/company.js', 'src/ui/tavern.js', 'src/ui/quests.js', 'src/ui/battle.js']) {
+        const s = decomment(readFileSync(join(rootDir, f), 'utf8'));
+        if (/from '\.\.\/game\/day\.js'/.test(s)) bad.push(`${f} 가 day.js 를 직접 문다 — 신고를 건너뛴다`);
+      }
+      okAll(bad, '화면은 day.js 를 직접 부르지 않는다 (state.js 를 지나야 신고가 나간다)', 6);
+    }
+    ok(/seed: String\(o\.seed \|\| ''\)/.test(mr.slice(mr.indexOf('askHire'))), '고용 문의가 판 시드를 따로 보낸다',
+      '열쇠에만 있던 것이 35/35 «다른 판» 의 원인이었다');
+    ok(/bookDay:/.test(mr.slice(mr.indexOf('askHire'))) && /bookDay: \(state\.tavern/.test(tv), '고용 문의가 목록의 생성일을 보낸다');
+    ok(/mirrorDismiss\(gone, state\.day\)/.test(co), '해고가 서버 표에도 전해진다');
+
+    /* 기능 검사 — restAtInn 이 던지지 않고 신고가 실제로 나간다 */
+    {
+      const S = await import('../src/game/state.js');
+      S.newGame(99, '검사단');
+      const got = [];
+      S.bindDayReport((o) => got.push(o));
+      const m = S.state.roster[0]; m.status = 'wounded'; m.woundUntil = S.state.day + 5; m.hp = 1;
+      let threw = null;
+      try { S.restAtInn(2); S.advanceDays(3); } catch (e) { threw = e; }
+      S.bindDayReport(null);
+      ok(!threw, 'restAtInn 이 던지지 않는다 (예전엔 maxHpOf ReferenceError 로 city.js 폴백을 탔다)', String(threw && threw.message));
+      ok(got.length === 2 && got[0].inn === true && got[0].days === 2 && got[1].inn === false && got[1].dayFrom === got[0].dayFrom + 2,
+        '여관 2일 + 3일 넘기기가 신고 두 건으로 나간다 (inn 표식 · 기준일 이어짐)', JSON.stringify(got));
+    }
+
+    /* ── §192.1 적대적 검토가 잡은 것들 ─────────────────────────────────────── */
+    /* ★★★ `trusted` 가 읽는 이름은 전부 **그 앞에** 선언돼야 한다 (TDZ). 예전엔 `rosterKnown` 이 뒤에 있었고
+     *   `inSync` 가 늘 거짓이라 단락 평가로 숨어 있다가, 시드를 보내는 순간 모든 서버 고용이 500 이 될 뻔했다.
+     *   파싱 관문은 이걸 못 본다 (실행해야 터진다). */
+    {
+      const iT = hire.indexOf('const trusted =');
+      const line = iT >= 0 ? hire.slice(iT, hire.indexOf(';', iT)) : '';
+      const ids = [...new Set([...line.matchAll(/(?<![.\w$])[A-Za-z_$][\w$]*/g)].map((m) => m[0])
+        .filter((x) => !['const', 'trusted', 'true', 'false'].includes(x)))];
+      const before = hire.slice(0, Math.max(0, iT));
+      const bad = ids.filter((id) => !new RegExp(`\\b(const|let)\\s+${id}\\b`).test(before)).map((id) => `${id} 가 trusted 뒤에 선언된다 (TDZ)`);
+      if (iT < 0) bad.push('trusted 를 못 찾았다');
+      okAll(bad, 'trusted 가 읽는 이름이 전부 그 앞에 선언돼 있다 (TDZ 없음)', Math.max(1, ids.length));
+      const BAD = hire.replace(/const rosterKnown = [^;]+;/, '') + '\nconst rosterKnown = true;';
+      const iB = BAD.indexOf('const trusted =');
+      ok(!/\b(const|let)\s+rosterKnown\b/.test(BAD.slice(0, iB)), '메타 — 선언을 뒤로 보낸 판을 실제로 잡는다');
+    }
+    ok(/const opIdH = `hr_\$\{String\(rs3\.seed \|\| 0\)\.slice\(-10\)\}_\$\{cityId\}_\$\{cliDay\}_\$\{idx\}`/.test(hire)
+      && /op_id: opIdH, kind: 'hire'/.test(hire) && /seedSrc = `\$\{opIdH\}\|/.test(hire),
+      '고용 원장 열쇠·시드는 서버가 정한다 (같은 자리·같은 날의 두 번째는 PK 가 막는다)',
+      '클라 op_id 를 그대로 쓰면 열쇠만 바꿔 한 자리에 두 번 굴린다');
+    ok(/repKnown = cliRep === 0 \|\| rep >= cliRep - REP_TOL/.test(hire) && /&& rosterKnown && repKnown;/.test(hire),
+      '서버 평판이 화면보다 낮으면 정하지 않는다 (클라 값으로 굴리지 않는다)');
+    ok(!/Math\.max\(rep, cliRep\)|Math\.max\(cliRep, rep\)/.test(hire), '평판을 max(서버, 클라) 로 굴리지 않는다 (그건 확률 구매다)');
+    ok(/rep: gate\.rep/.test(tv) && /rep: Math\.max\(0, Math\.round\(Number\(o\.rep\)/.test(mr.slice(mr.indexOf('askHire'))), '클라가 화면의 평판을 보낸다');
+    ok(/Object\.assign\(st2\.reputation, keep\)/.test(adv), '따라잡는 날들에는 평판 감쇠를 안 돌린다',
+      '돌리면 놓친 정산의 획득 없이 감쇠만 쌓여 서버 평판이 바닥까지 떨어진다');
+    ok(/const \{ data: rsF \} = await admin\.from\('run_state'\)\.select\('day, data'\)/.test(adv)
+      && /nextData = JSON\.parse\(JSON\.stringify\(rsF\.data/.test(adv) && adv.indexOf("select('day, data')") < adv.indexOf('nextData = JSON.parse'),
+      '하루 op 은 쓰기 직전에 다시 읽고 감쇠 델타만 얹는다');
+    ok(/freshMercs = await allRows\(admin, 'run_mercs', userId\)/.test(adv), '단원도 쓰기 직전에 다시 읽는다 (정산이 올린 레벨을 되돌리지 않는다)');
+    ok(!/repTouch\[cid\] = R2\(q\.day\)/.test(oc) && /repTouch\[cid\] = Math\.max\(0, Math\.round\(Number\(rsN\.day\)/.test(oc),
+      '정산의 평판 도장은 서버 날짜로 찍는다', '클라 날짜를 믿으면 먼 미래 날짜로 감쇠를 영영 막는다');
+    ok(/attempt < 2 && repDelta === null/.test(oc) && /upd2 && upd2\.length\) repDelta = delta/.test(oc), '정산 평판 쓰기는 0행이면 한 번 다시 읽어 얹는다');
+    {
+      const ss = decomment(readFileSync(join(rootDir, 'supabase/functions/submit-score/index.ts'), 'utf8'));
+      ok(/const AXES_LIVE = false;/.test(ss) && /if \(AXES_LIVE && r\.used\) score = r\.score/.test(ss) && /serverAxes\(score, srvScore/.test(ss),
+        '순위 축 교체(18단계)는 계산·관측만 하고 갈아 끼우지 않는다',
+        '서버 표는 편성·던전 성장을 몰라서 dayLag 0 이 보통이 된 지금 갈아 끼우면 정직한 계정이 C 등급으로 숨는다');
+    }
+    {
+      const R = await import('../src/game/rules.js');
+      const mk = (o = {}) => ({ rosterN: 42, rosterCap: 70, topLevel: 80, sMercs: 38, hiredN: 40,
+        sHiredDays: Array.from({ length: 38 }, (_, i) => 50 + i * 55), topPower: 166411, squadsN: 5, petsN: 3,
+        itemsN: 1372, squad: [{ n: 'a' }], squadsFull: null, gold: 1, day: 2192, ...o });
+      const cli = mk();
+      const cases = [
+        ['서버 명부 > 정원', R.serverAxes(cli, mk({ rosterN: 71 }), { dayLag: 0 })],
+        ['서버 명부 > 상한', R.serverAxes(mk({ rosterCap: 0 }), mk({ rosterN: 151, rosterCap: 0 }), { dayLag: 0 })],
+        ['서버 명부 부족', R.serverAxes(cli, mk({ rosterN: 41 }), { dayLag: 0 })],
+      ];
+      okAll(cases.filter(([, v]) => v.used).map(([n, v]) => `${n}: 갈아 끼웠다 (${v.why})`),
+        '서버 표가 정원을 넘거나 클라보다 적으면 갈아 끼우지 않는다 (A등급을 만들지 않는다)', cases.length);
+      ok(R.serverAxes(cli, mk(), { dayLag: 0 }).used === true, '메타 — 정상 짝은 여전히 갈아 끼운다 (보호막이 과하지 않다)');
+    }
+
+    /* ── 메타 — 검사가 실제로 무나 ────────────────────────────────────────── */
+    {
+      const BAD1 = adv.replace(".eq('day', srvDay)", '');
+      ok(!/\.eq\('day', srvDay\)/.test(BAD1), '메타 — 낙관 잠금을 빼면 잡는다');
+      const BAD2 = hire.replace('const goldShort', "return json({ error: '골드가 모자란다' }, 409); const goldShort");
+      ok(/골드가 모자란다/.test(BAD2), '메타 — 골드 거절을 되살리면 잡는다');
+      const BAD3 = adv.replace("kind: 'advanceDays'", "kind: 'advanceDaysX'");
+      ok(!/kind: 'advanceDays'/.test(BAD3), '메타 — 원장 종류를 바꾸면 잡는다');
+    }
+  } catch (e) {
+    ok(false, '§192 검사를 굴린다', String((e && e.stack) || e).split(String.fromCharCode(10))[0]);
   }
 }
 
@@ -10918,7 +11142,9 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
 
   /* ④ 부르는 자리 — **손으로 누르는 단발 행동만.** 늘리려면 위 주석을 먼저 읽어라.
    *   전직(§104 9단계) · 각성(§185). 둘 다 단원 하나를 사람이 눌러야 일어나고,
-   *   각성은 단원당 평생 한 번이다 — 자동판매 같은 **대량 경로가 아니다**. */
+   *   각성은 단원당 평생 한 번이다 — 자동판매 같은 **대량 경로가 아니다**.
+   *   해고(§192) — 확인 창을 지나는 손 행동이고, N 명을 골라도 **요청은 하나**다 (uids 묶음).
+   *   (하루 넘기기 거울은 `state.js` 주입으로 `app.js` 가 묶는다 — 도시·여관·이동 단추 한 번에 요청 하나.) */
   const callers = [];
   for (const f of ['company', 'inventory', 'city', 'battle', 'quests', 'tavern', 'pets']) {
     const p = join(rootDir, 'src/ui', `${f}.js`);
@@ -10926,10 +11152,10 @@ section('서버 사본을 따라오게 하는 채널 (거울)');
     const src = decomment(readFileSync(p, 'utf8'));
     for (const m of src.matchAll(/mirror([A-Z][a-zA-Z]*)\s*\(/g)) callers.push(`${f}:${m[1]}`);
   }
-  const MIRROR_OK = new Set(['company:Promote', 'company:Awaken']);
+  const MIRROR_OK = new Set(['company:Promote', 'company:Awaken', 'company:Dismiss']);
   okAll(callers.filter((c) => !MIRROR_OK.has(c))
     .map((c) => `${c} — 거울을 새로 이었다. 자동판매 같은 대량 경로가 아닌지 확인해라`),
-    '거울은 손으로 누르는 단발 행동에만 이어져 있다 (전직·각성)', callers.length || 1);
+    '거울은 손으로 누르는 단발 행동에만 이어져 있다 (전직·각성·해고)', callers.length || 1);
 
   /* ⑤ §185 각성 거울 — 열쇠가 단원 하나를 가리키고, 결과를 보지 않는다 (그림자다) */
   ok(/mirrorAwaken/.test(mir), '각성 거울이 있다');

@@ -122,9 +122,9 @@ export const REFRESH_DAYS = 3;
 /** 부상 중인 단원의 하루 자연 회복량 (maxHp 비율) */
 /* ★ RECOVER_WOUNDED 는 game/day.js 로 옮겼다 (아래에서 재수출) */
 /** 여관 휴식이 하루당 추가로 회복시키는 양 (maxHp 비율) */
-export const REST_HEAL = 0.45;
+/* ★ REST_HEAL 은 game/day.js 로 옮겼다 (아래에서 재수출) — §192 */
 /** 여관 휴식이 하루당 추가로 단축하는 부상 잔여 일수 */
-export const REST_WOUND_SPEEDUP = 1;
+/* ★ REST_WOUND_SPEEDUP 은 game/day.js 로 옮겼다 (아래에서 재수출) — §192 */
 
 /* ─────────────────────────── 도시 평판 노브 ───────────────────────────
  * 도시마다 0~300 의 평판을 갖는다. 처음 온 도시는 0 이고, **시작 도시만** START_REP 로 출발한다.
@@ -1676,23 +1676,12 @@ export function restAtInn(days = 1) {
   const before = new Map();
   for (const m of state.roster) before.set(m.uid, Math.max(0, Math.round(m.hp || 0)));
 
-  // 날짜가 흐르기 전에 부상 잔여 기간을 먼저 깎는다.
-  // 이래야 이번 advanceDays 안에서 회복 판정(state.day >= woundUntil)이 실제로 걸린다.
-  const cut = n * REST_WOUND_SPEEDUP;
-  for (const m of state.roster) {
-    if (m.status === 'wounded') m.woundUntil = Math.max(state.day, (m.woundUntil || 0) - cut);
-  }
-
-  const adv = advanceDays(n);
-
-  // 자연 회복 위에 휴식분을 얹는다.
-  const idx = itemsById();
-  for (const m of state.roster) {
-    const maxHp = maxHpOf(m, idx);
-    m.maxHp = maxHp;
-    const cur = clamp(Math.round(m.hp ?? maxHp), 1, maxHp);
-    m.hp = clamp(Math.round(cur + maxHp * REST_HEAL * n), 1, maxHp);
-  }
+  /* ★★ 계산은 `game/day.js restAtInn` **한 벌**이다 — 서버도 같은 함수를 부른다 (§192).
+   *   옛 본문은 여기 있었는데 `maxHpOf` 가 day.js 로 옮겨진 뒤 **부를 때마다 던져서**
+   *   여관이 `ui/city.js legacyRest` 폴백으로 돌고 있었다 (실측 2026-09-19). */
+  const dayFrom = Number(state.day) || 0;
+  const adv = Day.restAtInn(state, n);
+  reportDay({ dayFrom, days: adv.days, inn: true });
 
   const healed = [];
   for (const m of state.roster) {
@@ -1809,14 +1798,33 @@ export function refreshCity(cityId = state.cityId, force = false) {
 export const {
   RECOVER_READY, RECOVER_WOUNDED, BENCH_UPKEEP_MULT,
   REP_DECAY_PER_DAY, REP_DECAY_FLOOR, REP_DECAY_GRACE,
+  REST_HEAL, REST_WOUND_SPEEDUP,
 } = Day;
 
 /** 하루 총임금. **유일한 출처는 `game/day.js` 다.** */
 export function dailyUpkeep(st = state) { return Day.dailyUpkeep(st); }
 /** 한 단원이 실제로 내는 하루 임금 (대기면 할인). */
 export function upkeepOfMerc(m, st = state) { return Day.upkeepOfMerc(m, st); }
-/** 하루를 n번 넘긴다. */
-export function advanceDays(n = 1) { return Day.advanceDays(state, n); }
+
+/* ★★ 하루가 넘어간 것을 **밖에 알린다** (§192). `net/mirror.js` 가 서버 사본에 전한다.
+ *   여기서 net 을 직접 물지 않는다 — game 층은 net 을 모른다 (`bindDay`·`bindAmbient` 와 같은 주입 모양).
+ *   안 묶이면 아무 일도 안 한다 (도구·검사가 이 모듈을 그대로 쓴다). 던져도 하루는 이미 넘어갔다. */
+let _dayReport = null;
+/** `ui/app.js` 가 부팅 때 한 번 부른다. */
+export function bindDayReport(fn) { _dayReport = typeof fn === 'function' ? fn : null; }
+function reportDay(o) {
+  if (!_dayReport) return;
+  try { _dayReport({ ...o, seed: state.seed }); }
+  catch (e) { console.warn('[state] 하루 신고 실패 (게임에는 영향 없다)', e); }
+}
+
+/** 하루를 n번 넘긴다. **모든 하루 넘기기가 여기를 지난다** (도시·여관·이동) — 서버 신고도 여기서 나간다. */
+export function advanceDays(n = 1) {
+  const dayFrom = Number(state.day) || 0;
+  const out = Day.advanceDays(state, n);
+  reportDay({ dayFrom, days: out.days, inn: false });
+  return out;
+}
 /** 아이템 목록 → uid 색인. **유일한 출처는 `game/day.js` 다.** */
 export function itemsById(list = state.items) { return Day.itemsById(list); }
 

@@ -18,7 +18,7 @@
   "src/data/skills.js": "b6d55ad5",
   "src/data/tower.js": "ae48532d",
   "src/game/ambient.js": "7689dfc5",
-  "src/game/day.js": "49194cbf",
+  "src/game/day.js": "46f59841",
   "src/game/enemygen.js": "d36e8f39",
   "src/game/gear.js": "fa18cbe2",
   "src/game/itembound.js": "b415e751",
