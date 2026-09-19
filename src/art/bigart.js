@@ -82,7 +82,12 @@ export async function bigPortrait(recipe) {
     const key = `${name}|${pal.H}|${pal.h}|${pal.y}|${pal.E}|${pal.e}`;
     if (cache.has(key)) return cache.get(key);
 
-    const img = await loadImage(`art/big/${name}.png`);
+    /* ★ §193.3 원본 해상도 손실 WebP + 역할 마스크 PNG. 마스크는 무손실 원본에서 게임의 분류로 구운 것이라
+     *   WebP 의 가장자리 색 번짐과 상관없이 머리·눈이 정확히 칠해진다. (옛 항목은 file 이 없고 .png 다) */
+    const [img, maskImg] = await Promise.all([
+      loadImage(`art/big/${e.file || `${name}.png`}`),
+      e.mask ? loadImage(`art/big/${e.mask}`).catch(() => null) : Promise.resolve(null),
+    ]);
     const w = Number(e.w) || img.naturalWidth;
     const h = Number(e.h) || img.naturalHeight;
     const c = document.createElement('canvas');
@@ -91,7 +96,17 @@ export async function bigPortrait(recipe) {
     ctx.drawImage(img, 0, 0, w, h);
     if (Array.isArray(e.roles) && e.roles.length) {
       const src = ctx.getImageData(0, 0, w, h);
-      const rec = { w, h, data: src.data, eyeBox: e.eyeBox || null, marker: e.marker || null, roles: e.roles, _roles: null };
+      let roleMask = null;
+      if (maskImg) {
+        const mc = document.createElement('canvas');
+        mc.width = w; mc.height = h;
+        const mctx = mc.getContext('2d', { willReadFrequently: true });
+        mctx.drawImage(maskImg, 0, 0, w, h);
+        const md = mctx.getImageData(0, 0, w, h).data;
+        roleMask = new Uint8Array(w * h);
+        for (let p = 0; p < roleMask.length; p++) { const v = md[p * 4]; roleMask[p] = v > 191 ? 2 : (v > 63 ? 1 : 0); }
+      }
+      const rec = { w, h, data: src.data, eyeBox: e.eyeBox || null, marker: e.marker || null, roles: e.roles, roleMask, hd: true, _roles: null };
       const out = new Uint8ClampedArray(w * h * 4);
       recolorInto(out, w, h, rec, 0, colorTable(pal));
       ctx.putImageData(new ImageData(out, w, h), 0, 0);

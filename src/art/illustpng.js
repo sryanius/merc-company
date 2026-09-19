@@ -207,24 +207,32 @@ function roleStats(rec) {
   const mn = { hair: 1, eye: 1 }, mx = { hair: 0, eye: 0 };
   const lsum = { hair: 0, eye: 0 }, lmin = { hair: 1, eye: 1 }, lmax = { hair: 0, eye: 0 }, n = { hair: 0, eye: 0 };
   const role = new Uint8Array(w * h);          // 0 없음 · 1 머리 · 2 눈
+  /* ★ §193.3 **미리 계산한 역할 마스크**(`rec.roleMask`, 0·1·2)가 있으면 그것을 쓴다 — 색으로 다시 가르지 않는다.
+   *   무대용 큰 그림은 손실 WebP 라 머리 가장자리 색이 번져, 색으로 가르면 머리 픽셀 16% 가 어긋났다(실측).
+   *   마스크는 도구가 **무손실 원본**에서 이 함수로 만든다 (`roleMaskOf`). 없으면 예전과 똑같이 색으로 가른다. */
+  const mask = rec.roleMask && rec.roleMask.length === w * h ? rec.roleMask : null;
   /* 머리는 씨앗+성장 마스크. 단, 씨앗이 3단계 이하(문자 픽스처)면 성장 없이 씨앗만 — 왕복이 정확해야 한다. */
-  const hm = hairMask(w, h, data, spec);
+  const hm = mask ? null : hairMask(w, h, data, spec);
   const seedLevels = new Set();
-  for (let p = 0; p < w * h; p++) {
+  for (let p = 0; hm && p < w * h; p++) {
     if (!hm[p]) continue;
     const i = p * 4;
     if (classifyMarker(data[i], data[i + 1], data[i + 2], spec) === 'hair') seedLevels.add(Math.round(luma(data[i], data[i + 1], data[i + 2]) * 255));
     if (seedLevels.size > 3) break;
   }
-  const fixture = seedLevels.size <= 3;
+  const fixture = !mask && seedLevels.size <= 3;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const p = y * w + x;
       const i = p * 4;
       if (data[i + 3] < 8) continue;
-      let k = classifyMarker(data[i], data[i + 1], data[i + 2], spec);
-      if (k === 'eye' && !inBox(eyeBox, x, y)) k = null;
-      if (!k && hm[p] && !fixture) k = 'hair';
+      let k;
+      if (mask) k = mask[p] === 1 ? 'hair' : (mask[p] === 2 ? 'eye' : null);
+      else {
+        k = classifyMarker(data[i], data[i + 1], data[i + 2], spec);
+        if (k === 'eye' && !inBox(eyeBox, x, y)) k = null;
+        if (!k && hm[p] && !fixture) k = 'hair';
+      }
       if (!k) continue;
       role[p] = k === 'hair' ? 1 : 2;
       const L = luma(data[i], data[i + 1], data[i + 2]);
@@ -241,7 +249,8 @@ function roleStats(rec) {
   for (const k of ['hair', 'eye']) {
     if (!lv[k].size) continue;
     const levels = [...lv[k]].sort((a, b) => a - b);
-    out[k] = { min: mn[k], max: mx[k], levels, count: levels.length, lmin: lmin[k], lmax: lmax[k], lmean: lsum[k] / n[k] };
+    /* hd: 큰 그림(§193.3) — 머리·눈을 끊지 않고 연속으로 칠한다. 작은 그림(48색 도트)은 예전 그대로다 */
+    out[k] = { min: mn[k], max: mx[k], levels, count: levels.length, lmin: lmin[k], lmax: lmax[k], lmean: lsum[k] / n[k], hd: !!rec.hd };
   }
   rec._roles = { ...out, role };
   return rec._roles;
@@ -265,8 +274,9 @@ function hairColor(st, px, tbl, target) {
   }
   const l = rgb2hsl(px[0], px[1], px[2])[2];
   const span = Math.max(1e-6, st.lmax - st.lmin);
+  /* ★ §193.3 큰 그림(hd)은 **끊지 않는다** — 6단계 밴딩은 48색 도트에 맞춘 것이라 원본 해상도에선 머리가 납작한 포스터가 된다 */
   const band = Math.min(HAIR_BANDS - 1, Math.floor(((l - st.lmin) / span) * HAIR_BANDS));
-  const lb = st.lmin + ((band + 0.5) / HAIR_BANDS) * span;       // 밴드 가운데 명도
+  const lb = st.hd ? l : st.lmin + ((band + 0.5) / HAIR_BANDS) * span;       // 밴드 가운데 명도 (hd 는 원본 명도 그대로)
   const L = Math.min(0.96, Math.max(0.04, target[2] + (lb - st.lmean)));
   /* 그늘은 채도를 조금 올린다 — 같은 채도로 어둡게만 하면 탁해진다 */
   const S = Math.min(1, target[1] * (lb < st.lmean ? 1.15 : 1));
@@ -281,6 +291,8 @@ function eyeColor(st, L, tbl) {
     return st.levels.indexOf(Math.round(L * 255)) === 0 ? E : e;
   }
   const t = st.max > st.min ? (L - st.min) / (st.max - st.min) : 0.5;
+  /* §193.3 큰 그림(hd)은 두 색 사이를 **보간**한다 — 원본 해상도에서 두 색으로 끊으면 눈이 스티커처럼 납작해진다 */
+  if (st.hd) { const c = lerp(E, e, Math.max(0, Math.min(1, t))); return [Math.round(c[0]), Math.round(c[1]), Math.round(c[2])]; }
   return t < 0.5 ? E : e;
 }
 
@@ -328,6 +340,16 @@ export function registerIllustPng(name, rec) {
   if (!rec.data || rec.data.length !== rec.w * rec.h * 4) throw new Error(`illustpng: ${name} 버퍼 크기가 ${rec.w}x${rec.h} 와 다르다`);
   loaded.set(name, { ax: 0, ay: rec.h - 1, ...rec, _roles: null });
 }
+/**
+ * §193.3 이 그림의 역할 마스크 (0 없음 · 1 머리 · 2 눈) — **게임이 색칠할 때 쓰는 바로 그 분류**.
+ * 도구(tools/art/bigart.mjs)가 무손실 원본에서 불러 마스크 PNG 로 굽는다. 손으로 다시 쓰면 갈라진다.
+ * @param {{w:number,h:number,data:Uint8ClampedArray,eyeBox?:number[],marker?:object,roles?:string[]}} rec
+ * @returns {Uint8Array}
+ */
+export function roleMaskOf(rec) {
+  return roleStats({ ...rec, _roles: null }).role;
+}
+
 export const hasIllustPng = (name) => !!name && loaded.has(name);
 export const getIllustPng = (name) => (name && loaded.get(name)) || null;
 export const illustPngCount = () => loaded.size;

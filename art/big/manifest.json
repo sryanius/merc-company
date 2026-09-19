@@ -1,14 +1,14 @@
 {
  "illust_swordsman": {
-  "w": 448,
-  "h": 560,
-  "ax": 291,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 599,
+  "ay": 1130,
   "eyeBox": [
-   211,
-   54,
-   221,
-   62
+   442,
+   129,
+   458,
+   142
   ],
   "marker": {
    "hair": [
@@ -23,18 +23,20 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_swordsman.webp",
+  "mask": "illust_swordsman.mask.png"
  },
  "illust_spearman": {
-  "w": 448,
-  "h": 560,
-  "ax": 317,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 614,
+  "ay": 1136,
   "eyeBox": [
-   202,
-   61,
-   234,
-   76
+   384,
+   139,
+   446,
+   166
   ],
   "marker": {
    "hair": [
@@ -49,2225 +51,19 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_spearman.webp",
+  "mask": "illust_spearman.mask.png"
  },
  "illust_shieldman": {
-  "w": 448,
-  "h": 560,
-  "ax": 303,
-  "ay": 559,
-  "eyeBox": [
-   221,
-   55,
-   230,
-   61
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_archer": {
-  "w": 448,
-  "h": 560,
-  "ax": 71,
-  "ay": 559,
-  "eyeBox": [
-   140,
-   53,
-   150,
-   61
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_rogue": {
-  "w": 448,
-  "h": 560,
-  "ax": 153,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_apprentice": {
-  "w": 448,
-  "h": 560,
-  "ax": 145,
-  "ay": 559,
-  "eyeBox": [
-   201,
-   137,
-   241,
-   151
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_acolyte": {
-  "w": 448,
-  "h": 560,
-  "ax": 246,
-  "ay": 559,
-  "eyeBox": [
-   190,
-   61,
-   223,
-   74
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_berserker": {
-  "w": 448,
-  "h": 560,
-  "ax": 319,
-  "ay": 559,
-  "eyeBox": [
-   235,
-   56,
-   244,
-   62
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_swordmaster": {
-  "w": 448,
-  "h": 560,
-  "ax": 129,
-  "ay": 559,
-  "eyeBox": [
-   195,
-   71,
-   226,
-   86
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_dragoon": {
-  "w": 448,
-  "h": 560,
-  "ax": 313,
-  "ay": 559,
-  "eyeBox": [
-   210,
-   74,
-   217,
-   81
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_halberdier": {
-  "w": 448,
-  "h": 560,
-  "ax": 266,
-  "ay": 559,
-  "eyeBox": [
-   200,
-   62,
-   204,
-   66
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_knight": {
-  "w": 448,
-  "h": 560,
-  "ax": 163,
-  "ay": 559,
-  "eyeBox": [
-   222,
-   61,
-   251,
-   72
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_guardian": {
-  "w": 448,
-  "h": 560,
-  "ax": 340,
-  "ay": 559,
-  "eyeBox": [
-   254,
-   56,
-   263,
-   63
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_sniper": {
-  "w": 448,
-  "h": 560,
-  "ax": 319,
-  "ay": 559,
-  "eyeBox": [
-   240,
-   59,
-   250,
-   65
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_hunter": {
-  "w": 448,
-  "h": 560,
-  "ax": 316,
-  "ay": 559,
-  "eyeBox": [
-   210,
-   68,
-   217,
-   75
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_assassin": {
-  "w": 448,
-  "h": 560,
-  "ax": 317,
-  "ay": 559,
-  "eyeBox": [
-   237,
-   56,
-   245,
-   62
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_outlaw": {
-  "w": 448,
-  "h": 560,
-  "ax": 315,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_elementalist": {
-  "w": 448,
-  "h": 560,
-  "ax": 319,
-  "ay": 559,
-  "eyeBox": [
-   201,
-   74,
-   233,
-   91
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_necromancer": {
-  "w": 448,
-  "h": 560,
-  "ax": 243,
-  "ay": 559,
-  "eyeBox": [
-   171,
-   63,
-   203,
-   75
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_priest": {
-  "w": 448,
-  "h": 560,
-  "ax": 227,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_monk": {
-  "w": 448,
-  "h": 560,
-  "ax": 376,
-  "ay": 559,
-  "eyeBox": [
-   176,
-   85,
-   199,
-   99
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_madgeneral": {
-  "w": 448,
-  "h": 560,
-  "ax": 101,
-  "ay": 559,
-  "eyeBox": [
-   165,
-   55,
-   195,
-   71
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bloodfiend": {
-  "w": 448,
-  "h": 560,
-  "ax": 296,
-  "ay": 559,
-  "eyeBox": [
-   184,
-   71,
-   222,
-   89
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_swordgod": {
-  "w": 448,
-  "h": 560,
-  "ax": 325,
-  "ay": 559,
-  "eyeBox": [
-   228,
-   61,
-   254,
-   75
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skysplitter": {
-  "w": 448,
-  "h": 560,
-  "ax": 307,
-  "ay": 559,
-  "eyeBox": [
-   222,
-   52,
-   229,
-   58
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_dragoonlord": {
-  "w": 448,
-  "h": 560,
-  "ax": 333,
-  "ay": 559,
-  "eyeBox": [
-   235,
-   55,
-   244,
-   64
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skylancer": {
-  "w": 448,
-  "h": 560,
-  "ax": 143,
-  "ay": 559,
-  "eyeBox": [
-   191,
-   88,
-   228,
-   99
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_gatewarden": {
-  "w": 448,
-  "h": 560,
-  "ax": 42,
-  "ay": 559,
-  "eyeBox": [
-   199,
-   86,
-   229,
-   97
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_reaper": {
-  "w": 448,
-  "h": 560,
-  "ax": 242,
-  "ay": 559,
-  "eyeBox": [
-   140,
-   102,
-   204,
-   109
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_paladin": {
-  "w": 448,
-  "h": 560,
-  "ax": 193,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_blackknight": {
-  "w": 448,
-  "h": 560,
-  "ax": 302,
-  "ay": 559,
-  "eyeBox": [
-   178,
-   52,
-   223,
-   125
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bulwark": {
-  "w": 448,
-  "h": 560,
-  "ax": 8,
-  "ay": 559,
-  "eyeBox": [
-   202,
-   52,
-   233,
-   70
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_oathshield": {
-  "w": 448,
-  "h": 560,
-  "ax": 322,
-  "ay": 559,
-  "eyeBox": [
-   239,
-   67,
-   279,
-   85
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_masterarcher": {
-  "w": 448,
-  "h": 560,
-  "ax": 300,
-  "ay": 559,
-  "eyeBox": [
-   188,
-   69,
-   198,
-   78
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_shadowarcher": {
-  "w": 448,
-  "h": 560,
-  "ax": 241,
-  "ay": 559,
-  "eyeBox": [
-   255,
-   58,
-   263,
-   65
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_beastlord": {
-  "w": 448,
-  "h": 560,
-  "ax": 236,
-  "ay": 559,
-  "eyeBox": [
-   307,
-   205,
-   370,
-   226
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_spiritranger": {
-  "w": 448,
-  "h": 560,
-  "ax": 301,
-  "ay": 559,
-  "eyeBox": [
-   232,
-   84,
-   267,
-   93
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_shadowblade": {
-  "w": 448,
-  "h": 560,
-  "ax": 269,
-  "ay": 559,
-  "eyeBox": [
-   202,
-   66,
-   240,
-   77
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_venomfang": {
-  "w": 448,
-  "h": 560,
-  "ax": 298,
-  "ay": 559,
-  "eyeBox": [
-   165,
-   56,
-   175,
-   64
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_banditking": {
-  "w": 448,
-  "h": 560,
-  "ax": 295,
-  "ay": 559,
-  "eyeBox": [
-   196,
-   74,
-   232,
-   83
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bladedancer": {
-  "w": 448,
-  "h": 560,
-  "ax": 87,
-  "ay": 559,
-  "eyeBox": [
-   144,
-   61,
-   173,
-   74
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_archmage": {
-  "w": 448,
-  "h": 560,
-  "ax": 181,
-  "ay": 559,
-  "eyeBox": [
-   166,
-   109,
-   174,
-   116
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_stormcaller": {
-  "w": 448,
-  "h": 560,
-  "ax": 274,
-  "ay": 559,
-  "eyeBox": [
-   223,
-   86,
-   257,
-   100
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_lichlord": {
-  "w": 448,
-  "h": 560,
-  "ax": 147,
-  "ay": 559,
-  "eyeBox": [
-   234,
-   82,
-   242,
-   88
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_plaguelord": {
-  "w": 448,
-  "h": 560,
-  "ax": 234,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_highpriest": {
-  "w": 448,
-  "h": 560,
-  "ax": 315,
-  "ay": 559,
-  "eyeBox": [
-   198,
-   84,
-   228,
-   98
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_inquisitor": {
-  "w": 448,
-  "h": 560,
-  "ax": 172,
-  "ay": 559,
-  "eyeBox": [
-   183,
-   71,
-   210,
-   87
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_arhat": {
-  "w": 448,
-  "h": 560,
-  "ax": 260,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_fallenmonk": {
-  "w": 448,
-  "h": 560,
-  "ax": 63,
-  "ay": 559,
-  "eyeBox": [
-   97,
-   53,
-   152,
-   65
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_madgeneral_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 174,
-  "ay": 559,
-  "eyeBox": [
-   174,
-   59,
-   209,
-   74
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_madgeneral_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 262,
-  "ay": 559,
-  "eyeBox": [
-   119,
-   84,
-   128,
-   92
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bloodfiend_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 269,
-  "ay": 559,
-  "eyeBox": [
-   212,
-   56,
-   244,
-   70
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bloodfiend_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 318,
-  "ay": 559,
-  "eyeBox": [
-   211,
-   65,
-   241,
-   83
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_swordgod_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 309,
-  "ay": 559,
-  "eyeBox": [
-   208,
-   57,
-   242,
-   69
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_swordgod_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 242,
-  "ay": 559,
-  "eyeBox": [
-   190,
-   58,
-   197,
-   65
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skysplitter_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 309,
-  "ay": 559,
-  "eyeBox": [
-   165,
-   104,
-   201,
-   114
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skysplitter_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 303,
-  "ay": 559,
-  "eyeBox": [
-   194,
-   51,
-   221,
-   70
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_dragoonlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 259,
-  "ay": 559,
-  "eyeBox": [
-   244,
-   180,
-   250,
-   187
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_dragoonlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 270,
-  "ay": 559,
-  "eyeBox": [
-   242,
-   142,
-   286,
-   154
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skylancer_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 310,
-  "ay": 559,
-  "eyeBox": [
-   204,
-   80,
-   234,
-   94
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_skylancer_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 273,
-  "ay": 559,
-  "eyeBox": [
-   213,
-   95,
-   241,
-   108
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_gatewarden_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 174,
-  "ay": 559,
-  "eyeBox": [
-   175,
-   57,
-   206,
-   71
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_gatewarden_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 266,
-  "ay": 559,
-  "eyeBox": [
-   182,
-   74,
-   209,
-   89
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_reaper_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 210,
-  "ay": 559,
-  "eyeBox": [
-   219,
-   79,
-   249,
-   94
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_reaper_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 121,
-  "ay": 559,
-  "eyeBox": [
-   189,
-   50,
-   214,
-   65
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_paladin_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 223,
-  "ay": 559,
-  "eyeBox": [
-   215,
-   120,
-   241,
-   125
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_paladin_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 228,
-  "ay": 559,
-  "eyeBox": [
-   233,
-   120,
-   237,
-   124
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_blackknight_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 189,
-  "ay": 559,
-  "eyeBox": [
-   180,
-   58,
-   353,
-   156
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_blackknight_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 222,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_bulwark_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 305,
-  "ay": 559,
-  "eyeBox": [
-   194,
-   70,
-   230,
-   86
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bulwark_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 303,
-  "ay": 559,
-  "eyeBox": [
-   188,
-   25,
-   197,
-   35
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_oathshield_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 321,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_oathshield_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 176,
-  "ay": 559,
-  "eyeBox": [
-   187,
-   64,
-   196,
-   71
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_masterarcher_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 153,
-  "ay": 559,
-  "eyeBox": [
-   166,
-   65,
-   196,
-   78
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_masterarcher_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 240,
-  "ay": 559,
-  "eyeBox": null,
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair"
-  ]
- },
- "illust_shadowarcher_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 316,
-  "ay": 559,
-  "eyeBox": [
-   233,
-   60,
-   241,
-   67
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_shadowarcher_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 187,
-  "ay": 559,
-  "eyeBox": [
-   173,
-   58,
-   259,
-   107
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_beastlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 390,
-  "ay": 559,
-  "eyeBox": [
-   199,
-   82,
-   236,
-   101
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_beastlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 384,
-  "ay": 559,
-  "eyeBox": [
-   146,
-   105,
-   186,
-   120
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_spiritranger_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 178,
-  "ay": 559,
-  "eyeBox": [
-   160,
-   65,
-   190,
-   80
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_spiritranger_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 278,
-  "ay": 559,
-  "eyeBox": [
-   209,
-   67,
-   242,
-   81
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_shadowblade_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 296,
-  "ay": 559,
-  "eyeBox": [
-   222,
-   87,
-   259,
-   101
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_shadowblade_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 315,
-  "ay": 559,
-  "eyeBox": [
-   176,
-   55,
-   238,
-   107
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_venomfang_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 352,
-  "ay": 559,
-  "eyeBox": [
-   189,
-   65,
-   193,
-   69
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_venomfang_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 119,
-  "ay": 559,
-  "eyeBox": [
-   153,
-   53,
-   213,
-   86
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_banditking_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 383,
-  "ay": 559,
-  "eyeBox": [
-   232,
-   55,
-   240,
-   60
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_banditking_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 297,
-  "ay": 559,
-  "eyeBox": [
-   197,
-   106,
-   229,
-   115
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bladedancer_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 310,
-  "ay": 559,
-  "eyeBox": [
-   192,
-   65,
-   225,
-   82
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_bladedancer_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 232,
-  "ay": 559,
-  "eyeBox": [
-   169,
-   46,
-   194,
-   57
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_archmage_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 225,
-  "ay": 559,
-  "eyeBox": [
-   212,
-   137,
-   240,
+  "w": 896,
+  "h": 1152,
+  "ax": 604,
+  "ay": 1125,
+  "eyeBox": [
+   400,
+   130,
+   460,
    147
   ],
   "marker": {
@@ -2283,18 +79,2402 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_shieldman.webp",
+  "mask": "illust_shieldman.mask.png"
+ },
+ "illust_archer": {
+  "w": 896,
+  "h": 1152,
+  "ax": 231,
+  "ay": 1131,
+  "eyeBox": [
+   370,
+   135,
+   385,
+   149
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_archer.webp",
+  "mask": "illust_archer.mask.png"
+ },
+ "illust_rogue": {
+  "w": 896,
+  "h": 1152,
+  "ax": 391,
+  "ay": 1109,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_rogue.webp",
+  "mask": "illust_rogue.mask.png"
+ },
+ "illust_apprentice": {
+  "w": 896,
+  "h": 1152,
+  "ax": 310,
+  "ay": 1099,
+  "eyeBox": [
+   419,
+   286,
+   494,
+   309
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_apprentice.webp",
+  "mask": "illust_apprentice.mask.png"
+ },
+ "illust_acolyte": {
+  "w": 896,
+  "h": 1152,
+  "ax": 506,
+  "ay": 1132,
+  "eyeBox": [
+   388,
+   145,
+   458,
+   170
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_acolyte.webp",
+  "mask": "illust_acolyte.mask.png"
+ },
+ "illust_berserker": {
+  "w": 896,
+  "h": 1152,
+  "ax": 608,
+  "ay": 1125,
+  "eyeBox": [
+   444,
+   131,
+   457,
+   137
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_berserker.webp",
+  "mask": "illust_berserker.mask.png"
+ },
+ "illust_swordmaster": {
+  "w": 896,
+  "h": 1152,
+  "ax": 304,
+  "ay": 1100,
+  "eyeBox": [
+   235,
+   182,
+   485,
+   335
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_swordmaster.webp",
+  "mask": "illust_swordmaster.mask.png"
+ },
+ "illust_dragoon": {
+  "w": 896,
+  "h": 1152,
+  "ax": 616,
+  "ay": 1106,
+  "eyeBox": [
+   425,
+   196,
+   434,
+   205
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_dragoon.webp",
+  "mask": "illust_dragoon.mask.png"
+ },
+ "illust_halberdier": {
+  "w": 896,
+  "h": 1152,
+  "ax": 529,
+  "ay": 1133,
+  "eyeBox": [
+   351,
+   140,
+   404,
+   159
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_halberdier.webp",
+  "mask": "illust_halberdier.mask.png"
+ },
+ "illust_knight": {
+  "w": 896,
+  "h": 1152,
+  "ax": 313,
+  "ay": 1115,
+  "eyeBox": [
+   424,
+   164,
+   480,
+   186
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_knight.webp",
+  "mask": "illust_knight.mask.png"
+ },
+ "illust_guardian": {
+  "w": 896,
+  "h": 1152,
+  "ax": 601,
+  "ay": 1125,
+  "eyeBox": [
+   432,
+   137,
+   447,
+   152
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_guardian.webp",
+  "mask": "illust_guardian.mask.png"
+ },
+ "illust_sniper": {
+  "w": 896,
+  "h": 1152,
+  "ax": 610,
+  "ay": 1127,
+  "eyeBox": [
+   458,
+   137,
+   474,
+   146
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_sniper.webp",
+  "mask": "illust_sniper.mask.png"
+ },
+ "illust_hunter": {
+  "w": 896,
+  "h": 1152,
+  "ax": 602,
+  "ay": 1124,
+  "eyeBox": [
+   396,
+   158,
+   407,
+   169
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_hunter.webp",
+  "mask": "illust_hunter.mask.png"
+ },
+ "illust_assassin": {
+  "w": 896,
+  "h": 1152,
+  "ax": 610,
+  "ay": 1123,
+  "eyeBox": [
+   455,
+   132,
+   468,
+   142
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_assassin.webp",
+  "mask": "illust_assassin.mask.png"
+ },
+ "illust_outlaw": {
+  "w": 896,
+  "h": 1152,
+  "ax": 617,
+  "ay": 1137,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_outlaw.webp",
+  "mask": "illust_outlaw.mask.png"
+ },
+ "illust_elementalist": {
+  "w": 896,
+  "h": 1152,
+  "ax": 626,
+  "ay": 1129,
+  "eyeBox": [
+   390,
+   154,
+   453,
+   183
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_elementalist.webp",
+  "mask": "illust_elementalist.mask.png"
+ },
+ "illust_necromancer": {
+  "w": 896,
+  "h": 1152,
+  "ax": 564,
+  "ay": 1128,
+  "eyeBox": [
+   425,
+   163,
+   485,
+   184
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_necromancer.webp",
+  "mask": "illust_necromancer.mask.png"
+ },
+ "illust_priest": {
+  "w": 896,
+  "h": 1152,
+  "ax": 456,
+  "ay": 1144,
+  "eyeBox": [
+   458,
+   166,
+   464,
+   172
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_priest.webp",
+  "mask": "illust_priest.mask.png"
+ },
+ "illust_monk": {
+  "w": 896,
+  "h": 1152,
+  "ax": 758,
+  "ay": 1137,
+  "eyeBox": [
+   354,
+   176,
+   399,
+   202
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_monk.webp",
+  "mask": "illust_monk.mask.png"
+ },
+ "illust_madgeneral": {
+  "w": 896,
+  "h": 1152,
+  "ax": 227,
+  "ay": 1133,
+  "eyeBox": [
+   353,
+   147,
+   530,
+   266
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_madgeneral.webp",
+  "mask": "illust_madgeneral.mask.png"
+ },
+ "illust_bloodfiend": {
+  "w": 896,
+  "h": 1152,
+  "ax": 607,
+  "ay": 1133,
+  "eyeBox": [
+   348,
+   149,
+   454,
+   255
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bloodfiend.webp",
+  "mask": "illust_bloodfiend.mask.png"
+ },
+ "illust_swordgod": {
+  "w": 896,
+  "h": 1152,
+  "ax": 603,
+  "ay": 1123,
+  "eyeBox": [
+   413,
+   142,
+   468,
+   166
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_swordgod.webp",
+  "mask": "illust_swordgod.mask.png"
+ },
+ "illust_skysplitter": {
+  "w": 896,
+  "h": 1152,
+  "ax": 601,
+  "ay": 1130,
+  "eyeBox": [
+   434,
+   126,
+   445,
+   134
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skysplitter.webp",
+  "mask": "illust_skysplitter.mask.png"
+ },
+ "illust_dragoonlord": {
+  "w": 896,
+  "h": 1152,
+  "ax": 633,
+  "ay": 1127,
+  "eyeBox": [
+   438,
+   132,
+   455,
+   146
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_dragoonlord.webp",
+  "mask": "illust_dragoonlord.mask.png"
+ },
+ "illust_skylancer": {
+  "w": 896,
+  "h": 1152,
+  "ax": 278,
+  "ay": 1121,
+  "eyeBox": [
+   377,
+   171,
+   448,
+   191
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skylancer.webp",
+  "mask": "illust_skylancer.mask.png"
+ },
+ "illust_gatewarden": {
+  "w": 896,
+  "h": 1152,
+  "ax": 92,
+  "ay": 1130,
+  "eyeBox": [
+   408,
+   186,
+   467,
+   204
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_gatewarden.webp",
+  "mask": "illust_gatewarden.mask.png"
+ },
+ "illust_reaper": {
+  "w": 896,
+  "h": 1152,
+  "ax": 475,
+  "ay": 1118,
+  "eyeBox": [
+   278,
+   223,
+   402,
+   314
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_reaper.webp",
+  "mask": "illust_reaper.mask.png"
+ },
+ "illust_paladin": {
+  "w": 896,
+  "h": 1152,
+  "ax": 401,
+  "ay": 1114,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_paladin.webp",
+  "mask": "illust_paladin.mask.png"
+ },
+ "illust_blackknight": {
+  "w": 896,
+  "h": 1152,
+  "ax": 610,
+  "ay": 1135,
+  "eyeBox": [
+   361,
+   127,
+   540,
+   292
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_blackknight.webp",
+  "mask": "illust_blackknight.mask.png"
+ },
+ "illust_bulwark": {
+  "w": 896,
+  "h": 1152,
+  "ax": 0,
+  "ay": 1141,
+  "eyeBox": [
+   391,
+   128,
+   450,
+   160
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bulwark.webp",
+  "mask": "illust_bulwark.mask.png"
+ },
+ "illust_oathshield": {
+  "w": 896,
+  "h": 1152,
+  "ax": 586,
+  "ay": 1118,
+  "eyeBox": [
+   430,
+   183,
+   503,
+   214
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_oathshield.webp",
+  "mask": "illust_oathshield.mask.png"
+ },
+ "illust_masterarcher": {
+  "w": 896,
+  "h": 1152,
+  "ax": 629,
+  "ay": 1151,
+  "eyeBox": [
+   398,
+   136,
+   415,
+   151
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_masterarcher.webp",
+  "mask": "illust_masterarcher.mask.png"
+ },
+ "illust_shadowarcher": {
+  "w": 896,
+  "h": 1152,
+  "ax": 436,
+  "ay": 1117,
+  "eyeBox": [
+   464,
+   132,
+   477,
+   142
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowarcher.webp",
+  "mask": "illust_shadowarcher.mask.png"
+ },
+ "illust_beastlord": {
+  "w": 896,
+  "h": 1152,
+  "ax": 461,
+  "ay": 1123,
+  "eyeBox": [
+   607,
+   414,
+   727,
+   457
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_beastlord.webp",
+  "mask": "illust_beastlord.mask.png"
+ },
+ "illust_spiritranger": {
+  "w": 896,
+  "h": 1152,
+  "ax": 561,
+  "ay": 1140,
+  "eyeBox": [
+   424,
+   173,
+   490,
+   189
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_spiritranger.webp",
+  "mask": "illust_spiritranger.mask.png"
+ },
+ "illust_shadowblade": {
+  "w": 896,
+  "h": 1152,
+  "ax": 547,
+  "ay": 1134,
+  "eyeBox": [
+   415,
+   152,
+   487,
+   170
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowblade.webp",
+  "mask": "illust_shadowblade.mask.png"
+ },
+ "illust_venomfang": {
+  "w": 896,
+  "h": 1152,
+  "ax": 626,
+  "ay": 1110,
+  "eyeBox": [
+   372,
+   142,
+   387,
+   153
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_venomfang.webp",
+  "mask": "illust_venomfang.mask.png"
+ },
+ "illust_banditking": {
+  "w": 896,
+  "h": 1152,
+  "ax": 608,
+  "ay": 1099,
+  "eyeBox": [
+   421,
+   187,
+   488,
+   202
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_banditking.webp",
+  "mask": "illust_banditking.mask.png"
+ },
+ "illust_bladedancer": {
+  "w": 896,
+  "h": 1152,
+  "ax": 225,
+  "ay": 1132,
+  "eyeBox": [
+   340,
+   138,
+   430,
+   178
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bladedancer.webp",
+  "mask": "illust_bladedancer.mask.png"
+ },
+ "illust_archmage": {
+  "w": 896,
+  "h": 1152,
+  "ax": 379,
+  "ay": 1132,
+  "eyeBox": [
+   350,
+   209,
+   400,
+   234
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_archmage.webp",
+  "mask": "illust_archmage.mask.png"
+ },
+ "illust_stormcaller": {
+  "w": 896,
+  "h": 1152,
+  "ax": 548,
+  "ay": 1117,
+  "eyeBox": [
+   448,
+   180,
+   514,
+   206
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_stormcaller.webp",
+  "mask": "illust_stormcaller.mask.png"
+ },
+ "illust_lichlord": {
+  "w": 896,
+  "h": 1152,
+  "ax": 309,
+  "ay": 1075,
+  "eyeBox": [
+   477,
+   159,
+   489,
+   167
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_lichlord.webp",
+  "mask": "illust_lichlord.mask.png"
+ },
+ "illust_plaguelord": {
+  "w": 896,
+  "h": 1152,
+  "ax": 474,
+  "ay": 1112,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_plaguelord.webp",
+  "mask": "illust_plaguelord.mask.png"
+ },
+ "illust_highpriest": {
+  "w": 896,
+  "h": 1152,
+  "ax": 630,
+  "ay": 1119,
+  "eyeBox": [
+   400,
+   179,
+   455,
+   201
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_highpriest.webp",
+  "mask": "illust_highpriest.mask.png"
+ },
+ "illust_inquisitor": {
+  "w": 896,
+  "h": 1152,
+  "ax": 339,
+  "ay": 1118,
+  "eyeBox": [
+   360,
+   156,
+   412,
+   185
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_inquisitor.webp",
+  "mask": "illust_inquisitor.mask.png"
+ },
+ "illust_arhat": {
+  "w": 896,
+  "h": 1152,
+  "ax": 474,
+  "ay": 1135,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_arhat.webp",
+  "mask": "illust_arhat.mask.png"
+ },
+ "illust_fallenmonk": {
+  "w": 896,
+  "h": 1152,
+  "ax": 185,
+  "ay": 1096,
+  "eyeBox": [
+   251,
+   123,
+   354,
+   142
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_fallenmonk.webp",
+  "mask": "illust_fallenmonk.mask.png"
+ },
+ "illust_madgeneral_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 348,
+  "ay": 1119,
+  "eyeBox": [
+   350,
+   149,
+   415,
+   174
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_madgeneral_apex.webp",
+  "mask": "illust_madgeneral_apex.mask.png"
+ },
+ "illust_madgeneral_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 537,
+  "ay": 1105,
+  "eyeBox": [
+   233,
+   196,
+   281,
+   234
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_madgeneral_abyss.webp",
+  "mask": "illust_madgeneral_abyss.mask.png"
+ },
+ "illust_bloodfiend_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 534,
+  "ay": 1129,
+  "eyeBox": [
+   422,
+   134,
+   483,
+   159
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bloodfiend_apex.webp",
+  "mask": "illust_bloodfiend_apex.mask.png"
+ },
+ "illust_bloodfiend_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 614,
+  "ay": 1131,
+  "eyeBox": [
+   400,
+   129,
+   457,
+   162
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bloodfiend_abyss.webp",
+  "mask": "illust_bloodfiend_abyss.mask.png"
+ },
+ "illust_swordgod_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 609,
+  "ay": 1134,
+  "eyeBox": [
+   409,
+   134,
+   473,
+   154
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_swordgod_apex.webp",
+  "mask": "illust_swordgod_apex.mask.png"
+ },
+ "illust_swordgod_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 485,
+  "ay": 1121,
+  "eyeBox": [
+   384,
+   132,
+   395,
+   143
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_swordgod_abyss.webp",
+  "mask": "illust_swordgod_abyss.mask.png"
+ },
+ "illust_skysplitter_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 621,
+  "ay": 1125,
+  "eyeBox": [
+   334,
+   210,
+   409,
+   225
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skysplitter_apex.webp",
+  "mask": "illust_skysplitter_apex.mask.png"
+ },
+ "illust_skysplitter_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 610,
+  "ay": 1136,
+  "eyeBox": [
+   395,
+   128,
+   445,
+   161
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skysplitter_abyss.webp",
+  "mask": "illust_skysplitter_abyss.mask.png"
+ },
+ "illust_dragoonlord_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 513,
+  "ay": 1123,
+  "eyeBox": [
+   485,
+   355,
+   495,
+   365
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_dragoonlord_apex.webp",
+  "mask": "illust_dragoonlord_apex.mask.png"
+ },
+ "illust_dragoonlord_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 544,
+  "ay": 1109,
+  "eyeBox": [
+   494,
+   304,
+   574,
+   329
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_dragoonlord_abyss.webp",
+  "mask": "illust_dragoonlord_abyss.mask.png"
+ },
+ "illust_skylancer_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 603,
+  "ay": 1123,
+  "eyeBox": [
+   393,
+   167,
+   451,
+   194
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skylancer_apex.webp",
+  "mask": "illust_skylancer_apex.mask.png"
+ },
+ "illust_skylancer_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 541,
+  "ay": 1133,
+  "eyeBox": [
+   417,
+   175,
+   472,
+   199
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_skylancer_abyss.webp",
+  "mask": "illust_skylancer_abyss.mask.png"
+ },
+ "illust_gatewarden_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 351,
+  "ay": 1117,
+  "eyeBox": [
+   355,
+   145,
+   412,
+   243
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_gatewarden_abyss.webp",
+  "mask": "illust_gatewarden_abyss.mask.png"
+ },
+ "illust_gatewarden_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 531,
+  "ay": 1134,
+  "eyeBox": [
+   236,
+   145,
+   414,
+   283
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_gatewarden_apex.webp",
+  "mask": "illust_gatewarden_apex.mask.png"
+ },
+ "illust_reaper_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 400,
+  "ay": 1139,
+  "eyeBox": [
+   421,
+   180,
+   476,
+   207
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_reaper_apex.webp",
+  "mask": "illust_reaper_apex.mask.png"
+ },
+ "illust_reaper_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 234,
+  "ay": 1117,
+  "eyeBox": [
+   289,
+   133,
+   417,
+   168
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_reaper_abyss.webp",
+  "mask": "illust_reaper_abyss.mask.png"
+ },
+ "illust_paladin_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 430,
+  "ay": 1147,
+  "eyeBox": [
+   413,
+   235,
+   465,
+   244
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_paladin_apex.webp",
+  "mask": "illust_paladin_apex.mask.png"
+ },
+ "illust_paladin_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 445,
+  "ay": 1122,
+  "eyeBox": [
+   460,
+   224,
+   465,
+   232
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_paladin_abyss.webp",
+  "mask": "illust_paladin_abyss.mask.png"
+ },
+ "illust_blackknight_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 364,
+  "ay": 1111,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_blackknight_apex.webp",
+  "mask": "illust_blackknight_apex.mask.png"
+ },
+ "illust_blackknight_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 442,
+  "ay": 1133,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_blackknight_abyss.webp",
+  "mask": "illust_blackknight_abyss.mask.png"
+ },
+ "illust_bulwark_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 609,
+  "ay": 1124,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_bulwark_abyss.webp",
+  "mask": "illust_bulwark_abyss.mask.png"
+ },
+ "illust_bulwark_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 603,
+  "ay": 1116,
+  "eyeBox": [
+   387,
+   90,
+   401,
+   115
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bulwark_apex.webp",
+  "mask": "illust_bulwark_apex.mask.png"
+ },
+ "illust_oathshield_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 621,
+  "ay": 1125,
+  "eyeBox": [
+   368,
+   162,
+   372,
+   166
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_oathshield_abyss.webp",
+  "mask": "illust_oathshield_abyss.mask.png"
+ },
+ "illust_oathshield_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 338,
+  "ay": 1109,
+  "eyeBox": [
+   361,
+   152,
+   505,
+   246
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_oathshield_apex.webp",
+  "mask": "illust_oathshield_apex.mask.png"
+ },
+ "illust_masterarcher_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 344,
+  "ay": 1115,
+  "eyeBox": [
+   370,
+   136,
+   428,
+   160
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_masterarcher_apex.webp",
+  "mask": "illust_masterarcher_apex.mask.png"
+ },
+ "illust_masterarcher_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 480,
+  "ay": 1123,
+  "eyeBox": null,
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair"
+  ],
+  "file": "illust_masterarcher_abyss.webp",
+  "mask": "illust_masterarcher_abyss.mask.png"
+ },
+ "illust_shadowarcher_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 610,
+  "ay": 1123,
+  "eyeBox": [
+   449,
+   138,
+   462,
+   148
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowarcher_apex.webp",
+  "mask": "illust_shadowarcher_apex.mask.png"
+ },
+ "illust_shadowarcher_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 375,
+  "ay": 1128,
+  "eyeBox": [
+   349,
+   149,
+   521,
+   251
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowarcher_abyss.webp",
+  "mask": "illust_shadowarcher_abyss.mask.png"
+ },
+ "illust_beastlord_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 781,
+  "ay": 1137,
+  "eyeBox": [
+   392,
+   163,
+   464,
+   197
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_beastlord_apex.webp",
+  "mask": "illust_beastlord_apex.mask.png"
+ },
+ "illust_beastlord_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 782,
+  "ay": 1139,
+  "eyeBox": [
+   302,
+   211,
+   377,
+   234
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_beastlord_abyss.webp",
+  "mask": "illust_beastlord_abyss.mask.png"
+ },
+ "illust_spiritranger_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 373,
+  "ay": 1116,
+  "eyeBox": [
+   307,
+   143,
+   396,
+   206
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_spiritranger_apex.webp",
+  "mask": "illust_spiritranger_apex.mask.png"
+ },
+ "illust_spiritranger_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 568,
+  "ay": 1135,
+  "eyeBox": [
+   432,
+   156,
+   496,
+   183
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_spiritranger_abyss.webp",
+  "mask": "illust_spiritranger_abyss.mask.png"
+ },
+ "illust_shadowblade_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 570,
+  "ay": 1132,
+  "eyeBox": [
+   421,
+   172,
+   493,
+   198
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowblade_apex.webp",
+  "mask": "illust_shadowblade_apex.mask.png"
+ },
+ "illust_shadowblade_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 617,
+  "ay": 1127,
+  "eyeBox": [
+   342,
+   131,
+   461,
+   230
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_shadowblade_abyss.webp",
+  "mask": "illust_shadowblade_abyss.mask.png"
+ },
+ "illust_venomfang_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 705,
+  "ay": 1106,
+  "eyeBox": [
+   387,
+   138,
+   392,
+   142
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_venomfang_apex.webp",
+  "mask": "illust_venomfang_apex.mask.png"
+ },
+ "illust_venomfang_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 225,
+  "ay": 1132,
+  "eyeBox": [
+   149,
+   135,
+   409,
+   263
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_venomfang_abyss.webp",
+  "mask": "illust_venomfang_abyss.mask.png"
+ },
+ "illust_banditking_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 768,
+  "ay": 1137,
+  "eyeBox": [
+   469,
+   138,
+   482,
+   145
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_banditking_apex.webp",
+  "mask": "illust_banditking_apex.mask.png"
+ },
+ "illust_banditking_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 597,
+  "ay": 1121,
+  "eyeBox": [
+   402,
+   231,
+   464,
+   245
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_banditking_abyss.webp",
+  "mask": "illust_banditking_abyss.mask.png"
+ },
+ "illust_bladedancer_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 609,
+  "ay": 1137,
+  "eyeBox": [
+   301,
+   139,
+   436,
+   270
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bladedancer_apex.webp",
+  "mask": "illust_bladedancer_apex.mask.png"
+ },
+ "illust_bladedancer_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 461,
+  "ay": 1113,
+  "eyeBox": [
+   339,
+   113,
+   387,
+   132
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_bladedancer_abyss.webp",
+  "mask": "illust_bladedancer_abyss.mask.png"
+ },
+ "illust_archmage_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 449,
+  "ay": 1143,
+  "eyeBox": [
+   424,
+   277,
+   478,
+   293
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_archmage_apex.webp",
+  "mask": "illust_archmage_apex.mask.png"
  },
  "illust_archmage_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 226,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 464,
+  "ay": 1130,
   "eyeBox": [
-   179,
-   74,
-   209,
-   84
+   371,
+   150,
+   429,
+   167
   ],
   "marker": {
    "hair": [
@@ -2309,18 +2489,20 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_archmage_abyss.webp",
+  "mask": "illust_archmage_abyss.mask.png"
  },
  "illust_stormcaller_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 257,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 523,
+  "ay": 1106,
   "eyeBox": [
-   170,
-   66,
-   200,
-   77
+   358,
+   162,
+   412,
+   185
   ],
   "marker": {
    "hair": [
@@ -2335,13 +2517,15 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_stormcaller_apex.webp",
+  "mask": "illust_stormcaller_apex.mask.png"
  },
  "illust_stormcaller_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 166,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 332,
+  "ay": 1136,
   "eyeBox": null,
   "marker": {
    "hair": [
@@ -2355,18 +2539,20 @@
   },
   "roles": [
    "hair"
-  ]
+  ],
+  "file": "illust_stormcaller_abyss.webp",
+  "mask": "illust_stormcaller_abyss.mask.png"
  },
  "illust_lichlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 325,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 658,
+  "ay": 1125,
   "eyeBox": [
-   238,
-   80,
-   242,
-   86
+   479,
+   163,
+   491,
+   173
   ],
   "marker": {
    "hair": [
@@ -2381,18 +2567,20 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_lichlord_apex.webp",
+  "mask": "illust_lichlord_apex.mask.png"
  },
  "illust_lichlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 265,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 518,
+  "ay": 1125,
   "eyeBox": [
-   177,
-   50,
-   209,
-   72
+   348,
+   134,
+   406,
+   173
   ],
   "marker": {
    "hair": [
@@ -2407,13 +2595,183 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_lichlord_abyss.webp",
+  "mask": "illust_lichlord_abyss.mask.png"
  },
  "illust_plaguelord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 154,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 307,
+  "ay": 1098,
+  "eyeBox": [
+   362,
+   211,
+   409,
+   313
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_plaguelord_apex.webp",
+  "mask": "illust_plaguelord_apex.mask.png"
+ },
+ "illust_plaguelord_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 575,
+  "ay": 1115,
+  "eyeBox": [
+   309,
+   134,
+   407,
+   454
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_plaguelord_abyss.webp",
+  "mask": "illust_plaguelord_abyss.mask.png"
+ },
+ "illust_highpriest_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 460,
+  "ay": 1123,
+  "eyeBox": [
+   309,
+   258,
+   325,
+   270
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_highpriest_abyss.webp",
+  "mask": "illust_highpriest_abyss.mask.png"
+ },
+ "illust_highpriest_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 428,
+  "ay": 1133,
+  "eyeBox": [
+   420,
+   234,
+   473,
+   252
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_highpriest_apex.webp",
+  "mask": "illust_highpriest_apex.mask.png"
+ },
+ "illust_inquisitor_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 324,
+  "ay": 1113,
+  "eyeBox": [
+   353,
+   134,
+   407,
+   160
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_inquisitor_apex.webp",
+  "mask": "illust_inquisitor_apex.mask.png"
+ },
+ "illust_inquisitor_abyss": {
+  "w": 896,
+  "h": 1152,
+  "ax": 592,
+  "ay": 1136,
+  "eyeBox": [
+   395,
+   124,
+   443,
+   157
+  ],
+  "marker": {
+   "hair": [
+    255,
+    300
+   ],
+   "eye": [
+    165,
+    200
+   ]
+  },
+  "roles": [
+   "hair",
+   "eye"
+  ],
+  "file": "illust_inquisitor_abyss.webp",
+  "mask": "illust_inquisitor_abyss.mask.png"
+ },
+ "illust_arhat_apex": {
+  "w": 896,
+  "h": 1152,
+  "ax": 458,
+  "ay": 1123,
   "eyeBox": null,
   "marker": {
    "hair": [
@@ -2427,174 +2785,20 @@
   },
   "roles": [
    "hair"
-  ]
- },
- "illust_plaguelord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 294,
-  "ay": 559,
-  "eyeBox": [
-   156,
-   53,
-   208,
-   220
   ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_highpriest_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 231,
-  "ay": 559,
-  "eyeBox": [
-   153,
-   117,
-   163,
-   125
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_highpriest_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 209,
-  "ay": 559,
-  "eyeBox": [
-   205,
-   122,
-   210,
-   127
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_inquisitor_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 165,
-  "ay": 559,
-  "eyeBox": [
-   179,
-   52,
-   208,
-   66
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_inquisitor_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 304,
-  "ay": 559,
-  "eyeBox": [
-   199,
-   52,
-   224,
-   70
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
- },
- "illust_arhat_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 240,
-  "ay": 559,
-  "eyeBox": [
-   250,
-   123,
-   323,
-   136
-  ],
-  "marker": {
-   "hair": [
-    255,
-    300
-   ],
-   "eye": [
-    165,
-    200
-   ]
-  },
-  "roles": [
-   "hair",
-   "eye"
-  ]
+  "file": "illust_arhat_apex.webp",
+  "mask": "illust_arhat_apex.mask.png"
  },
  "illust_arhat_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 317,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 674,
+  "ay": 1132,
   "eyeBox": [
-   158,
-   109,
-   162,
-   113
+   359,
+   231,
+   363,
+   236
   ],
   "marker": {
    "hair": [
@@ -2609,18 +2813,20 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_arhat_abyss.webp",
+  "mask": "illust_arhat_abyss.mask.png"
  },
  "illust_fallenmonk_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 80,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 191,
+  "ay": 1095,
   "eyeBox": [
-   125,
-   62,
-   141,
-   73
+   237,
+   140,
+   388,
+   239
   ],
   "marker": {
    "hair": [
@@ -2635,18 +2841,20 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_fallenmonk_apex.webp",
+  "mask": "illust_fallenmonk_apex.mask.png"
  },
  "illust_fallenmonk_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 276,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 551,
+  "ay": 1131,
   "eyeBox": [
-   197,
-   57,
-   204,
-   64
+   397,
+   140,
+   407,
+   151
   ],
   "marker": {
    "hair": [
@@ -2661,511 +2869,569 @@
   "roles": [
    "hair",
    "eye"
-  ]
+  ],
+  "file": "illust_fallenmonk_abyss.webp",
+  "mask": "illust_fallenmonk_abyss.mask.png"
  },
  "illust_hero_swordgod_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 289,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 557,
+  "ay": 1123,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_swordgod_apex.webp"
  },
  "illust_hero_swordgod_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 242,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 482,
+  "ay": 1126,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_swordgod_abyss.webp"
  },
  "illust_hero_madgeneral_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 252,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 485,
+  "ay": 1134,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_madgeneral_apex.webp"
  },
  "illust_hero_madgeneral_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 266,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 524,
+  "ay": 1107,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_madgeneral_abyss.webp"
  },
  "illust_hero_skysplitter_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 201,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 382,
+  "ay": 1105,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_skysplitter_apex.webp"
  },
  "illust_hero_skysplitter_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 329,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 638,
+  "ay": 1125,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_skysplitter_abyss.webp"
  },
  "illust_hero_bloodfiend_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 263,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 532,
+  "ay": 1105,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bloodfiend_apex.webp"
  },
  "illust_hero_bloodfiend_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 207,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 407,
+  "ay": 1109,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bloodfiend_abyss.webp"
  },
  "illust_hero_gatewarden_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 270,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 528,
+  "ay": 1106,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_gatewarden_apex.webp"
  },
  "illust_hero_gatewarden_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 368,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 689,
+  "ay": 1081,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_gatewarden_abyss.webp"
  },
  "illust_hero_reaper_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 285,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 561,
+  "ay": 1121,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_reaper_apex.webp"
  },
  "illust_hero_reaper_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 319,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 647,
+  "ay": 1127,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_reaper_abyss.webp"
  },
  "illust_hero_dragoonlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 407,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 819,
+  "ay": 1143,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_dragoonlord_apex.webp"
  },
  "illust_hero_dragoonlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 248,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 494,
+  "ay": 1069,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_dragoonlord_abyss.webp"
  },
  "illust_hero_skylancer_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 214,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 412,
+  "ay": 1110,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_skylancer_apex.webp"
  },
  "illust_hero_skylancer_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 246,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 476,
+  "ay": 1084,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_skylancer_abyss.webp"
  },
  "illust_hero_bulwark_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 269,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 524,
+  "ay": 1105,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bulwark_apex.webp"
  },
  "illust_hero_bulwark_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 335,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 648,
+  "ay": 1083,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bulwark_abyss.webp"
  },
  "illust_hero_oathshield_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 347,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 674,
+  "ay": 1123,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_oathshield_apex.webp"
  },
  "illust_hero_oathshield_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 193,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 374,
+  "ay": 1098,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_oathshield_abyss.webp"
  },
  "illust_hero_paladin_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 274,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 534,
+  "ay": 1107,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_paladin_apex.webp"
  },
  "illust_hero_paladin_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 245,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 480,
+  "ay": 1097,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_paladin_abyss.webp"
  },
  "illust_hero_blackknight_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 253,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 494,
+  "ay": 1122,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_blackknight_apex.webp"
  },
  "illust_hero_blackknight_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 166,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 334,
+  "ay": 1118,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_blackknight_abyss.webp"
  },
  "illust_hero_shadowarcher_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 245,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 474,
+  "ay": 1114,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_shadowarcher_apex.webp"
  },
  "illust_hero_shadowarcher_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 265,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 513,
+  "ay": 1108,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_shadowarcher_abyss.webp"
  },
  "illust_hero_masterarcher_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 268,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 524,
+  "ay": 1109,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_masterarcher_apex.webp"
  },
  "illust_hero_masterarcher_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 380,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 741,
+  "ay": 1082,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_masterarcher_abyss.webp"
  },
  "illust_hero_beastlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 211,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 410,
+  "ay": 1135,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_beastlord_apex.webp"
  },
  "illust_hero_beastlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 191,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 358,
+  "ay": 1118,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_beastlord_abyss.webp"
  },
  "illust_hero_spiritranger_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 245,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 480,
+  "ay": 1094,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_spiritranger_apex.webp"
  },
  "illust_hero_spiritranger_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 343,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 681,
+  "ay": 1094,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_spiritranger_abyss.webp"
  },
  "illust_hero_shadowblade_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 401,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 803,
+  "ay": 1116,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_shadowblade_apex.webp"
  },
  "illust_hero_shadowblade_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 241,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 487,
+  "ay": 1127,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_shadowblade_abyss.webp"
  },
  "illust_hero_banditking_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 268,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 527,
+  "ay": 1105,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_banditking_apex.webp"
  },
  "illust_hero_banditking_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 268,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 532,
+  "ay": 1109,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_banditking_abyss.webp"
  },
  "illust_hero_venomfang_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 287,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 559,
+  "ay": 1122,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_venomfang_apex.webp"
  },
  "illust_hero_venomfang_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 261,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 518,
+  "ay": 1106,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_venomfang_abyss.webp"
  },
  "illust_hero_bladedancer_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 279,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 558,
+  "ay": 1122,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bladedancer_apex.webp"
  },
  "illust_hero_bladedancer_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 228,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 453,
+  "ay": 1112,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_bladedancer_abyss.webp"
  },
  "illust_hero_archmage_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 231,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 470,
+  "ay": 1112,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_archmage_apex.webp"
  },
  "illust_hero_archmage_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 246,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 484,
+  "ay": 1132,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_archmage_abyss.webp"
  },
  "illust_hero_lichlord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 341,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 683,
+  "ay": 1131,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_lichlord_apex.webp"
  },
  "illust_hero_lichlord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 341,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 674,
+  "ay": 1093,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_lichlord_abyss.webp"
  },
  "illust_hero_plaguelord_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 216,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 415,
+  "ay": 1126,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_plaguelord_apex.webp"
  },
  "illust_hero_plaguelord_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 160,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 337,
+  "ay": 1077,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_plaguelord_abyss.webp"
  },
  "illust_hero_stormcaller_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 246,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 483,
+  "ay": 1093,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_stormcaller_apex.webp"
  },
  "illust_hero_stormcaller_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 240,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 477,
+  "ay": 1085,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_stormcaller_abyss.webp"
  },
  "illust_hero_arhat_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 362,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 724,
+  "ay": 1126,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_arhat_apex.webp"
  },
  "illust_hero_arhat_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 209,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 418,
+  "ay": 1135,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_arhat_abyss.webp"
  },
  "illust_hero_highpriest_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 319,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 660,
+  "ay": 1141,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_highpriest_apex.webp"
  },
  "illust_hero_highpriest_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 355,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 716,
+  "ay": 1135,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_highpriest_abyss.webp"
  },
  "illust_hero_inquisitor_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 270,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 533,
+  "ay": 1106,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_inquisitor_apex.webp"
  },
  "illust_hero_inquisitor_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 342,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 645,
+  "ay": 1080,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_inquisitor_abyss.webp"
  },
  "illust_hero_fallenmonk_apex": {
-  "w": 448,
-  "h": 560,
-  "ax": 258,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 491,
+  "ay": 1116,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_fallenmonk_apex.webp"
  },
  "illust_hero_fallenmonk_abyss": {
-  "w": 448,
-  "h": 560,
-  "ax": 325,
-  "ay": 559,
+  "w": 896,
+  "h": 1152,
+  "ax": 666,
+  "ay": 1141,
   "eyeBox": null,
   "marker": null,
-  "roles": []
+  "roles": [],
+  "file": "illust_hero_fallenmonk_abyss.webp"
  },
  "illust_hero_swordgod_apex_scene": {
   "w": 880,
@@ -3502,5 +3768,341 @@
   "h": 1184,
   "scene": true,
   "file": "illust_hero_fallenmonk_abyss_scene.webp"
+ },
+ "illust_hero_swordgod_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_swordgod_apex_awk_scene.webp"
+ },
+ "illust_hero_swordgod_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_swordgod_abyss_awk_scene.webp"
+ },
+ "illust_hero_madgeneral_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_madgeneral_apex_awk_scene.webp"
+ },
+ "illust_hero_madgeneral_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_madgeneral_abyss_awk_scene.webp"
+ },
+ "illust_hero_skysplitter_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skysplitter_apex_awk_scene.webp"
+ },
+ "illust_hero_skysplitter_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skysplitter_abyss_awk_scene.webp"
+ },
+ "illust_hero_bloodfiend_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bloodfiend_apex_awk_scene.webp"
+ },
+ "illust_hero_bloodfiend_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bloodfiend_abyss_awk_scene.webp"
+ },
+ "illust_hero_gatewarden_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_gatewarden_apex_awk_scene.webp"
+ },
+ "illust_hero_gatewarden_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_gatewarden_abyss_awk_scene.webp"
+ },
+ "illust_hero_reaper_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_reaper_apex_awk_scene.webp"
+ },
+ "illust_hero_reaper_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_reaper_abyss_awk_scene.webp"
+ },
+ "illust_hero_dragoonlord_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_dragoonlord_apex_awk_scene.webp"
+ },
+ "illust_hero_dragoonlord_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_dragoonlord_abyss_awk_scene.webp"
+ },
+ "illust_hero_skylancer_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skylancer_apex_awk_scene.webp"
+ },
+ "illust_hero_skylancer_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_skylancer_abyss_awk_scene.webp"
+ },
+ "illust_hero_bulwark_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bulwark_apex_awk_scene.webp"
+ },
+ "illust_hero_bulwark_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bulwark_abyss_awk_scene.webp"
+ },
+ "illust_hero_oathshield_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_oathshield_apex_awk_scene.webp"
+ },
+ "illust_hero_oathshield_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_oathshield_abyss_awk_scene.webp"
+ },
+ "illust_hero_paladin_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_paladin_apex_awk_scene.webp"
+ },
+ "illust_hero_paladin_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_paladin_abyss_awk_scene.webp"
+ },
+ "illust_hero_blackknight_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_blackknight_apex_awk_scene.webp"
+ },
+ "illust_hero_blackknight_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_blackknight_abyss_awk_scene.webp"
+ },
+ "illust_hero_shadowarcher_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowarcher_apex_awk_scene.webp"
+ },
+ "illust_hero_shadowarcher_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowarcher_abyss_awk_scene.webp"
+ },
+ "illust_hero_masterarcher_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_masterarcher_apex_awk_scene.webp"
+ },
+ "illust_hero_masterarcher_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_masterarcher_abyss_awk_scene.webp"
+ },
+ "illust_hero_beastlord_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_beastlord_apex_awk_scene.webp"
+ },
+ "illust_hero_beastlord_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_beastlord_abyss_awk_scene.webp"
+ },
+ "illust_hero_spiritranger_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_spiritranger_apex_awk_scene.webp"
+ },
+ "illust_hero_spiritranger_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_spiritranger_abyss_awk_scene.webp"
+ },
+ "illust_hero_shadowblade_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowblade_apex_awk_scene.webp"
+ },
+ "illust_hero_shadowblade_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_shadowblade_abyss_awk_scene.webp"
+ },
+ "illust_hero_banditking_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_banditking_apex_awk_scene.webp"
+ },
+ "illust_hero_banditking_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_banditking_abyss_awk_scene.webp"
+ },
+ "illust_hero_venomfang_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_venomfang_apex_awk_scene.webp"
+ },
+ "illust_hero_venomfang_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_venomfang_abyss_awk_scene.webp"
+ },
+ "illust_hero_bladedancer_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bladedancer_apex_awk_scene.webp"
+ },
+ "illust_hero_bladedancer_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_bladedancer_abyss_awk_scene.webp"
+ },
+ "illust_hero_archmage_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_archmage_apex_awk_scene.webp"
+ },
+ "illust_hero_archmage_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_archmage_abyss_awk_scene.webp"
+ },
+ "illust_hero_lichlord_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_lichlord_apex_awk_scene.webp"
+ },
+ "illust_hero_lichlord_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_lichlord_abyss_awk_scene.webp"
+ },
+ "illust_hero_plaguelord_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_plaguelord_apex_awk_scene.webp"
+ },
+ "illust_hero_plaguelord_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_plaguelord_abyss_awk_scene.webp"
+ },
+ "illust_hero_stormcaller_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_stormcaller_apex_awk_scene.webp"
+ },
+ "illust_hero_stormcaller_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_stormcaller_abyss_awk_scene.webp"
+ },
+ "illust_hero_arhat_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_arhat_apex_awk_scene.webp"
+ },
+ "illust_hero_arhat_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_arhat_abyss_awk_scene.webp"
+ },
+ "illust_hero_highpriest_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_highpriest_apex_awk_scene.webp"
+ },
+ "illust_hero_highpriest_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_highpriest_abyss_awk_scene.webp"
+ },
+ "illust_hero_inquisitor_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_inquisitor_apex_awk_scene.webp"
+ },
+ "illust_hero_inquisitor_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_inquisitor_abyss_awk_scene.webp"
+ },
+ "illust_hero_fallenmonk_apex_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_fallenmonk_apex_awk_scene.webp"
+ },
+ "illust_hero_fallenmonk_abyss_awk_scene": {
+  "w": 880,
+  "h": 1184,
+  "scene": true,
+  "file": "illust_hero_fallenmonk_abyss_awk_scene.webp"
  }
 }

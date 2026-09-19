@@ -9294,7 +9294,7 @@ section('§193 단원 상세 = 전신 일러스트 무대');
       '무대 CSS 가 PC·폰 둘 다 있다');
     ok(/z-index: 85/.test(css.slice(css.indexOf('#co-show {'), css.indexOf('#co-show {') + 400)), '무대 층은 창 층(90) 아래·화면(60) 위다',
       '장착·전직 창이 무대 위에 떠야 한다');
-    /* art/big — 클래스 105 + 영웅 56 전부 448×560 + 메타(manifest.json), 셸에는 없다 */
+    /* art/big — 클래스 105 + 영웅 56 전부 원본 해상도 WebP + 메타(manifest.json) (§193.3), 셸에는 없다. 클래스는 역할 마스크 PNG 도 */
     {
       const { HERO_IDS } = await import('../src/data/heroes.js');
       await import('../src/data/classes_t4.js');
@@ -9304,16 +9304,22 @@ section('§193 단원 상세 = 전신 일러스트 무대');
       const bigMeta = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : {};
       const bad = [];
       for (const nm of names) {
-        const p = join(rootDir, 'art/big', `${nm}.png`);
-        if (!existsSync(p)) { bad.push(`${nm} 없음`); continue; }
-        const b = readFileSync(p);
-        const w = b.readUInt32BE(16); const h = b.readUInt32BE(20);
-        if (w !== 448 || h !== 560) bad.push(`${nm} ${w}x${h}`);
         const e = bigMeta[nm];
-        if (!e || e.w !== 448 || e.h !== 560) bad.push(`${nm} 메타 없음`);
-        else if (!nm.startsWith('illust_hero_') && !(e.roles || []).includes('hair')) bad.push(`${nm} 머리 표식 없음 — 머리색 편차가 안 산다`);
+        if (!e) { bad.push(`${nm} 메타 없음`); continue; }
+        if (!(e.w >= 800 && e.h >= 1000)) bad.push(`${nm} ${e.w}x${e.h} — 원본 해상도가 아니다 (줄이면 뭉개진다, §193.3)`);
+        if (!e.file || !/\.webp$/.test(e.file) || !existsSync(join(rootDir, 'art/big', e.file))) bad.push(`${nm} WebP 없음`);
+        if (nm.startsWith('illust_hero_')) continue;
+        if (!(e.roles || []).includes('hair')) { bad.push(`${nm} 머리 표식 없음 — 머리색 편차가 안 산다`); continue; }
+        const mpth = e.mask ? join(rootDir, 'art/big', e.mask) : '';
+        if (!mpth || !existsSync(mpth)) { bad.push(`${nm} 역할 마스크 없음 — 손실 WebP 를 색으로 가르면 머리 16% 가 어긋난다`); continue; }
+        const mb = readFileSync(mpth);
+        if (mb.readUInt32BE(16) !== e.w || mb.readUInt32BE(20) !== e.h) bad.push(`${nm} 마스크 크기가 그림과 다르다`);
       }
-      okAll(bad, '클래스 105 + 영웅 56 의 무대 그림·메타가 전부 있다 (448×560 · 클래스는 머리 표식)', names.length);
+      okAll(bad, '클래스 105 + 영웅 56 의 무대 그림·메타가 전부 있다 (원본 해상도 WebP · 클래스는 머리 표식·마스크)', names.length);
+      {
+        const olds = readdirSync(join(rootDir, 'art/big')).filter((f) => f.endsWith('.png') && !f.endsWith('.mask.png'));
+        ok(!olds.length, '옛 448×560 PNG 가 남아 있지 않다', olds.slice(0, 4).join(', '));
+      }
       const shell = readFileSync(join(rootDir, 'sw.js'), 'utf8');
       ok(!/art\/big\//.test(shell), '무대 그림은 셸(sw.js)에 안 넣는다', '56장 5.8MB 를 첫 로드에 싣지 않는다 — 열 때만 받고 못 받으면 캔버스로 간다');
       /* §193.2 장면(배경까지 그려진 WebP) — 있는 것은 전부 파일이 있고 크기가 적혀 있다. 클래스 그림은 부드러운 가장자리다 */
@@ -9331,15 +9337,34 @@ section('§193 단원 상세 = 전신 일러스트 무대');
         ok(/_scene/.test(ba) && /e\.scene/.test(ba) && /scene: true/.test(ba), 'bigart 가 장면을 먼저 찾아 <img> 로 준다');
         ok(/#co-show::after \{/.test(css) && /--show-scene/.test(css) && /big\.scene/.test(fn), '무대가 장면을 액자로 세우고 뒤에 흐리게 깐다');
         const bsrc = readFileSync(join(rootDir, 'tools/art/bigart.mjs'), 'utf8');
-        ok(/--alpha=soft/.test(bsrc) && /--colors=192/.test(bsrc), '클래스 무대 그림은 부드러운 가장자리(soft)·192색으로 만든다', '딱 자른 알파는 1.3배만 키워도 계단이 보인다');
-        /* soft 가 실제로 반투명 가장자리를 남기는가 — 알파 히스토그램으로 잰다 (PNG 를 직접 읽는다) */
-        const { decodePng } = await import('./lib/png.mjs').catch(() => ({ decodePng: null }));
-        const p = join(rootDir, 'art/big/illust_swordsman.png');
-        if (decodePng && existsSync(p)) {
-          const png = decodePng(readFileSync(p));
-          let mid = 0, solid = 0;
-          for (let i = 3; i < png.rgba.length; i += 4) { const a = png.rgba[i]; if (a > 12 && a < 243) mid++; else if (a >= 243) solid++; }
-          ok(mid > solid * 0.01, '클래스 무대 그림에 반투명 가장자리가 실제로 있다 (soft 알파)', '반투명 ' + mid + ' / 불투명 ' + solid);
+        ok(/--alpha=soft/.test(bsrc) && /--colors=0/.test(bsrc) && /--fit=none/.test(bsrc), '클래스 무대 그림은 줄이지도 색을 깎지도 않는다 (soft · 원본 해상도)',
+          '448 로 줄이고 192색으로 깎은 것이 «화질이 별로» 의 원인이었다 (§193.3 실측)');
+        ok(/roleMaskOf\(/.test(bsrc) && /growFringe\(/.test(bsrc) && /gen_remark/.test(bsrc), '마스크는 게임의 분류(roleMaskOf)로 굽고, 자홍 원본·가장자리 편입을 쓴다');
+        ok(/roleMask/.test(ba) && /hd: true/.test(ba), 'bigart 가 마스크로 칠하고 연속 음영(hd)을 켠다');
+        /* ★ 마스크·hd 가 실제로 무는지 — 합성 그림으로 게임 함수를 굴린다 */
+        {
+          const IP2 = await import('../src/art/illustpng.js');
+          const { makePalette } = await import('../src/art/palette.js');
+          const { colorTable } = await import('../src/art/pixel.js');
+          /* ★ 흰 머리는 밝은 쪽이 명도 0.96 에서 잘려 hd 여도 단계가 합쳐진다 — 중간 명도(갈색)로 잰다 */
+          const tbl = colorTable(makePalette({ hair: 'brown', eye: 'blue' }));
+          /* 8×1: 머리 표식(보라, 명도 여럿) 6칸 + «옷» 2칸(같은 보라). 마스크는 머리 6칸만 머리로 */
+          const w2 = 8, h2 = 1, data = new Uint8ClampedArray(w2 * 4);
+          /* 머리 6칸 = 명도가 두 무리로 몰린 것 (밴딩이면 무리마다 한 색으로 합쳐지고, hd 면 갈려야 한다). 옷 2칸 = 같은 보라 */
+          const px = [[100, 30, 190], [103, 33, 193], [106, 36, 196], [160, 90, 250], [163, 93, 252], [166, 96, 254], [120, 50, 210], [125, 55, 215]];
+          px.forEach((c, i) => { data[i * 4] = c[0]; data[i * 4 + 1] = c[1]; data[i * 4 + 2] = c[2]; data[i * 4 + 3] = 255; });
+          const roleMask = new Uint8Array([1, 1, 1, 1, 1, 1, 0, 0]);
+          const run = (rec) => { const out = new Uint8ClampedArray(w2 * 4); IP2.recolorInto(out, w2, h2, { w: w2, h: h2, data, roles: ['hair'], ...rec }, 0, tbl); return out; };
+          const withMask = run({ roleMask, hd: true });
+          ok(withMask[6 * 4] === 120 && withMask[7 * 4] === 125, '마스크 밖의 «같은 보라 옷» 은 안 칠한다', JSON.stringify([...withMask.slice(24, 32)]));
+          const noMask = run({ hd: true });
+          ok(noMask[6 * 4] !== 120, '메타 — 마스크 없이는 그 옷이 머리로 칠해진다 (검사가 무는지)');
+          const band = run({ roleMask });
+          const lum = (o, i) => o[i * 4] + o[i * 4 + 1] + o[i * 4 + 2];
+          const distinctHd = new Set([0, 1, 2, 3, 4, 5].map((i) => lum(withMask, i))).size;
+          const distinctBand = new Set([0, 1, 2, 3, 4, 5].map((i) => lum(band, i))).size;
+          ok(distinctHd > distinctBand, 'hd 는 머리 음영을 끊지 않는다 (밴딩보다 단계가 많다)', `hd ${distinctHd} · 밴딩 ${distinctBand}`);
+          ok(typeof IP2.roleMaskOf === 'function', 'roleMaskOf 가 export 된다 (도구가 게임의 분류로 마스크를 굽는다)');
         }
       }
     }
